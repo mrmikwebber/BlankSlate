@@ -11,7 +11,7 @@ export default function Navbar() {
   return (
     <div>
       <nav className="block w-full px-4 py-4 mx-auto bg-white bg-opacity-90 sticky top-3 shadow lg:px-8 backdrop-blur-lg backdrop-saturate-150 z-[9999]">
-        <div className="container flex flex-wrap items-center justify-between text-slate-800">
+        <div className="flex flex-wrap items-center justify-between w-full text-slate-800">
           <Link
             href="/"
             className="mr-4 block cursor-pointer py-1.5 text-teal-600 font-bold text-2xl"
