@@ -8,7 +8,7 @@ const Sidebar = () => {
   return (
       <div
         className={
-          "bg-teal-600 text-white h-screen transition-all duration-300 z-10 w-64"
+          "bg-teal-600 text-white transition-all duration-300 z-10 w-64"
         }
       >
         <div className="flex flex-col ms-2 me-2">
