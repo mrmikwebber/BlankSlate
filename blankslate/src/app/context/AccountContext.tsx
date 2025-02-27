@@ -1,11 +1,20 @@
 "use client"
 import { createContext, useContext, useState } from "react";
 
+interface Transaction {
+  id: number;
+  date: Date;
+  payee: string;
+  category: string;
+  outflow: boolean;
+}
+
 // Define the structure of the account data
 interface Account {
   id: number;
   name: string;
   balance: number;
+  transactions: Transaction[];
   issuer: "amex" | "visa" | "mastercard" | "discover";
   type: "credit" | "debit";
 }
@@ -31,10 +40,10 @@ export const useAccountContext = () => {
 // Provider component
 export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [accounts, setAccounts] = useState<Account[]>([
-    { id: 1, name: "OneAz", issuer: "visa", balance: 2350, type: "debit" },
-    { id: 2, name: "Gold Card", issuer: "amex", balance: -2000, type: "credit" },
-    { id: 3, name: "Bilt", issuer: "mastercard", balance: -500, type: "credit" },
-    { id: 4, name: "Amex HYSA", issuer: "amex", balance: 1100, type: "debit" },
+    { id: 1, name: "OneAz", issuer: "visa", balance: 2350, type: "debit", transactions: [] },
+    { id: 2, name: "Gold Card", issuer: "amex", balance: -2000, type: "credit", transactions: []  },
+    { id: 3, name: "Bilt", issuer: "mastercard", balance: -500, type: "credit", transactions: []  },
+    { id: 4, name: "Amex HYSA", issuer: "amex", balance: 1100, type: "debit", transactions: []  },
   ]);
 
   const updateBalance = (id: number, newBalance: number) => {
