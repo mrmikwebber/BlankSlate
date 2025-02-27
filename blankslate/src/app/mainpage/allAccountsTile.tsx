@@ -1,22 +1,29 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
+import { createContext, useContext, useState } from "react";
 import AccountTile from "./accountTile";
+import { useAccountContext } from "../context/AccountContext";
 
 export default function AllAccountsTile() {
+  const { accounts } = useAccountContext();
 
   return (
     <div className="flex flex-col bg-zinc-100 rounded-md p-2">
       <div>
         <h1>Accounts</h1>
       </div>
+      <h2>Cash</h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-1 m-2">
-        <AccountTile cardIssuer='amex' accountName='Gold Card' cardBalance='2356'/>
-        <AccountTile cardIssuer='visa' accountName='OneAZ Card' cardBalance='2553'/>
-        <AccountTile cardIssuer='mastercard' accountName='Bilt Mastercard' cardBalance='1210'/>
-        <AccountTile cardIssuer='discover' accountName='Journey Card' cardBalance='8634'/>
+      {accounts.map((account) => (
+        account.type === 'debit' && <AccountTile cardIssuer={account.issuer} accountName={account.name} cardBalance={account.balance} isCredit={false}/>
+      ))}
       </div>
-
+      <h2>Credit</h2>
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-1 m-2">
+      {accounts.map((account) => (
+        account.type === 'credit' && <AccountTile cardIssuer={account.issuer} accountName={account.name} cardBalance={account.balance} isCredit={true}/>
+      ))}
+      </div>
     </div>
   );
 }
