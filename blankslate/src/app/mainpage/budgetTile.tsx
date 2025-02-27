@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, Fragment } from "react";
+import { useState, useEffect, useMemo, Fragment } from "react";
 import { formatToUSD } from "../utils/formatToUSD";
 import { useAccountContext } from "../context/AccountContext";
 import AddCategoryButton from "./AddCategoryButton";
@@ -10,6 +10,9 @@ export default function CollapsibleTable() {
   const [addCategoryOpen, setAddCategoryOpen] = useState(false);
   const [readyToAssign, setReadyToAssign] = useState(0);
   const [newCategoryName, setNewCategoryName] = useState("");
+  const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
+  const [newItem, setNewItem] = useState({ name: "", assigned: 0, activity: 0, available: 0 });
+  const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [data, setData] = useState([
     {
       category: "Bills",
@@ -43,16 +46,17 @@ export default function CollapsibleTable() {
     setReadyToAssign(totalDebitFunds);
   }, [accounts]);
 
-  useEffect(() => {
-    const updatedData = data.map((category) => ({
+  const computedData = useMemo(() => 
+    data.map((category) => ({
       ...category,
       items: category.items.map((item) => ({
         ...item,
-        available: item.assigned + item.activity, // Calculate available dynamically
+        available: item.assigned + item.activity,
       })),
-    }));
-    setData(updatedData);
-  }, [data]);
+    })),
+    [data]
+  );
+  
 
   const [openCategories, setOpenCategories] = useState(
     data.reduce((acc, category) => {
@@ -85,6 +89,27 @@ export default function CollapsibleTable() {
     setData(newData); // Update state
   };
 
+  const addItemToCategory = (categoryName: string, newItem: { name: string; assigned: number; activity: number, available: number }) => {
+    setData((prev) =>
+      prev.map((cat) =>
+        cat.category === categoryName ? { ...cat, items: [...cat.items, newItem] } : cat
+      )
+    );
+  };
+
+  const handleAddItem = (category: string) => {
+    if (newItem.name.trim() !== "") {
+      addItemToCategory(category, { 
+        name: newItem.name, 
+        assigned: newItem.assigned, 
+        activity: newItem.activity,
+        available: newItem.assigned + newItem.activity
+      });
+      setNewItem({ name: "", assigned: 0, activity: 0, available: 0 });
+      setActiveCategory(null); // Hide the form after adding
+    }
+  };
+
 
   return (
     <div className="mx-auto mt-8 rounded-md">
@@ -102,19 +127,28 @@ export default function CollapsibleTable() {
           </tr>
         </thead>
         <tbody>
-          {data.map((group, categoryIndex) => (
+          {computedData.map((group, categoryIndex) => (
             <Fragment key={group.category}>
               {/* Collapsible Category Header (Expands Full Width) */}
               <tr
-                className="cursor-pointer bg-gray-400 text-white"
-                onClick={() => toggleCategory(group.category)}
+                className="bg-gray-400 text-white"
+                onMouseEnter={() => setHoveredCategory(group.category)}
+                onMouseLeave={() => setHoveredCategory(null)}
               >
                 <td colSpan={0} className="p-3 font-bold text-lg w-full">
                   <div className="flex items-center">
-                    <span className="mr-2">
+                    <button onClick={() => toggleCategory(group.category)} className="mr-2">
                       {openCategories[group.category] ? "▼" : "▶"}
-                    </span>
+                    </button>
                     {group.category}
+                    {hoveredCategory === group.category && (
+                  <button
+                    onClick={() => setActiveCategory(group.category)}
+                    className="ms-2 text-sm bg-blue-500 text-white px-2 py-1 rounded-full hover:bg-teal-500 transition"
+                  >
+                    +
+                  </button>
+                )}
                   </div>
                 </td>
                 <td className="p-2 border">
@@ -133,6 +167,25 @@ export default function CollapsibleTable() {
                   )}
                 </td>
               </tr>
+
+              {/* Input Form for Adding Items */}
+            {activeCategory === group.category && (
+              <div className="absolute left-0 mt-2 w-64 bg-white p-4 shadow-lg rounded-lg border z-50">
+                  <input
+                    type="text"
+                    placeholder="Item Name"
+                    value={newItem.name}
+                    onChange={(e) => setNewItem({ ...newItem, name: e.target.value })}
+                    className="w-full border rounded px-2 py-1"
+                  />
+                  <button
+                    onClick={() => handleAddItem(group.category)}
+                    className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-500 transition"
+                  >
+                    Submit
+                  </button>
+              </div>
+            )}
 
               {/* Food Items (Collapsible) */}
               {openCategories[group.category] &&
