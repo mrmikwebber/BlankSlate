@@ -3,7 +3,7 @@ import { useState, useEffect, useMemo, Fragment } from "react";
 import { formatToUSD } from "../utils/formatToUSD";
 import { useAccountContext } from "../context/AccountContext";
 import AddCategoryButton from "./AddCategoryButton";
-import { useTableContext } from "../context/TableDataContext";
+import { CategoryCreditCardData, useTableContext } from "../context/TableDataContext";
 
 export default function CollapsibleTable() {
   const { accounts } = useAccountContext();
@@ -44,8 +44,6 @@ export default function CollapsibleTable() {
     })),
     [data]
   );
-  
-  console.log(computedData);
 
   const [openCategories, setOpenCategories] = useState(
     data.reduce((acc, category) => {
@@ -94,10 +92,18 @@ export default function CollapsibleTable() {
         acc[tx.categoryGroup] += tx.balance;
         return acc;
       }, {} as Record<string, number>);
+    const readyToAssignBalance = accounts
+    .flatMap(account => account.transactions)
+    .reduce((sum, tx) => tx.category === 'Ready to Assign' ? sum + tx.balance : sum, 0);
+
+    const currentlyAssigned = data.reduce((sum, category) => {
+      return (
+        sum +
+        category.categoryItems.reduce((itemSum, item) => itemSum + item.assigned, 0)
+      );
+    }, 0);
 
     const creditCardAccounts = accounts.filter(account => account.type === "credit");
-
-    console.log(creditCardAccounts);
 
       // Aggregate transactions by credit card
     const creditCardItems = creditCardAccounts.map(account => ({
@@ -122,8 +128,9 @@ export default function CollapsibleTable() {
       };
     });
     setData(updatedData);
+    setAssignableMoney(readyToAssignBalance);
+    setReadyToAssign(readyToAssignBalance - currentlyAssigned);
   }, [accounts]); // Runs whenever `accounts` change
-
 
   return (
     <div className="mx-auto mt-8 rounded-md">
@@ -177,7 +184,7 @@ export default function CollapsibleTable() {
                 </td>
                 <td className="p-2 border">
                   {group.name === 'Credit Card Payments' ? 'Payment - ' + formatToUSD(
-                    group.categoryItems.reduce((sum, item) => sum + item.available, 0)
+                    (group.categoryItems as CategoryCreditCardData[]).reduce((sum, item) => sum + item.payment, 0)
                   ) : formatToUSD(
                     group.categoryItems.reduce((sum, item) => sum + item.available, 0)
                   )}
@@ -219,7 +226,7 @@ export default function CollapsibleTable() {
                         className="w-full p-1 border border-gray-300 rounded"
                       />
                     </td>
-                    <td className="p-2 border">{formatToUSD(categoryGroupBalances[item.name] || 0)}</td>
+                    <td className="p-2 border">{formatToUSD(item.activity)}</td>
                     <td className="p-2 border">
                       {formatToUSD(item.available)}
                     </td>
