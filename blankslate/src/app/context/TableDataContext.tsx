@@ -8,9 +8,17 @@ interface CategoryData {
   available: number;
 }
 
+export interface CategoryCreditCardData extends CategoryData {
+  payment: number;
+}
+
 interface CategoryGroupData {
   name: string;
   categoryItems: CategoryData[];
+}
+
+interface CreditCardCategoryGroupData extends CategoryGroupData {
+  categoryItems: CategoryCreditCardData[]; // Ensure this expects credit card-specific data
 }
 
 interface TableData {
@@ -52,7 +60,7 @@ export const TableProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     { name: "Student Loans", assigned: 0, activity: 0, available: 0 },
   ];
 
-  const creditCardsCategoryGroup: CategoryGroupData = {
+  const creditCardsCategoryGroup: CreditCardCategoryGroupData = {
     name: "Credit Card Payments",
     categoryItems: [],
   }
