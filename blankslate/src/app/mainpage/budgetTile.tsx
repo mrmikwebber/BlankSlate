@@ -7,44 +7,60 @@ import AddCategoryButton from "./AddCategoryButton";
 export default function CollapsibleTable() {
   const { accounts } = useAccountContext();
   const [assignableMoney, setAssignableMoney] = useState(0);
+  const [activeAccounts, setActiveAccounts] = useState(accounts);
   const [addCategoryOpen, setAddCategoryOpen] = useState(false);
   const [readyToAssign, setReadyToAssign] = useState(0);
   const [newCategoryName, setNewCategoryName] = useState("");
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
+  const [categoryGroupBalances, setCategoryGroupBalances] = useState([]);
   const [newItem, setNewItem] = useState({ name: "", assigned: 0, activity: 0, available: 0 });
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [data, setData] = useState([
     {
+      category: "Credit Card Payments",
+      items: [],
+    },
+    {
       category: "Bills",
       items: [
-        { name: "Rent", assigned: 0, activity: -1817.11 },
-        { name: "Electricity", assigned: 0, activity: -56.92 },
-        { name: "Car Payment", assigned: 0, activity: 0 },
-        { name: "Renters Insurance", assigned: 0, activity: 0 },
-        { name: "Internet", assigned: 0, activity: -69.99 },
+        { name: "Rent", assigned: 0, activity: 0},
+        { name: "Electricity", assigned: 0, activity: 0 },
+        { name: "Car Loan", assigned: 0, activity: 0 },
+        { name: "Water Bill", assigned: 0, activity: 0 },
+        { name: "Internet", assigned: 0, activity: 0 },
         { name: "Student Loans", assigned: 0, activity: 0 },
       ],
     },
     {
       category: "Subscriptions",
       items: [
-        { name: "Max Bundle", assigned: 0, activity: -32.57 },
-        { name: "Game Pass", assigned: 0, activity: -21.39 },
-        { name: "Prime", assigned: 0, activity: -22.79 },
-        { name: "Spotify", assigned: 0, activity: -13.02 },
-        { name: "Amex Gold", assigned: 0, activity: 0 },
-        { name: "Google Subscription", assigned: 0, activity: -3.16 },
+        { name: "Max Bundle", assigned: 0, activity: 0 },
+        { name: "Adobe CC", assigned: 0, activity: 0 },
+        { name: "Prime", assigned: 0, activity: 0 },
+        { name: "Spotify", assigned: 0, activity: 0 },
+        { name: "Netflix", assigned: 0, activity: 0 },
+        { name: "YT Premium", assigned: 0, activity: 0 },
       ],
     },
   ]);
 
+  const computedAccounts = useMemo(() =>
+    activeAccounts.map(account => (
+      {
+        ...account,
+        balance: account.transactions.reduce((sum, tx) => sum + tx.balance, 0)
+      }
+    ))
+  , [activeAccounts]);
+
   useEffect(() => {
-    const totalDebitFunds = accounts
+    const totalDebitFunds = computedAccounts
       .filter((acc) => acc.type === "debit")
       .reduce((sum, acc) => sum + acc.balance, 0);
+    console.log('totalFunds', totalDebitFunds);
     setAssignableMoney(totalDebitFunds);
     setReadyToAssign(totalDebitFunds);
-  }, [accounts]);
+  }, [computedAccounts]);
 
   const computedData = useMemo(() => 
     data.map((category) => ({
@@ -110,6 +126,46 @@ export default function CollapsibleTable() {
     }
   };
 
+  useEffect(() => {
+    // Aggregate transactions by category group
+    const categoryGroupBalances = accounts.flatMap(account => account.transactions)
+      .reduce((acc, tx) => {
+        if (!acc[tx.categoryGroup]) {
+          acc[tx.categoryGroup] = 0;
+        }
+        acc[tx.categoryGroup] += tx.balance;
+        return acc;
+      }, {} as Record<string, number>);
+
+    const creditCardAccounts = accounts.filter(account => account.type === "credit");
+
+    console.log(creditCardAccounts);
+
+      // Aggregate transactions by credit card
+    const creditCardItems = creditCardAccounts.map(account => ({
+      name: account.name,
+      assigned: 0,
+      activity: -1 * account.transactions.reduce((sum, tx) => sum + tx.balance, 0), // Total spending on card
+      payment: Math.abs(account.balance), // Payment needed to cover balance
+    }));
+  
+    // Update data with new activity values
+    const updatedData = data.map(category => {
+      if (category.category === "Credit Card Payments") {
+        return { ...category, items: creditCardItems }; // Replace items with credit cards
+      }
+  
+      return {
+        ...category,
+        items: category.items.map(item => ({
+          ...item,
+          activity: categoryGroupBalances[item.name] || 0, // Update activity dynamically
+        })),
+      };
+    });
+    setData(updatedData);
+  }, [accounts]); // Runs whenever `accounts` change
+
 
   return (
     <div className="mx-auto mt-8 rounded-md">
@@ -162,7 +218,9 @@ export default function CollapsibleTable() {
                   )}
                 </td>
                 <td className="p-2 border">
-                  {formatToUSD(
+                  {group.category === 'Credit Card Payments' ? 'Payment - ' + formatToUSD(
+                    group.items.reduce((sum, item) => sum + item.available, 0)
+                  ) : formatToUSD(
                     group.items.reduce((sum, item) => sum + item.available, 0)
                   )}
                 </td>
@@ -186,8 +244,6 @@ export default function CollapsibleTable() {
                   </button>
               </div>
             )}
-
-              {/* Food Items (Collapsible) */}
               {openCategories[group.category] &&
                 group.items.map((item, itemIndex) => (
                   <tr key={itemIndex} className="border-t">
@@ -206,7 +262,7 @@ export default function CollapsibleTable() {
                         className="w-full p-1 border border-gray-300 rounded"
                       />
                     </td>
-                    <td className="p-2 border">{formatToUSD(item.activity)}</td>
+                    <td className="p-2 border">{formatToUSD(categoryGroupBalances[item.name] || 0)}</td>
                     <td className="p-2 border">
                       {formatToUSD(item.available)}
                     </td>
