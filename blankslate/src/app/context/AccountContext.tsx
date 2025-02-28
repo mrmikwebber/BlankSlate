@@ -24,6 +24,7 @@ interface Account {
 // Define context type
 interface AccountContextType {
   accounts: Account[];
+  addTransaction: (accountId, transaction) => void;
   updateBalance: (id: number, newBalance: number) => void;
 }
 
@@ -43,7 +44,7 @@ export const useAccountContext = () => {
 export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   const oneAZTransactions: Transaction[] = [
-    { id: 1, date: new Date('2025-02-18'), payee: 'Water Utility', category: 'Bills', categoryGroup: 'Water Bill', outflow: true, balance: -75.46 },
+    { id: 1, date: new Date('2025-02-18'), payee: 'Water Utility', category: 'Bills', categoryGroup: 'Water Utility', outflow: true, balance: -75.46 },
     { id: 2, date: new Date('2025-02-22'), payee: 'Spotify', category: 'Subscriptions', categoryGroup: 'Spotify', outflow: true, balance: -10.99 },
     { id: 3, date: new Date('2025-02-21'), payee: 'Netflix', category: 'Subscriptions', categoryGroup: 'Netflix',  outflow: true, balance: -14.99 },
   ];
@@ -78,8 +79,18 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
     );
   };
 
+  const addTransaction = (accountId, transaction) => {
+    setAccounts((prevAccounts) =>
+      prevAccounts.map((acc) =>
+        acc.id === accountId
+          ? { ...acc, transactions: [...acc.transactions, transaction] }
+          : acc
+      )
+    );
+  };
+
   return (
-    <AccountContext.Provider value={{ accounts, updateBalance }}>
+    <AccountContext.Provider value={{ accounts, updateBalance, addTransaction }}>
       {children}
     </AccountContext.Provider>
   );
