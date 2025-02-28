@@ -1,16 +1,19 @@
 "use client";
 import Link from "next/link";
+import { redirect } from 'next/navigation'
 import { useState, useEffect } from "react";
 
 export default function AccountTile(props) {
   const [isCredit, setIsCredit] = useState(false);
   const [cardIssuer, setCardIssuer] = useState("");
+  const [accountId, setAccountId] = useState();
   const [accountName, setAccountName] = useState("");
   const [cardBalance, setCardBalance] = useState("");
 
   useEffect(() => {
     setIsCredit(props.isCredit);
     setCardIssuer(props.cardIssuer);
+    setAccountId(props.accountId)
     setAccountName(props.accountName);
     const num = props.cardBalance;
     const newBal = new Intl.NumberFormat("en-US", {
@@ -20,8 +23,13 @@ export default function AccountTile(props) {
     setCardBalance(newBal);
   }, []);
 
+  const openAccount = (accountId) => {
+    redirect(`/accounts/${accountId}`)
+  }
+
   return (
     <div
+      onClick={() => openAccount(accountId)}
       className={`w-40 h-48 ${cardIssuer == "amex" && "bg-blue-400"} ${
         cardIssuer == "visa" && "bg-cyan-400"
       } ${cardIssuer == "discover" && "bg-orange-300"} ${

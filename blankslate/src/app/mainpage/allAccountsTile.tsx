@@ -25,13 +25,13 @@ export default function AllAccountsTile() {
       <h2>Cash</h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-1 m-2">
       {computedAccounts.map((account) => (
-        account.type === 'debit' && <AccountTile cardIssuer={account.issuer} accountName={account.name} cardBalance={account.balance} isCredit={false}/>
+        account.type === 'debit' && <AccountTile accountId={account.id} cardIssuer={account.issuer} accountName={account.name} cardBalance={account.balance} isCredit={false}/>
       ))}
       </div>
       <h2>Credit</h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-1 m-2">
       {computedAccounts.map((account) => (
-        account.type === 'credit' && <AccountTile cardIssuer={account.issuer} accountName={account.name} cardBalance={account.balance} isCredit={true}/>
+        account.type === 'credit' && <AccountTile accountId={account.id} cardIssuer={account.issuer} accountName={account.name} cardBalance={account.balance} isCredit={true}/>
       ))}
       </div>
     </div>

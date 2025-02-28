@@ -1,9 +1,14 @@
 "use client";
 
+import { redirect } from "next/navigation";
 import React, { useState } from "react";
 
 const Sidebar = () => {
   const [isOpen, setIsOpen] = useState(false);
+
+  const openDashboard = () => {
+    redirect(`/`);
+  }
 
   return (
       <div
@@ -14,6 +19,7 @@ const Sidebar = () => {
         <div className="flex flex-col ms-2 me-2">
           <div className="mt-4">
             <button
+              onClick={() => openDashboard()}
               type="button"
               className="text-white bg-teal-600 hover:bg-teal-500 w-full focus:bg-teal-500 focus:outline-none font-medium rounded-lg text-sm px-5 py-2.5 text-center inline-flex items-center dark:focus:ring-[#3b5998]/55 me-2 mb-2"
             >
@@ -27,22 +33,6 @@ const Sidebar = () => {
                     d="M520-600v-240h320v240zM120-440v-400h320v400zm400 320v-400h320v400zm-400 0v-240h320v240zm80-400h160v-240H200zm400 320h160v-240H600zm0-480h160v-80H600zM200-200h160v-80H200zm160-80"/>
               </svg>
               Dashboard
-            </button>
-          </div>
-          <div className="mt-2">
-            <button
-              type="button"
-              className="text-white bg-teal-600 hover:bg-teal-500 focus:bg-teal-500 w-full focus:outline-none font-medium rounded-lg text-sm px-5 py-2.5 text-center inline-flex items-center dark:focus:ring-[#3b5998]/55 me-2 mb-2"
-            >
-              <svg 
-                className="me-2 fill-white"
-                xmlns="http://www.w3.org/2000/svg" 
-                width="24" 
-                height="24" 
-                viewBox="0 -960 960 960">
-                  <path d="M200-200v-560zm0 80q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h560q33 0 56.5 23.5T840-760v100h-80v-100H200v560h560v-100h80v100q0 33-23.5 56.5T760-120zm320-160q-33 0-56.5-23.5T440-360v-240q0-33 23.5-56.5T520-680h280q33 0 56.5 23.5T880-600v240q0 33-23.5 56.5T800-280zm280-80v-240H520v240zm-160-60q25 0 42.5-17.5T700-480t-17.5-42.5T640-540t-42.5 17.5T580-480t17.5 42.5T640-420"/>
-              </svg>
-              Accounts
             </button>
           </div>
           <div className="mt-2">
