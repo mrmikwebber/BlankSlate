@@ -44,6 +44,7 @@ export const useAccountContext = () => {
 export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   const oneAZTransactions: Transaction[] = [
+    { id: 10, date: new Date('2025-02-18'), payee: 'American Express Payroll', category: 'Ready to Assign', categoryGroup: 'Ready to Assign', outflow: false, balance: 2586.23 },
     { id: 1, date: new Date('2025-02-18'), payee: 'Water Utility', category: 'Bills', categoryGroup: 'Water Utility', outflow: true, balance: -75.46 },
     { id: 2, date: new Date('2025-02-22'), payee: 'Spotify', category: 'Subscriptions', categoryGroup: 'Spotify', outflow: true, balance: -10.99 },
     { id: 3, date: new Date('2025-02-21'), payee: 'Netflix', category: 'Subscriptions', categoryGroup: 'Netflix',  outflow: true, balance: -14.99 },
