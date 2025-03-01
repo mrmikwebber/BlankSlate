@@ -25,8 +25,8 @@ export default function AccountDetails() {
 
   const handleAddTransaction = () => {
     const amount = newTransaction.outflow
-      ? -Math.abs(newTransaction.balance) // Ensure negative value for outflows
-      : Math.abs(newTransaction.balance); // Ensure positive value for inflows
+      ? -Math.abs(newTransaction.balance)
+      : Math.abs(newTransaction.balance)
 
     addTransaction(account.id, {
       id: Date.now(),
@@ -41,7 +41,7 @@ export default function AccountDetails() {
       outflow: false,
       balance: 0,
     });
-    setShowForm(false); // Hide form after submission
+    setShowForm(false);
   };
 
   return (

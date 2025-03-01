@@ -18,7 +18,7 @@ interface CategoryGroupData {
 }
 
 interface CreditCardCategoryGroupData extends CategoryGroupData {
-  categoryItems: CategoryCreditCardData[]; // Ensure this expects credit card-specific data
+  categoryItems: CategoryCreditCardData[];
 }
 
 interface TableData {
@@ -27,10 +27,8 @@ interface TableData {
   addItemToCategory: (categoryName: string, newItem: { name: string; assigned: number; activity: number, available: number }) => void;
 }
 
-// Create context with default values
 const TableContext = createContext<TableData | undefined>(undefined);
 
-// Custom hook for using the context
 export const useTableContext = () => {
   const context = useContext(TableContext);
   if (!context) {
@@ -39,7 +37,6 @@ export const useTableContext = () => {
   return context;
 };
 
-// Provider component
 export const TableProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   const subscriptionCategoryItems: CategoryData[] = [

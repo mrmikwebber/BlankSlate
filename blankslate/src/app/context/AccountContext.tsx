@@ -11,7 +11,6 @@ interface Transaction {
   outflow: boolean;
 }
 
-// Define the structure of the account data
 interface Account {
   id: number;
   name: string;
@@ -21,17 +20,14 @@ interface Account {
   type: "credit" | "debit";
 }
 
-// Define context type
 interface AccountContextType {
   accounts: Account[];
   addTransaction: (accountId, transaction) => void;
   updateBalance: (id: number, newBalance: number) => void;
 }
 
-// Create context with default values
 const AccountContext = createContext<AccountContextType | undefined>(undefined);
 
-// Custom hook for using the context
 export const useAccountContext = () => {
   const context = useContext(AccountContext);
   if (!context) {
@@ -40,7 +36,6 @@ export const useAccountContext = () => {
   return context;
 };
 
-// Provider component
 export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   const oneAZTransactions: Transaction[] = [
@@ -51,7 +46,6 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
   ];
 
   const amexCheckingTransactions: Transaction[] = [
-    // Bills
     { id: 4, date: new Date('2025-02-20'), payee: 'Electric Company', category: 'Bills', categoryGroup: 'Electricity', outflow: true, balance: -45.65 },
     { id: 5, date: new Date('2025-02-10'), payee: 'Car Loan Payment', category: 'Bills', categoryGroup: 'Car Loan', outflow: true, balance: -505 },
   ];
@@ -62,7 +56,6 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
   ];
 
   const biltTransactions: Transaction[] = [
-    // Bills
     { id: 8, date: new Date('2025-02-05'), payee: 'Rent Payment', category: 'Bills', categoryGroup: 'Rent', outflow: true, balance: -1864.12 },
     { id: 9, date: new Date('2025-02-12'), payee: 'Adobe Creative Cloud', category: 'Subscriptions', categoryGroup: 'Adobe CC', outflow: true, balance: -21.16 },
   ];

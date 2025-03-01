@@ -47,7 +47,7 @@ export default function CollapsibleTable() {
 
   const [openCategories, setOpenCategories] = useState(
     data.reduce((acc, category) => {
-      acc[category.name] = true; // Default: All categories expanded
+      acc[category.name] = true;
       return acc;
     }, {} as Record<string, boolean>)
   );
@@ -57,7 +57,7 @@ export default function CollapsibleTable() {
   };
 
   const handleInputChange = (categoryIndex, itemIndex, value) => {
-    const newData = [...data]; // Copy state
+    const newData = [...data];
     newData[categoryIndex].categoryItems[itemIndex].assigned = parseFloat(value) || 0; // Update assigned
     const currentlyAssigned = data.reduce((sum, category) => {
       return (
@@ -66,7 +66,7 @@ export default function CollapsibleTable() {
       );
     }, 0);
     setReadyToAssign(assignableMoney - currentlyAssigned);
-    setData(newData); // Update state
+    setData(newData);
   };
 
   const handleAddItem = (category: string) => {
@@ -78,12 +78,11 @@ export default function CollapsibleTable() {
         available: newItem.assigned + newItem.activity
       });
       setNewItem({ name: "", assigned: 0, activity: 0, available: 0 });
-      setActiveCategory(null); // Hide the form after adding
+      setActiveCategory(null);
     }
   };
 
   useEffect(() => {
-    // Aggregate transactions by category group
     const categoryGroupBalances = accounts.flatMap(account => account.transactions)
       .reduce((acc, tx) => {
         if (!acc[tx.categoryGroup]) {
@@ -105,15 +104,13 @@ export default function CollapsibleTable() {
 
     const creditCardAccounts = accounts.filter(account => account.type === "credit");
 
-      // Aggregate transactions by credit card
     const creditCardItems = creditCardAccounts.map(account => ({
       name: account.name,
       assigned: 0,
-      activity: -1 * account.transactions.reduce((sum, tx) => sum + tx.balance, 0), // Total spending on card
-      payment: Math.abs(account.balance), // Payment needed to cover balance
+      activity: -1 * account.transactions.reduce((sum, tx) => sum + tx.balance, 0),
+      payment: Math.abs(account.balance),
     }));
   
-    // Update data with new activity values
     const updatedData = data.map(category => {
       if (category.name === "Credit Card Payments") {
         return { ...category, categoryItems: creditCardItems };
@@ -123,14 +120,14 @@ export default function CollapsibleTable() {
         ...category,
         categoryItems: category.categoryItems.map(item => ({
           ...item,
-          activity: categoryGroupBalances[item.name] || 0, // Update activity dynamically
+          activity: categoryGroupBalances[item.name] || 0, 
         })),
       };
     });
     setData(updatedData);
     setAssignableMoney(readyToAssignBalance);
     setReadyToAssign(readyToAssignBalance - currentlyAssigned);
-  }, [accounts]); // Runs whenever `accounts` change
+  }, [accounts]); 
 
   return (
     <div className="mx-auto mt-8 rounded-md">
@@ -150,7 +147,6 @@ export default function CollapsibleTable() {
         <tbody>
           {computedData.map((group, categoryIndex) => (
             <Fragment key={group.name}>
-              {/* Collapsible Category Header (Expands Full Width) */}
               <tr
                 className="bg-gray-400 text-white"
                 onMouseEnter={() => setHoveredCategory(group.name)}

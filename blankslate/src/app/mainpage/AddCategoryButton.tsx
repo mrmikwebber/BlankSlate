@@ -7,8 +7,8 @@ const AddCategoryButton = ({ handleSubmit }: { handleSubmit: (categoryName: stri
   const onSubmit = () => {
     if (categoryName.trim() !== "") {
       handleSubmit(categoryName);
-      setCategoryName(""); // Clear input after submission
-      setIsOpen(false); // Close the box after submitting
+      setCategoryName(""); 
+      setIsOpen(false); 
     }
   };
 
