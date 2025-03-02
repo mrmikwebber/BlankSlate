@@ -3,7 +3,12 @@ import { useState, useEffect, useMemo, Fragment } from "react";
 import { formatToUSD } from "../utils/formatToUSD";
 import { useAccountContext } from "../context/AccountContext";
 import AddCategoryButton from "./AddCategoryButton";
-import { CategoryCreditCardData, useTableContext } from "../context/TableDataContext";
+import EditableAssigned from "./EditableAssigned";
+import {
+  CategoryCreditCardData,
+  useTableContext,
+} from "../context/TableDataContext";
+
 
 export default function CollapsibleTable() {
   const { accounts } = useAccountContext();
@@ -12,19 +17,23 @@ export default function CollapsibleTable() {
   const [activeAccounts, setActiveAccounts] = useState(accounts);
   const [readyToAssign, setReadyToAssign] = useState(0);
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
-  const [categoryGroupBalances, setCategoryGroupBalances] = useState([]);
-  const [newItem, setNewItem] = useState({ name: "", assigned: 0, activity: 0, available: 0 });
+  const [newItem, setNewItem] = useState({
+    name: "",
+    assigned: 0,
+    activity: 0,
+    available: 0,
+  });
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [data, setData] = useState(categories);
 
-  const computedAccounts = useMemo(() =>
-    activeAccounts.map(account => (
-      {
+  const computedAccounts = useMemo(
+    () =>
+      activeAccounts.map((account) => ({
         ...account,
-        balance: account.transactions.reduce((sum, tx) => sum + tx.balance, 0)
-      }
-    ))
-  , [activeAccounts]);
+        balance: account.transactions.reduce((sum, tx) => sum + tx.balance, 0),
+      })),
+    [activeAccounts]
+  );
 
   useEffect(() => {
     const totalDebitFunds = computedAccounts
@@ -34,14 +43,15 @@ export default function CollapsibleTable() {
     setReadyToAssign(totalDebitFunds);
   }, [computedAccounts]);
 
-  const computedData = useMemo(() => 
-    data.map((category) => ({
-      ...category,
-      categoryItems: category.categoryItems.map((item) => ({
-        ...item,
-        available: item.assigned + item.activity,
+  const computedData = useMemo(
+    () =>
+      data.map((category) => ({
+        ...category,
+        categoryItems: category.categoryItems.map((item) => ({
+          ...item,
+          available: item.assigned + item.activity,
+        })),
       })),
-    })),
     [data]
   );
 
@@ -57,25 +67,45 @@ export default function CollapsibleTable() {
   };
 
   const handleInputChange = (categoryIndex, itemIndex, value) => {
-    const newData = [...data];
-    newData[categoryIndex].categoryItems[itemIndex].assigned = parseFloat(value) || 0; // Update assigned
-    const currentlyAssigned = data.reduce((sum, category) => {
-      return (
-        sum +
-        category.categoryItems.reduce((itemSum, item) => itemSum + item.assigned, 0)
-      );
-    }, 0);
-    setReadyToAssign(assignableMoney - currentlyAssigned);
-    setData(newData);
+    setData((prevData) => {
+      const newData = prevData.map((category, catIdx) => {
+        if (catIdx !== categoryIndex) return category;
+
+        return {
+          ...category,
+          categoryItems: category.categoryItems.map((item, itemIdx) => {
+            if (itemIdx !== itemIndex) return item;
+
+            return {
+              ...item,
+              assigned: value,
+            };
+          }),
+        };
+      });
+
+      const currentlyAssigned = newData.reduce((sum, category) => {
+        return (
+          sum +
+          category.categoryItems.reduce(
+            (itemSum, item) => itemSum + item.assigned,
+            0
+          )
+        );
+      }, 0);
+
+      setReadyToAssign(assignableMoney - currentlyAssigned);
+      return newData;
+    });
   };
 
   const handleAddItem = (category: string) => {
     if (newItem.name.trim() !== "") {
-      addItemToCategory(category, { 
-        name: newItem.name, 
-        assigned: newItem.assigned, 
+      addItemToCategory(category, {
+        name: newItem.name,
+        assigned: newItem.assigned,
         activity: newItem.activity,
-        available: newItem.assigned + newItem.activity
+        available: newItem.assigned + newItem.activity,
       });
       setNewItem({ name: "", assigned: 0, activity: 0, available: 0 });
       setActiveCategory(null);
@@ -83,7 +113,8 @@ export default function CollapsibleTable() {
   };
 
   useEffect(() => {
-    const categoryGroupBalances = accounts.flatMap(account => account.transactions)
+    const categoryGroupBalances = accounts
+      .flatMap((account) => account.transactions)
       .reduce((acc, tx) => {
         if (!acc[tx.categoryGroup]) {
           acc[tx.categoryGroup] = 0;
@@ -92,48 +123,58 @@ export default function CollapsibleTable() {
         return acc;
       }, {} as Record<string, number>);
     const readyToAssignBalance = accounts
-    .flatMap(account => account.transactions)
-    .reduce((sum, tx) => tx.category === 'Ready to Assign' ? sum + tx.balance : sum, 0);
+      .flatMap((account) => account.transactions)
+      .reduce(
+        (sum, tx) =>
+          tx.category === "Ready to Assign" ? sum + tx.balance : sum,
+        0
+      );
 
     const currentlyAssigned = data.reduce((sum, category) => {
       return (
         sum +
-        category.categoryItems.reduce((itemSum, item) => itemSum + item.assigned, 0)
+        category.categoryItems.reduce(
+          (itemSum, item) => itemSum + item.assigned,
+          0
+        )
       );
     }, 0);
 
-    const creditCardAccounts = accounts.filter(account => account.type === "credit");
+    const creditCardAccounts = accounts.filter(
+      (account) => account.type === "credit"
+    );
 
-    const creditCardItems = creditCardAccounts.map(account => ({
+    const creditCardItems = creditCardAccounts.map((account) => ({
       name: account.name,
       assigned: 0,
-      activity: -1 * account.transactions.reduce((sum, tx) => sum + tx.balance, 0),
+      activity:
+        -1 * account.transactions.reduce((sum, tx) => sum + tx.balance, 0),
       payment: Math.abs(account.balance),
     }));
-  
-    const updatedData = data.map(category => {
+
+    const updatedData = data.map((category) => {
       if (category.name === "Credit Card Payments") {
         return { ...category, categoryItems: creditCardItems };
       }
-  
+
       return {
         ...category,
-        categoryItems: category.categoryItems.map(item => ({
+        categoryItems: category.categoryItems.map((item) => ({
           ...item,
-          activity: categoryGroupBalances[item.name] || 0, 
+          activity: categoryGroupBalances[item.name] || 0,
         })),
       };
     });
     setData(updatedData);
     setAssignableMoney(readyToAssignBalance);
     setReadyToAssign(readyToAssignBalance - currentlyAssigned);
-  }, [accounts]); 
+  }, [accounts]);
 
   return (
     <div className="mx-auto mt-8 rounded-md">
       <h1>Ready to Assign - {formatToUSD(readyToAssign)}</h1>
       <div className="flex m-2">
-        <AddCategoryButton handleSubmit={addCategory}/>
+        <AddCategoryButton handleSubmit={addCategory} />
       </div>
       <table className="w-full border border-gray-300 rounded-md">
         <thead>
@@ -154,46 +195,65 @@ export default function CollapsibleTable() {
               >
                 <td colSpan={0} className="p-3 font-bold text-lg w-full">
                   <div className="flex items-center">
-                    <button onClick={() => toggleCategory(group.name)} className="mr-2">
+                    <button
+                      onClick={() => toggleCategory(group.name)}
+                      className="mr-2"
+                    >
                       {openCategories[group.name] ? "▼" : "▶"}
                     </button>
                     {group.name}
                     {hoveredCategory === group.name && (
-                  <button
-                    onClick={() => setActiveCategory(group.name)}
-                    className="ms-2 text-sm bg-blue-500 text-white px-2 py-1 rounded-full hover:bg-teal-500 transition"
-                  >
-                    +
-                  </button>
-                )}
+                      <button
+                        onClick={() => setActiveCategory(group.name)}
+                        className="ms-2 text-sm bg-blue-500 text-white px-2 py-1 rounded-full hover:bg-teal-500 transition"
+                      >
+                        +
+                      </button>
+                    )}
                   </div>
                 </td>
                 <td className="p-2 border">
                   {formatToUSD(
-                    group.categoryItems.reduce((sum, item) => sum + item.assigned, 0)
+                    group.categoryItems.reduce(
+                      (sum, item) => sum + item.assigned,
+                      0
+                    )
                   )}
                 </td>
                 <td className="p-2 border">
                   {formatToUSD(
-                    group.categoryItems.reduce((sum, item) => sum + item.activity, 0)
+                    group.categoryItems.reduce(
+                      (sum, item) => sum + item.activity,
+                      0
+                    )
                   )}
                 </td>
                 <td className="p-2 border">
-                  {group.name === 'Credit Card Payments' ? 'Payment - ' + formatToUSD(
-                    (group.categoryItems as CategoryCreditCardData[]).reduce((sum, item) => sum + item.payment, 0)
-                  ) : formatToUSD(
-                    group.categoryItems.reduce((sum, item) => sum + item.available, 0)
-                  )}
+                  {group.name === "Credit Card Payments"
+                    ? "Payment - " +
+                      formatToUSD(
+                        (
+                          group.categoryItems as CategoryCreditCardData[]
+                        ).reduce((sum, item) => sum + item.payment, 0)
+                      )
+                    : formatToUSD(
+                        group.categoryItems.reduce(
+                          (sum, item) => sum + item.available,
+                          0
+                        )
+                      )}
                 </td>
               </tr>
 
-            {activeCategory === group.name && (
-              <div className="absolute left-0 mt-2 w-64 bg-white p-4 shadow-lg rounded-lg border z-50">
+              {activeCategory === group.name && (
+                <div className="absolute left-0 mt-2 w-64 bg-white p-4 shadow-lg rounded-lg border z-50">
                   <input
                     type="text"
                     placeholder="Item Name"
                     value={newItem.name}
-                    onChange={(e) => setNewItem({ ...newItem, name: e.target.value })}
+                    onChange={(e) =>
+                      setNewItem({ ...newItem, name: e.target.value })
+                    }
                     className="w-full border rounded px-2 py-1"
                   />
                   <button
@@ -202,26 +262,18 @@ export default function CollapsibleTable() {
                   >
                     Submit
                   </button>
-              </div>
-            )}
+                </div>
+              )}
               {openCategories[group.name] &&
                 group.categoryItems.map((item, itemIndex) => (
                   <tr key={itemIndex} className="border-t">
                     <td className="p-2 border">{item.name}</td>
-                    <td className="border border-gray-300 px-4 py-2">
-                      <input
-                        type="number"
-                        value={item.assigned}
-                        onChange={(e) =>
-                          handleInputChange(
-                            categoryIndex,
-                            itemIndex,
-                            e.target.value
-                          )
-                        }
-                        className="w-full p-1 border border-gray-300 rounded"
+                      <EditableAssigned
+                        categoryIndex={categoryIndex}
+                        itemIndex={itemIndex}
+                        item={item}
+                        handleInputChange={handleInputChange}
                       />
-                    </td>
                     <td className="p-2 border">{formatToUSD(item.activity)}</td>
                     <td className="p-2 border">
                       {formatToUSD(item.available)}
