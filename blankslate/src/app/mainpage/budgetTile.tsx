@@ -11,10 +11,11 @@ import {
 
 
 export default function CollapsibleTable() {
-  const { accounts } = useAccountContext();
+  const { accounts, setAccounts } = useAccountContext();
   const { categories, addCategory, addItemToCategory } = useTableContext();
   const [assignableMoney, setAssignableMoney] = useState(0);
-  const [activeAccounts, setActiveAccounts] = useState(accounts);
+  const [currentlyAssigned, setCurrentlyAssigned] = useState(0);
+  const [creditCardPayments, setCreditCardPayments] = useState({});
   const [readyToAssign, setReadyToAssign] = useState(0);
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
   const [newItem, setNewItem] = useState({
@@ -28,11 +29,11 @@ export default function CollapsibleTable() {
 
   const computedAccounts = useMemo(
     () =>
-      activeAccounts.map((account) => ({
+      accounts.map((account) => ({
         ...account,
         balance: account.transactions.reduce((sum, tx) => sum + tx.balance, 0),
       })),
-    [activeAccounts]
+    [accounts]
   );
 
   useEffect(() => {
@@ -55,6 +56,19 @@ export default function CollapsibleTable() {
     [data]
   );
 
+  useEffect(() => {
+    const assignedMoney = computedData.flatMap((category) =>
+      category.categoryItems
+        .filter((item) => item.assigned > 0)
+        .map((item) => ({
+          categoryGroup: item.name,
+          amount: item.assigned,
+        }))
+    );
+    const payments = calculateCreditCardPayments(computedAccounts, assignedMoney);
+    setCreditCardPayments(payments);
+  }, [accounts, currentlyAssigned]);
+
   const [openCategories, setOpenCategories] = useState(
     data.reduce((acc, category) => {
       acc[category.name] = true;
@@ -64,6 +78,55 @@ export default function CollapsibleTable() {
 
   const toggleCategory = (category: string) => {
     setOpenCategories((prev) => ({ ...prev, [category]: !prev[category] }));
+  };
+
+  const calculateCreditCardPayments = (accounts, assignedMoney) => {
+    const assignedCategories = new Map(
+      assignedMoney.map((entry) => [entry.categoryGroup, entry.amount])
+    );
+  
+    let remainingAssigned = new Map(assignedCategories);
+  
+    for (const account of accounts.filter((acc) => acc.type === "debit")) {
+      for (const transaction of account.transactions) {
+        const categoryGroup = transaction.categoryGroup;
+        if (remainingAssigned.has(categoryGroup)) {
+          const assignedAmount = remainingAssigned.get(categoryGroup);
+          const deduction = Math.min(assignedAmount, Math.abs(transaction.balance));
+  
+          remainingAssigned.set(categoryGroup, assignedAmount - deduction);
+  
+          if (remainingAssigned.get(categoryGroup) <= 0) {
+            remainingAssigned.delete(categoryGroup);
+          }
+        }
+      }
+    }
+  
+    const creditCardPayments = accounts
+      .filter((acc) => acc.type === "credit")
+      .map((card) => {
+        let payment = 0;
+  
+        for (const transaction of card.transactions) {
+          const categoryGroup = transaction.categoryGroup;
+          if (remainingAssigned.has(categoryGroup)) {
+            const assignedAmount = remainingAssigned.get(categoryGroup);
+            const deduction = Math.min(assignedAmount, Math.abs(transaction.balance));
+  
+            remainingAssigned.set(categoryGroup, assignedAmount - deduction);
+            payment += deduction;
+  
+            if (remainingAssigned.get(categoryGroup) <= 0) {
+              remainingAssigned.delete(categoryGroup);
+            }
+          }
+        }
+  
+        return { card: card.name, payment };
+      });
+  
+    return creditCardPayments;
   };
 
   const handleInputChange = (categoryIndex, itemIndex, value) => {
@@ -84,7 +147,7 @@ export default function CollapsibleTable() {
         };
       });
 
-      const currentlyAssigned = newData.reduce((sum, category) => {
+      const totalAssigned = newData.reduce((sum, category) => {
         return (
           sum +
           category.categoryItems.reduce(
@@ -94,7 +157,8 @@ export default function CollapsibleTable() {
         );
       }, 0);
 
-      setReadyToAssign(assignableMoney - currentlyAssigned);
+      setCurrentlyAssigned(totalAssigned)
+      setReadyToAssign(assignableMoney - totalAssigned);
       return newData;
     });
   };
@@ -151,6 +215,7 @@ export default function CollapsibleTable() {
         -1 * account.transactions.reduce((sum, tx) => sum + tx.balance, 0),
       payment: Math.abs(account.balance),
     }));
+
 
     const updatedData = data.map((category) => {
       if (category.name === "Credit Card Payments") {
@@ -276,7 +341,7 @@ export default function CollapsibleTable() {
                       />
                     <td className="p-2 border">{formatToUSD(item.activity)}</td>
                     <td className="p-2 border">
-                      {formatToUSD(item.available)}
+                      {group.name === "Credit Card Payments" ? formatToUSD(creditCardPayments.filter(payment => payment.card === item.name)[0].payment || 0) : formatToUSD(item.available)}
                     </td>
                   </tr>
                 ))}

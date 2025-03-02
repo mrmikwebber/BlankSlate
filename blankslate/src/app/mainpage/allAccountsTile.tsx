@@ -3,10 +3,17 @@ import Link from "next/link";
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import AccountTile from "./accountTile";
 import { useAccountContext } from "../context/AccountContext";
+import AddAccountModal from "./AddAccountModal";
 
 export default function AllAccountsTile() {
-  const { accounts } = useAccountContext();
+  const { accounts, addAccount } = useAccountContext();
   const [activeAccounts, setActiveAccounts] = useState(accounts);
+  const [showModal, setShowModal] = useState(false);
+
+  const handleAddAccount = (newAccount) => {
+    addAccount(newAccount);
+    setActiveAccounts((prev) => [...prev, newAccount]);
+  };
 
   const computedAccounts = useMemo(() =>
     activeAccounts.map(account => (
@@ -19,8 +26,18 @@ export default function AllAccountsTile() {
 
   return (
     <div className="flex flex-col bg-zinc-100 rounded-md p-2">
-      <div>
+      <div className="flex justify-between">
         <h1>Accounts</h1>
+        <button
+        onClick={() => setShowModal(true)}
+        className="bg-blue-500 text-white px-4 py-2 rounded"
+      >
+        Add Account
+        
+        </button>
+        {showModal && (
+        <AddAccountModal onAddAccount={handleAddAccount} onClose={() => setShowModal(false)} />
+      )}
       </div>
       <h2>Cash</h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-1 m-2">

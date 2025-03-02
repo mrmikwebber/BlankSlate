@@ -62,7 +62,7 @@ export default function AccountTile(props) {
         )}
         <div className="flex justify-end mt-1 me-1">12/26</div>
       </div>
-      <div className="mt-10">
+      <div className="mt-4">
         {cardIssuer === "amex" && (
           <svg
             className="ms-2"
