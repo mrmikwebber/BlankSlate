@@ -297,9 +297,7 @@ export default function CollapsibleTable() {
                   {group.name === "Credit Card Payments"
                     ? "Payment - " +
                       formatToUSD(
-                        (
-                          group.categoryItems as CategoryCreditCardData[]
-                        ).reduce((sum, item) => sum + item.payment, 0)
+                          creditCardPayments.reduce((sum, card) => sum + card.payment, 0)
                       )
                     : formatToUSD(
                         group.categoryItems.reduce(
