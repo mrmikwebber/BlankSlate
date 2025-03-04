@@ -134,22 +134,6 @@ export const BudgetProvider = ({ children }) => {
         };
       }
 
-      if (prev[newMonth]) {
-        return {
-          ...prev,
-          [newMonth]: {
-            ...prev[newMonth],
-            categories: prev[newMonth].categories.map((category) => ({
-              ...category,
-              categoryItems: category.categoryItems.map((item) => ({
-                ...item,
-                available: getCumulativeAvailable(prev, item.name, newMonth) - item.activity,
-              })),
-            })),
-          },
-        };
-      }
-
       const prevCategories =
         prev[currentMonth]?.categories && direction === 'forward'
           ? prev[currentMonth].categories
