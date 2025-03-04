@@ -12,7 +12,7 @@ export interface CategoryCreditCardData extends CategoryData {
   payment: number;
 }
 
-interface CategoryGroupData {
+export interface CategoryGroupData {
   name: string;
   categoryItems: CategoryData[];
 }

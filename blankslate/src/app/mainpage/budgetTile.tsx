@@ -4,18 +4,18 @@ import { formatToUSD } from "../utils/formatToUSD";
 import { useAccountContext } from "../context/AccountContext";
 import AddCategoryButton from "./AddCategoryButton";
 import EditableAssigned from "./EditableAssigned";
-import {
-  CategoryCreditCardData,
-  useTableContext,
-} from "../context/TableDataContext";
-
+import { useTableContext } from "../context/TableDataContext";
+import MonthNav from "./MonthNav";
+import { useBudgetContext } from "../context/BudgetContext";
 
 export default function CollapsibleTable() {
   const { accounts, setAccounts } = useAccountContext();
   const { categories, addCategory, addItemToCategory } = useTableContext();
+  const { currentMonth, updateMonth, budgetData, setBudgetData, computedData } =
+    useBudgetContext();
   const [assignableMoney, setAssignableMoney] = useState(0);
   const [currentlyAssigned, setCurrentlyAssigned] = useState(0);
-  const [creditCardPayments, setCreditCardPayments] = useState({});
+  const [creditCardPayments, setCreditCardPayments] = useState([]);
   const [readyToAssign, setReadyToAssign] = useState(0);
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
   const [newItem, setNewItem] = useState({
@@ -25,7 +25,7 @@ export default function CollapsibleTable() {
     available: 0,
   });
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
-  const [data, setData] = useState(categories);
+
 
   const computedAccounts = useMemo(
     () =>
@@ -44,20 +44,8 @@ export default function CollapsibleTable() {
     setReadyToAssign(totalDebitFunds);
   }, [computedAccounts]);
 
-  const computedData = useMemo(
-    () =>
-      data.map((category) => ({
-        ...category,
-        categoryItems: category.categoryItems.map((item) => ({
-          ...item,
-          available: item.assigned + item.activity,
-        })),
-      })),
-    [data]
-  );
-
   useEffect(() => {
-    const assignedMoney = computedData.flatMap((category) =>
+    const assignedMoney = computedData?.flatMap((category) =>
       category.categoryItems
         .filter((item) => item.assigned > 0)
         .map((item) => ({
@@ -65,12 +53,15 @@ export default function CollapsibleTable() {
           amount: item.assigned,
         }))
     );
-    const payments = calculateCreditCardPayments(computedAccounts, assignedMoney);
+    const payments = calculateCreditCardPayments(
+      computedAccounts,
+      assignedMoney
+    );
     setCreditCardPayments(payments);
   }, [accounts, currentlyAssigned]);
 
   const [openCategories, setOpenCategories] = useState(
-    data.reduce((acc, category) => {
+    computedData?.reduce((acc, category) => {
       acc[category.name] = true;
       return acc;
     }, {} as Record<string, boolean>)
@@ -82,72 +73,108 @@ export default function CollapsibleTable() {
 
   const calculateCreditCardPayments = (accounts, assignedMoney) => {
     const assignedCategories = new Map(
-      assignedMoney.map((entry) => [entry.categoryGroup, entry.amount])
+      assignedMoney?.map((entry) => [entry.categoryGroup, entry.amount])
     );
-  
+
     let remainingAssigned = new Map(assignedCategories);
-  
+
     for (const account of accounts.filter((acc) => acc.type === "debit")) {
       for (const transaction of account.transactions) {
         const categoryGroup = transaction.categoryGroup;
         if (remainingAssigned.has(categoryGroup)) {
           const assignedAmount = remainingAssigned.get(categoryGroup);
-          const deduction = Math.min(assignedAmount, Math.abs(transaction.balance));
-  
+          const deduction = Math.min(
+            assignedAmount,
+            Math.abs(transaction.balance)
+          );
+
           remainingAssigned.set(categoryGroup, assignedAmount - deduction);
-  
+
           if (remainingAssigned.get(categoryGroup) <= 0) {
             remainingAssigned.delete(categoryGroup);
           }
         }
       }
     }
-  
+
     const creditCardPayments = accounts
       .filter((acc) => acc.type === "credit")
       .map((card) => {
         let payment = 0;
-  
+
         for (const transaction of card.transactions) {
           const categoryGroup = transaction.categoryGroup;
           if (remainingAssigned.has(categoryGroup)) {
             const assignedAmount = remainingAssigned.get(categoryGroup);
-            const deduction = Math.min(assignedAmount, Math.abs(transaction.balance));
-  
+            const deduction = Math.min(
+              assignedAmount,
+              Math.abs(transaction.balance)
+            );
+
             remainingAssigned.set(categoryGroup, assignedAmount - deduction);
             payment += deduction;
-  
+
             if (remainingAssigned.get(categoryGroup) <= 0) {
               remainingAssigned.delete(categoryGroup);
             }
           }
         }
-  
+
         return { card: card.name, payment };
       });
-  
+
     return creditCardPayments;
   };
 
+  const isBeforeMonth = (monthA: string, monthB: string): boolean => {
+    return new Date(monthA) < new Date(monthB);
+  };
+
+  const getCumulativeAvailable = (passedInData, itemName) => {
+    const pastMonths = Object.keys(passedInData).filter((month) =>
+      isBeforeMonth(month, currentMonth)
+    );
+
+    const currentAvailable =
+    passedInData[currentMonth]?.categories
+      .flatMap((cat) => cat.categoryItems)
+      .find((item) => item.name === itemName)?.available || 0;
+  
+    const past =  pastMonths.reduce((sum, month) => {
+      const categoryItem = passedInData[month]?.categories
+        .flatMap((cat) => cat.categoryItems)
+        .find((item) => item.name === itemName);
+  
+      return sum + (categoryItem?.assigned - categoryItem?.activity || 0);
+    }, 0);
+    return past;
+  };
+  
+  
+
   const handleInputChange = (categoryIndex, itemIndex, value) => {
-    setData((prevData) => {
-      const newData = prevData.map((category, catIdx) => {
-        if (catIdx !== categoryIndex) return category;
+    setBudgetData((prev) => {
+      const updatedCategories =
+        prev[currentMonth]?.categories.map((category, catIdx) => {
+          if (catIdx !== categoryIndex) return category;
+          return {
+            ...category,
+            categoryItems: category.categoryItems.map((item, itemIdx) => {
+              if (itemIdx !== itemIndex) return item;
 
-        return {
-          ...category,
-          categoryItems: category.categoryItems.map((item, itemIdx) => {
-            if (itemIdx !== itemIndex) return item;
+              const availableSum = value - item.activity;
+              const cumlativeAvailable = getCumulativeAvailable(prev, item.name);
 
-            return {
-              ...item,
-              assigned: value,
-            };
-          }),
-        };
-      });
+              return {
+                ...item,
+                assigned: value,
+                available: availableSum + cumlativeAvailable
+              };
+            }),
+          };
+        }) || [];
 
-      const totalAssigned = newData.reduce((sum, category) => {
+      const totalAssigned = updatedCategories.reduce((sum, category) => {
         return (
           sum +
           category.categoryItems.reduce(
@@ -157,9 +184,15 @@ export default function CollapsibleTable() {
         );
       }, 0);
 
-      setCurrentlyAssigned(totalAssigned)
-      setReadyToAssign(assignableMoney - totalAssigned);
-      return newData;
+      return {
+        ...prev,
+        [currentMonth]: {
+          ...prev[currentMonth],
+          categories: updatedCategories,
+          readyToAssign:
+            prev[currentMonth]?.assignableMoney - totalAssigned || 0,
+        },
+      };
     });
   };
 
@@ -177,6 +210,8 @@ export default function CollapsibleTable() {
   };
 
   useEffect(() => {
+    if (!budgetData[currentMonth]) return;
+
     const categoryGroupBalances = accounts
       .flatMap((account) => account.transactions)
       .reduce((acc, tx) => {
@@ -186,6 +221,7 @@ export default function CollapsibleTable() {
         acc[tx.categoryGroup] += tx.balance;
         return acc;
       }, {} as Record<string, number>);
+
     const readyToAssignBalance = accounts
       .flatMap((account) => account.transactions)
       .reduce(
@@ -194,15 +230,18 @@ export default function CollapsibleTable() {
         0
       );
 
-    const currentlyAssigned = data.reduce((sum, category) => {
-      return (
-        sum +
-        category.categoryItems.reduce(
-          (itemSum, item) => itemSum + item.assigned,
-          0
-        )
-      );
-    }, 0);
+    const currentlyAssigned = budgetData[currentMonth]?.categories?.reduce(
+      (sum, category) => {
+        return (
+          sum +
+          category.categoryItems.reduce(
+            (itemSum, item) => itemSum + item.assigned,
+            0
+          )
+        );
+      },
+      0
+    );
 
     const creditCardAccounts = accounts.filter(
       (account) => account.type === "credit"
@@ -216,27 +255,37 @@ export default function CollapsibleTable() {
       payment: Math.abs(account.balance),
     }));
 
+    const updatedCategories = budgetData[currentMonth]?.categories?.map(
+      (category) => {
+        if (category.name === "Credit Card Payments") {
+          return { ...category, categoryItems: creditCardItems };
+        }
 
-    const updatedData = data.map((category) => {
-      if (category.name === "Credit Card Payments") {
-        return { ...category, categoryItems: creditCardItems };
+        return {
+          ...category,
+          categoryItems: category.categoryItems.map((item) => ({
+            ...item,
+            activity: categoryGroupBalances[item.name] || 0,
+          })),
+        };
       }
+    );
 
-      return {
-        ...category,
-        categoryItems: category.categoryItems.map((item) => ({
-          ...item,
-          activity: categoryGroupBalances[item.name] || 0,
-        })),
-      };
-    });
-    setData(updatedData);
+    setBudgetData((prev) => ({
+      ...prev,
+      [currentMonth]: { ...prev[currentMonth], categories: updatedCategories },
+    }));
+
     setAssignableMoney(readyToAssignBalance);
     setReadyToAssign(readyToAssignBalance - currentlyAssigned);
-  }, [accounts]);
+  }, [accounts, currentMonth]);
+
+
+  console.log(budgetData)
 
   return (
     <div className="mx-auto mt-8 rounded-md">
+      <MonthNav />
       <h1>Ready to Assign - {formatToUSD(readyToAssign)}</h1>
       <div className="flex m-2">
         <AddCategoryButton handleSubmit={addCategory} />
@@ -251,7 +300,7 @@ export default function CollapsibleTable() {
           </tr>
         </thead>
         <tbody>
-          {computedData.map((group, categoryIndex) => (
+          {budgetData[currentMonth]?.categories?.map((group, categoryIndex) => (
             <Fragment key={group.name}>
               <tr
                 className="bg-gray-400 text-white"
@@ -297,7 +346,10 @@ export default function CollapsibleTable() {
                   {group.name === "Credit Card Payments"
                     ? "Payment - " +
                       formatToUSD(
-                          creditCardPayments.reduce((sum, card) => sum + card.payment, 0)
+                        creditCardPayments?.reduce(
+                          (sum, card) => sum + card.payment,
+                          0
+                        ) || 0
                       )
                     : formatToUSD(
                         group.categoryItems.reduce(
@@ -331,15 +383,21 @@ export default function CollapsibleTable() {
                 group.categoryItems.map((item, itemIndex) => (
                   <tr key={itemIndex} className="border-t">
                     <td className="p-2 border">{item.name}</td>
-                      <EditableAssigned
-                        categoryIndex={categoryIndex}
-                        itemIndex={itemIndex}
-                        item={item}
-                        handleInputChange={handleInputChange}
-                      />
+                    <EditableAssigned
+                      categoryIndex={categoryIndex}
+                      itemIndex={itemIndex}
+                      item={item}
+                      handleInputChange={handleInputChange}
+                    />
                     <td className="p-2 border">{formatToUSD(item.activity)}</td>
                     <td className="p-2 border">
-                      {group.name === "Credit Card Payments" ? formatToUSD(creditCardPayments.filter(payment => payment.card === item.name)[0].payment || 0) : formatToUSD(item.available)}
+                      {group.name === "Credit Card Payments"
+                        ? formatToUSD(
+                            creditCardPayments.filter(
+                              (payment) => payment?.card === item?.name
+                            )[0]?.payment || 0
+                          )
+                        : formatToUSD(item.available)}
                     </td>
                   </tr>
                 ))}
