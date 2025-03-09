@@ -4,10 +4,11 @@ import { useParams } from "next/navigation";
 import { useContext, useState } from "react";
 import { useAccountContext } from "@/app/context/AccountContext";
 import { useTableContext } from "./context/TableDataContext";
+import { useBudgetContext } from "./context/BudgetContext";
 
 export default function AccountDetails() {
   const { id } = useParams();
-  const { categories } = useTableContext();
+  const { budgetData, currentMonth } = useBudgetContext();
   const { accounts, addTransaction } = useAccountContext();
 
   const account = accounts.find((acc) => acc.id === Number(id));
@@ -118,7 +119,7 @@ export default function AccountDetails() {
               required
             >
               <option value="">Select Category Group</option>
-              {categories.map((category) =>
+              {budgetData[currentMonth].categories.map((category) =>
                 category.categoryItems.map((item) => (
                   <option key={item.name} value={item.name}>
                     {item.name}

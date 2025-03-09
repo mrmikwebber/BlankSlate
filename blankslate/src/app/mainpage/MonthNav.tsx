@@ -17,6 +17,15 @@ const MonthNav = () => {
     setReadyToAssign(budgetData[currentMonth]?.readyToAssign || 0);
   }, [budgetData])
 
+  const computedAccounts = useMemo(
+    () =>
+      accounts.map((account) => ({
+        ...account,
+        balance: account.transactions.reduce((sum, tx) => sum + tx.balance, 0),
+      })),
+    [accounts]
+  );
+
   const formattedMonth = useMemo(
     () => {
         const parsedDate = parse(currentMonth, 'yyyy-MM', new Date());
@@ -29,14 +38,14 @@ const MonthNav = () => {
     const parsedDate = parse(`${currentMonth}-01`, "yyyy-MM-dd", new Date());
     const nextMonthDate = addMonths(parsedDate, 1);
     const nextMonth = format(nextMonthDate, 'yyyy-MM');
-    updateMonth(nextMonth, 'forward', accounts);
+    updateMonth(nextMonth, 'forward', computedAccounts);
   };
   
   const goToPreviousMonth = () => {
     const parsedDate = parse(`${currentMonth}-01`, "yyyy-MM-dd", new Date());
     const prevMonthDate = subMonths(parsedDate, 1);
     const prevMonth = format(prevMonthDate, 'yyyy-MM');
-    updateMonth(prevMonth, 'backward', accounts);
+    updateMonth(prevMonth, 'backward', computedAccounts);
   };
 
   return (
@@ -47,8 +56,8 @@ const MonthNav = () => {
 
       <div className="text-lg font-semibold">
         {formattedMonth} — <span className="text-gray-600">Remaining to Assign:</span>  
-        <span className={readyToAssign >= 0 ? "text-green-600" : "text-red-600"}>
-          {formatToUSD(readyToAssign)}
+        <span className={budgetData[currentMonth].readyToAssign >= 0 ? "text-green-600" : "text-red-600"}>
+          {formatToUSD(budgetData[currentMonth].readyToAssign)}
         </span>
       </div>
 

@@ -7,14 +7,12 @@ import EditableAssigned from "./EditableAssigned";
 import { useTableContext } from "../context/TableDataContext";
 import MonthNav from "./MonthNav";
 import { useBudgetContext } from "../context/BudgetContext";
+import { isSameMonth, parseISO } from "date-fns";
 
 export default function CollapsibleTable() {
   const { accounts, setAccounts } = useAccountContext();
-  const { categories, addCategory, addItemToCategory } = useTableContext();
-  const { currentMonth, updateMonth, budgetData, setBudgetData, computedData } =
-    useBudgetContext();
+  const { currentMonth, updateMonth, budgetData, setBudgetData, computedData, addCategory, addItemToCategory } = useBudgetContext();
   const [assignableMoney, setAssignableMoney] = useState(0);
-  const [currentlyAssigned, setCurrentlyAssigned] = useState(0);
   const [creditCardPayments, setCreditCardPayments] = useState([]);
   const [readyToAssign, setReadyToAssign] = useState(0);
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
@@ -25,7 +23,6 @@ export default function CollapsibleTable() {
     available: 0,
   });
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
-
 
   const computedAccounts = useMemo(
     () =>
@@ -45,7 +42,7 @@ export default function CollapsibleTable() {
   }, [computedAccounts]);
 
   useEffect(() => {
-    const assignedMoney = computedData?.flatMap((category) =>
+    const assignedMoney = budgetData[currentMonth]?.categories?.flatMap((category) =>
       category.categoryItems
         .filter((item) => item.assigned > 0)
         .map((item) => ({
@@ -53,12 +50,50 @@ export default function CollapsibleTable() {
           amount: item.assigned,
         }))
     );
-    const payments = calculateCreditCardPayments(
-      computedAccounts,
-      assignedMoney
-    );
-    setCreditCardPayments(payments);
-  }, [accounts, currentlyAssigned]);
+  
+    const newPayments = calculateCreditCardPayments(computedAccounts, assignedMoney);
+  
+    // Only update state if payments actually changed
+    if (JSON.stringify(newPayments) !== JSON.stringify(creditCardPayments)) {
+      setCreditCardPayments(newPayments);
+    }
+  }, [accounts, budgetData]);
+
+  useEffect(() => {
+    if (!creditCardPayments.length) return; // Avoid running on first mount
+  
+    setBudgetData((prev) => {
+      if (!prev[currentMonth]) return prev;
+  
+      let hasChanges = false;
+  
+      const updatedCategories = prev[currentMonth].categories.map((category) => {
+        if (category.name !== "Credit Card Payments") return category;
+  
+        const updatedItems = category.categoryItems.map((item) => {
+          const paymentEntry = creditCardPayments.find((p) => p.card === item.name);
+          const newAssigned = paymentEntry ? paymentEntry.payment : item.available;
+  
+          if (newAssigned !== item.assigned) hasChanges = true;
+  
+          return { ...item, available: newAssigned };
+        });
+        console.log(updatedItems)
+        return { ...category, categoryItems: updatedItems };
+      });
+  
+      if (!hasChanges) return prev; // Prevent infinite updates
+  
+      return {
+        ...prev,
+        [currentMonth]: {
+          ...prev[currentMonth],
+          categories: updatedCategories,
+        },
+      };
+    });
+  }, [creditCardPayments]);
+  
 
   const [openCategories, setOpenCategories] = useState(
     computedData?.reduce((acc, category) => {
@@ -122,7 +157,6 @@ export default function CollapsibleTable() {
 
         return { card: card.name, payment };
       });
-
     return creditCardPayments;
   };
 
@@ -135,22 +169,15 @@ export default function CollapsibleTable() {
       isBeforeMonth(month, currentMonth)
     );
 
-    const currentAvailable =
-    passedInData[currentMonth]?.categories
-      .flatMap((cat) => cat.categoryItems)
-      .find((item) => item.name === itemName)?.available || 0;
-  
-    const past =  pastMonths.reduce((sum, month) => {
+    const past = pastMonths.reduce((sum, month) => {
       const categoryItem = passedInData[month]?.categories
         .flatMap((cat) => cat.categoryItems)
         .find((item) => item.name === itemName);
-  
+
       return sum + (categoryItem?.assigned - categoryItem?.activity || 0);
     }, 0);
     return past;
   };
-  
-  
 
   const handleInputChange = (categoryIndex, itemIndex, value) => {
     setBudgetData((prev) => {
@@ -163,26 +190,20 @@ export default function CollapsibleTable() {
               if (itemIdx !== itemIndex) return item;
 
               const availableSum = value - item.activity;
-              const cumlativeAvailable = getCumulativeAvailable(prev, item.name);
+              const cumlativeAvailable = getCumulativeAvailable(
+                prev,
+                item.name
+              );
 
+              console.log('inputChange', availableSum + cumlativeAvailable)
               return {
                 ...item,
                 assigned: value,
-                available: availableSum + cumlativeAvailable
+                available: availableSum + cumlativeAvailable,
               };
             }),
           };
         }) || [];
-
-      const totalAssigned = updatedCategories.reduce((sum, category) => {
-        return (
-          sum +
-          category.categoryItems.reduce(
-            (itemSum, item) => itemSum + item.assigned,
-            0
-          )
-        );
-      }, 0);
 
       return {
         ...prev,
@@ -190,10 +211,30 @@ export default function CollapsibleTable() {
           ...prev[currentMonth],
           categories: updatedCategories,
           readyToAssign:
-            prev[currentMonth]?.assignableMoney - totalAssigned || 0,
+          (prev[currentMonth]?.readyToAssign || 0) +
+          (prev[currentMonth]?.assignableMoney || 0) -
+          updatedCategories.reduce(
+            (sum, cat) =>
+              sum +
+              cat.categoryItems.reduce((itemSum, item) => itemSum + item.assigned, 0),
+            0
+          ),
         },
       };
     });
+  };
+
+  const calculateActivityForMonth = (month, categoryName, accounts) => {
+    const filteredAccounts = accounts.flatMap((account) => account.transactions)
+      .filter(
+        (tx) => {
+          const date = new Date(tx.date);
+          const convertedMonth = parseISO(`${month}-01`)
+
+          return isSameMonth(date, convertedMonth) && tx.categoryGroup === categoryName
+        }
+      )
+      return filteredAccounts.reduce((sum, tx) => sum + tx.balance, 0);
   };
 
   const handleAddItem = (category: string) => {
@@ -211,16 +252,6 @@ export default function CollapsibleTable() {
 
   useEffect(() => {
     if (!budgetData[currentMonth]) return;
-
-    const categoryGroupBalances = accounts
-      .flatMap((account) => account.transactions)
-      .reduce((acc, tx) => {
-        if (!acc[tx.categoryGroup]) {
-          acc[tx.categoryGroup] = 0;
-        }
-        acc[tx.categoryGroup] += tx.balance;
-        return acc;
-      }, {} as Record<string, number>);
 
     const readyToAssignBalance = accounts
       .flatMap((account) => account.transactions)
@@ -243,29 +274,30 @@ export default function CollapsibleTable() {
       0
     );
 
-    const creditCardAccounts = accounts.filter(
+    const creditCardAccounts = computedAccounts.filter(
       (account) => account.type === "credit"
     );
 
-    const creditCardItems = creditCardAccounts.map((account) => ({
+    const creditCardItems = creditCardAccounts.map((account) => {
+      return {
       name: account.name,
       assigned: 0,
       activity:
-        -1 * account.transactions.reduce((sum, tx) => sum + tx.balance, 0),
-      payment: Math.abs(account.balance),
-    }));
+        -1 * account.transactions.filter(transaction => isSameMonth(transaction.date, parseISO(`${currentMonth}-01`))).reduce((sum, tx) => sum + tx.balance, 0),
+      }
+    });
 
     const updatedCategories = budgetData[currentMonth]?.categories?.map(
       (category) => {
         if (category.name === "Credit Card Payments") {
           return { ...category, categoryItems: creditCardItems };
         }
-
         return {
           ...category,
           categoryItems: category.categoryItems.map((item) => ({
             ...item,
-            activity: categoryGroupBalances[item.name] || 0,
+            activity: calculateActivityForMonth(currentMonth, item.name, computedAccounts),
+            available: (item.assigned - calculateActivityForMonth(currentMonth, item.name, computedAccounts)) * -1
           })),
         };
       }
@@ -280,8 +312,7 @@ export default function CollapsibleTable() {
     setReadyToAssign(readyToAssignBalance - currentlyAssigned);
   }, [accounts, currentMonth]);
 
-
-  console.log(budgetData)
+  console.log(budgetData);
 
   return (
     <div className="mx-auto mt-8 rounded-md">
@@ -346,8 +377,8 @@ export default function CollapsibleTable() {
                   {group.name === "Credit Card Payments"
                     ? "Payment - " +
                       formatToUSD(
-                        creditCardPayments?.reduce(
-                          (sum, card) => sum + card.payment,
+                        group.categoryItems.reduce(
+                          (sum, item) => sum + item.available,
                           0
                         ) || 0
                       )
@@ -389,15 +420,9 @@ export default function CollapsibleTable() {
                       item={item}
                       handleInputChange={handleInputChange}
                     />
-                    <td className="p-2 border">{formatToUSD(item.activity)}</td>
+                    <td className="p-2 border">{formatToUSD(item.activity || 0)}</td>
                     <td className="p-2 border">
-                      {group.name === "Credit Card Payments"
-                        ? formatToUSD(
-                            creditCardPayments.filter(
-                              (payment) => payment?.card === item?.name
-                            )[0]?.payment || 0
-                          )
-                        : formatToUSD(item.available)}
+                      {formatToUSD(item.available || 0)}
                     </td>
                   </tr>
                 ))}

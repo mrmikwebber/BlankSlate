@@ -78,25 +78,8 @@ export const TableProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     subscriptionCategoryGroup
   ]);
 
-  const addCategory = (categoryName: string) => {
-    const newCategoryList = categories;
-    newCategoryList.push({
-      name: categoryName,
-      categoryItems: [],
-    });
-    setCategories(newCategoryList);
-  };
-
-  const addItemToCategory = (categoryName: string, newItem: { name: string; assigned: number; activity: number, available: number }) => {
-    setCategories((prev) =>
-      prev.map((cat) =>
-        cat.name === categoryName ? { ...cat, categoryItems: [...cat.categoryItems, newItem] } : cat
-      )
-    );
-  };
-
   return (
-    <TableContext.Provider value={{ categories, addCategory, addItemToCategory }}>
+    <TableContext.Provider value={{ categories }}>
       {children}
     </TableContext.Provider>
   );

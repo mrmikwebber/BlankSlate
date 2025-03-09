@@ -1,7 +1,7 @@
 "use client";
 import { createContext, useContext, useState, useEffect, useMemo } from "react";
 import { useTableContext } from "@/app/context/TableDataContext";
-import { addMonths, format, getMonth, parseISO, subMonths } from "date-fns";
+import { addMonths, format, getMonth, isSameMonth, parseISO, subMonths } from "date-fns";
 
 const getPreviousMonth = (month) =>
   format(subMonths(parseISO(`${month}-01`), 1), "yyyy-MM");
@@ -14,8 +14,22 @@ const initialCategories = [
     name: "Subscriptions",
     categoryItems: [
       { name: "Blank Slate Subscription", assigned: 0, activity: 0, available: 0 },
+      { name: "Spotify", assigned: 0, activity: 0, available: 0 },
+      { name: "Netflix", assigned: 0, activity: 0, available: 0 },
+      { name: "Adobe CC", assigned: 0, activity: 0, available: 0 },
+      { name: "Prime", assigned: 0, activity: 0, available: 0 },
+      { name: "YT Premium", assigned: 0, activity: 0, available: 0 },
     ],
   },
+  {
+    name: "Bills",
+    categoryItems: [
+      { name: "Water Utility", assigned: 0, activity: 0, available: 0 },
+      { name: "Electricity", assigned: 0, activity: 0, available: 0 },
+      { name: "Car Loan", assigned: 0, activity: 0, available: 0 },
+      { name: "Rent", assigned: 0, activity: 0, available: 0 },
+    ]
+  }
 ];
 
 export const BudgetProvider = ({ children }) => {
@@ -37,10 +51,12 @@ export const BudgetProvider = ({ children }) => {
     () =>
       budgetData[currentMonth]?.categories?.map((category) => ({
         ...category,
-        categoryItems: category.categoryItems?.map((item) => ({
+        categoryItems: category.categoryItems?.map((item) => {
+          if (category.name === 'Credit Card Payments') return item;
+          return {
           ...item,
           available: item.assigned + item.activity,
-        })),
+        }}),
       })),
     [budgetData, currentMonth]
   );
@@ -60,6 +76,45 @@ export const BudgetProvider = ({ children }) => {
       })),
     }));
   };
+
+  const addCategory = (categoryName: string) => {
+    setBudgetData((prev) => {
+      const newCategories = [
+        ...prev[currentMonth].categories,
+        { name: categoryName, categoryItems: [] },
+      ];
+  
+      return {
+        ...prev,
+        [currentMonth]: {
+          ...prev[currentMonth],
+          categories: newCategories,
+        },
+      };
+    });
+  };
+  
+  const addItemToCategory = (
+    categoryName: string,
+    newItem: { name: string; assigned: number; activity: number; available: number }
+  ) => {
+    setBudgetData((prev) => {
+      const newCategories = prev[currentMonth].categories.map((cat) =>
+        cat.name === categoryName
+          ? { ...cat, categoryItems: [...cat.categoryItems, newItem] }
+          : cat
+      );
+  
+      return {
+        ...prev,
+        [currentMonth]: {
+          ...prev[currentMonth],
+          categories: newCategories,
+        },
+      };
+    });
+  };
+
 
   const calculateReadyToAssign = (month: string): number => {
     const prevMonth = getPreviousMonth(month);
@@ -85,12 +140,16 @@ export const BudgetProvider = ({ children }) => {
   };
 
   const calculateActivityForMonth = (month, categoryName, accounts) => {
-    return accounts
-      .flatMap((account) => account.transactions)
+    const filteredAccounts = accounts.flatMap((account) => account.transactions)
       .filter(
-        (tx) => tx.categoryGroup === categoryName && tx.date.startsWith(month)
+        (tx) => {
+          const date = new Date(tx.date);
+          const convertedMonth = parseISO(`${month}-01`)
+
+          return isSameMonth(date, convertedMonth) && tx.categoryGroup === categoryName
+        }
       )
-      .reduce((sum, tx) => sum + tx.balance, 0);
+      return filteredAccounts.reduce((sum, tx) => sum + tx.balance, 0);
   };
 
   const isBeforeMonth = (monthA: string, monthB: string): boolean => {
@@ -113,32 +172,41 @@ export const BudgetProvider = ({ children }) => {
   };
 
   const updateMonth = (newMonth: string, direction: string, accounts) => {
+    setCurrentMonth(newMonth); // Ensure newMonth is set before using it in logic
+  
     setBudgetData((prev) => {
+      const previousMonth = getPreviousMonth(newMonth);
       const pastMonths = Object.keys(prev).filter((month) =>
         isBeforeMonth(month, newMonth)
       );
-  
+
+      // If the month already exists, update available without changing structure
       if (prev[newMonth]) {
         return {
           ...prev,
           [newMonth]: {
             ...prev[newMonth],
-            categories: prev[newMonth].categories.map((category) => ({
+            categories: prev[newMonth].categories.map((category) => {
+              if (category.name === 'Credit Card Payemnts') return category
+              return {
               ...category,
               categoryItems: category.categoryItems.map((item) => ({
                 ...item,
-                available: item.assigned + getCumulativeAvailable(prev, item.name, newMonth) - item.activity,
+                activity: calculateActivityForMonth(newMonth, item.name, accounts),
+                available: getCumulativeAvailable(prev, item.name, newMonth) - item.activity,
               })),
-            })),
+            }}),
           },
         };
       }
-
+  
+      // Get previous month's categories if moving forward, else use empty categories
       const prevCategories =
-        prev[currentMonth]?.categories && direction === 'forward'
-          ? prev[currentMonth].categories
+        prev[previousMonth]?.categories && direction === "forward"
+          ? prev[previousMonth].categories
           : [];
-
+  
+      // Calculate cumulative assigned amounts for past months
       const cumulativeAssigned = new Map();
       pastMonths.forEach((month) => {
         prev[month]?.categories.forEach((category) => {
@@ -153,19 +221,30 @@ export const BudgetProvider = ({ children }) => {
           });
         });
       });
-
+  
+      // Create the new month's categories
       const updatedCategories = prevCategories.length
         ? prevCategories.map((category) => ({
             ...category,
             categoryItems: category.categoryItems.map((item) => {
+
               const pastAssigned = cumulativeAssigned.get(item.name) || 0;
+              const isCreditCardPayment = category.name === "Credit Card Payments";
+
+              const pastAvailable = isCreditCardPayment
+              ? prev[previousMonth]?.categories
+                  .find((c) => c.name === "Credit Card Payments")
+                  ?.categoryItems.find((i) => i.name === item.name)?.available || 0
+              : pastAssigned;
+
+              console.log(isCreditCardPayment, ': ', pastAvailable);
+
               return {
-                ...item,
-                assigned: 0,
-                activity: calculateActivityForMonth(newMonth, item.name, accounts),
-                available: pastAssigned
-              };
-            }),
+              ...item,
+              assigned: 0, // Reset assigned to 0 for the new month
+              activity: calculateActivityForMonth(newMonth, item.name, accounts),
+              available: pastAvailable, // Carry over available
+            }}),
           }))
         : createEmptyCategories(prev[getLatestMonth(prev)]?.categories || []);
   
@@ -175,23 +254,19 @@ export const BudgetProvider = ({ children }) => {
           categories: updatedCategories,
           assignableMoney: prev[currentMonth]?.assignableMoney || 0,
           readyToAssign:
-            (prev[currentMonth]?.readyToAssign || 0) +
+            (prev[previousMonth]?.readyToAssign || 0) +
             (prev[currentMonth]?.assignableMoney || 0) -
             updatedCategories.reduce(
               (sum, cat) =>
                 sum +
-                cat.categoryItems.reduce(
-                  (itemSum, item) => itemSum + item.assigned,
-                  0
-                ),
+                cat.categoryItems.reduce((itemSum, item) => itemSum + item.assigned, 0),
               0
             ),
         },
       };
     });
-
-    setCurrentMonth(newMonth);
   };
+  
 
   useEffect(() => {
     setBudgetData((prev) => ({
@@ -212,6 +287,8 @@ export const BudgetProvider = ({ children }) => {
         currentMonth,
         updateMonth,
         computedData,
+        addItemToCategory,
+        addCategory,
       }}
     >
       {children}
