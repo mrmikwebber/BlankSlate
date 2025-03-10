@@ -58,6 +58,7 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
   useEffect(() => {
     initializeTransactions([
       { accountId: 1, date: new Date('2025-03-18'), payee: 'American Express Payroll', category: 'Ready to Assign', categoryGroup: 'Ready to Assign', outflow: false, balance: 2586.23 },
+      { accountId: 1, date: new Date('2025-04-18'), payee: 'American Express Payroll', category: 'Ready to Assign', categoryGroup: 'Ready to Assign', outflow: false, balance: 1123.23 },
       { accountId: 1, date: new Date('2025-04-18'), payee: 'Water Utility', category: 'Bills', categoryGroup: 'Water Utility', outflow: true, balance: -75.46 },
       { accountId: 1, date: new Date('2025-03-22'), payee: 'Spotify', category: 'Subscriptions', categoryGroup: 'Spotify', outflow: true, balance: -10.99 },
       { accountId: 1, date: new Date('2025-03-21'), payee: 'Netflix', category: 'Subscriptions', categoryGroup: 'Netflix',  outflow: true, balance: -14.99 },

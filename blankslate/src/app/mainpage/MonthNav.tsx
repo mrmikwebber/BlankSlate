@@ -10,12 +10,7 @@ import { useAccountContext } from "../context/AccountContext";
 const MonthNav = () => {
     const { currentMonth, updateMonth, budgetData } = useBudgetContext();
     const { accounts } = useAccountContext();
-    const [readyToAssign, setReadyToAssign] = useState(0);
 
-
-  useEffect(() => {
-    setReadyToAssign(budgetData[currentMonth]?.readyToAssign || 0);
-  }, [budgetData])
 
   const computedAccounts = useMemo(
     () =>
@@ -47,6 +42,8 @@ const MonthNav = () => {
     const prevMonth = format(prevMonthDate, 'yyyy-MM');
     updateMonth(prevMonth, 'backward', computedAccounts);
   };
+
+  console.log(budgetData[currentMonth]);
 
   return (
     <div className="flex items-center justify-between p-4 bg-gray-100 rounded-lg">

@@ -3,8 +3,10 @@ import { createContext, useContext, useState, useEffect, useMemo } from "react";
 import { useTableContext } from "@/app/context/TableDataContext";
 import { addMonths, format, getMonth, isSameMonth, parseISO, subMonths } from "date-fns";
 
-const getPreviousMonth = (month) =>
-  format(subMonths(parseISO(`${month}-01`), 1), "yyyy-MM");
+const getPreviousMonth = (month) => {
+  return format(subMonths(parseISO(`${month}-01`), 1), "yyyy-MM");
+}
+  
 
 const BudgetContext = createContext(null);
 
@@ -116,14 +118,16 @@ export const BudgetProvider = ({ children }) => {
   };
 
 
-  const calculateReadyToAssign = (month: string): number => {
+  const calculateReadyToAssign = (month: string, accounts): number => {
     const prevMonth = getPreviousMonth(month);
 
     const previousBalance = budgetData[prevMonth]?.readyToAssign || 0;
 
-    const totalIncome = transactions
-      .filter((tx) => format(tx.date, "yyyy-MM") === month && tx.inflow)
-      .reduce((sum, tx) => sum + tx.amount, 0);
+    const totalInflow = accounts?
+    .filter((acc) => acc.type === "debit") // Only debit accounts
+    .flatMap((acc) => acc.transactions) // Get all transactions
+    .filter((tx) => isSameMonth(tx.date, parseISO(`${month}-01`)) && !tx.outflow) // Filter inflows
+    .reduce((sum, tx) => sum + tx.balance, 0); // Sum inflows
 
     const totalAssigned =
       budgetData[month]?.categories.reduce((sum, category) => {
@@ -136,7 +140,11 @@ export const BudgetProvider = ({ children }) => {
         );
       }, 0) || 0;
 
-    return previousBalance + totalIncome - totalAssigned;
+    console.log('totalInflow', totalInflow);
+    console.log('totalAssigned', totalAssigned);
+    console.log('previousBalance', previousBalance);
+
+    return (previousBalance + totalInflow) - totalAssigned;
   };
 
   const calculateActivityForMonth = (month, categoryName, accounts) => {
@@ -154,21 +162,6 @@ export const BudgetProvider = ({ children }) => {
 
   const isBeforeMonth = (monthA: string, monthB: string): boolean => {
     return new Date(monthA) < new Date(monthB);
-  };
-
-  const getCumulativeAvailable = (passedInData, itemName, newMonth) => {
-    const pastMonths = Object.keys(passedInData).filter((month) =>
-      isBeforeMonth(month, newMonth)
-    );
-  
-    const past = pastMonths.reduce((sum, month) => {
-      const categoryItem = passedInData[month]?.categories
-        .flatMap((cat) => cat.categoryItems)
-        .find((item) => item.name === itemName);
-  
-      return sum + (categoryItem?.assigned - categoryItem?.activity || 0);
-    }, 0);
-    return past;
   };
 
   const updateMonth = (newMonth: string, direction: string, accounts) => {
@@ -209,7 +202,8 @@ export const BudgetProvider = ({ children }) => {
                 });
               });
             });
-        
+
+          console.log(calculateReadyToAssign(newMonth, accounts))
 
       // If the month already exists, update available without changing structure
       if (prev[newMonth]) {
@@ -218,6 +212,7 @@ export const BudgetProvider = ({ children }) => {
           ...prev,
           [newMonth]: {
             ...prev[newMonth],
+            readyToAssign: calculateReadyToAssign(newMonth, accounts),
             categories: prev[newMonth].categories.map((category) => {
               if (category.name === 'Credit Card Payemnts') return category
               return {
@@ -276,36 +271,35 @@ export const BudgetProvider = ({ children }) => {
             }}),
           }))
         : createEmptyCategories(prev[getLatestMonth(prev)]?.categories || []);
-  
+
+      const totalInflow = accounts?
+      .filter((acc) => acc.type === "debit") // Only debit accounts
+      .flatMap((acc) => acc.transactions) // Get all transactions
+      .filter((tx) => isSameMonth(tx.date, parseISO(`${newMonth}-01`)) && !tx.outflow) // Filter inflows
+      .reduce((sum, tx) => sum + tx.balance, 0); // Sum inflows
+
       return {
         ...prev,
         [newMonth]: {
           categories: updatedCategories,
-          assignableMoney: prev[currentMonth]?.assignableMoney || 0,
-          readyToAssign:
-            (prev[previousMonth]?.readyToAssign || 0) +
-            (prev[currentMonth]?.assignableMoney || 0) -
-            updatedCategories.reduce(
-              (sum, cat) =>
-                sum +
-                cat.categoryItems.reduce((itemSum, item) => itemSum + item.assigned, 0),
-              0
-            ),
+          assignableMoney: totalInflow || 0,
+          readyToAssign: calculateReadyToAssign(newMonth, accounts)
         },
       };
     });
   };
   
 
-  useEffect(() => {
-    setBudgetData((prev) => ({
-      ...prev,
-      [currentMonth]: {
-        ...prev[currentMonth],
-        readyToAssign: calculateReadyToAssign(currentMonth),
-      },
-    }));
-  }, [transactions, currentMonth]);
+  // useEffect(() => {
+  //   console.log('setting');
+  //   setBudgetData((prev) => ({
+  //     ...prev,
+  //     [currentMonth]: {
+  //       ...prev[currentMonth],
+  //       readyToAssign: calculateReadyToAssign(currentMonth),
+  //     },
+  //   }));
+  // }, [transactions]);
 
   return (
     <BudgetContext.Provider
