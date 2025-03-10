@@ -7,14 +7,12 @@ import EditableAssigned from "./EditableAssigned";
 import { useTableContext } from "../context/TableDataContext";
 import MonthNav from "./MonthNav";
 import { useBudgetContext } from "../context/BudgetContext";
-import { isSameMonth, parseISO } from "date-fns";
+import { format, isSameMonth, parseISO, subMonths } from "date-fns";
 
 export default function CollapsibleTable() {
-  const { accounts, setAccounts } = useAccountContext();
+  const { accounts } = useAccountContext();
   const { currentMonth, updateMonth, budgetData, setBudgetData, computedData, addCategory, addItemToCategory } = useBudgetContext();
-  const [assignableMoney, setAssignableMoney] = useState(0);
   const [creditCardPayments, setCreditCardPayments] = useState([]);
-  const [readyToAssign, setReadyToAssign] = useState(0);
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
   const [newItem, setNewItem] = useState({
     name: "",
@@ -33,13 +31,31 @@ export default function CollapsibleTable() {
     [accounts]
   );
 
+  const getPreviousMonth = (month) => {
+    return format(subMonths(parseISO(`${month}-01`), 1), "yyyy-MM");
+  }
+
   useEffect(() => {
-    const totalDebitFunds = computedAccounts
-      .filter((acc) => acc.type === "debit")
-      .reduce((sum, acc) => sum + acc.balance, 0);
-    setAssignableMoney(totalDebitFunds);
-    setReadyToAssign(totalDebitFunds);
-  }, [computedAccounts]);
+    const totalInflow = computedAccounts
+      .filter((acc) => acc.type === "debit") 
+      .flatMap((acc) => acc.transactions) 
+      .filter((tx) => isSameMonth(tx.date, parseISO(`${currentMonth}-01`)) && !tx.outflow) 
+      .filter((tx) => tx.category === 'Ready to Assign')
+      .reduce((sum, tx) => sum + tx.balance, 0); 
+  
+    const assignableMoney = totalInflow;
+  
+    setBudgetData((prev) => ({
+      ...prev,
+      [currentMonth]: {
+        ...prev[currentMonth],
+        readyToAssign: assignableMoney, 
+        assignableMoney: assignableMoney, 
+      },
+    }));
+  }, [computedAccounts]); 
+  
+  
 
   useEffect(() => {
     const assignedMoney = budgetData[currentMonth]?.categories?.flatMap((category) =>
@@ -53,14 +69,13 @@ export default function CollapsibleTable() {
 
     const newPayments = calculateCreditCardPayments(computedAccounts, assignedMoney);
   
-    // Only update state if payments actually changed
     if (JSON.stringify(newPayments) !== JSON.stringify(creditCardPayments)) {
       setCreditCardPayments(newPayments);
     }
   }, [accounts, budgetData]);
 
   useEffect(() => {
-    if (!creditCardPayments.length) return; // Avoid running on first mount
+    if (!creditCardPayments.length) return; 
   
     setBudgetData((prev) => {
       if (!prev[currentMonth]) return prev;
@@ -81,7 +96,7 @@ export default function CollapsibleTable() {
         return { ...category, categoryItems: updatedItems };
       });
   
-      if (!hasChanges) return prev; // Prevent infinite updates'
+      if (!hasChanges) return prev;
   
       return {
         ...prev,
@@ -167,7 +182,7 @@ export default function CollapsibleTable() {
     const pastMonths = Object.keys(passedInData).filter((month) =>
       isBeforeMonth(month, currentMonth)
     );
-
+    
     const past = pastMonths.reduce((sum, month) => {
       const categoryItem = passedInData[month]?.categories
         .flatMap((cat) => cat.categoryItems)
@@ -202,14 +217,17 @@ export default function CollapsibleTable() {
           };
         }) || [];
 
+        const prevMonth = getPreviousMonth(currentMonth);
+
+        const previousBalance = budgetData[prevMonth]?.readyToAssign || 0;
+
       return {
         ...prev,
         [currentMonth]: {
           ...prev[currentMonth],
           categories: updatedCategories,
           readyToAssign:
-          (prev[currentMonth]?.readyToAssign || 0) +
-          (prev[currentMonth]?.assignableMoney || 0) -
+          (previousBalance + prev[currentMonth]?.assignableMoney || 0) -
           updatedCategories.reduce(
             (sum, cat) =>
               sum +
@@ -228,7 +246,7 @@ export default function CollapsibleTable() {
           const date = new Date(tx.date);
           const convertedMonth = parseISO(`${month}-01`)
 
-          return isSameMonth(date, convertedMonth) && tx.categoryGroup === categoryName
+          return isSameMonth(date, convertedMonth) && tx.category === categoryName
         }
       )
       return filteredAccounts.reduce((sum, tx) => sum + tx.balance, 0);
@@ -249,14 +267,6 @@ export default function CollapsibleTable() {
 
   useEffect(() => {
     if (!budgetData[currentMonth]) return;
-
-    const readyToAssignBalance = accounts
-      .flatMap((account) => account.transactions)
-      .reduce(
-        (sum, tx) =>
-          tx.category === "Ready to Assign" ? sum + tx.balance : sum,
-        0
-      );
 
     const currentlyAssigned = budgetData[currentMonth]?.categories?.reduce(
       (sum, category) => {
@@ -291,28 +301,40 @@ export default function CollapsibleTable() {
         }
         return {
           ...category,
-          categoryItems: category.categoryItems.map((item) => ({
+          categoryItems: category.categoryItems.map((item) => {
+            
+            const cumlativeAvailable = getCumulativeAvailable(
+              budgetData,
+              item.name
+            );
+            const availableSum = item.assigned + item.activity;
+
+            return {
             ...item,
             activity: calculateActivityForMonth(currentMonth, item.name, computedAccounts),
-            available: (item.assigned - calculateActivityForMonth(currentMonth, item.name, computedAccounts)) * -1
-          })),
+            available: availableSum + cumlativeAvailable
+          }}),
         };
       }
     );
 
-    setBudgetData((prev) => ({
-      ...prev,
-      [currentMonth]: { ...prev[currentMonth], categories: updatedCategories },
-    }));
+    const totalInflow = computedAccounts
+    .filter((acc) => acc.type === "debit") 
+    .flatMap((acc) => acc.transactions) 
+    .filter((tx) => isSameMonth(tx.date, parseISO(`${currentMonth}-01`)) && !tx.outflow)
+    .filter((tx) => tx.category === 'Ready to Assign')
+    .reduce((sum, tx) => sum + tx.balance, 0); 
 
-    setAssignableMoney(readyToAssignBalance);
-    setReadyToAssign(readyToAssignBalance - currentlyAssigned);
+    setBudgetData((prev) => {
+      return{
+      ...prev,
+      [currentMonth]: { ...prev[currentMonth], categories: updatedCategories, assignableMoney: totalInflow, readyToAssign: totalInflow - currentlyAssigned },
+    }});
   }, [accounts]);
 
   return (
     <div className="mx-auto mt-8 rounded-md">
       <MonthNav />
-      <h1>Ready to Assign - {formatToUSD(readyToAssign)}</h1>
       <div className="flex m-2">
         <AddCategoryButton handleSubmit={addCategory} />
       </div>

@@ -10,12 +10,7 @@ import { useAccountContext } from "../context/AccountContext";
 const MonthNav = () => {
     const { currentMonth, updateMonth, budgetData } = useBudgetContext();
     const { accounts } = useAccountContext();
-    const [readyToAssign, setReadyToAssign] = useState(0);
 
-
-  useEffect(() => {
-    setReadyToAssign(budgetData[currentMonth]?.readyToAssign || 0);
-  }, [budgetData])
 
   const computedAccounts = useMemo(
     () =>
