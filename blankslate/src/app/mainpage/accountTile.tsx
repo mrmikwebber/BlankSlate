@@ -2,42 +2,31 @@
 import Link from "next/link";
 import { redirect } from 'next/navigation'
 import { useState, useEffect } from "react";
+import { Account } from "../context/AccountContext";
+import { formatToUSD } from "../utils/formatToUSD";
 
 export default function AccountTile(props) {
-  const [isCredit, setIsCredit] = useState(false);
-  const [cardIssuer, setCardIssuer] = useState("");
-  const [accountId, setAccountId] = useState();
-  const [accountName, setAccountName] = useState("");
-  const [cardBalance, setCardBalance] = useState("");
+  const [account, setAccount] = useState<Account>();
 
   useEffect(() => {
-    setIsCredit(props.isCredit);
-    setCardIssuer(props.cardIssuer);
-    setAccountId(props.accountId)
-    setAccountName(props.accountName);
-    const num = props.cardBalance;
-    const newBal = new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-    }).format(num);
-    setCardBalance(newBal);
-  }, []);
+    setAccount(props.account)
+  }, [props.account]);
 
-  const openAccount = (accountId) => {
-    redirect(`/accounts/${accountId}`)
+  const openAccount = () => {
+    redirect(`/accounts/${account?.id}`)
   }
 
   return (
     <div
-      onClick={() => openAccount(accountId)}
-      className={`w-40 h-48 ${cardIssuer == "amex" && "bg-blue-400"} ${
-        cardIssuer == "visa" && "bg-cyan-400"
-      } ${cardIssuer == "discover" && "bg-orange-300"} ${
-        cardIssuer == "mastercard" && "bg-red-400"
+      onClick={() => openAccount()}
+      className={`w-40 h-48 ${account?.issuer == "amex" && "bg-blue-400"} ${
+        account?.issuer == "visa" && "bg-cyan-400"
+      } ${account?.issuer == "discover" && "bg-orange-300"} ${
+        account?.issuer == "mastercard" && "bg-red-400"
       } rounded-md mx-2 drop-shadow-xl`}
     >
       <div className="m-1 flex justify-between">
-        {isCredit && (
+        {account?.type === 'credit' && (
           <svg
             xmlns="http://www.w3.org/2000/svg"
             width="24"
@@ -47,7 +36,7 @@ export default function AccountTile(props) {
             <path d="M880-720v480q0 33-23.5 56.5T800-160H160q-33 0-56.5-23.5T80-240v-480q0-33 23.5-56.5T160-800h640q33 0 56.5 23.5T880-720m-720 80h640v-80H160zm0 160v240h640v-240zm0 240v-480z" />
           </svg>
         )}
-        {!isCredit && (
+        {account?.type !== 'credit' && (
           <svg
             xmlns="http://www.w3.org/2000/svg"
             width="24"
@@ -63,7 +52,7 @@ export default function AccountTile(props) {
         <div className="flex justify-end mt-1 me-1">12/26</div>
       </div>
       <div className="mt-4">
-        {cardIssuer === "amex" && (
+        {account?.issuer === "amex" && (
           <svg
             className="ms-2"
             width="50px"
@@ -78,7 +67,7 @@ export default function AccountTile(props) {
             />
           </svg>
         )}
-        {cardIssuer === "visa" && (
+        {account?.issuer === "visa" && (
           <svg
             className="ms-2"
             version="1.1"
@@ -115,7 +104,7 @@ export default function AccountTile(props) {
             </g>
           </svg>
         )}
-        {cardIssuer === "mastercard" && (
+        {account?.issuer === "mastercard" && (
           <svg
             className="ms-2"
             width="50px"
@@ -148,7 +137,7 @@ export default function AccountTile(props) {
             </g>
           </svg>
         )}
-        {cardIssuer === "discover" && (
+        {account?.issuer === "discover" && (
           <svg
             className="ms-2"
             version="1.1"
@@ -203,8 +192,8 @@ export default function AccountTile(props) {
             </g>
           </svg>
         )}
-        <h2 className="ms-2 mb-2">{accountName}</h2>
-        <h1 className="ms-2 text-xl">{cardBalance}</h1>
+        <h2 className="ms-2 mb-2">{account?.name}</h2>
+        <h1 className="ms-2 text-xl">{formatToUSD(account?.balance)}</h1>
       </div>
     </div>
   );
