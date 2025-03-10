@@ -108,17 +108,20 @@ export default function AccountDetails() {
           <label className="block mb-2">
             Category Group:
             <select
-              value={newTransaction.categoryGroup}
+              value={newTransaction.category}
               onChange={(e) =>
                 setNewTransaction({
                   ...newTransaction,
-                  categoryGroup: e.target.value,
+                  category: e.target.value,
                 })
               }
               className="w-full p-2 border rounded"
               required
             >
               <option value="">Select Category Group</option>
+              <option key="Ready to Assign" value="Ready to Assign">
+                Ready to Assign
+              </option>
               {budgetData[currentMonth].categories.map((category) =>
                 category.categoryItems.map((item) => (
                   <option key={item.name} value={item.name}>

@@ -124,10 +124,11 @@ export const BudgetProvider = ({ children }) => {
     const previousBalance = budgetData[prevMonth]?.readyToAssign || 0;
 
     const totalInflow = accounts?
-    .filter((acc) => acc.type === "debit") // Only debit accounts
-    .flatMap((acc) => acc.transactions) // Get all transactions
-    .filter((tx) => isSameMonth(tx.date, parseISO(`${month}-01`)) && !tx.outflow) // Filter inflows
-    .reduce((sum, tx) => sum + tx.balance, 0); // Sum inflows
+    .filter((acc) => acc.type === "debit") 
+    .flatMap((acc) => acc.transactions)
+    .filter((tx) => isSameMonth(tx.date, parseISO(`${month}-01`)) && !tx.outflow)
+    .filter((tx) => tx.category === 'Ready to Assign')
+    .reduce((sum, tx) => sum + tx.balance, 0); 
 
     const totalAssigned =
       budgetData[month]?.categories.reduce((sum, category) => {
@@ -139,11 +140,6 @@ export const BudgetProvider = ({ children }) => {
           )
         );
       }, 0) || 0;
-
-    console.log('totalInflow', totalInflow);
-    console.log('totalAssigned', totalAssigned);
-    console.log('previousBalance', previousBalance);
-
     return (previousBalance + totalInflow) - totalAssigned;
   };
 
@@ -202,8 +198,6 @@ export const BudgetProvider = ({ children }) => {
                 });
               });
             });
-
-          console.log(calculateReadyToAssign(newMonth, accounts))
 
       // If the month already exists, update available without changing structure
       if (prev[newMonth]) {
@@ -273,10 +267,11 @@ export const BudgetProvider = ({ children }) => {
         : createEmptyCategories(prev[getLatestMonth(prev)]?.categories || []);
 
       const totalInflow = accounts?
-      .filter((acc) => acc.type === "debit") // Only debit accounts
-      .flatMap((acc) => acc.transactions) // Get all transactions
-      .filter((tx) => isSameMonth(tx.date, parseISO(`${newMonth}-01`)) && !tx.outflow) // Filter inflows
-      .reduce((sum, tx) => sum + tx.balance, 0); // Sum inflows
+      .filter((acc) => acc.type === "debit") 
+      .flatMap((acc) => acc.transactions) 
+      .filter((tx) => isSameMonth(tx.date, parseISO(`${newMonth}-01`)) && !tx.outflow)
+      .filter((tx) => tx.category === 'Ready to Assign')
+      .reduce((sum, tx) => sum + tx.balance, 0); 
 
       return {
         ...prev,
@@ -288,18 +283,6 @@ export const BudgetProvider = ({ children }) => {
       };
     });
   };
-  
-
-  // useEffect(() => {
-  //   console.log('setting');
-  //   setBudgetData((prev) => ({
-  //     ...prev,
-  //     [currentMonth]: {
-  //       ...prev[currentMonth],
-  //       readyToAssign: calculateReadyToAssign(currentMonth),
-  //     },
-  //   }));
-  // }, [transactions]);
 
   return (
     <BudgetContext.Provider

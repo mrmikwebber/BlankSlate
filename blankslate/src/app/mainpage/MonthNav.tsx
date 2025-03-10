@@ -43,8 +43,6 @@ const MonthNav = () => {
     updateMonth(prevMonth, 'backward', computedAccounts);
   };
 
-  console.log(budgetData[currentMonth]);
-
   return (
     <div className="flex items-center justify-between p-4 bg-gray-100 rounded-lg">
       <button onClick={() => goToPreviousMonth()} className="p-2 rounded-lg hover:bg-gray-200">

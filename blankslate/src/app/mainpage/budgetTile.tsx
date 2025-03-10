@@ -36,27 +36,24 @@ export default function CollapsibleTable() {
   }
 
   useEffect(() => {
-    // Get total inflows for the current month from debit accounts
     const totalInflow = computedAccounts
-      .filter((acc) => acc.type === "debit") // Only debit accounts
-      .flatMap((acc) => acc.transactions) // Get all transactions
-      .filter((tx) => isSameMonth(tx.date, parseISO(`${currentMonth}-01`)) && !tx.outflow) // Filter inflows
-      .reduce((sum, tx) => sum + tx.balance, 0); // Sum inflows
+      .filter((acc) => acc.type === "debit") 
+      .flatMap((acc) => acc.transactions) 
+      .filter((tx) => isSameMonth(tx.date, parseISO(`${currentMonth}-01`)) && !tx.outflow) 
+      .filter((tx) => tx.category === 'Ready to Assign')
+      .reduce((sum, tx) => sum + tx.balance, 0); 
   
-    // Calculate final assignable amount
     const assignableMoney = totalInflow;
-  
-    console.log("Total Inflow:", totalInflow, "Final Assignable Money:", assignableMoney);
   
     setBudgetData((prev) => ({
       ...prev,
       [currentMonth]: {
         ...prev[currentMonth],
-        readyToAssign: assignableMoney, // Set ready-to-assign
-        assignableMoney: assignableMoney, // Set total assignable money
+        readyToAssign: assignableMoney, 
+        assignableMoney: assignableMoney, 
       },
     }));
-  }, [computedAccounts]); // Run when accounts or month changes
+  }, [computedAccounts]); 
   
   
 
@@ -72,14 +69,13 @@ export default function CollapsibleTable() {
 
     const newPayments = calculateCreditCardPayments(computedAccounts, assignedMoney);
   
-    // Only update state if payments actually changed
     if (JSON.stringify(newPayments) !== JSON.stringify(creditCardPayments)) {
       setCreditCardPayments(newPayments);
     }
   }, [accounts, budgetData]);
 
   useEffect(() => {
-    if (!creditCardPayments.length) return; // Avoid running on first mount
+    if (!creditCardPayments.length) return; 
   
     setBudgetData((prev) => {
       if (!prev[currentMonth]) return prev;
@@ -100,7 +96,7 @@ export default function CollapsibleTable() {
         return { ...category, categoryItems: updatedItems };
       });
   
-      if (!hasChanges) return prev; // Prevent infinite updates'
+      if (!hasChanges) return prev;
   
       return {
         ...prev,
@@ -250,7 +246,7 @@ export default function CollapsibleTable() {
           const date = new Date(tx.date);
           const convertedMonth = parseISO(`${month}-01`)
 
-          return isSameMonth(date, convertedMonth) && tx.categoryGroup === categoryName
+          return isSameMonth(date, convertedMonth) && tx.category === categoryName
         }
       )
       return filteredAccounts.reduce((sum, tx) => sum + tx.balance, 0);
@@ -271,14 +267,6 @@ export default function CollapsibleTable() {
 
   useEffect(() => {
     if (!budgetData[currentMonth]) return;
-
-    const readyToAssignBalance = accounts
-      .flatMap((account) => account.transactions)
-      .reduce(
-        (sum, tx) =>
-          tx.category === "Ready to Assign" ? sum + tx.balance : sum,
-        0
-      );
 
     const currentlyAssigned = budgetData[currentMonth]?.categories?.reduce(
       (sum, category) => {
@@ -323,18 +311,18 @@ export default function CollapsibleTable() {
     );
 
     const totalInflow = computedAccounts
-    .filter((acc) => acc.type === "debit") // Only debit accounts
-    .flatMap((acc) => acc.transactions) // Get all transactions
-    .filter((tx) => isSameMonth(tx.date, parseISO(`${currentMonth}-01`)) && !tx.outflow) // Filter inflows
-    .reduce((sum, tx) => sum + tx.balance, 0); // Sum inflows
+    .filter((acc) => acc.type === "debit") 
+    .flatMap((acc) => acc.transactions) 
+    .filter((tx) => isSameMonth(tx.date, parseISO(`${currentMonth}-01`)) && !tx.outflow)
+    .filter((tx) => tx.category === 'Ready to Assign')
+    .reduce((sum, tx) => sum + tx.balance, 0); 
 
-    setBudgetData((prev) => ({
+    setBudgetData((prev) => {
+      return{
       ...prev,
       [currentMonth]: { ...prev[currentMonth], categories: updatedCategories, assignableMoney: totalInflow, readyToAssign: totalInflow - currentlyAssigned },
-    }));
+    }});
   }, [accounts]);
-
-  console.log(budgetData[currentMonth]);
 
   return (
     <div className="mx-auto mt-8 rounded-md">
