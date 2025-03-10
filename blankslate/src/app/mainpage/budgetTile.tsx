@@ -82,7 +82,9 @@ export default function CollapsibleTable() {
         return { ...category, categoryItems: updatedItems };
       });
   
-      if (!hasChanges) return prev; // Prevent infinite updates
+      if (!hasChanges) return prev; // Prevent infinite updates'
+
+      console.log('Setting Credit')
   
       return {
         ...prev,
@@ -189,12 +191,11 @@ export default function CollapsibleTable() {
             categoryItems: category.categoryItems.map((item, itemIdx) => {
               if (itemIdx !== itemIndex) return item;
 
-              const availableSum = value - item.activity;
+              const availableSum = value + item.activity; // plus here given that activity is set as a negative
               const cumlativeAvailable = getCumulativeAvailable(
                 prev,
                 item.name
               );
-
               console.log('inputChange', availableSum + cumlativeAvailable)
               return {
                 ...item,
@@ -303,6 +304,8 @@ export default function CollapsibleTable() {
       }
     );
 
+    console.log('Setting budget data')
+
     setBudgetData((prev) => ({
       ...prev,
       [currentMonth]: { ...prev[currentMonth], categories: updatedCategories },
@@ -310,7 +313,7 @@ export default function CollapsibleTable() {
 
     setAssignableMoney(readyToAssignBalance);
     setReadyToAssign(readyToAssignBalance - currentlyAssigned);
-  }, [accounts, currentMonth]);
+  }, [accounts]);
 
   console.log(budgetData);
 

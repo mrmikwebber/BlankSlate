@@ -173,15 +173,48 @@ export const BudgetProvider = ({ children }) => {
 
   const updateMonth = (newMonth: string, direction: string, accounts) => {
     setCurrentMonth(newMonth); // Ensure newMonth is set before using it in logic
-  
+    console.log('setting on update month')
     setBudgetData((prev) => {
       const previousMonth = getPreviousMonth(newMonth);
       const pastMonths = Object.keys(prev).filter((month) =>
         isBeforeMonth(month, newMonth)
       );
 
+            // Calculate cumulative assigned amounts for past months
+            const cumulativeAssigned = new Map();
+            pastMonths.forEach((month) => {
+              prev[month]?.categories.forEach((category) => {
+                category.categoryItems.forEach((item) => {
+                  if (!cumulativeAssigned.has(item.name)) {
+                    cumulativeAssigned.set(item.name, 0);
+                  }
+                  cumulativeAssigned.set(
+                    item.name,
+                    cumulativeAssigned.get(item.name) + item.assigned
+                  );
+                });
+              });
+            });
+      
+            const cumulativeActivity = new Map();
+            pastMonths.forEach((month) => {
+              prev[month]?.categories.forEach((category) => {
+                category.categoryItems.forEach((item) => {
+                  if (!cumulativeActivity.has(item.name)) {
+                    cumulativeActivity.set(item.name, 0);
+                  }
+                  cumulativeActivity.set(
+                    item.name,
+                    cumulativeActivity.get(item.name) + item.activity
+                  );
+                });
+              });
+            });
+        
+
       // If the month already exists, update available without changing structure
       if (prev[newMonth]) {
+
         return {
           ...prev,
           [newMonth]: {
@@ -190,11 +223,28 @@ export const BudgetProvider = ({ children }) => {
               if (category.name === 'Credit Card Payemnts') return category
               return {
               ...category,
-              categoryItems: category.categoryItems.map((item) => ({
+              categoryItems: category.categoryItems.map((item) => {
+
+                const pastAssigned = cumulativeAssigned.get(item.name) || 0;
+                const pastActivity = cumulativeActivity.get(item.name) || 0;
+                const isCreditCardPayment = category.name === "Credit Card Payments";
+
+                console.log(item.name, cumulativeActivity);
+                console.log(prev);
+
+                if(cumulativeActivity.size === 0) return item;
+  
+                const pastAvailable = isCreditCardPayment
+                ? prev[previousMonth]?.categories
+                    .find((c) => c.name === "Credit Card Payments")
+                    ?.categoryItems.find((i) => i.name === item.name)?.available || 0
+                : Math.max(pastAssigned + pastActivity, 0);
+                
+                return {
                 ...item,
                 activity: calculateActivityForMonth(newMonth, item.name, accounts),
-                available: getCumulativeAvailable(prev, item.name, newMonth) - item.activity,
-              })),
+                available: pastAvailable,
+              }}),
             }}),
           },
         };
@@ -205,23 +255,7 @@ export const BudgetProvider = ({ children }) => {
         prev[previousMonth]?.categories && direction === "forward"
           ? prev[previousMonth].categories
           : [];
-  
-      // Calculate cumulative assigned amounts for past months
-      const cumulativeAssigned = new Map();
-      pastMonths.forEach((month) => {
-        prev[month]?.categories.forEach((category) => {
-          category.categoryItems.forEach((item) => {
-            if (!cumulativeAssigned.has(item.name)) {
-              cumulativeAssigned.set(item.name, 0);
-            }
-            cumulativeAssigned.set(
-              item.name,
-              cumulativeAssigned.get(item.name) + item.assigned
-            );
-          });
-        });
-      });
-  
+
       // Create the new month's categories
       const updatedCategories = prevCategories.length
         ? prevCategories.map((category) => ({
@@ -229,15 +263,16 @@ export const BudgetProvider = ({ children }) => {
             categoryItems: category.categoryItems.map((item) => {
 
               const pastAssigned = cumulativeAssigned.get(item.name) || 0;
+              const pastActivity = cumulativeActivity.get(item.name) || 0;
               const isCreditCardPayment = category.name === "Credit Card Payments";
+
+              console.log(item.name, ' ', pastAssigned, 'and pastActivity: ', pastActivity);
 
               const pastAvailable = isCreditCardPayment
               ? prev[previousMonth]?.categories
                   .find((c) => c.name === "Credit Card Payments")
                   ?.categoryItems.find((i) => i.name === item.name)?.available || 0
-              : pastAssigned;
-
-              console.log(isCreditCardPayment, ': ', pastAvailable);
+              : Math.max(pastAssigned + pastActivity, 0);
 
               return {
               ...item,
@@ -247,6 +282,8 @@ export const BudgetProvider = ({ children }) => {
             }}),
           }))
         : createEmptyCategories(prev[getLatestMonth(prev)]?.categories || []);
+
+        console.log(updatedCategories);
   
       return {
         ...prev,
@@ -269,6 +306,7 @@ export const BudgetProvider = ({ children }) => {
   
 
   useEffect(() => {
+    console.log('setting budget data on transactions');
     setBudgetData((prev) => ({
       ...prev,
       [currentMonth]: {
