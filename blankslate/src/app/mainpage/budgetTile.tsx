@@ -182,7 +182,7 @@ export default function CollapsibleTable() {
     const pastMonths = Object.keys(passedInData).filter((month) =>
       isBeforeMonth(month, currentMonth)
     );
-
+    
     const past = pastMonths.reduce((sum, month) => {
       const categoryItem = passedInData[month]?.categories
         .flatMap((cat) => cat.categoryItems)
@@ -301,11 +301,19 @@ export default function CollapsibleTable() {
         }
         return {
           ...category,
-          categoryItems: category.categoryItems.map((item) => ({
+          categoryItems: category.categoryItems.map((item) => {
+            
+            const cumlativeAvailable = getCumulativeAvailable(
+              budgetData,
+              item.name
+            );
+            const availableSum = item.assigned + item.activity;
+
+            return {
             ...item,
             activity: calculateActivityForMonth(currentMonth, item.name, computedAccounts),
-            available: (item.assigned - calculateActivityForMonth(currentMonth, item.name, computedAccounts)) * -1
-          })),
+            available: availableSum + cumlativeAvailable
+          }}),
         };
       }
     );
