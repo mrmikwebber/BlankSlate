@@ -50,7 +50,7 @@ export default function CollapsibleTable() {
           amount: item.assigned,
         }))
     );
-  
+
     const newPayments = calculateCreditCardPayments(computedAccounts, assignedMoney);
   
     // Only update state if payments actually changed
@@ -78,13 +78,10 @@ export default function CollapsibleTable() {
   
           return { ...item, available: newAssigned };
         });
-        console.log(updatedItems)
         return { ...category, categoryItems: updatedItems };
       });
   
       if (!hasChanges) return prev; // Prevent infinite updates'
-
-      console.log('Setting Credit')
   
       return {
         ...prev,
@@ -196,7 +193,6 @@ export default function CollapsibleTable() {
                 prev,
                 item.name
               );
-              console.log('inputChange', availableSum + cumlativeAvailable)
               return {
                 ...item,
                 assigned: value,
@@ -304,8 +300,6 @@ export default function CollapsibleTable() {
       }
     );
 
-    console.log('Setting budget data')
-
     setBudgetData((prev) => ({
       ...prev,
       [currentMonth]: { ...prev[currentMonth], categories: updatedCategories },
@@ -314,8 +308,6 @@ export default function CollapsibleTable() {
     setAssignableMoney(readyToAssignBalance);
     setReadyToAssign(readyToAssignBalance - currentlyAssigned);
   }, [accounts]);
-
-  console.log(budgetData);
 
   return (
     <div className="mx-auto mt-8 rounded-md">

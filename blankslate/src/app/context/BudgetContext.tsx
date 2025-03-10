@@ -173,7 +173,6 @@ export const BudgetProvider = ({ children }) => {
 
   const updateMonth = (newMonth: string, direction: string, accounts) => {
     setCurrentMonth(newMonth); // Ensure newMonth is set before using it in logic
-    console.log('setting on update month')
     setBudgetData((prev) => {
       const previousMonth = getPreviousMonth(newMonth);
       const pastMonths = Object.keys(prev).filter((month) =>
@@ -229,9 +228,6 @@ export const BudgetProvider = ({ children }) => {
                 const pastActivity = cumulativeActivity.get(item.name) || 0;
                 const isCreditCardPayment = category.name === "Credit Card Payments";
 
-                console.log(item.name, cumulativeActivity);
-                console.log(prev);
-
                 if(cumulativeActivity.size === 0) return item;
   
                 const pastAvailable = isCreditCardPayment
@@ -266,8 +262,6 @@ export const BudgetProvider = ({ children }) => {
               const pastActivity = cumulativeActivity.get(item.name) || 0;
               const isCreditCardPayment = category.name === "Credit Card Payments";
 
-              console.log(item.name, ' ', pastAssigned, 'and pastActivity: ', pastActivity);
-
               const pastAvailable = isCreditCardPayment
               ? prev[previousMonth]?.categories
                   .find((c) => c.name === "Credit Card Payments")
@@ -282,8 +276,6 @@ export const BudgetProvider = ({ children }) => {
             }}),
           }))
         : createEmptyCategories(prev[getLatestMonth(prev)]?.categories || []);
-
-        console.log(updatedCategories);
   
       return {
         ...prev,
@@ -306,7 +298,6 @@ export const BudgetProvider = ({ children }) => {
   
 
   useEffect(() => {
-    console.log('setting budget data on transactions');
     setBudgetData((prev) => ({
       ...prev,
       [currentMonth]: {

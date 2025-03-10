@@ -13,7 +13,7 @@ interface Transaction {
   outflow: boolean;
 }
 
-interface Account {
+export interface Account {
   id: number;
   name: string;
   balance: number;
