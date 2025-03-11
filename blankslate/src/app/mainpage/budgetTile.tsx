@@ -21,8 +21,8 @@ export default function CollapsibleTable() {
   } = useBudgetContext();
   const [creditCardPayments, setCreditCardPayments] = useState([]);
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
-  const [selectedCategory, setSelectedCategory] = useState('')
-  const [targetSidebarOpen, setTargetSidebarOpen] = useState(false)
+  const [selectedCategory, setSelectedCategory] = useState("");
+  const [targetSidebarOpen, setTargetSidebarOpen] = useState(false);
   const [newItem, setNewItem] = useState({
     name: "",
     assigned: 0,
@@ -380,9 +380,39 @@ export default function CollapsibleTable() {
   }, [accounts]);
 
   const toggleTargetSideBar = (item) => {
-    setSelectedCategory(item.name)
-    setTargetSidebarOpen(true)
+    setSelectedCategory(item.name);
+    setTargetSidebarOpen(true);
+  };
+
+const getTargetStatus = (item) => {
+  if (!item.target) return { message: "", color: "" };
+
+  const assigned = item.assigned || 0;
+  const needed = item.target.amountNeeded;
+  const activity = Math.abs(item.activity || 0);
+  const available = item.available || 0;
+  const overspent = available < 0;
+  const fullyFunded = assigned >= needed;
+  const partiallyFunded = assigned < needed && assigned >= activity;
+  const stillNeeded = needed - assigned;
+
+  console.log(item, ': ', overspent);
+
+  if (overspent && assigned < activity) {
+    return { message: `Overspent ${formatToUSD(available)} of ${formatToUSD(assigned)}`, color: "text-red-600 font-semibold" };
   }
+  if (fullyFunded && activity === needed) {
+    return { message: "Fully Funded", color: "text-green-600 font-semibold" }; 
+  }
+  if (fullyFunded) {
+    return { message: `Funded ${formatToUSD(needed)} of ${formatToUSD(assigned)}`, color: "text-blue-600 font-semibold" }; 
+  }
+  if (partiallyFunded) {
+    return { message: `${formatToUSD(stillNeeded)} more needed to fulfill target`, color: "text-yellow-600 font-semibold" }; 
+  }
+  return { message: `${formatToUSD(assigned)} / ${formatToUSD(needed)}`, color: "text-gray-600" };
+};
+
 
   return (
     <div className="mx-auto mt-8 rounded-md">
@@ -391,129 +421,157 @@ export default function CollapsibleTable() {
         <AddCategoryButton handleSubmit={addCategory} />
       </div>
       <div className="flex">
-      <table className="w-full border border-gray-300 rounded-md">
-        <thead>
-          <tr className="bg-gray-200 text-left">
-            <th className="p-2 border">Category</th>
-            <th className="p-2 border">Assigned</th>
-            <th className="p-2 border">Activity</th>
-            <th className="p-2 border">Available</th>
-          </tr>
-        </thead>
-        <tbody>
-          {budgetData[currentMonth]?.categories?.map((group, categoryIndex) => (
-            <Fragment key={group.name}>
-              <tr
-                className="bg-gray-400 text-white"
-                onMouseEnter={() => setHoveredCategory(group.name)}
-                onMouseLeave={() => setHoveredCategory(null)}
-              >
-                <td colSpan={0} className="p-3 font-bold text-lg w-full">
-                  <div className="flex items-center">
-                    <button
-                      onClick={() => toggleCategory(group.name)}
-                      className="mr-2"
-                    >
-                      {openCategories[group.name] ? "▼" : "▶"}
-                    </button>
-                    {group.name}
-                    {hoveredCategory === group.name && (
-                      <button
-                        onClick={() => setActiveCategory(group.name)}
-                        className="ms-2 text-sm bg-blue-500 text-white px-2 py-1 rounded-full hover:bg-teal-500 transition"
-                      >
-                        +
-                      </button>
-                    )}
-                  </div>
-                </td>
-                <td className="p-2 border">
-                  {formatToUSD(
-                    group.categoryItems.reduce(
-                      (sum, item) => sum + item.assigned,
-                      0
-                    )
-                  )}
-                </td>
-                <td className="p-2 border">
-                  {formatToUSD(
-                    group.categoryItems.reduce(
-                      (sum, item) => sum + item.activity,
-                      0
-                    )
-                  )}
-                </td>
-                <td className="p-2 border">
-                  {group.name === "Credit Card Payments"
-                    ? "Payment - " +
-                      formatToUSD(
+        <table className="w-full border border-gray-300 rounded-md">
+          <thead>
+            <tr className="bg-gray-200 text-left">
+              <th className="p-2 border">Category</th>
+              <th className="p-2 border">Assigned</th>
+              <th className="p-2 border">Activity</th>
+              <th className="p-2 border">Available</th>
+            </tr>
+          </thead>
+          <tbody>
+            {budgetData[currentMonth]?.categories?.map(
+              (group, categoryIndex) => (
+                <Fragment key={group.name}>
+                  <tr
+                    className="bg-gray-400 text-white"
+                    onMouseEnter={() => setHoveredCategory(group.name)}
+                    onMouseLeave={() => setHoveredCategory(null)}
+                  >
+                    <td colSpan={0} className="p-3 font-bold text-lg w-full">
+                      <div className="flex items-center">
+                        <button
+                          onClick={() => toggleCategory(group.name)}
+                          className="mr-2"
+                        >
+                          {openCategories[group.name] ? "▼" : "▶"}
+                        </button>
+                        {group.name}
+                        {hoveredCategory === group.name && (
+                          <button
+                            onClick={() => setActiveCategory(group.name)}
+                            className="ms-2 text-sm bg-blue-500 text-white px-2 py-1 rounded-full hover:bg-teal-500 transition"
+                          >
+                            +
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                    <td className="p-2 border">
+                      {formatToUSD(
                         group.categoryItems.reduce(
-                          (sum, item) => sum + item.available,
-                          0
-                        ) || 0
-                      )
-                    : formatToUSD(
-                        group.categoryItems.reduce(
-                          (sum, item) => sum + item.available,
+                          (sum, item) => sum + item.assigned,
                           0
                         )
                       )}
-                </td>
-              </tr>
-
-              {activeCategory === group.name && (
-                <div className="absolute left-0 mt-2 w-64 bg-white p-4 shadow-lg rounded-lg border z-50">
-                  <input
-                    type="text"
-                    placeholder="Item Name"
-                    value={newItem.name}
-                    onChange={(e) =>
-                      setNewItem({ ...newItem, name: e.target.value })
-                    }
-                    className="w-full border rounded px-2 py-1"
-                  />
-                  <button
-                    onClick={() => handleAddItem(group.name)}
-                    className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-500 transition"
-                  >
-                    Submit
-                  </button>
-                </div>
-              )}
-              {openCategories[group.name] &&
-                group.categoryItems.map((item, itemIndex) => (
-                  <tr key={itemIndex} className="border-t">
-                    <td onClick={() => {group.name !== 'Credit Card Payments' && toggleTargetSideBar(item)}}className="p-2 border">
-                        {item.name +
-                          " " +
-                          (item.target
-                            ? formatToUSD((item.available) || 0) +
-                              " / " +
-                              formatToUSD(item.target?.amountNeeded || 0)
-                            : "")}
-                    </td>
-                    <EditableAssigned
-                      categoryIndex={categoryIndex}
-                      itemIndex={itemIndex}
-                      item={item}
-                      handleInputChange={handleInputChange}
-                    />
-                    <td className="p-2 border">
-                      {formatToUSD(item.activity || 0)}
                     </td>
                     <td className="p-2 border">
-                      {formatToUSD(item.available || 0)}
+                      {formatToUSD(
+                        group.categoryItems.reduce(
+                          (sum, item) => sum + item.activity,
+                          0
+                        )
+                      )}
+                    </td>
+                    <td className="p-2 border">
+                      {group.name === "Credit Card Payments"
+                        ? "Payment - " +
+                          formatToUSD(
+                            group.categoryItems.reduce(
+                              (sum, item) => sum + item.available,
+                              0
+                            ) || 0
+                          )
+                        : formatToUSD(
+                            group.categoryItems.reduce(
+                              (sum, item) => sum + item.available,
+                              0
+                            )
+                          )}
                     </td>
                   </tr>
-                ))}
-            </Fragment>
-          ))}
-        </tbody>
-      </table>
-      {targetSidebarOpen && <TargetSidebar
-        itemName={selectedCategory}
-        onClose={() => {setTargetSidebarOpen(false)}}
-      />}
+
+                  {activeCategory === group.name && (
+                    <div className="absolute left-0 mt-2 w-64 bg-white p-4 shadow-lg rounded-lg border z-50">
+                      <input
+                        type="text"
+                        placeholder="Item Name"
+                        value={newItem.name}
+                        onChange={(e) =>
+                          setNewItem({ ...newItem, name: e.target.value })
+                        }
+                        className="w-full border rounded px-2 py-1"
+                      />
+                      <button
+                        onClick={() => handleAddItem(group.name)}
+                        className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-500 transition"
+                      >
+                        Submit
+                      </button>
+                    </div>
+                  )}
+                  {openCategories[group.name] &&
+                    group.categoryItems.map((item, itemIndex) => (
+                      <tr key={itemIndex} className="border-t">
+                        <td
+                          onClick={() => {
+                            group.name !== "Credit Card Payments" &&
+                              toggleTargetSideBar(item);
+                          }}
+                          className="p-2 border relative"
+                        >
+                          {/* Progress Bar */}
+                          {item.target && (
+                            <div className="absolute top-0 left-0 w-full h-full bg-gray-200 rounded">
+                              <div
+                                className="h-full bg-teal-500 transition-all duration-300 rounded"
+                                style={{
+                                  width: `${Math.min(
+                                    (item.assigned / item.target.amountNeeded) *
+                                      100,
+                                    100
+                                  )}%`,
+                                }}
+                              ></div>
+                            </div>
+                          )}
+                          <span className="relative z-10 font-medium">
+                            {item.name}{" "}
+                            {item.target && (
+                              <span className={getTargetStatus(item).color}>
+                                {getTargetStatus(item).message}
+                              </span>
+                            )}
+                          </span>
+                        </td>
+                        <EditableAssigned
+                          categoryIndex={categoryIndex}
+                          itemIndex={itemIndex}
+                          item={item}
+                          handleInputChange={handleInputChange}
+                        />
+                        <td className="p-2 border">
+                          {formatToUSD(item.activity || 0)}
+                        </td>
+                        <td className="p-2 border">
+                          {formatToUSD(item.available || 0)}
+                        </td>
+                      </tr>
+                    ))}
+                </Fragment>
+              )
+            )}
+          </tbody>
+        </table>
+        {targetSidebarOpen && (
+          <TargetSidebar
+            itemName={selectedCategory}
+            onClose={() => {
+              setTargetSidebarOpen(false);
+            }}
+          />
+        )}
       </div>
     </div>
   );
