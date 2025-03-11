@@ -50,8 +50,9 @@ export const BudgetProvider = ({ children }) => {
   });
 
   const computedData = useMemo(
-    () =>
-      budgetData[currentMonth]?.categories?.map((category) => ({
+    () => {
+      console.log('memo', budgetData);
+      return budgetData[currentMonth]?.categories?.map((category) => ({
         ...category,
         categoryItems: category.categoryItems?.map((item) => {
           if (category.name === 'Credit Card Payments') return item;
@@ -59,7 +60,8 @@ export const BudgetProvider = ({ children }) => {
           ...item,
           available: item.assigned + item.activity,
         }}),
-      })),
+      }))
+    },
     [budgetData, currentMonth]
   );
 
@@ -131,9 +133,6 @@ export const BudgetProvider = ({ children }) => {
       },
     }));
   };
-  
-  
-
 
   const calculateReadyToAssign = (month: string, accounts): number => {
     const prevMonth = getPreviousMonth(month);
@@ -216,7 +215,6 @@ export const BudgetProvider = ({ children }) => {
             });
 
       if (prev[newMonth]) {
-
         return {
           ...prev,
           [newMonth]: {
@@ -234,19 +232,45 @@ export const BudgetProvider = ({ children }) => {
 
                 if(cumulativeActivity.size === 0) return item;
 
-                console.log('past Assigned', pastAssigned);
-                console.log('past Activity', pastActivity)
-                console.log(pastAvailable)
-  
                 const pastAvailable = isCreditCardPayment
                 ? prev[previousMonth]?.categories
                     .find((c) => c.name === "Credit Card Payments")
                     ?.categoryItems.find((i) => i.name === item.name)?.available || 0
                 : Math.max(pastAssigned + pastActivity, 0);
+
+                let newTarget = item.target;
+
+                if (item.target?.type === "Custom") {
+                  const targetMonthNumber = getMonth(parseISO(item.target.targetDate)) + 1;
+                  const currentMonthNumber = getMonth(parseISO(newMonth)) + 1;
+                
+                  let monthsUntilTarget = targetMonthNumber - currentMonthNumber;
+                  if (monthsUntilTarget <= 0) monthsUntilTarget = 1; 
+                
+                  const totalAssigned = cumulativeAssigned.get(item.name) || 0;
+                  const remainingAmount = item.target.amount - totalAssigned;
+                
+                  let newAmountNeeded;
+                  
+                  if (direction === "forward") {
+                    newAmountNeeded = remainingAmount / monthsUntilTarget;
+                  } else {
+                    newAmountNeeded = prev[newMonth]?.categories
+                      ?.flatMap((cat) => cat.categoryItems)
+                      ?.find((i) => i.name === item.name)?.target?.amountNeeded || remainingAmount / monthsUntilTarget;
+                  }
+                
+                  newTarget = {
+                    ...item.target,
+                    amountNeeded: newAmountNeeded,
+                  };
+
+                }
                 
                 return {
                 ...item,
                 activity: calculateActivityForMonth(newMonth, item.name, accounts),
+                target: newTarget,
                 available: pastAvailable,
               }}),
             }}),
@@ -279,10 +303,48 @@ export const BudgetProvider = ({ children }) => {
 
               console.log(pastAvailable)
 
+              let newTarget = item.target;
+
+              if (item.target?.type === "Custom") {
+                const targetMonthNumber = getMonth(parseISO(item.target.targetDate)) + 1;
+                const currentMonthNumber = getMonth(parseISO(newMonth)) + 1;
+              
+                console.log(`Current Month: ${currentMonthNumber}, Target Month: ${targetMonthNumber}`);
+              
+                let monthsUntilTarget = targetMonthNumber - currentMonthNumber;
+                if (monthsUntilTarget <= 0) monthsUntilTarget = 1;
+              
+                console.log(`Months Until Target: ${monthsUntilTarget}`);
+              
+                const totalAssigned = cumulativeAssigned.get(item.name) || 0;
+                const remainingAmount = item.target.amount - totalAssigned;
+              
+                console.log(`Total Assigned: ${totalAssigned}, Remaining Amount: ${remainingAmount}`);
+              
+                let newAmountNeeded;
+                
+                if (direction === "forward") {
+                  newAmountNeeded = remainingAmount / monthsUntilTarget;
+                } else {
+                  newAmountNeeded = prev[newMonth]?.categories
+                    ?.flatMap((cat) => cat.categoryItems)
+                    ?.find((i) => i.name === item.name)?.target?.amountNeeded || remainingAmount / monthsUntilTarget;
+                }
+              
+                console.log(`New Target:`, { ...item.target, amountNeeded: newAmountNeeded });
+              
+                newTarget = {
+                  ...item.target,
+                  amountNeeded: newAmountNeeded,
+                };
+                console.log(newTarget);
+              }
+
               return {
               ...item,
               assigned: 0, 
               activity: calculateActivityForMonth(newMonth, item.name, accounts),
+              target: newTarget,
               available: pastAvailable,
             }}),
           }))

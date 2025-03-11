@@ -222,7 +222,7 @@ export default function CollapsibleTable() {
             categoryItems: category.categoryItems.map((item, itemIdx) => {
               if (itemIdx !== itemIndex) return item;
 
-              const availableSum = value + item.activity; // plus here given that activity is set as a negative
+              const availableSum = value + item.activity;
               const cumlativeAvailable = getCumulativeAvailable(
                 prev,
                 item.name
@@ -487,7 +487,7 @@ export default function CollapsibleTable() {
                         {item.name +
                           " " +
                           (item.target
-                            ? formatToUSD(item.available || 0) +
+                            ? formatToUSD((item.available) || 0) +
                               " / " +
                               formatToUSD(item.target?.amountNeeded || 0)
                             : "")}

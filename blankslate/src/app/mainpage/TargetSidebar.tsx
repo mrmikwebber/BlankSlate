@@ -51,18 +51,24 @@ export const TargetSidebar = ({ itemName, onClose }) => {
     } else if (targetType === "Monthly") {
       return amount;
     } else if (targetType === "Custom" && customTargetDate) {
-        console.log(customTargetDate);
-      
         const targetMonthNumber = getMonth(parseISO(customTargetDate)) + 1;
         const currentMonthNumber = getMonth(new Date()) + 1;
 
         const monthsUntilTarget = targetMonthNumber - currentMonthNumber === 0 ? 1 : targetMonthNumber - currentMonthNumber + 1;
-        
-        console.log(`Months Until Target: ${monthsUntilTarget}`);
+
+        let totalAssigned = 0;
+        Object.keys(budgetData).forEach((month) => {
+          const monthData = budgetData[month]?.categories?.flatMap((category) =>
+            category.categoryItems.filter((item) => item.name === itemName)
+          );
       
-        return amount / monthsUntilTarget;
+          totalAssigned += monthData.reduce((sum, item) => sum + item.assigned, 0);
+        });
+
+        let remainingAmount = amount - totalAssigned;
+      
+        return remainingAmount / monthsUntilTarget;
     }
-      
 
     return 0;
   };
