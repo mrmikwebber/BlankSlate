@@ -150,7 +150,7 @@ export const BudgetProvider = ({ children }) => {
           const date = new Date(tx.date);
           const convertedMonth = parseISO(`${month}-01`)
 
-          return isSameMonth(date, convertedMonth) && tx.categoryGroup === categoryName
+          return isSameMonth(date, convertedMonth) && tx.category === categoryName
         }
       )
       return filteredAccounts.reduce((sum, tx) => sum + tx.balance, 0);
@@ -218,6 +218,10 @@ export const BudgetProvider = ({ children }) => {
                 const isCreditCardPayment = category.name === "Credit Card Payments";
 
                 if(cumulativeActivity.size === 0) return item;
+
+                console.log('past Assigned', pastAssigned);
+                console.log('past Activity', pastActivity)
+                console.log(pastAvailable)
   
                 const pastAvailable = isCreditCardPayment
                 ? prev[previousMonth]?.categories
@@ -251,11 +255,16 @@ export const BudgetProvider = ({ children }) => {
               const pastActivity = cumulativeActivity.get(item.name) || 0;
               const isCreditCardPayment = category.name === "Credit Card Payments";
 
+              console.log('past Assigned', pastAssigned);
+              console.log('past Activity', pastActivity)
+
               const pastAvailable = isCreditCardPayment
               ? prev[previousMonth]?.categories
                   .find((c) => c.name === "Credit Card Payments")
                   ?.categoryItems.find((i) => i.name === item.name)?.available || 0
               : Math.max(pastAssigned + pastActivity, 0);
+
+              console.log(pastAvailable)
 
               return {
               ...item,
