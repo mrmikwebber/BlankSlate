@@ -11,13 +11,12 @@ export const TargetSidebar = ({ itemName, onClose }) => {
   const [customTargetDate, setCustomTargetDate] = useState(""); 
   const [isVisible, setIsVisible] = useState(false);
   const [showForm, setShowForm] = useState(false);
-
+  
     const {
     currentMonth,
     budgetData,
     setCategoryTarget,
     } = useBudgetContext();
-
 
   const findCategoryItemByName = (itemName) => {
     return budgetData[currentMonth]?.categories
@@ -34,7 +33,6 @@ export const TargetSidebar = ({ itemName, onClose }) => {
 
     if (foundItem) {
       const existingTarget = foundItem.target || null;
-      console.log(existingTarget);
       setTarget(existingTarget);
       setTargetAmount(existingTarget?.amount || "");
       setTargetType(existingTarget?.type || "Monthly");

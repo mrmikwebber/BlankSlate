@@ -321,9 +321,6 @@ export default function CollapsibleTable() {
             .reduce((sum, tx) => sum + tx.balance, 0),
       };
     });
-
-    console.log(budgetData[currentMonth]);
-
     const updatedCategories = budgetData[currentMonth]?.categories?.map(
       (category) => {
         if (category.name === "Credit Card Payments") {
@@ -336,25 +333,22 @@ export default function CollapsibleTable() {
               budgetData,
               item.name
             );
-            const availableSum = item.assigned + item.activity;
+            const itemActivity = calculateActivityForMonth(
+              currentMonth,
+              item.name,
+              computedAccounts
+            );
 
-            console.log("sum", availableSum);
-
+            const availableSum = item.assigned + itemActivity;
             return {
               ...item,
-              activity: calculateActivityForMonth(
-                currentMonth,
-                item.name,
-                computedAccounts
-              ),
+              activity: itemActivity,
               available: availableSum + cumlativeAvailable,
             };
           }),
         };
       }
     );
-
-    console.log(updatedCategories);
 
     const totalInflow = computedAccounts
       .filter((acc) => acc.type === "debit")
@@ -396,8 +390,6 @@ const getTargetStatus = (item) => {
   const partiallyFunded = assigned < needed && assigned >= activity;
   const stillNeeded = needed - assigned;
 
-  console.log(item, ': ', overspent);
-
   if (overspent && assigned < activity) {
     return { message: `Overspent ${formatToUSD(available)} of ${formatToUSD(assigned)}`, color: "text-red-600 font-semibold" };
   }
@@ -412,8 +404,6 @@ const getTargetStatus = (item) => {
   }
   return { message: `${formatToUSD(assigned)} / ${formatToUSD(needed)}`, color: "text-gray-600" };
 };
-
-
   return (
     <div className="mx-auto mt-8 rounded-md">
       <MonthNav />
