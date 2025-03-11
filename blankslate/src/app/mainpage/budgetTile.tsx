@@ -4,16 +4,25 @@ import { formatToUSD } from "../utils/formatToUSD";
 import { useAccountContext } from "../context/AccountContext";
 import AddCategoryButton from "./AddCategoryButton";
 import EditableAssigned from "./EditableAssigned";
-import { useTableContext } from "../context/TableDataContext";
 import MonthNav from "./MonthNav";
 import { useBudgetContext } from "../context/BudgetContext";
 import { format, isSameMonth, parseISO, subMonths } from "date-fns";
+import { TargetSidebar } from "./TargetSidebar";
 
 export default function CollapsibleTable() {
   const { accounts } = useAccountContext();
-  const { currentMonth, updateMonth, budgetData, setBudgetData, computedData, addCategory, addItemToCategory } = useBudgetContext();
+  const {
+    currentMonth,
+    budgetData,
+    setBudgetData,
+    computedData,
+    addCategory,
+    addItemToCategory,
+  } = useBudgetContext();
   const [creditCardPayments, setCreditCardPayments] = useState([]);
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState('')
+  const [targetSidebarOpen, setTargetSidebarOpen] = useState(false)
   const [newItem, setNewItem] = useState({
     name: "",
     assigned: 0,
@@ -33,71 +42,82 @@ export default function CollapsibleTable() {
 
   const getPreviousMonth = (month) => {
     return format(subMonths(parseISO(`${month}-01`), 1), "yyyy-MM");
-  }
+  };
 
   useEffect(() => {
     const totalInflow = computedAccounts
-      .filter((acc) => acc.type === "debit") 
-      .flatMap((acc) => acc.transactions) 
-      .filter((tx) => isSameMonth(tx.date, parseISO(`${currentMonth}-01`)) && !tx.outflow) 
-      .filter((tx) => tx.category === 'Ready to Assign')
-      .reduce((sum, tx) => sum + tx.balance, 0); 
-  
+      .filter((acc) => acc.type === "debit")
+      .flatMap((acc) => acc.transactions)
+      .filter(
+        (tx) =>
+          isSameMonth(tx.date, parseISO(`${currentMonth}-01`)) && !tx.outflow
+      )
+      .filter((tx) => tx.category === "Ready to Assign")
+      .reduce((sum, tx) => sum + tx.balance, 0);
+
     const assignableMoney = totalInflow;
-  
+
     setBudgetData((prev) => ({
       ...prev,
       [currentMonth]: {
         ...prev[currentMonth],
-        readyToAssign: assignableMoney, 
-        assignableMoney: assignableMoney, 
+        readyToAssign: assignableMoney,
+        assignableMoney: assignableMoney,
       },
     }));
-  }, [computedAccounts]); 
-  
-  
+  }, [computedAccounts]);
 
   useEffect(() => {
-    const assignedMoney = budgetData[currentMonth]?.categories?.flatMap((category) =>
-      category.categoryItems
-        .filter((item) => item.assigned > 0)
-        .map((item) => ({
-          categoryGroup: item.name,
-          amount: item.assigned,
-        }))
+    const assignedMoney = budgetData[currentMonth]?.categories?.flatMap(
+      (category) =>
+        category.categoryItems
+          .filter((item) => item.assigned > 0)
+          .map((item) => ({
+            category: item.name,
+            amount: item.assigned,
+          }))
     );
 
-    const newPayments = calculateCreditCardPayments(computedAccounts, assignedMoney);
-  
+    const newPayments = calculateCreditCardPayments(
+      computedAccounts,
+      assignedMoney
+    );
+
     if (JSON.stringify(newPayments) !== JSON.stringify(creditCardPayments)) {
       setCreditCardPayments(newPayments);
     }
   }, [accounts, budgetData]);
 
   useEffect(() => {
-    if (!creditCardPayments.length) return; 
-  
+    if (!creditCardPayments.length) return;
+
     setBudgetData((prev) => {
       if (!prev[currentMonth]) return prev;
-  
+
       let hasChanges = false;
-  
-      const updatedCategories = prev[currentMonth].categories.map((category) => {
-        if (category.name !== "Credit Card Payments") return category;
-  
-        const updatedItems = category.categoryItems.map((item) => {
-          const paymentEntry = creditCardPayments.find((p) => p.card === item.name);
-          const newAssigned = paymentEntry ? paymentEntry.payment : item.available;
-  
-          if (newAssigned !== item.assigned) hasChanges = true;
-  
-          return { ...item, available: newAssigned };
-        });
-        return { ...category, categoryItems: updatedItems };
-      });
-  
+
+      const updatedCategories = prev[currentMonth].categories.map(
+        (category) => {
+          if (category.name !== "Credit Card Payments") return category;
+
+          const updatedItems = category.categoryItems.map((item) => {
+            const paymentEntry = creditCardPayments.find(
+              (p) => p.card === item.name
+            );
+            const newAssigned = paymentEntry
+              ? paymentEntry.payment
+              : item.available;
+
+            if (newAssigned !== item.assigned) hasChanges = true;
+
+            return { ...item, available: newAssigned };
+          });
+          return { ...category, categoryItems: updatedItems };
+        }
+      );
+
       if (!hasChanges) return prev;
-  
+
       return {
         ...prev,
         [currentMonth]: {
@@ -107,7 +127,6 @@ export default function CollapsibleTable() {
       };
     });
   }, [creditCardPayments]);
-  
 
   const [openCategories, setOpenCategories] = useState(
     computedData?.reduce((acc, category) => {
@@ -122,25 +141,25 @@ export default function CollapsibleTable() {
 
   const calculateCreditCardPayments = (accounts, assignedMoney) => {
     const assignedCategories = new Map(
-      assignedMoney?.map((entry) => [entry.categoryGroup, entry.amount])
+      assignedMoney?.map((entry) => [entry.category, entry.amount])
     );
 
     let remainingAssigned = new Map(assignedCategories);
 
     for (const account of accounts.filter((acc) => acc.type === "debit")) {
       for (const transaction of account.transactions) {
-        const categoryGroup = transaction.categoryGroup;
-        if (remainingAssigned.has(categoryGroup)) {
-          const assignedAmount = remainingAssigned.get(categoryGroup);
+        const category = transaction.category;
+        if (remainingAssigned.has(category)) {
+          const assignedAmount = remainingAssigned.get(category);
           const deduction = Math.min(
             assignedAmount,
             Math.abs(transaction.balance)
           );
 
-          remainingAssigned.set(categoryGroup, assignedAmount - deduction);
+          remainingAssigned.set(category, assignedAmount - deduction);
 
-          if (remainingAssigned.get(categoryGroup) <= 0) {
-            remainingAssigned.delete(categoryGroup);
+          if (remainingAssigned.get(category) <= 0) {
+            remainingAssigned.delete(category);
           }
         }
       }
@@ -152,19 +171,19 @@ export default function CollapsibleTable() {
         let payment = 0;
 
         for (const transaction of card.transactions) {
-          const categoryGroup = transaction.categoryGroup;
-          if (remainingAssigned.has(categoryGroup)) {
-            const assignedAmount = remainingAssigned.get(categoryGroup);
+          const category = transaction.category;
+          if (remainingAssigned.has(category)) {
+            const assignedAmount = remainingAssigned.get(category);
             const deduction = Math.min(
               assignedAmount,
               Math.abs(transaction.balance)
             );
 
-            remainingAssigned.set(categoryGroup, assignedAmount - deduction);
+            remainingAssigned.set(category, assignedAmount - deduction);
             payment += deduction;
 
-            if (remainingAssigned.get(categoryGroup) <= 0) {
-              remainingAssigned.delete(categoryGroup);
+            if (remainingAssigned.get(category) <= 0) {
+              remainingAssigned.delete(category);
             }
           }
         }
@@ -182,7 +201,7 @@ export default function CollapsibleTable() {
     const pastMonths = Object.keys(passedInData).filter((month) =>
       isBeforeMonth(month, currentMonth)
     );
-    
+
     const past = pastMonths.reduce((sum, month) => {
       const categoryItem = passedInData[month]?.categories
         .flatMap((cat) => cat.categoryItems)
@@ -217,9 +236,9 @@ export default function CollapsibleTable() {
           };
         }) || [];
 
-        const prevMonth = getPreviousMonth(currentMonth);
+      const prevMonth = getPreviousMonth(currentMonth);
 
-        const previousBalance = budgetData[prevMonth]?.readyToAssign || 0;
+      const previousBalance = budgetData[prevMonth]?.readyToAssign || 0;
 
       return {
         ...prev,
@@ -227,29 +246,33 @@ export default function CollapsibleTable() {
           ...prev[currentMonth],
           categories: updatedCategories,
           readyToAssign:
-          (previousBalance + prev[currentMonth]?.assignableMoney || 0) -
-          updatedCategories.reduce(
-            (sum, cat) =>
-              sum +
-              cat.categoryItems.reduce((itemSum, item) => itemSum + item.assigned, 0),
-            0
-          ),
+            (previousBalance + prev[currentMonth]?.assignableMoney || 0) -
+            updatedCategories.reduce(
+              (sum, cat) =>
+                sum +
+                cat.categoryItems.reduce(
+                  (itemSum, item) => itemSum + item.assigned,
+                  0
+                ),
+              0
+            ),
         },
       };
     });
   };
 
   const calculateActivityForMonth = (month, categoryName, accounts) => {
-    const filteredAccounts = accounts.flatMap((account) => account.transactions)
-      .filter(
-        (tx) => {
-          const date = new Date(tx.date);
-          const convertedMonth = parseISO(`${month}-01`)
+    const filteredAccounts = accounts
+      .flatMap((account) => account.transactions)
+      .filter((tx) => {
+        const date = new Date(tx.date);
+        const convertedMonth = parseISO(`${month}-01`);
 
-          return isSameMonth(date, convertedMonth) && tx.category === categoryName
-        }
-      )
-      return filteredAccounts.reduce((sum, tx) => sum + tx.balance, 0);
+        return (
+          isSameMonth(date, convertedMonth) && tx.category === categoryName
+        );
+      });
+    return filteredAccounts.reduce((sum, tx) => sum + tx.balance, 0);
   };
 
   const handleAddItem = (category: string) => {
@@ -287,12 +310,19 @@ export default function CollapsibleTable() {
 
     const creditCardItems = creditCardAccounts.map((account) => {
       return {
-      name: account.name,
-      assigned: 0,
-      activity:
-        -1 * account.transactions.filter(transaction => isSameMonth(transaction.date, parseISO(`${currentMonth}-01`))).reduce((sum, tx) => sum + tx.balance, 0),
-      }
+        name: account.name,
+        assigned: 0,
+        activity:
+          -1 *
+          account.transactions
+            .filter((transaction) =>
+              isSameMonth(transaction.date, parseISO(`${currentMonth}-01`))
+            )
+            .reduce((sum, tx) => sum + tx.balance, 0),
+      };
     });
+
+    console.log(budgetData[currentMonth]);
 
     const updatedCategories = budgetData[currentMonth]?.categories?.map(
       (category) => {
@@ -302,35 +332,57 @@ export default function CollapsibleTable() {
         return {
           ...category,
           categoryItems: category.categoryItems.map((item) => {
-            
             const cumlativeAvailable = getCumulativeAvailable(
               budgetData,
               item.name
             );
             const availableSum = item.assigned + item.activity;
 
+            console.log("sum", availableSum);
+
             return {
-            ...item,
-            activity: calculateActivityForMonth(currentMonth, item.name, computedAccounts),
-            available: availableSum + cumlativeAvailable
-          }}),
+              ...item,
+              activity: calculateActivityForMonth(
+                currentMonth,
+                item.name,
+                computedAccounts
+              ),
+              available: availableSum + cumlativeAvailable,
+            };
+          }),
         };
       }
     );
 
+    console.log(updatedCategories);
+
     const totalInflow = computedAccounts
-    .filter((acc) => acc.type === "debit") 
-    .flatMap((acc) => acc.transactions) 
-    .filter((tx) => isSameMonth(tx.date, parseISO(`${currentMonth}-01`)) && !tx.outflow)
-    .filter((tx) => tx.category === 'Ready to Assign')
-    .reduce((sum, tx) => sum + tx.balance, 0); 
+      .filter((acc) => acc.type === "debit")
+      .flatMap((acc) => acc.transactions)
+      .filter(
+        (tx) =>
+          isSameMonth(tx.date, parseISO(`${currentMonth}-01`)) && !tx.outflow
+      )
+      .filter((tx) => tx.category === "Ready to Assign")
+      .reduce((sum, tx) => sum + tx.balance, 0);
 
     setBudgetData((prev) => {
-      return{
-      ...prev,
-      [currentMonth]: { ...prev[currentMonth], categories: updatedCategories, assignableMoney: totalInflow, readyToAssign: totalInflow - currentlyAssigned },
-    }});
+      return {
+        ...prev,
+        [currentMonth]: {
+          ...prev[currentMonth],
+          categories: updatedCategories,
+          assignableMoney: totalInflow,
+          readyToAssign: totalInflow - currentlyAssigned,
+        },
+      };
+    });
   }, [accounts]);
+
+  const toggleTargetSideBar = (item) => {
+    setSelectedCategory(item.name)
+    setTargetSidebarOpen(true)
+  }
 
   return (
     <div className="mx-auto mt-8 rounded-md">
@@ -338,6 +390,7 @@ export default function CollapsibleTable() {
       <div className="flex m-2">
         <AddCategoryButton handleSubmit={addCategory} />
       </div>
+      <div className="flex">
       <table className="w-full border border-gray-300 rounded-md">
         <thead>
           <tr className="bg-gray-200 text-left">
@@ -430,14 +483,24 @@ export default function CollapsibleTable() {
               {openCategories[group.name] &&
                 group.categoryItems.map((item, itemIndex) => (
                   <tr key={itemIndex} className="border-t">
-                    <td className="p-2 border">{item.name}</td>
+                    <td onClick={() => {group.name !== 'Credit Card Payments' && toggleTargetSideBar(item)}}className="p-2 border">
+                        {item.name +
+                          " " +
+                          (item.target
+                            ? formatToUSD(item.available || 0) +
+                              " / " +
+                              formatToUSD(item.target?.amountNeeded || 0)
+                            : "")}
+                    </td>
                     <EditableAssigned
                       categoryIndex={categoryIndex}
                       itemIndex={itemIndex}
                       item={item}
                       handleInputChange={handleInputChange}
                     />
-                    <td className="p-2 border">{formatToUSD(item.activity || 0)}</td>
+                    <td className="p-2 border">
+                      {formatToUSD(item.activity || 0)}
+                    </td>
                     <td className="p-2 border">
                       {formatToUSD(item.available || 0)}
                     </td>
@@ -447,6 +510,11 @@ export default function CollapsibleTable() {
           ))}
         </tbody>
       </table>
+      {targetSidebarOpen && <TargetSidebar
+        itemName={selectedCategory}
+        onClose={() => {setTargetSidebarOpen(false)}}
+      />}
+      </div>
     </div>
   );
 }
