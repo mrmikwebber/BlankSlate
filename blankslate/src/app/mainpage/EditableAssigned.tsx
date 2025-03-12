@@ -20,6 +20,7 @@ const EditableAssigned = ({ categoryIndex, itemIndex, item, handleInputChange })
       setIsEditing(false);
     } catch (error) {
         handleInputChange(categoryIndex, itemIndex, 0);
+        console.error(error);
         setIsEditing(false);
     }
   };

@@ -1,11 +1,9 @@
 "use client";
 
 import { redirect } from "next/navigation";
-import React, { useState } from "react";
+import React from "react";
 
 const Sidebar = () => {
-  const [isOpen, setIsOpen] = useState(false);
-
   const openDashboard = () => {
     redirect(`/`);
   }
