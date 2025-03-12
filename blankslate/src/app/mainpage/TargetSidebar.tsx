@@ -1,27 +1,33 @@
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
-import { differenceInDays, differenceInMonths, getMonth, isSameMonth, parseISO } from "date-fns";
+import {
+  getMonth,
+  parseISO,
+  subMonths,
+} from "date-fns";
 import { useBudgetContext } from "../context/BudgetContext";
+import { useAccountContext } from "../context/AccountContext";
+import { formatToUSD } from "../utils/formatToUSD";
 
 export const TargetSidebar = ({ itemName, onClose }) => {
   const [categoryItem, setCategoryItem] = useState(null);
-  const [target, setTarget] = useState(null); 
-  const [targetAmount, setTargetAmount] = useState(""); 
+  const [target, setTarget] = useState(null);
+  const [targetAmount, setTargetAmount] = useState("");
   const [targetType, setTargetType] = useState("");
-  const [customTargetDate, setCustomTargetDate] = useState(""); 
+  const [customTargetDate, setCustomTargetDate] = useState("");
   const [isVisible, setIsVisible] = useState(false);
   const [showForm, setShowForm] = useState(false);
-  
-    const {
-    currentMonth,
-    budgetData,
-    setCategoryTarget,
-    } = useBudgetContext();
+
+  const { currentMonth, budgetData, setCategoryTarget } = useBudgetContext();
+  const { accounts } = useAccountContext();
 
   const findCategoryItemByName = (itemName) => {
     return budgetData[currentMonth]?.categories
       ?.flatMap((category) =>
-        category.categoryItems.map((item) => ({ ...item, categoryName: category.name }))
+        category.categoryItems.map((item) => ({
+          ...item,
+          categoryName: category.name,
+        }))
       )
       .find((item) => item.name === itemName);
   };
@@ -45,31 +51,74 @@ export const TargetSidebar = ({ itemName, onClose }) => {
     if (!targetAmount) return 0;
     const amount = parseFloat(targetAmount);
     if (targetType === "Weekly") {
-      return amount * 4; 
+      return amount * 4;
     } else if (targetType === "Monthly") {
       return amount;
     } else if (targetType === "Custom" && customTargetDate) {
-        const targetMonthNumber = getMonth(parseISO(customTargetDate)) + 1;
-        const currentMonthNumber = getMonth(new Date()) + 1;
+      const targetMonthNumber = getMonth(parseISO(customTargetDate)) + 1;
+      const currentMonthNumber = getMonth(new Date()) + 1;
 
-        const monthsUntilTarget = targetMonthNumber - currentMonthNumber === 0 ? 1 : targetMonthNumber - currentMonthNumber + 1;
+      const monthsUntilTarget =
+        targetMonthNumber - currentMonthNumber === 0
+          ? 1
+          : targetMonthNumber - currentMonthNumber + 1;
 
-        let totalAssigned = 0;
-        Object.keys(budgetData).forEach((month) => {
-          const monthData = budgetData[month]?.categories?.flatMap((category) =>
-            category.categoryItems.filter((item) => item.name === itemName)
-          );
-      
-          totalAssigned += monthData.reduce((sum, item) => sum + item.assigned, 0);
-        });
+      let totalAssigned = 0;
+      Object.keys(budgetData).forEach((month) => {
+        const monthData = budgetData[month]?.categories?.flatMap((category) =>
+          category.categoryItems.filter((item) => item.name === itemName)
+        );
 
-        let remainingAmount = amount - totalAssigned;
-      
-        return remainingAmount / monthsUntilTarget;
+        totalAssigned += monthData.reduce(
+          (sum, item) => sum + item.assigned,
+          0
+        );
+      });
+
+      let remainingAmount = amount - totalAssigned;
+
+      return remainingAmount / monthsUntilTarget;
     }
 
     return 0;
   };
+
+  const getPreviousMonthAvailable = (categoryItem) => {
+    if (!categoryItem) return 0;
+  
+    const prevMonth = subMonths(parseISO(`${currentMonth}-01`), 1);
+    const prevMonthKey = `${prevMonth.getFullYear()}-${(getMonth(prevMonth) + 1)
+      .toString()
+      .padStart(2, "0")}`;
+  
+    return (
+      budgetData[prevMonthKey]?.categories
+        ?.flatMap((category) => category.categoryItems)
+        ?.find((item) => item.name === categoryItem.name)?.available || 0
+    );
+  };
+
+  const getSpendingByType = (categoryItem, type) => {
+    if (!categoryItem) return 0;
+
+    const spending = accounts
+      .filter((account) => account.type === type)
+      .flatMap((account) => account.transactions)
+      .filter(
+        (transaction) => (
+            transaction.category === categoryItem.name &&
+            getMonth(transaction.date) + 1 === getMonth(parseISO(currentMonth)) + 1
+        )
+      )
+      .reduce((sum, tx) => sum + Math.abs(tx.balance), 0);
+    return spending;
+  };
+  
+  const previousMonthAvailable = getPreviousMonthAvailable(categoryItem);
+  const cashSpending = getSpendingByType(categoryItem, "debit");
+  const creditSpending = getSpendingByType(categoryItem, "credit");
+
+
 
   const handleSave = () => {
     if (categoryItem && targetAmount) {
@@ -87,7 +136,7 @@ export const TargetSidebar = ({ itemName, onClose }) => {
   };
   const handleClose = () => {
     setIsVisible(false);
-    setTimeout(onClose, 300); 
+    setTimeout(onClose, 300);
   };
 
   if (!categoryItem) return null;
@@ -95,7 +144,9 @@ export const TargetSidebar = ({ itemName, onClose }) => {
   return (
     <div
       className={`fixed right-0 top-0 h-full w-64 bg-white shadow-lg border-l border-gray-300 p-4 
-      transition-transform duration-300 ${isVisible ? "translate-x-0" : "translate-x-full"}`}
+      transition-transform duration-300 ${
+        isVisible ? "translate-x-0" : "translate-x-full"
+      }`}
     >
       <button
         onClick={handleClose}
@@ -104,15 +155,27 @@ export const TargetSidebar = ({ itemName, onClose }) => {
         <X size={20} className="text-gray-600" />
       </button>
 
-      <h2 className="text-lg font-semibold text-gray-900 mb-2">{categoryItem.name}</h2>
+      <h2 className="text-lg font-semibold text-gray-900 mb-2">
+        {categoryItem.name}
+      </h2>
       <p className="text-sm text-gray-600 mb-2">
         <strong>Category:</strong> {categoryItem.categoryName}
       </p>
       <p className="text-sm text-gray-600">
-        <strong>Assigned:</strong> ${categoryItem.assigned.toFixed(2)}
+        <strong>Assigned:</strong> {formatToUSD(categoryItem.assigned)}
       </p>
       <p className="text-sm text-gray-600">
-        <strong>Available:</strong> ${categoryItem.available.toFixed(2)}
+        <strong>Available:</strong> {formatToUSD(categoryItem.available)}
+      </p>
+      <p className="text-sm text-gray-600">
+        <strong>Leftover Money: </strong> 
+        {formatToUSD(Math.max(previousMonthAvailable, 0))}
+      </p>
+      <p className="text-sm text-gray-600">
+        <strong>Cash Spending:</strong> {formatToUSD(cashSpending)}
+      </p>
+      <p className="text-sm text-gray-600 mb-2">
+        <strong>Credit Spending:</strong> {formatToUSD(creditSpending)}
       </p>
 
       {!target && !showForm ? (
@@ -126,16 +189,24 @@ export const TargetSidebar = ({ itemName, onClose }) => {
         <>
           {target && (
             <div className="mt-4 p-3 border border-gray-300 rounded bg-gray-100">
-              <p className="text-sm font-medium text-gray-700">Current Target:</p>
+              <p className="text-sm font-medium text-gray-700">
+                Current Target:
+              </p>
               <p className="text-sm">Type: {target.type}</p>
               <p className="text-sm">Amount: ${target.amount.toFixed(2)}</p>
-              {target.type === "Custom" && <p className="text-sm">Due: {target.targetDate}</p>}
-              <p className="text-sm font-medium mt-2">Amount Needed: ${target.amountNeeded.toFixed(2)}</p>
+              {target.type === "Custom" && (
+                <p className="text-sm">Due: {target.targetDate}</p>
+              )}
+              <p className="text-sm font-medium mt-2">
+                Amount Needed: ${target.amountNeeded.toFixed(2)}
+              </p>
             </div>
           )}
 
           <div className="mt-4">
-            <label className="block text-sm font-medium text-gray-700">Set Target</label>
+            <label className="block text-sm font-medium text-gray-700">
+              Set Target
+            </label>
             <input
               type="number"
               value={targetAmount}
@@ -146,7 +217,9 @@ export const TargetSidebar = ({ itemName, onClose }) => {
           </div>
 
           <div className="mt-4">
-            <label className="block text-sm font-medium text-gray-700">Target Type</label>
+            <label className="block text-sm font-medium text-gray-700">
+              Target Type
+            </label>
             <select
               value={targetType}
               onChange={(e) => setTargetType(e.target.value)}
@@ -160,7 +233,9 @@ export const TargetSidebar = ({ itemName, onClose }) => {
 
           {targetType === "Custom" && (
             <div className="mt-4">
-              <label className="block text-sm font-medium text-gray-700">Target Date</label>
+              <label className="block text-sm font-medium text-gray-700">
+                Target Date
+              </label>
               <input
                 type="date"
                 value={customTargetDate}
@@ -171,7 +246,8 @@ export const TargetSidebar = ({ itemName, onClose }) => {
           )}
 
           <p className="text-sm text-gray-600 mt-2">
-            <strong>Amount Needed:</strong> ${calculateNeededAmount().toFixed(2)}
+            <strong>Amount Needed:</strong> $
+            {calculateNeededAmount().toFixed(2)}
           </p>
 
           <button

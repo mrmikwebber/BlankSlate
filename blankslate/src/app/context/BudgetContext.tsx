@@ -325,9 +325,7 @@ export const BudgetProvider = ({ children }) => {
                   ...item.target,
                   amountNeeded: newAmountNeeded,
                 };
-              }
-
-              console.log(newTarget);
+              };
 
               const itemActivity = calculateActivityForMonth(newMonth, item.name, accounts);
 

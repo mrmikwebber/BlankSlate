@@ -207,7 +207,7 @@ export default function CollapsibleTable() {
         .flatMap((cat) => cat.categoryItems)
         .find((item) => item.name === itemName);
 
-      return sum + (categoryItem?.assigned - categoryItem?.activity || 0);
+      return sum + (categoryItem?.assigned + categoryItem?.activity || 0);
     }, 0);
     return past;
   };
@@ -227,10 +227,11 @@ export default function CollapsibleTable() {
                 prev,
                 item.name
               );
+
               return {
                 ...item,
                 assigned: value,
-                available: availableSum + cumlativeAvailable,
+                available: availableSum + Math.max(cumlativeAvailable, 0),
               };
             }),
           };
