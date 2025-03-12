@@ -118,7 +118,7 @@ export default function AccountDetails() {
               className="w-full p-2 border rounded"
               required
             >
-              <option value="">Select Category Group</option>
+              <option value="">Select Category</option>
               <option key="Ready to Assign" value="Ready to Assign">
                 Ready to Assign
               </option>
