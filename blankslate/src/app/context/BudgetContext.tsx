@@ -138,8 +138,7 @@ export const BudgetProvider = ({ children }) => {
 
     const previousBalance = budgetData[prevMonth]?.readyToAssign || 0;
 
-    const totalInflow = accounts?
-    .filter((acc) => acc.type === "debit") 
+    const totalInflow = accounts?.filter((acc) => acc.type === "debit") 
     .flatMap((acc) => acc.transactions)
     .filter((tx) => isSameMonth(tx.date, parseISO(`${month}-01`)) && !tx.outflow)
     .filter((tx) => tx.category === 'Ready to Assign')

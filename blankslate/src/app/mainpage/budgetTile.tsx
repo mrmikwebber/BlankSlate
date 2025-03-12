@@ -144,7 +144,7 @@ export default function CollapsibleTable() {
       assignedMoney?.map((entry) => [entry.category, entry.amount])
     );
 
-    let remainingAssigned = new Map(assignedCategories);
+    const remainingAssigned = new Map(assignedCategories);
 
     for (const account of accounts.filter((acc) => acc.type === "debit")) {
       for (const transaction of account.transactions) {

@@ -1,6 +1,5 @@
 "use client";
-import Link from "next/link";
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import AccountTile from "./accountTile";
 import { useAccountContext } from "../context/AccountContext";
 import AddAccountModal from "./AddAccountModal";

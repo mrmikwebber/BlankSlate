@@ -72,7 +72,7 @@ export const TableProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     categoryItems: subscriptionCategoryItems
   }
 
-  const [categories, setCategories] = useState<CategoryGroupData[]>([
+  const [categories] = useState<CategoryGroupData[]>([
     creditCardsCategoryGroup,
     billCategoryGroup,
     subscriptionCategoryGroup

@@ -75,7 +75,7 @@ export const TargetSidebar = ({ itemName, onClose }) => {
         );
       });
 
-      let remainingAmount = amount - totalAssigned;
+      const remainingAmount = amount - totalAssigned;
 
       return remainingAmount / monthsUntilTarget;
     }

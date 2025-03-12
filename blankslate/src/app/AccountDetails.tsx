@@ -1,9 +1,8 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useContext, useState } from "react";
+import { useState } from "react";
 import { useAccountContext } from "@/app/context/AccountContext";
-import { useTableContext } from "./context/TableDataContext";
 import { useBudgetContext } from "./context/BudgetContext";
 
 export default function AccountDetails() {
