@@ -386,17 +386,18 @@ const getTargetStatus = (item) => {
   const activity = Math.abs(item.activity || 0);
   const available = item.available || 0;
   const overspent = available < 0;
-  const fullyFunded = assigned >= needed;
+  const fullyFunded = assigned === needed;
+  const overFunded = assigned > needed;
   const partiallyFunded = assigned < needed && assigned >= activity;
   const stillNeeded = needed - assigned;
 
   if (overspent && assigned < activity) {
-    return { message: `Overspent ${formatToUSD(available)} of ${formatToUSD(assigned)}`, color: "text-red-600 font-semibold" };
+    return { message: `Overspent ${formatToUSD(available * -1)} of ${formatToUSD(assigned)}`, color: "text-red-600 font-semibold" };
   }
-  if (fullyFunded && activity === needed) {
+  if ((fullyFunded || overFunded) && available === 0 || fullyFunded && available > 0) {
     return { message: "Fully Funded", color: "text-green-600 font-semibold" }; 
   }
-  if (fullyFunded) {
+  if (overFunded) {
     return { message: `Funded ${formatToUSD(needed)} of ${formatToUSD(assigned)}`, color: "text-blue-600 font-semibold" }; 
   }
   if (partiallyFunded) {

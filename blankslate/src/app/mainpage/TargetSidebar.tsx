@@ -7,7 +7,7 @@ export const TargetSidebar = ({ itemName, onClose }) => {
   const [categoryItem, setCategoryItem] = useState(null);
   const [target, setTarget] = useState(null); 
   const [targetAmount, setTargetAmount] = useState(""); 
-  const [targetType, setTargetType] = useState("Monthly");
+  const [targetType, setTargetType] = useState("");
   const [customTargetDate, setCustomTargetDate] = useState(""); 
   const [isVisible, setIsVisible] = useState(false);
   const [showForm, setShowForm] = useState(false);
