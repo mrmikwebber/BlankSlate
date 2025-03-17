@@ -510,7 +510,6 @@ const getTargetStatus = (item) => {
                           onClick={() => {toggleTargetSideBar(item)}}
                           className="p-2 border relative"
                         >
-                          {/* Progress Bar */}
                           {item.target && (
                             <div className="absolute top-0 left-0 w-full h-full bg-gray-200 rounded">
                               <div

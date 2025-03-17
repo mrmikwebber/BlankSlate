@@ -316,14 +316,9 @@ export const BudgetProvider = ({ children }) => {
               
                 const totalAssigned = cumulativeAssigned.get(item.name) || 0;
                 const remainingAmount = item.target.amount - totalAssigned;
-
-                console.log('total assigned', totalAssigned);
-                console.log('remainingAmount', remainingAmount);
-              
                 let newAmountNeeded;
                 
                 if (direction === "forward") {
-                  console.log(monthsUntilTarget);
                   newAmountNeeded = remainingAmount / monthsUntilTarget;
                 } else {
                   newAmountNeeded = prev[newMonth]?.categories

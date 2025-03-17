@@ -14,7 +14,6 @@ const AddCategoryButton = ({ handleSubmit }: { handleSubmit: (categoryName: stri
 
   return (
     <div className="relative inline-block">
-      {/* Add Category Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="bg-teal-500 text-white px-4 py-2 rounded-md shadow-md hover:bg-blue-500 transition"
@@ -22,7 +21,6 @@ const AddCategoryButton = ({ handleSubmit }: { handleSubmit: (categoryName: stri
         Add Category
       </button>
 
-      {/* Hovering Box */}
       {isOpen && (
         <div className="absolute left-0 mt-2 w-64 bg-white p-4 shadow-lg rounded-lg border z-50">
           <label className="block text-sm font-medium text-gray-700 mb-2">
