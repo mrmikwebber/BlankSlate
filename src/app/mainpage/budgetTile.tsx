@@ -507,10 +507,7 @@ const getTargetStatus = (item) => {
                     group.categoryItems.map((item, itemIndex) => (
                       <tr key={itemIndex} className="border-t">
                         <td
-                          onClick={() => {
-                            group.name !== "Credit Card Payments" &&
-                              toggleTargetSideBar(item);
-                          }}
+                          onClick={() => {toggleTargetSideBar(item)}}
                           className="p-2 border relative"
                         >
                           {/* Progress Bar */}

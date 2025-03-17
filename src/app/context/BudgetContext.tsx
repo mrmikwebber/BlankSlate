@@ -1,7 +1,7 @@
 "use client";
 import { createContext, useContext, useState, useEffect, useMemo } from "react";
 import { useTableContext } from "@/app/context/TableDataContext";
-import { addMonths, format, getMonth, isSameMonth, parseISO, subMonths } from "date-fns";
+import { addMonths, differenceInCalendarMonths, format, getMonth, isSameMonth, parseISO, subMonths } from "date-fns";
 
 const getPreviousMonth = (month) => {
   return format(subMonths(parseISO(`${month}-01`), 1), "yyyy-MM");
@@ -239,7 +239,7 @@ export const BudgetProvider = ({ children }) => {
 
                 let newTarget = item.target;
 
-                if (item.target?.type === "Custom") {
+                if (item.target?.type === "Custom" || item.target?.type === "Full Payoff") {
                   const targetMonthNumber = getMonth(parseISO(item.target.targetDate)) + 1;
                   const currentMonthNumber = getMonth(parseISO(newMonth)) + 1;
                 
@@ -252,7 +252,7 @@ export const BudgetProvider = ({ children }) => {
                   let newAmountNeeded;
                   
                   if (direction === "forward") {
-                    newAmountNeeded = remainingAmount / monthsUntilTarget;
+                    newAmountNeeded = remainingAmount / monthsUntilTarget + 1;
                   } else {
                     newAmountNeeded = prev[newMonth]?.categories
                       ?.flatMap((cat) => cat.categoryItems)
@@ -263,6 +263,13 @@ export const BudgetProvider = ({ children }) => {
                     ...item.target,
                     amountNeeded: newAmountNeeded,
                   };
+
+                  const targetMonth = item.target.type === 'Custom' ? parseISO(newTarget.targetDate) : parseISO(`${newTarget.targetDate}-01`);
+                  const currentMonthDate = item.target.type === 'Custom' ? parseISO(newMonth) : parseISO(`${newMonth}-01`);
+    
+                  if (differenceInCalendarMonths(currentMonthDate, targetMonth) >= 1) {
+                    newTarget = null;
+                  }
 
                 }
 
@@ -299,21 +306,24 @@ export const BudgetProvider = ({ children }) => {
               : Math.max(pastAssigned + pastActivity, 0);
               let newTarget = item.target;
 
-
-              if (item.target?.type === "Custom") {
+              if (item?.target?.type === "Custom" || item?.target?.type === "Full Payoff") {
                 const targetMonthNumber = getMonth(parseISO(item.target.targetDate)) + 1;
                 const currentMonthNumber = getMonth(parseISO(newMonth)) + 1;
           
               
-                let monthsUntilTarget = targetMonthNumber - currentMonthNumber;
+                let monthsUntilTarget = (targetMonthNumber - currentMonthNumber) + 1;
                 if (monthsUntilTarget <= 0) monthsUntilTarget = 1;
               
                 const totalAssigned = cumulativeAssigned.get(item.name) || 0;
                 const remainingAmount = item.target.amount - totalAssigned;
+
+                console.log('total assigned', totalAssigned);
+                console.log('remainingAmount', remainingAmount);
               
                 let newAmountNeeded;
                 
                 if (direction === "forward") {
+                  console.log(monthsUntilTarget);
                   newAmountNeeded = remainingAmount / monthsUntilTarget;
                 } else {
                   newAmountNeeded = prev[newMonth]?.categories
@@ -325,6 +335,13 @@ export const BudgetProvider = ({ children }) => {
                   ...item.target,
                   amountNeeded: newAmountNeeded,
                 };
+
+                const targetMonth = item.target.type === 'Custom' ? parseISO(newTarget.targetDate) : parseISO(`${newTarget.targetDate}-01`);
+                const currentMonthDate = item.target.type === 'Custom' ? parseISO(newMonth) : parseISO(`${newMonth}-01`);
+  
+                if (differenceInCalendarMonths(currentMonthDate, targetMonth) >= 1) {
+                  newTarget = null;
+                }
               };
 
               const itemActivity = calculateActivityForMonth(newMonth, item.name, accounts);
