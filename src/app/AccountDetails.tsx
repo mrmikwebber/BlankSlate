@@ -86,7 +86,6 @@ export default function AccountDetails() {
         </tbody>
       </table>
 
-      {/* Floating Transaction Form */}
       {showForm && (
         <form
           onSubmit={handleAddTransaction}

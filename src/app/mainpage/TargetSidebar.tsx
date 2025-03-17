@@ -76,12 +76,9 @@ export const TargetSidebar = ({ itemName, onClose }) => {
   const calculateNeededAmount = () => {
     if (!targetAmount) return 0;
     const amount = parseFloat(targetAmount);
-    console.log(amount);
-    console.log(targetType);
     if (targetType === "Weekly") {
       return amount * 4;
     } else if (targetType === "monthly") {
-      console.log('Monthly')
       return amount;
     } else if (
       (targetType === "Custom" || targetType === "Full Payoff") &&
