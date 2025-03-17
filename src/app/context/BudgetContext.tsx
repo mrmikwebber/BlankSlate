@@ -252,7 +252,7 @@ export const BudgetProvider = ({ children }) => {
                   let newAmountNeeded;
                   
                   if (direction === "forward") {
-                    newAmountNeeded = remainingAmount / monthsUntilTarget;
+                    newAmountNeeded = remainingAmount / monthsUntilTarget + 1;
                   } else {
                     newAmountNeeded = prev[newMonth]?.categories
                       ?.flatMap((cat) => cat.categoryItems)
@@ -264,8 +264,8 @@ export const BudgetProvider = ({ children }) => {
                     amountNeeded: newAmountNeeded,
                   };
 
-                  const targetMonth = parseISO(`${newTarget.targetDate}-01`);
-                  const currentMonthDate = parseISO(`${newMonth}-01`);
+                  const targetMonth = item.target.type === 'Custom' ? parseISO(newTarget.targetDate) : parseISO(`${newTarget.targetDate}-01`);
+                  const currentMonthDate = item.target.type === 'Custom' ? parseISO(newMonth) : parseISO(`${newMonth}-01`);
     
                   if (differenceInCalendarMonths(currentMonthDate, targetMonth) >= 1) {
                     newTarget = null;
@@ -311,15 +311,19 @@ export const BudgetProvider = ({ children }) => {
                 const currentMonthNumber = getMonth(parseISO(newMonth)) + 1;
           
               
-                let monthsUntilTarget = targetMonthNumber - currentMonthNumber;
+                let monthsUntilTarget = (targetMonthNumber - currentMonthNumber) + 1;
                 if (monthsUntilTarget <= 0) monthsUntilTarget = 1;
               
                 const totalAssigned = cumulativeAssigned.get(item.name) || 0;
                 const remainingAmount = item.target.amount - totalAssigned;
+
+                console.log('total assigned', totalAssigned);
+                console.log('remainingAmount', remainingAmount);
               
                 let newAmountNeeded;
                 
                 if (direction === "forward") {
+                  console.log(monthsUntilTarget);
                   newAmountNeeded = remainingAmount / monthsUntilTarget;
                 } else {
                   newAmountNeeded = prev[newMonth]?.categories
@@ -332,8 +336,8 @@ export const BudgetProvider = ({ children }) => {
                   amountNeeded: newAmountNeeded,
                 };
 
-                const targetMonth = parseISO(`${newTarget.targetDate}-01`);
-                const currentMonthDate = parseISO(`${newMonth}-01`);
+                const targetMonth = item.target.type === 'Custom' ? parseISO(newTarget.targetDate) : parseISO(`${newTarget.targetDate}-01`);
+                const currentMonthDate = item.target.type === 'Custom' ? parseISO(newMonth) : parseISO(`${newMonth}-01`);
   
                 if (differenceInCalendarMonths(currentMonthDate, targetMonth) >= 1) {
                   newTarget = null;
