@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
 import {
   getMonth,
   parseISO,
   subMonths,
+  differenceInCalendarMonths,
 } from "date-fns";
 import { useBudgetContext } from "../context/BudgetContext";
 import { useAccountContext } from "../context/AccountContext";
@@ -15,6 +16,7 @@ export const TargetSidebar = ({ itemName, onClose }) => {
   const [targetAmount, setTargetAmount] = useState("");
   const [targetType, setTargetType] = useState("");
   const [customTargetDate, setCustomTargetDate] = useState("");
+  const [isCreditCard, setIsCreditCard] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
   const [showForm, setShowForm] = useState(false);
 
@@ -32,6 +34,15 @@ export const TargetSidebar = ({ itemName, onClose }) => {
       .find((item) => item.name === itemName);
   };
 
+  const computedAccounts = useMemo(
+    () =>
+      accounts.map((account) => ({
+        ...account,
+        balance: account.transactions.reduce((sum, tx) => sum + tx.balance, 0),
+      })),
+    [accounts]
+  );
+
   useEffect(() => {
     const foundItem = findCategoryItemByName(itemName);
     setCategoryItem(foundItem);
@@ -41,20 +52,41 @@ export const TargetSidebar = ({ itemName, onClose }) => {
       const existingTarget = foundItem.target || null;
       setTarget(existingTarget);
       setTargetAmount(existingTarget?.amount || "");
-      setTargetType(existingTarget?.type || "Monthly");
+      if(foundItem.categoryName === "Credit Card Payments") {
+        setTargetType(existingTarget?.type || "Full Payoff");
+      } else {
+        setTargetType(existingTarget?.type || "Monthly");
+      }
       setCustomTargetDate(existingTarget?.targetDate || "");
       setShowForm(!!existingTarget);
+      setIsCreditCard(foundItem.categoryName === "Credit Card Payments");
     }
   }, [itemName, currentMonth]);
+
+  useEffect(() => {
+    if (targetType === "Full Payoff") {
+      const accountBalance =
+        -1 *
+        computedAccounts.filter((account) => account.name === itemName)[0]
+          .balance;
+      setTargetAmount(accountBalance);
+    }
+  }, [targetType]);
 
   const calculateNeededAmount = () => {
     if (!targetAmount) return 0;
     const amount = parseFloat(targetAmount);
+    console.log(amount);
+    console.log(targetType);
     if (targetType === "Weekly") {
       return amount * 4;
-    } else if (targetType === "Monthly") {
+    } else if (targetType === "monthly") {
+      console.log('Monthly')
       return amount;
-    } else if (targetType === "Custom" && customTargetDate) {
+    } else if (
+      (targetType === "Custom" || targetType === "Full Payoff") &&
+      customTargetDate
+    ) {
       const targetMonthNumber = getMonth(parseISO(customTargetDate)) + 1;
       const currentMonthNumber = getMonth(new Date()) + 1;
 
@@ -85,12 +117,12 @@ export const TargetSidebar = ({ itemName, onClose }) => {
 
   const getPreviousMonthAvailable = (categoryItem) => {
     if (!categoryItem) return 0;
-  
+
     const prevMonth = subMonths(parseISO(`${currentMonth}-01`), 1);
     const prevMonthKey = `${prevMonth.getFullYear()}-${(getMonth(prevMonth) + 1)
       .toString()
       .padStart(2, "0")}`;
-  
+
     return (
       budgetData[prevMonthKey]?.categories
         ?.flatMap((category) => category.categoryItems)
@@ -101,24 +133,21 @@ export const TargetSidebar = ({ itemName, onClose }) => {
   const getSpendingByType = (categoryItem, type) => {
     if (!categoryItem) return 0;
 
-    const spending = accounts
+    return accounts
       .filter((account) => account.type === type)
       .flatMap((account) => account.transactions)
       .filter(
-        (transaction) => (
-            transaction.category === categoryItem.name &&
-            getMonth(transaction.date) + 1 === getMonth(parseISO(currentMonth)) + 1
-        )
+        (transaction) =>
+          transaction.category === categoryItem.name &&
+          getMonth(transaction.date) + 1 ===
+            getMonth(parseISO(currentMonth)) + 1
       )
       .reduce((sum, tx) => sum + Math.abs(tx.balance), 0);
-    return spending;
   };
-  
+
   const previousMonthAvailable = getPreviousMonthAvailable(categoryItem);
   const cashSpending = getSpendingByType(categoryItem, "debit");
   const creditSpending = getSpendingByType(categoryItem, "credit");
-
-
 
   const handleSave = () => {
     if (categoryItem && targetAmount) {
@@ -126,7 +155,10 @@ export const TargetSidebar = ({ itemName, onClose }) => {
       const newTarget = {
         type: targetType,
         amount: parseFloat(targetAmount),
-        targetDate: targetType === "Custom" ? customTargetDate : null,
+        targetDate:
+          targetType === "Custom" || targetType === "Full Payoff"
+            ? customTargetDate
+            : null,
         amountNeeded: neededAmount,
       };
       setCategoryTarget(categoryItem.name, newTarget);
@@ -134,8 +166,10 @@ export const TargetSidebar = ({ itemName, onClose }) => {
       setShowForm(true);
     }
   };
+
   const handleClose = () => {
     setIsVisible(false);
+    setTargetType("");
     setTimeout(onClose, 300);
   };
 
@@ -161,103 +195,126 @@ export const TargetSidebar = ({ itemName, onClose }) => {
       <p className="text-sm text-gray-600 mb-2">
         <strong>Category:</strong> {categoryItem.categoryName}
       </p>
-      <p className="text-sm text-gray-600">
-        <strong>Assigned:</strong> {formatToUSD(categoryItem.assigned)}
-      </p>
-      <p className="text-sm text-gray-600">
-        <strong>Available:</strong> {formatToUSD(categoryItem.available)}
-      </p>
-      <p className="text-sm text-gray-600">
-        <strong>Leftover Money: </strong> 
-        {formatToUSD(Math.max(previousMonthAvailable, 0))}
-      </p>
-      <p className="text-sm text-gray-600">
-        <strong>Cash Spending:</strong> {formatToUSD(cashSpending)}
-      </p>
-      <p className="text-sm text-gray-600 mb-2">
-        <strong>Credit Spending:</strong> {formatToUSD(creditSpending)}
-      </p>
-
-      {!target && !showForm ? (
-        <button
-          onClick={() => setShowForm(true)}
-          className="mt-4 w-full bg-blue-500 text-white py-2 rounded-md hover:bg-blue-400 transition"
-        >
-          Create Target
-        </button>
-      ) : (
+      {!isCreditCard && (
         <>
-          {target && (
-            <div className="mt-4 p-3 border border-gray-300 rounded bg-gray-100">
-              <p className="text-sm font-medium text-gray-700">
-                Current Target:
-              </p>
-              <p className="text-sm">Type: {target.type}</p>
-              <p className="text-sm">Amount: ${target.amount.toFixed(2)}</p>
-              {target.type === "Custom" && (
-                <p className="text-sm">Due: {target.targetDate}</p>
-              )}
-              <p className="text-sm font-medium mt-2">
-                Amount Needed: ${target.amountNeeded.toFixed(2)}
-              </p>
-            </div>
-          )}
-
-          <div className="mt-4">
-            <label className="block text-sm font-medium text-gray-700">
-              Set Target
-            </label>
-            <input
-              type="number"
-              value={targetAmount}
-              onChange={(e) => setTargetAmount(e.target.value)}
-              className="w-full p-2 border border-gray-300 rounded mt-1"
-              placeholder="Enter target amount"
-            />
-          </div>
-
-          <div className="mt-4">
-            <label className="block text-sm font-medium text-gray-700">
-              Target Type
-            </label>
-            <select
-              value={targetType}
-              onChange={(e) => setTargetType(e.target.value)}
-              className="w-full p-2 border border-gray-300 rounded mt-1"
-            >
-              <option value="Monthly">Monthly</option>
-              <option value="Weekly">Weekly</option>
-              <option value="Custom">Custom</option>
-            </select>
-          </div>
-
-          {targetType === "Custom" && (
-            <div className="mt-4">
-              <label className="block text-sm font-medium text-gray-700">
-                Target Date
-              </label>
-              <input
-                type="date"
-                value={customTargetDate}
-                onChange={(e) => setCustomTargetDate(e.target.value)}
-                className="w-full p-2 border border-gray-300 rounded mt-1"
-              />
-            </div>
-          )}
-
-          <p className="text-sm text-gray-600 mt-2">
-            <strong>Amount Needed:</strong> $
-            {calculateNeededAmount().toFixed(2)}
+          <p className="text-sm text-gray-600">
+            <strong>Assigned:</strong> {formatToUSD(categoryItem.assigned)}
           </p>
-
-          <button
-            onClick={handleSave}
-            className="mt-4 w-full bg-teal-600 text-white py-2 rounded-md hover:bg-teal-500 transition"
-          >
-            {target ? "Update Target" : "Save Target"}
-          </button>
+          <p className="text-sm text-gray-600">
+            <strong>Available:</strong> {formatToUSD(categoryItem.available)}
+          </p>
+          <p className="text-sm text-gray-600">
+            <strong>Leftover Money: </strong>
+            {formatToUSD(Math.max(previousMonthAvailable, 0))}
+          </p>
+          <p className="text-sm text-gray-600">
+            <strong>Cash Spending:</strong> {formatToUSD(cashSpending)}
+          </p>
+          <p className="text-sm text-gray-600 mb-2">
+            <strong>Credit Spending:</strong> {formatToUSD(creditSpending)}
+          </p>
         </>
       )}
+
+      {isCreditCard && (
+        <div className="mt-4">
+          <label className="block text-sm font-medium text-gray-700">
+            Debt Payment Plan
+          </label>
+          <select
+            value={targetType}
+            onChange={(e) => setTargetType(e.target.value)}
+            className="w-full p-2 border border-gray-300 rounded mt-1"
+          >
+            <option value="Full Payoff">Pay Full Balance by Date</option>
+            <option value="monthly">Fixed Monthly Payment</option>
+          </select>
+        </div>
+      )}
+
+      {target && targetType !== "Full Payoff" && (
+        <div className="mt-4 p-3 border border-gray-300 rounded bg-gray-100">
+          <p className="text-sm font-medium text-gray-700">Current Target:</p>
+          <p className="text-sm">Type: {target.type}</p>
+          <p className="text-sm">Amount: ${target.amount.toFixed(2)}</p>
+          {target.type === "Custom" && (
+            <p className="text-sm">Due: {target.targetDate}</p>
+          )}
+          <p className="text-sm font-medium mt-2">
+            Amount Needed: ${target.amountNeeded.toFixed(2)}
+          </p>
+        </div>
+      )}
+
+      {targetType === "Full Payoff" && (
+        <div className="mt-4">
+          <label className="block text-sm font-medium text-gray-700">
+            Pay Off By
+          </label>
+          <input
+            type="month"
+            value={customTargetDate}
+            onChange={(e) => setCustomTargetDate(e.target.value)}
+            className="w-full p-2 border border-gray-300 rounded mt-1"
+          />
+        </div>
+      )}
+
+      {targetType !== "Full Payoff" && (
+        <div className="mt-4">
+          <label className="block text-sm font-medium text-gray-700">
+            Target Amount
+          </label>
+          <input
+            type="number"
+            value={targetAmount}
+            onChange={(e) => setTargetAmount(e.target.value)}
+            className="w-full p-2 border border-gray-300 rounded mt-1"
+          />
+        </div>
+      )}
+
+      {!isCreditCard && (
+        <div className="mt-4">
+          <label className="block text-sm font-medium text-gray-700">
+            Target Type
+          </label>
+          <select
+            value={targetType}
+            onChange={(e) => setTargetType(e.target.value)}
+            className="w-full p-2 border border-gray-300 rounded mt-1"
+          >
+            <option value="monthly">Monthly</option>
+            <option value="Weekly">Weekly</option>
+            <option value="Custom">Custom</option>
+          </select>
+        </div>
+      )}
+
+      {targetType === "Custom" && (
+        <div className="mt-4">
+          <label className="block text-sm font-medium text-gray-700">
+            Target Date
+          </label>
+          <input
+            type="date"
+            value={customTargetDate}
+            onChange={(e) => setCustomTargetDate(e.target.value)}
+            className="w-full p-2 border border-gray-300 rounded mt-1"
+          />
+        </div>
+      )}
+
+      <p className="text-sm text-gray-600 mt-2">
+        <strong>Amount Needed:</strong> {formatToUSD(calculateNeededAmount())}
+      </p>
+
+      <button
+        onClick={handleSave}
+        className="mt-4 w-full bg-teal-600 text-white py-2 rounded-md hover:bg-teal-500 transition"
+      >
+        {target ? "Update Target" : "Save Target"}
+      </button>
     </div>
   );
 };
