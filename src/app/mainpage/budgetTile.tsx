@@ -8,7 +8,6 @@ import MonthNav from "./MonthNav";
 import { useBudgetContext } from "../context/BudgetContext";
 import { format, isSameMonth, parseISO, subMonths } from "date-fns";
 import { TargetSidebar } from "./TargetSidebar";
-
 export default function CollapsibleTable() {
   const { accounts } = useAccountContext();
   const {
@@ -244,6 +243,14 @@ const filteredCategories = useMemo(() => {
     }, 0);
     return past;
   };
+
+  useEffect(() => {
+    const fetchInstruments = async () => {
+      const instruments = await getInstruments();
+      console.log(instruments);
+    };
+    fetchInstruments();
+  }, []);
 
   const handleInputChange = (categoryName, itemName, value) => {
     setBudgetData((prev) => {
