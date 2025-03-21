@@ -19,6 +19,9 @@ export default function CollapsibleTable() {
     addCategory,
     addItemToCategory,
   } = useBudgetContext();
+
+  const FILTERS = ["All", "Money Available", "Overspent", "Overfunded", "Underfunded"];
+
   const [creditCardPayments, setCreditCardPayments] = useState([]);
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState("");
@@ -30,6 +33,31 @@ export default function CollapsibleTable() {
     available: 0,
   });
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [selectedFilter, setSelectedFilter] = useState("All");
+
+  const categories = budgetData[currentMonth]?.categories || [];
+
+  const filteredCategories = useMemo(() => {
+    return budgetData[currentMonth].categories.filter((category) => {
+      return category.categoryItems.some((item) => {
+
+        switch (selectedFilter) {
+          case "Money Available":
+            return item.available > 0;
+          case "Overspent":
+            return item.available < 0;
+          case "Overfunded":
+            return item.target && item.assigned > item.target.amountNeeded;
+          case "Underfunded":
+            return item.target && item.assigned < item.target.amountNeeded;
+          case "All":
+          default:
+            return true;
+        }
+      });
+    });
+  }, [budgetData, currentMonth, selectedFilter]);
+
 
   const computedAccounts = useMemo(
     () =>
@@ -406,11 +434,26 @@ const getTargetStatus = (item) => {
   }
   return { message: `${formatToUSD(assigned)} / ${formatToUSD(needed)}`, color: "text-gray-600" };
 };
+
+  console.log(filteredCategories);
   return (
     <div className="mx-auto mt-8 rounded-md">
       <MonthNav />
-      <div className="flex m-2">
+      <div className="flex mt-2 mb-2">
         <AddCategoryButton handleSubmit={addCategory} />
+      </div>
+      <div className="flex gap-2 mb-4">
+        {FILTERS.map((filter) => (
+          <button
+            key={filter}
+            className={`px-4 py-2 rounded-md ${
+              selectedFilter === filter ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-700"
+            }`}
+            onClick={() => setSelectedFilter(filter)}
+          >
+            {filter}
+          </button>
+        ))}
       </div>
       <div className="flex">
         <table className="w-full border border-gray-300 rounded-md">
@@ -423,7 +466,7 @@ const getTargetStatus = (item) => {
             </tr>
           </thead>
           <tbody>
-            {budgetData[currentMonth]?.categories?.map(
+            {filteredCategories.map(
               (group, categoryIndex) => (
                 <Fragment key={group.name}>
                   <tr
