@@ -35,12 +35,12 @@ export default function CollapsibleTable() {
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [selectedFilter, setSelectedFilter] = useState("All");
 
-  const categories = budgetData[currentMonth]?.categories || [];
+const filteredCategories = useMemo(() => {
+  const allCategories = budgetData[currentMonth]?.categories || [];
 
-  const filteredCategories = useMemo(() => {
-    return budgetData[currentMonth].categories.filter((category) => {
-      return category.categoryItems.some((item) => {
-
+  return allCategories
+    .map((category) => {
+      const filteredItems = category.categoryItems.filter((item) => {
         switch (selectedFilter) {
           case "Money Available":
             return item.available > 0;
@@ -55,8 +55,13 @@ export default function CollapsibleTable() {
             return true;
         }
       });
-    });
-  }, [budgetData, currentMonth, selectedFilter]);
+
+      return filteredItems.length
+        ? { ...category, categoryItems: filteredItems }
+        : null;
+    })
+    .filter(Boolean); // remove nulls (categories with no matching items)
+}, [budgetData, currentMonth, selectedFilter]);
 
 
   const computedAccounts = useMemo(
