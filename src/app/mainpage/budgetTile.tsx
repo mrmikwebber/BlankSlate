@@ -59,7 +59,7 @@ const filteredCategories = useMemo(() => {
         ? { ...category, categoryItems: filteredItems }
         : null;
     })
-    .filter(Boolean); // remove nulls (categories with no matching items)
+    .filter(Boolean); 
 }, [budgetData, currentMonth, selectedFilter]);
 
 
@@ -243,14 +243,6 @@ const filteredCategories = useMemo(() => {
     }, 0);
     return past;
   };
-
-  useEffect(() => {
-    const fetchInstruments = async () => {
-      const instruments = await getInstruments();
-      console.log(instruments);
-    };
-    fetchInstruments();
-  }, []);
 
   const handleInputChange = (categoryName, itemName, value) => {
     setBudgetData((prev) => {
