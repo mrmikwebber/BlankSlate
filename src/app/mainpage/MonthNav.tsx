@@ -49,12 +49,14 @@ const MonthNav = () => {
         <ChevronLeft size={24} />
       </button>
 
+      {budgetData && currentMonth && (
       <div className="text-lg font-semibold">
         {formattedMonth} — <span className="text-gray-600">Remaining to Assign:</span>  
-        <span className={budgetData[currentMonth].readyToAssign >= 0 ? "text-green-600" : "text-red-600"}>
-          {formatToUSD(budgetData[currentMonth].readyToAssign)}
+        <span className={budgetData[currentMonth]?.readyToAssign >= 0 ? "text-green-600" : "text-red-600"}>
+          {formatToUSD(budgetData[currentMonth]?.readyToAssign)}
         </span>
       </div>
+      )}
 
       <button onClick={() => goToNextMonth()} className="p-2 rounded-lg hover:bg-gray-200">
         <ChevronRight size={24} />

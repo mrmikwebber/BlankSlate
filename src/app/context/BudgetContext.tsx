@@ -1,56 +1,130 @@
 "use client";
 import { createContext, useContext, useState, useEffect, useMemo } from "react";
-import { useTableContext } from "@/app/context/TableDataContext";
 import { addMonths, differenceInCalendarMonths, format, getMonth, isSameMonth, parseISO, subMonths } from "date-fns";
+import { useAuth } from "./AuthContext";
+import { supabase } from "@/utils/supabaseClient";
+import debounce from "lodash.debounce";
 
-const getPreviousMonth = (month) => {
+const getPreviousMonth = (month: string) => {
   return format(subMonths(parseISO(`${month}-01`), 1), "yyyy-MM");
 }
   
 
 const BudgetContext = createContext(null);
 
-const initialCategories = [
-  { name: "Credit Card Payments", categoryItems: [] },
-  {
-    name: "Subscriptions",
-    categoryItems: [
-      { name: "Blank Slate Subscription", assigned: 0, activity: 0, available: 0, target: {type: "monthly", amount: 5, targetDate: null, amountNeeded: 5} },
-      { name: "Spotify", assigned: 0, activity: 0, available: 0, target: {type: "monthly", amount: 9.99, targetDate: null, amountNeeded: 9.99} },
-      { name: "Netflix", assigned: 0, activity: 0, available: 0, target: {type: "monthly", amount: 12.99, targetDate: null, amountNeeded: 12.99} },
-      { name: "Adobe CC", assigned: 0, activity: 0, available: 0, target: {type: "yearly", amount: 120, targetDate: null, amountNeeded: 120} },
-      { name: "Prime", assigned: 0, activity: 0, available: 0, target: {type: "monthly", amount: 5, targetDate: null, amountNeeded: 5} },
-      { name: "YT Premium", assigned: 0, activity: 0, available: 0, target: {type: "weekly", amount: 10, targetDate: null, amountNeeded: 40} },
-    ],
-  },
-  {
-    name: "Bills",
-    categoryItems: [
-      { name: "Water Utility", assigned: 0, activity: 0, available: 0, target: {type: "monthly", amount: 45, targetDate: null, amountNeeded: 45} },
-      { name: "Electricity", assigned: 0, activity: 0, available: 0, target: {type: "weekly", amount: 50, targetDate: null, amountNeeded: 200} },
-      { name: "Car Loan", assigned: 0, activity: 0, available: 0, target: {type: "custom", amount: 15000, targetDate: '2026-03', amountNeeded: 15000} },
-      { name: "Rent", assigned: 0, activity: 0, available: 0 },
-    ]
-  }
-];
-
-export const BudgetProvider = ({ children }) => {
+export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
   const [transactions, setTransactions] = useState([]);
+  const { user } = useAuth();
   const [currentMonth, setCurrentMonth] = useState(
     format(new Date(), "yyyy-MM")
   );
-  const [budgetData, setBudgetData] = useState(() => {
-    return {
-      [currentMonth]: {
-        categories: initialCategories,
-        readyToAssign: 0,
-        assignableMoney: 0,
-      },
+  const [budgetData, setBudgetData] = useState(null);
+
+  const createDefaultCategories = () => [
+  {
+    name: "Bills",
+    categoryItems: [
+      { name: "Rent", assigned: 0, activity: 0, available: 0 },
+      { name: "Electricity", assigned: 0, activity: 0, available: 0 },
+      { name: "Water", assigned: 0, activity: 0, available: 0 },
+    ],
+  },
+  {
+    name: "Subscriptions",
+    categoryItems: [
+      { name: "Spotify", assigned: 0, activity: 0, available: 0 },
+      { name: "Netflix", assigned: 0, activity: 0, available: 0 },
+    ],
+  },
+  {
+    name: "Credit Card Payments",
+    categoryItems: [],
+  },
+];
+
+
+  useEffect(() => {
+    if (!user) return;
+  
+    const fetchBudget = async () => {
+      const { data, error } = await supabase
+        .from("budget_data")
+        .select("*")
+        .eq("user_id", user.id);
+  
+      if (error) {
+        console.error("Fetch budget error:", error);
+        return;
+      }
+  
+      if (!data || data.length === 0) {
+        // 🆕 New user – initialize default month
+        const today = new Date();
+        const newMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
+        const initial = {
+          user_id: user.id,
+          month: newMonth,
+          data: {
+            categories: createDefaultCategories(), // see below 👇
+          },
+          assignable_money: 0,
+          ready_to_assign: 0,
+        };
+  
+        const { data: inserted, error: insertError } = await supabase
+          .from("budget_data")
+          .insert([initial])
+          .select();
+  
+        if (insertError) {
+          console.error("Insert error:", insertError);
+          return;
+        }
+  
+        setBudgetData({ [newMonth]: { ...initial, id: inserted[0].id } });
+        setCurrentMonth(newMonth);
+      } else {
+        const formatted = {};
+        data.forEach((entry) => {
+          formatted[entry.month] = {
+            ...entry,
+            categories: entry.data.categories,
+          };
+        });
+        setBudgetData(formatted);
+      }
     };
-  });
+  
+    fetchBudget();
+  }, [user]);
+  
+
+  const _saveBudget = async (month, data) => {
+    const existing = budgetData[month];
+    const payload = {
+      user_id: user.id,
+      month,
+      data: { categories: data.categories },
+      assignable_money: data.assignableMoney,
+      ready_to_assign: data.readyToAssign,
+    };
+  
+    const { error } = existing
+      ? await supabase.from("budget_data").update(payload).eq("id", existing.id)
+      : await supabase.from("budget_data").insert(payload);
+  
+    if (error) console.error("Save budget error:", error);
+  };
+  
+  const debouncedSave = debounce(_saveBudget, 1500); // waits 1.5s
+  
+  const saveBudgetMonth = (month, data) => {
+    debouncedSave(month, data);
+  };
 
   const computedData = useMemo(
     () => {
+      if (!budgetData || !currentMonth) return [];
       return budgetData[currentMonth]?.categories?.map((category) => ({
         ...category,
         categoryItems: category.categoryItems?.map((item) => {
@@ -381,6 +455,7 @@ export const BudgetProvider = ({ children }) => {
         addItemToCategory,
         addCategory,
         setCategoryTarget,
+        saveBudgetMonth,
       }}
     >
       {children}

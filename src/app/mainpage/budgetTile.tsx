@@ -34,7 +34,10 @@ export default function CollapsibleTable() {
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [selectedFilter, setSelectedFilter] = useState("All");
 
+  console.log(budgetData);
+
 const filteredCategories = useMemo(() => {
+  if (!budgetData || !currentMonth) return [];
   const allCategories = budgetData[currentMonth]?.categories || [];
 
   return allCategories
