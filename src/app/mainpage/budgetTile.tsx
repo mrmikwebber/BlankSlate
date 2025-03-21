@@ -245,15 +245,15 @@ const filteredCategories = useMemo(() => {
     return past;
   };
 
-  const handleInputChange = (categoryIndex, itemIndex, value) => {
+  const handleInputChange = (categoryName, itemName, value) => {
     setBudgetData((prev) => {
       const updatedCategories =
-        prev[currentMonth]?.categories.map((category, catIdx) => {
-          if (catIdx !== categoryIndex) return category;
+        prev[currentMonth]?.categories.map((category) => {
+          if (categoryName !== category.name) return category;
           return {
             ...category,
-            categoryItems: category.categoryItems.map((item, itemIdx) => {
-              if (itemIdx !== itemIndex) return item;
+            categoryItems: category.categoryItems.map((item) => {
+              if (itemName !== item.name) return item;
 
               const availableSum = value + item.activity;
               const cumlativeAvailable = getCumulativeAvailable(
@@ -440,7 +440,6 @@ const getTargetStatus = (item) => {
   return { message: `${formatToUSD(assigned)} / ${formatToUSD(needed)}`, color: "text-gray-600" };
 };
 
-  console.log(filteredCategories);
   return (
     <div className="mx-auto mt-8 rounded-md">
       <MonthNav />
@@ -472,7 +471,7 @@ const getTargetStatus = (item) => {
           </thead>
           <tbody>
             {filteredCategories.map(
-              (group, categoryIndex) => (
+              (group) => (
                 <Fragment key={group.name}>
                   <tr
                     className="bg-gray-400 text-white"
@@ -582,8 +581,8 @@ const getTargetStatus = (item) => {
                           </span>
                         </td>
                         <EditableAssigned
-                          categoryIndex={categoryIndex}
-                          itemIndex={itemIndex}
+                          categoryName={group.name}
+                          itemName={item.name}
                           item={item}
                           handleInputChange={handleInputChange}
                         />
