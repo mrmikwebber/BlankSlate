@@ -19,6 +19,9 @@ export default function CollapsibleTable() {
     addCategory,
     addItemToCategory,
   } = useBudgetContext();
+
+  const FILTERS = ["All", "Money Available", "Overspent", "Overfunded", "Underfunded"];
+
   const [creditCardPayments, setCreditCardPayments] = useState([]);
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState("");
@@ -30,6 +33,36 @@ export default function CollapsibleTable() {
     available: 0,
   });
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [selectedFilter, setSelectedFilter] = useState("All");
+
+const filteredCategories = useMemo(() => {
+  const allCategories = budgetData[currentMonth]?.categories || [];
+
+  return allCategories
+    .map((category) => {
+      const filteredItems = category.categoryItems.filter((item) => {
+        switch (selectedFilter) {
+          case "Money Available":
+            return item.available > 0;
+          case "Overspent":
+            return item.available < 0;
+          case "Overfunded":
+            return item.target && item.assigned > item.target.amountNeeded;
+          case "Underfunded":
+            return item.target && item.assigned < item.target.amountNeeded;
+          case "All":
+          default:
+            return true;
+        }
+      });
+
+      return filteredItems.length
+        ? { ...category, categoryItems: filteredItems }
+        : null;
+    })
+    .filter(Boolean); // remove nulls (categories with no matching items)
+}, [budgetData, currentMonth, selectedFilter]);
+
 
   const computedAccounts = useMemo(
     () =>
@@ -212,15 +245,15 @@ export default function CollapsibleTable() {
     return past;
   };
 
-  const handleInputChange = (categoryIndex, itemIndex, value) => {
+  const handleInputChange = (categoryName, itemName, value) => {
     setBudgetData((prev) => {
       const updatedCategories =
-        prev[currentMonth]?.categories.map((category, catIdx) => {
-          if (catIdx !== categoryIndex) return category;
+        prev[currentMonth]?.categories.map((category) => {
+          if (categoryName !== category.name) return category;
           return {
             ...category,
-            categoryItems: category.categoryItems.map((item, itemIdx) => {
-              if (itemIdx !== itemIndex) return item;
+            categoryItems: category.categoryItems.map((item) => {
+              if (itemName !== item.name) return item;
 
               const availableSum = value + item.activity;
               const cumlativeAvailable = getCumulativeAvailable(
@@ -406,11 +439,25 @@ const getTargetStatus = (item) => {
   }
   return { message: `${formatToUSD(assigned)} / ${formatToUSD(needed)}`, color: "text-gray-600" };
 };
+
   return (
     <div className="mx-auto mt-8 rounded-md">
       <MonthNav />
-      <div className="flex m-2">
+      <div className="flex mt-2 mb-2">
         <AddCategoryButton handleSubmit={addCategory} />
+      </div>
+      <div className="flex gap-2 mb-4">
+        {FILTERS.map((filter) => (
+          <button
+            key={filter}
+            className={`px-4 py-2 rounded-md ${
+              selectedFilter === filter ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-700"
+            }`}
+            onClick={() => setSelectedFilter(filter)}
+          >
+            {filter}
+          </button>
+        ))}
       </div>
       <div className="flex">
         <table className="w-full border border-gray-300 rounded-md">
@@ -423,8 +470,8 @@ const getTargetStatus = (item) => {
             </tr>
           </thead>
           <tbody>
-            {budgetData[currentMonth]?.categories?.map(
-              (group, categoryIndex) => (
+            {filteredCategories.map(
+              (group) => (
                 <Fragment key={group.name}>
                   <tr
                     className="bg-gray-400 text-white"
@@ -534,8 +581,8 @@ const getTargetStatus = (item) => {
                           </span>
                         </td>
                         <EditableAssigned
-                          categoryIndex={categoryIndex}
-                          itemIndex={itemIndex}
+                          categoryName={group.name}
+                          itemName={item.name}
                           item={item}
                           handleInputChange={handleInputChange}
                         />
