@@ -118,6 +118,8 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
     };
 
     console.log('saving budget', payload);
+
+    if(process.env.TESTING) return;
   
     if (existing?.id) {
       const { error } = await supabase
@@ -377,7 +379,6 @@ useEffect(() => {
         ];
 
         if (!areCategoriesEqual(patchedCategories, prev[newMonth].categories)) {
-          console.log('categories are not equal', patchedCategories, prev[newMonth].categories);
           setIsDirty(true);
         }
 
@@ -388,9 +389,32 @@ useEffect(() => {
             ready_to_assign: calculateReadyToAssign(newMonth, accounts),
             categories: patchedCategories.map((category) => {
               if (category.name === 'Credit Card Payemnts') return category
+
+              const existingItemsMap = Object.fromEntries(
+                category.categoryItems.map((item) => [item.name, item])
+              );
+
+              const missingItems = prev[previousMonth]?.categories
+                .find((c) => c.name === category.name)
+                ?.categoryItems.filter((item) => !existingItemsMap[item.name]) || [];
+
+              console.log('missing items', missingItems)
+
+              const patchedCategoryItems = [
+                ...category.categoryItems,
+                ...missingItems,
+              ];
+
+              console.log('patched category items', patchedCategoryItems)
+
+              if (!areCategoriesEqual(patchedCategoryItems, category.categoryItems)) {
+                console.log('category items are not equal', patchedCategoryItems, category.categoryItems);
+                setIsDirty(true);
+              } 
+              
               return {
               ...category,
-              categoryItems: category.categoryItems.map((item) => {
+              categoryItems: patchedCategoryItems.map((item) => {
 
                 const pastAssigned = cumulativeAssigned.get(item.name) || 0;
                 const pastActivity = cumulativeActivity.get(item.name) || 0;
@@ -525,7 +549,6 @@ useEffect(() => {
       .filter((tx) => tx.category === 'Ready to Assign')
       .reduce((sum, tx) => sum + tx.balance, 0); 
 
-      console.log('setting dirty')
       setIsDirty(true);
       return {
         ...prev,

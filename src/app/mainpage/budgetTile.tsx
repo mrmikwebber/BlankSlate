@@ -139,10 +139,7 @@ export default function CollapsibleTable() {
               : item.available;
 
             if (newAssigned !== item.available) {
-              console.log('change detected')
-              console.log('newAssigned', newAssigned)
-              console.log('item.available', item.available)
-              // hasChanges = true;
+              hasChanges = true;
             } 
 
             return { ...item, available: newAssigned };
@@ -153,7 +150,6 @@ export default function CollapsibleTable() {
 
       if (!hasChanges) return prev;
 
-      console.log('setting dirty')
       setIsDirty(true);
 
       return {
@@ -273,7 +269,6 @@ export default function CollapsibleTable() {
 
       const previousBalance = budgetData[prevMonth]?.ready_to_assign || 0;
 
-      console.log('setting dirty')
       setIsDirty(true);
 
       return {
@@ -406,7 +401,6 @@ export default function CollapsibleTable() {
         },
       };
     });
-    console.log('setting dirty')
     setIsDirty(true);
   }, [accounts]);
 
