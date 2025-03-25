@@ -44,9 +44,6 @@ export default function AccountDetails() {
     setShowForm(false);
   };
 
-  console.log(newTransaction);
-  console.log(budgetData[currentMonth].categories);
-
   return (
     <div className="mx-auto p-6 relative">
       <h1 className="text-2xl font-bold mb-4">{account.name} Overview</h1>
@@ -146,8 +143,8 @@ export default function AccountDetails() {
                   Ready to Assign
                 </option>
               )}
-              {budgetData[currentMonth].categories.map((category) =>
-                category.categoryItems.filter((item) => category.name === newTransaction.category_group).map((item) =>
+              {budgetData[currentMonth].categories.filter((category) => category.name === newTransaction.category_group).map((category) =>
+                category.categoryItems.map((item) =>
                   <option key={item.name} value={item.name}>
                     {item.name}
                   </option>

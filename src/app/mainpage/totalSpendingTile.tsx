@@ -44,7 +44,6 @@ const TotalSpendingTile = () => {
 
     accounts.forEach((account) => {
       account.transactions.forEach((tx) => {
-        console.log('tx', tx)
         if (tx.outflow && isSameMonth(tx.date instanceof Date ? tx.date : parseISO(tx.date), parseISO(currentMonth))) {
           if (!categoryTotals[tx.category]) {
             categoryTotals[tx.category] = 0;

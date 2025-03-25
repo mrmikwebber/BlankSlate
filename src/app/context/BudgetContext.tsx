@@ -4,16 +4,17 @@ import { addMonths, differenceInCalendarMonths, format, getMonth, isSameMonth, p
 import { useAuth } from "./AuthContext";
 import { supabase } from "@/utils/supabaseClient";
 import debounce from "lodash.debounce";
+import { useAccountContext } from "./AccountContext";
 
 const getPreviousMonth = (month: string) => {
   return format(subMonths(parseISO(`${month}-01`), 1), "yyyy-MM");
 }
   
-
 const BudgetContext = createContext(null);
 
 export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
   const [transactions, setTransactions] = useState([]);
+  const [creditCardPayments, setCreditCardPayments] = useState([]);
   const [loading, setLoading] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const { user } = useAuth() || { user: null };
@@ -44,6 +45,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
   },
 ];
 
+const { accounts, hasInitalized } = useAccountContext();
 
   useEffect(() => {
     if (!user) return;
@@ -155,6 +157,60 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
 
   const lastSaved = useRef<string | null>(null);
 
+  const calculateCreditCardPayments = (assignedMoney) => {
+    const assignedCategories = new Map(
+      assignedMoney?.map((entry) => [entry.category, entry.amount])
+    );
+
+    let remainingAssigned = new Map(assignedCategories);
+
+    for (const account of accounts.filter((acc) => acc.type === "debit")) {
+      for (const transaction of account.transactions) {
+        const category = transaction.category;
+        if (remainingAssigned.has(category)) {
+          const assignedAmount = remainingAssigned.get(category);
+          const deduction = Math.min(
+            assignedAmount,
+            Math.abs(transaction.balance)
+          );
+
+          remainingAssigned.set(category, assignedAmount - deduction);
+
+          if (remainingAssigned.get(category) <= 0) {
+            remainingAssigned.delete(category);
+          }
+        }
+      }
+    }
+
+    const creditCardPayments = accounts
+      .filter((acc) => acc.type === "credit")
+      .map((card) => {
+        let payment = 0;
+
+        for (const transaction of card.transactions) {
+          const category = transaction.category;
+          if (remainingAssigned.has(category)) {
+            const assignedAmount = remainingAssigned.get(category);
+            const deduction = Math.min(
+              assignedAmount,
+              Math.abs(transaction.balance)
+            );
+
+            remainingAssigned.set(category, assignedAmount - deduction);
+            payment += deduction;
+
+            if (remainingAssigned.get(category) <= 0) {
+              remainingAssigned.delete(category);
+            }
+          }
+        }
+
+        return { card: card.name, payment };
+      });
+    return creditCardPayments;
+  };
+
 useEffect(() => {
 
   if (!budgetData[currentMonth]) return;
@@ -170,6 +226,159 @@ useEffect(() => {
 
   lastSaved.current = key;
 }, [budgetData, currentMonth]);
+
+useEffect(() => {
+  const assignedMoney = budgetData[currentMonth]?.categories?.flatMap(
+    (category) =>
+      category.categoryItems
+        .filter((item) => item.assigned > 0)
+        .map((item) => ({
+          category: item.name,
+          amount: item.assigned,
+        }))
+  );
+
+  const newPayments = calculateCreditCardPayments(
+    assignedMoney
+  );
+
+  if (JSON.stringify(newPayments) !== JSON.stringify(creditCardPayments)) {
+    setCreditCardPayments(newPayments);
+  }
+}, [accounts, budgetData]);
+
+useEffect(() => {
+  if (!creditCardPayments.length) return;
+
+  setBudgetData((prev) => {
+    const current = prev[currentMonth];
+    if (!current) return prev;
+
+    let hasChanges = false;
+
+    const updatedCategories = prev[currentMonth]?.categories?.map(
+      (category) => {
+        if (category.name !== "Credit Card Payments") return category;
+
+        const updatedItems = category.categoryItems.map((item) => {
+          const paymentEntry = creditCardPayments.find(
+            (p) => p.card === item.name
+          );
+          const newAssigned = paymentEntry
+            ? paymentEntry.payment
+            : item.available;
+
+          if (newAssigned !== item.available) {
+            hasChanges = true;
+          } 
+          console.log(item.name, newAssigned)
+
+          return { ...item, available: newAssigned };
+        });
+        return { ...category, categoryItems: updatedItems };
+      }
+    );
+
+    if (!hasChanges) return prev;
+
+    setIsDirty(true);
+
+    return {
+      ...prev,
+      [currentMonth]: {
+        ...prev[currentMonth],
+        categories: updatedCategories,
+      },
+    };
+  });
+
+}, [creditCardPayments]);
+
+useEffect(() => {
+  if (!budgetData[currentMonth] || !hasInitalized) return;
+
+  const currentlyAssigned = budgetData[currentMonth]?.categories?.reduce(
+    (sum, category) => {
+      return (
+        sum +
+        category.categoryItems.reduce(
+          (itemSum, item) => itemSum + item.assigned,
+          0
+        )
+      );
+    },
+    0
+  );
+
+  const creditCardAccounts = accounts.filter(
+    (account) => account.type === "credit"
+  );
+
+  const creditCardItems = creditCardAccounts.map((account) => {
+    return {
+      name: account.name,
+      assigned: 0,
+      activity:
+        -1 *
+        account.transactions
+          .filter((transaction) =>
+            isSameMonth(transaction.date, parseISO(`${currentMonth}-01`))
+          )
+          .reduce((sum, tx) => sum + tx.balance, 0),
+    };
+  });
+  const updatedCategories = budgetData[currentMonth]?.categories?.map(
+    (category) => {
+      if (category.name === "Credit Card Payments") {
+        return { ...category, categoryItems: creditCardItems };
+      }
+      return {
+        ...category,
+        categoryItems: category.categoryItems.map((item) => {
+          const cumlativeAvailable = getCumulativeAvailable(
+            budgetData,
+            item.name
+          );
+          const itemActivity = calculateActivityForMonth(
+            currentMonth,
+            item.name,
+            accounts
+          );
+
+          const availableSum = item.assigned + itemActivity;
+          console.log(item.name, availableSum + cumlativeAvailable)
+          return {
+            ...item,
+            activity: itemActivity,
+            available: availableSum + cumlativeAvailable,
+          };
+        }),
+      };
+    }
+  );
+
+  const totalInflow = accounts
+    .filter((acc) => acc.type === "debit")
+    .flatMap((acc) => acc.transactions)
+    .filter(
+      (tx) =>
+        isSameMonth(parseISO(tx.date), parseISO(`${currentMonth}-01`)) && !tx.outflow
+    )
+    .filter((tx) => tx.category === "Ready to Assign")
+    .reduce((sum, tx) => sum + tx.balance, 0);
+  setBudgetData((prev) => {
+    return {
+      ...prev,
+      [currentMonth]: {
+        ...prev[currentMonth],
+        categories: updatedCategories,
+        assignable_money: totalInflow,
+        ready_to_assign: totalInflow - currentlyAssigned,
+      },
+    };
+  });
+  setIsDirty(true);
+}, [accounts]);
 
   const computedData = useMemo(
     () => {
@@ -264,7 +473,7 @@ useEffect(() => {
     setIsDirty(true);
   };
 
-  const calculateReadyToAssign = (month: string, accounts): number => {
+  const calculateReadyToAssign = (month: string): number => {
     const prevMonth = getPreviousMonth(month);
 
     const previousBalance = budgetData[prevMonth]?.ready_to_assign || 0;
@@ -289,7 +498,7 @@ useEffect(() => {
     return (previousBalance + totalInflow) - totalAssigned;
   };
 
-  const calculateActivityForMonth = (month, categoryName, accounts) => {
+  const calculateActivityForMonth = (month, categoryName) => {
     const filteredAccounts = accounts.flatMap((account) => account.transactions)
       .filter(
         (tx) => {
@@ -315,7 +524,7 @@ useEffect(() => {
     return aNames.every((name, idx) => name === bNames[idx]);
   };
 
-  const updateMonth = (newMonth: string, direction: string, accounts) => {
+  const updateMonth = (newMonth: string, direction: string) => {
     setCurrentMonth(newMonth); 
     setBudgetData((prev) => {
       const previousMonth = getPreviousMonth(newMonth);
@@ -386,7 +595,7 @@ useEffect(() => {
           ...prev,
           [newMonth]: {
             ...prev[newMonth],
-            ready_to_assign: calculateReadyToAssign(newMonth, accounts),
+            ready_to_assign: calculateReadyToAssign(newMonth),
             categories: patchedCategories.map((category) => {
               if (category.name === 'Credit Card Payemnts') return category
 
@@ -461,7 +670,7 @@ useEffect(() => {
 
                 }
 
-                const itemActivity = calculateActivityForMonth(newMonth, item.name, accounts);
+                const itemActivity = calculateActivityForMonth(newMonth, item.name);
                 
                 return {
                 ...item,
@@ -527,7 +736,7 @@ useEffect(() => {
                 }
               };
 
-              const itemActivity = calculateActivityForMonth(newMonth, item.name, accounts);
+              const itemActivity = calculateActivityForMonth(newMonth, item.name);
 
               return {
               ...item,
@@ -552,7 +761,7 @@ useEffect(() => {
         [newMonth]: {
           categories: updatedCategories,
           assignable_money: totalInflow || 0,
-          ready_to_assign: calculateReadyToAssign(newMonth, accounts)
+          ready_to_assign: calculateReadyToAssign(newMonth)
         },
       };
     });
@@ -574,6 +783,7 @@ useEffect(() => {
         setIsDirty,
         loading,
         resetBudgetData,
+        creditCardPayments,
       }}
     >
       {children}

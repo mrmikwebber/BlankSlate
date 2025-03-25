@@ -13,7 +13,6 @@ import { useAuth } from "../context/AuthContext";
 import InterstitialPage from "../interstitial/InterstitialPage";
 
 export default function CollapsibleTable() {
-  const { accounts, hasInitalized } = useAccountContext();
   const {
     currentMonth,
     budgetData,
@@ -27,8 +26,6 @@ export default function CollapsibleTable() {
   const { user } = useAuth();
 
   const FILTERS = ["All", "Money Available", "Overspent", "Overfunded", "Underfunded"];
-
-  const [creditCardPayments, setCreditCardPayments] = useState([]);
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState("");
   const [targetSidebarOpen, setTargetSidebarOpen] = useState(false);
@@ -83,142 +80,12 @@ export default function CollapsibleTable() {
   }, [budgetData, currentMonth, selectedFilter]);
 
 
-  const computedAccounts = useMemo(
-    () =>
-      accounts.map((account) => ({
-        ...account,
-        balance: account.transactions.reduce((sum, tx) => sum + tx.balance, 0),
-      })),
-    [accounts]
-  );
-
   const getPreviousMonth = (month) => {
     return format(subMonths(parseISO(`${month}-01`), 1), "yyyy-MM");
   };
 
-  useEffect(() => {
-    const assignedMoney = budgetData[currentMonth]?.categories?.flatMap(
-      (category) =>
-        category.categoryItems
-          .filter((item) => item.assigned > 0)
-          .map((item) => ({
-            category: item.name,
-            amount: item.assigned,
-          }))
-    );
-
-    const newPayments = calculateCreditCardPayments(
-      computedAccounts,
-      assignedMoney
-    );
-
-    if (JSON.stringify(newPayments) !== JSON.stringify(creditCardPayments)) {
-      setCreditCardPayments(newPayments);
-    }
-  }, [accounts, budgetData]);
-
-  useEffect(() => {
-    if (!creditCardPayments.length) return;
-
-    setBudgetData((prev) => {
-      const current = prev[currentMonth];
-      if (!current) return prev;
-
-      let hasChanges = false;
-
-      const updatedCategories = prev[currentMonth]?.categories?.map(
-        (category) => {
-          if (category.name !== "Credit Card Payments") return category;
-
-          const updatedItems = category.categoryItems.map((item) => {
-            const paymentEntry = creditCardPayments.find(
-              (p) => p.card === item.name
-            );
-            const newAssigned = paymentEntry
-              ? paymentEntry.payment
-              : item.available;
-
-            if (newAssigned !== item.available) {
-              hasChanges = true;
-            } 
-
-            return { ...item, available: newAssigned };
-          });
-          return { ...category, categoryItems: updatedItems };
-        }
-      );
-
-      if (!hasChanges) return prev;
-
-      setIsDirty(true);
-
-      return {
-        ...prev,
-        [currentMonth]: {
-          ...prev[currentMonth],
-          categories: updatedCategories,
-        },
-      };
-    });
-
-  }, [creditCardPayments]);
-
   const toggleCategory = (category: string) => {
     setOpenCategories((prev) => ({ ...prev, [category]: !prev[category] }));
-  };
-
-  const calculateCreditCardPayments = (accounts, assignedMoney) => {
-    const assignedCategories = new Map(
-      assignedMoney?.map((entry) => [entry.category, entry.amount])
-    );
-
-    let remainingAssigned = new Map(assignedCategories);
-
-    for (const account of accounts.filter((acc) => acc.type === "debit")) {
-      for (const transaction of account.transactions) {
-        const category = transaction.category;
-        if (remainingAssigned.has(category)) {
-          const assignedAmount = remainingAssigned.get(category);
-          const deduction = Math.min(
-            assignedAmount,
-            Math.abs(transaction.balance)
-          );
-
-          remainingAssigned.set(category, assignedAmount - deduction);
-
-          if (remainingAssigned.get(category) <= 0) {
-            remainingAssigned.delete(category);
-          }
-        }
-      }
-    }
-
-    const creditCardPayments = accounts
-      .filter((acc) => acc.type === "credit")
-      .map((card) => {
-        let payment = 0;
-
-        for (const transaction of card.transactions) {
-          const category = transaction.category;
-          if (remainingAssigned.has(category)) {
-            const assignedAmount = remainingAssigned.get(category);
-            const deduction = Math.min(
-              assignedAmount,
-              Math.abs(transaction.balance)
-            );
-
-            remainingAssigned.set(category, assignedAmount - deduction);
-            payment += deduction;
-
-            if (remainingAssigned.get(category) <= 0) {
-              remainingAssigned.delete(category);
-            }
-          }
-        }
-
-        return { card: card.name, payment };
-      });
-    return creditCardPayments;
   };
 
   const isBeforeMonth = (monthA: string, monthB: string): boolean => {
@@ -292,20 +159,6 @@ export default function CollapsibleTable() {
     });
   };
 
-  const calculateActivityForMonth = (month, categoryName, accounts) => {
-    const filteredAccounts = accounts
-      .flatMap((account) => account.transactions)
-      .filter((tx) => {
-        const date = new Date(tx.date);
-        const convertedMonth = parseISO(`${month}-01`);
-
-        return (
-          isSameMonth(date, convertedMonth) && tx.category === categoryName
-        );
-      });
-    return filteredAccounts.reduce((sum, tx) => sum + tx.balance, 0);
-  };
-
   const handleAddItem = (category: string) => {
     if (newItem.name.trim() !== "") {
       addItemToCategory(category, {
@@ -318,91 +171,6 @@ export default function CollapsibleTable() {
       setActiveCategory(null);
     }
   };
-
-  useEffect(() => {
-    if (!budgetData[currentMonth] || !hasInitalized) return;
-
-    const currentlyAssigned = budgetData[currentMonth]?.categories?.reduce(
-      (sum, category) => {
-        return (
-          sum +
-          category.categoryItems.reduce(
-            (itemSum, item) => itemSum + item.assigned,
-            0
-          )
-        );
-      },
-      0
-    );
-
-    const creditCardAccounts = computedAccounts.filter(
-      (account) => account.type === "credit"
-    );
-
-    const creditCardItems = creditCardAccounts.map((account) => {
-      return {
-        name: account.name,
-        assigned: 0,
-        activity:
-          -1 *
-          account.transactions
-            .filter((transaction) =>
-              isSameMonth(transaction.date, parseISO(`${currentMonth}-01`))
-            )
-            .reduce((sum, tx) => sum + tx.balance, 0),
-      };
-    });
-    const updatedCategories = budgetData[currentMonth]?.categories?.map(
-      (category) => {
-        if (category.name === "Credit Card Payments") {
-          return { ...category, categoryItems: creditCardItems };
-        }
-        return {
-          ...category,
-          categoryItems: category.categoryItems.map((item) => {
-            const cumlativeAvailable = getCumulativeAvailable(
-              budgetData,
-              item.name
-            );
-            const itemActivity = calculateActivityForMonth(
-              currentMonth,
-              item.name,
-              computedAccounts
-            );
-
-            const availableSum = item.assigned + itemActivity;
-            return {
-              ...item,
-              activity: itemActivity,
-              available: availableSum + cumlativeAvailable,
-            };
-          }),
-        };
-      }
-    );
-
-    const totalInflow = computedAccounts
-      .filter((acc) => acc.type === "debit")
-      .flatMap((acc) => acc.transactions)
-      .filter(
-        (tx) =>
-          isSameMonth(parseISO(tx.date), parseISO(`${currentMonth}-01`)) && !tx.outflow
-      )
-      .filter((tx) => tx.category === "Ready to Assign")
-      .reduce((sum, tx) => sum + tx.balance, 0);
-    setBudgetData((prev) => {
-      return {
-        ...prev,
-        [currentMonth]: {
-          ...prev[currentMonth],
-          categories: updatedCategories,
-          assignable_money: totalInflow,
-          ready_to_assign: totalInflow - currentlyAssigned,
-        },
-      };
-    });
-    setIsDirty(true);
-  }, [accounts]);
 
   const toggleTargetSideBar = (item) => {
     setSelectedCategory(item.name);
@@ -436,7 +204,6 @@ const getTargetStatus = (item) => {
   }
   return { message: `${formatToUSD(assigned)} / ${formatToUSD(needed)}`, color: "text-gray-600" };
 };
-
 
   if (!user) {
     return <LandingCoverPage />;
