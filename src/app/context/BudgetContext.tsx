@@ -1,5 +1,5 @@
 "use client";
-import { createContext, useContext, useState, useEffect, useMemo } from "react";
+import { createContext, useContext, useState, useEffect, useMemo, useRef } from "react";
 import { addMonths, differenceInCalendarMonths, format, getMonth, isSameMonth, parseISO, subMonths } from "date-fns";
 import { useAuth } from "./AuthContext";
 import { supabase } from "@/utils/supabaseClient";
@@ -14,6 +14,7 @@ const BudgetContext = createContext(null);
 
 export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
   const [transactions, setTransactions] = useState([]);
+  const [isDirty, setIsDirty] = useState(false);
   const { user } = useAuth();
   const [currentMonth, setCurrentMonth] = useState(
     format(new Date(), "yyyy-MM")
@@ -80,7 +81,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
           console.error("Insert error:", insertError);
           return;
         }
-  
+        console.log('setting budget data');
         setBudgetData({ [newMonth]: { ...initial, id: inserted[0].id } });
         setCurrentMonth(newMonth);
       } else {
@@ -91,6 +92,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
             categories: entry.data.categories,
           };
         });
+        console.log('setting budget data');
         setBudgetData(formatted);
       }
     };
@@ -100,6 +102,10 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
   
 
   const _saveBudget = async (month, data) => {
+    if (!user?.id) {
+      console.error("No user ID found. Not saving budget.");
+      return;
+    }
     const existing = budgetData[month];
     const payload = {
       user_id: user.id,
@@ -116,11 +122,32 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
     if (error) console.error("Save budget error:", error);
   };
   
-  const debouncedSave = debounce(_saveBudget, 1500); // waits 1.5s
+  const debouncedSave = debounce(_saveBudget, 450); // waits 1.5s
   
   const saveBudgetMonth = (month, data) => {
     debouncedSave(month, data);
   };
+
+  const lastSaved = useRef<string | null>(null);
+
+useEffect(() => {
+
+  if (!budgetData[currentMonth]) return;
+
+  const key = `${currentMonth}-${JSON.stringify(budgetData[currentMonth])}`;
+  if (lastSaved.current === key) return;
+
+  if (!isDirty) return;
+
+  console.log('Checking trigger');
+  setIsDirty(false);
+  return;
+
+  console.log('saving budget');
+  saveBudgetMonth(currentMonth, budgetData[currentMonth]);
+
+  lastSaved.current = key;
+}, [budgetData, currentMonth]);
 
   const computedData = useMemo(
     () => {
@@ -155,12 +182,13 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const addCategory = (categoryName: string) => {
+    console.log('adding category');
     setBudgetData((prev) => {
       const newCategories = [
         ...prev[currentMonth].categories,
         { name: categoryName, categoryItems: [] },
       ];
-  
+      setIsDirty(true);
       return {
         ...prev,
         [currentMonth]: {
@@ -175,13 +203,14 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
     categoryName: string,
     newItem: { name: string; assigned: number; activity: number; available: number }
   ) => {
+    console.log('adding item to category');
     setBudgetData((prev) => {
       const newCategories = prev[currentMonth].categories.map((cat) =>
         cat.name === categoryName
           ? { ...cat, categoryItems: [...cat.categoryItems, newItem] }
           : cat
       );
-  
+      setIsDirty(true);
       return {
         ...prev,
         [currentMonth]: {
@@ -193,6 +222,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const setCategoryTarget = (categoryItemName, target) => {
+    console.log('setting category target');
     setBudgetData((prev) => ({
       ...prev,
       [currentMonth]: {
@@ -205,6 +235,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
         })),
       },
     }));
+    setIsDirty(true);
   };
 
   const calculateReadyToAssign = (month: string, accounts): number => {
@@ -250,6 +281,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const updateMonth = (newMonth: string, direction: string, accounts) => {
+    console.log('updating month');
     setCurrentMonth(newMonth); 
     setBudgetData((prev) => {
       const previousMonth = getPreviousMonth(newMonth);
@@ -432,6 +464,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
       .filter((tx) => tx.category === 'Ready to Assign')
       .reduce((sum, tx) => sum + tx.balance, 0); 
 
+      setIsDirty(true);
       return {
         ...prev,
         [newMonth]: {
@@ -456,6 +489,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
         addCategory,
         setCategoryTarget,
         saveBudgetMonth,
+        setIsDirty,
       }}
     >
       {children}
