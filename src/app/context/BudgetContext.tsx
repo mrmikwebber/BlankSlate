@@ -18,7 +18,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
   const [currentMonth, setCurrentMonth] = useState(
     format(new Date(), "yyyy-MM")
   );
-  const [budgetData, setBudgetData] = useState(null);
+  const [budgetData, setBudgetData] = useState({});
 
   const createDefaultCategories = () => [
   {
@@ -215,7 +215,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
     const totalInflow = accounts?
     .filter((acc) => acc.type === "debit") 
     .flatMap((acc) => acc.transactions)
-    .filter((tx) => isSameMonth(tx.date, parseISO(`${month}-01`)) && !tx.outflow)
+    .filter((tx) => isSameMonth(parseISO(tx.date), parseISO(`${month}-01`)) && !tx.outflow)
     .filter((tx) => tx.category === 'Ready to Assign')
     .reduce((sum, tx) => sum + tx.balance, 0); 
 
@@ -428,7 +428,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
       const totalInflow = accounts?
       .filter((acc) => acc.type === "debit") 
       .flatMap((acc) => acc.transactions) 
-      .filter((tx) => isSameMonth(tx.date, parseISO(`${newMonth}-01`)) && !tx.outflow)
+      .filter((tx) => isSameMonth(parseISO(tx.date), parseISO(`${newMonth}-01`)) && !tx.outflow)
       .filter((tx) => tx.category === 'Ready to Assign')
       .reduce((sum, tx) => sum + tx.balance, 0); 
 
