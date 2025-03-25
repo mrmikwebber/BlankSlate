@@ -11,7 +11,7 @@ export default function AccountDetails() {
   const { budgetData, currentMonth } = useBudgetContext();
   const { accounts, addTransaction } = useAccountContext();
 
-  const account = accounts.find((acc) => acc.id === Number(id));
+  const account = accounts.find((acc) => acc.id === id);
 
   const [showForm, setShowForm] = useState(false);
   const [newTransaction, setNewTransaction] = useState({
