@@ -11,7 +11,6 @@ interface Transaction {
   category_group: string;
   account: string;
   balance: number;
-  outflow: boolean;
 }
 
 export interface Account {

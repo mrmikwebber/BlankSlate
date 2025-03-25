@@ -21,7 +21,6 @@ const AddAccountModal = ({ onAddAccount, onClose }) => {
           payee: "Initial Balance",
           category: type === 'credit' ? "Inital Starting Balance" : "Ready to Assign",
           category_group: "Starting Balance",
-          outflow: type === 'credit' ? true : false,
           balance: type === 'credit' ? -1 * parseFloat(balance) : parseFloat(balance),
         },
       ],

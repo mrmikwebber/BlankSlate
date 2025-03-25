@@ -378,7 +378,7 @@ useEffect(() => {
     .flatMap((acc) => acc.transactions)
     .filter(
       (tx) =>
-        isSameMonth(parseISO(tx.date), parseISO(`${currentMonth}-01`)) && !tx.outflow
+        isSameMonth(parseISO(tx.date), parseISO(`${currentMonth}-01`)) && tx.balance > 0
     )
     .filter((tx) => tx.category === "Ready to Assign")
     .reduce((sum, tx) => sum + tx.balance, 0);
@@ -499,7 +499,7 @@ useEffect(() => {
     const totalInflow = accounts?
     .filter((acc) => acc.type === "debit") 
     .flatMap((acc) => acc.transactions)
-    .filter((tx) => isSameMonth(parseISO(tx.date), parseISO(`${month}-01`)) && !tx.outflow)
+    .filter((tx) => isSameMonth(parseISO(tx.date), parseISO(`${month}-01`)) && tx.balance > 0)
     .filter((tx) => tx.category === 'Ready to Assign')
     .reduce((sum, tx) => sum + tx.balance, 0); 
 
@@ -769,7 +769,7 @@ useEffect(() => {
       const totalInflow = accounts?
       .filter((acc) => acc.type === "debit") 
       .flatMap((acc) => acc.transactions) 
-      .filter((tx) => isSameMonth(parseISO(tx.date), parseISO(`${newMonth}-01`)) && !tx.outflow)
+      .filter((tx) => isSameMonth(parseISO(tx.date), parseISO(`${newMonth}-01`)) && tx.balance > 0)
       .filter((tx) => tx.category === 'Ready to Assign')
       .reduce((sum, tx) => sum + tx.balance, 0); 
 
