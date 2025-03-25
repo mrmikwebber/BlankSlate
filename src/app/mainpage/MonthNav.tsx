@@ -52,8 +52,8 @@ const MonthNav = () => {
       {budgetData && currentMonth && (
       <div className="text-lg font-semibold">
         {formattedMonth} — <span className="text-gray-600">Remaining to Assign:</span>  
-        <span className={budgetData[currentMonth]?.readyToAssign >= 0 ? "text-green-600" : "text-red-600"}>
-          {formatToUSD(budgetData[currentMonth]?.readyToAssign)}
+        <span className={budgetData[currentMonth]?.ready_to_assign >= 0 ? "text-green-600" : "text-red-600"}>
+          {formatToUSD(budgetData[currentMonth]?.ready_to_assign)}
         </span>
       </div>
       )}

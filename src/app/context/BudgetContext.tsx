@@ -81,7 +81,6 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
           console.error("Insert error:", insertError);
           return;
         }
-        console.log('setting budget data');
         setBudgetData({ [newMonth]: { ...initial, id: inserted[0].id } });
         setCurrentMonth(newMonth);
       } else {
@@ -92,7 +91,6 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
             categories: entry.data.categories,
           };
         });
-        console.log('setting budget data');
         setBudgetData(formatted);
       }
     };
@@ -111,15 +109,34 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
       user_id: user.id,
       month,
       data: { categories: data.categories },
-      assignable_money: data.assignableMoney,
-      ready_to_assign: data.readyToAssign,
+      assignable_money: data.assignable_money,
+      ready_to_assign: data.ready_to_assign,
     };
   
-    const { error } = existing
-      ? await supabase.from("budget_data").update(payload).eq("id", existing.id)
-      : await supabase.from("budget_data").insert(payload);
+    if (existing?.id) {
+      const { error } = await supabase
+        .from("budget_data")
+        .update(payload)
+        .eq("id", existing.id);
   
-    if (error) console.error("Save budget error:", error);
+      if (error) console.error("Update budget error:", error);
+    } else {
+      const { data: insertedRows } = await supabase
+      .from("budget_data")
+      .insert(payload)
+      .select();
+    
+    const newId = insertedRows?.[0]?.id;
+    
+    // Store this in setBudgetData:
+    setBudgetData(prev => ({
+      ...prev,
+      [month]: {
+        ...data,
+        id: newId,
+      },
+    }));
+    }
   };
   
   const debouncedSave = debounce(_saveBudget, 450); // waits 1.5s
@@ -139,11 +156,8 @@ useEffect(() => {
 
   if (!isDirty) return;
 
-  console.log('Checking trigger');
   setIsDirty(false);
-  return;
 
-  console.log('saving budget');
   saveBudgetMonth(currentMonth, budgetData[currentMonth]);
 
   lastSaved.current = key;
@@ -182,7 +196,6 @@ useEffect(() => {
   };
 
   const addCategory = (categoryName: string) => {
-    console.log('adding category');
     setBudgetData((prev) => {
       const newCategories = [
         ...prev[currentMonth].categories,
@@ -203,7 +216,6 @@ useEffect(() => {
     categoryName: string,
     newItem: { name: string; assigned: number; activity: number; available: number }
   ) => {
-    console.log('adding item to category');
     setBudgetData((prev) => {
       const newCategories = prev[currentMonth].categories.map((cat) =>
         cat.name === categoryName
@@ -222,7 +234,6 @@ useEffect(() => {
   };
 
   const setCategoryTarget = (categoryItemName, target) => {
-    console.log('setting category target');
     setBudgetData((prev) => ({
       ...prev,
       [currentMonth]: {
@@ -241,7 +252,7 @@ useEffect(() => {
   const calculateReadyToAssign = (month: string, accounts): number => {
     const prevMonth = getPreviousMonth(month);
 
-    const previousBalance = budgetData[prevMonth]?.readyToAssign || 0;
+    const previousBalance = budgetData[prevMonth]?.ready_to_assign || 0;
 
     const totalInflow = accounts?
     .filter((acc) => acc.type === "debit") 
@@ -281,7 +292,6 @@ useEffect(() => {
   };
 
   const updateMonth = (newMonth: string, direction: string, accounts) => {
-    console.log('updating month');
     setCurrentMonth(newMonth); 
     setBudgetData((prev) => {
       const previousMonth = getPreviousMonth(newMonth);
@@ -324,7 +334,7 @@ useEffect(() => {
           ...prev,
           [newMonth]: {
             ...prev[newMonth],
-            readyToAssign: calculateReadyToAssign(newMonth, accounts),
+            ready_to_assign: calculateReadyToAssign(newMonth, accounts),
             categories: prev[newMonth].categories.map((category) => {
               if (category.name === 'Credit Card Payemnts') return category
               return {
@@ -469,8 +479,8 @@ useEffect(() => {
         ...prev,
         [newMonth]: {
           categories: updatedCategories,
-          assignableMoney: totalInflow || 0,
-          readyToAssign: calculateReadyToAssign(newMonth, accounts)
+          assignable_money: totalInflow || 0,
+          ready_to_assign: calculateReadyToAssign(newMonth, accounts)
         },
       };
     });

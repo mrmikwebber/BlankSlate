@@ -46,6 +46,7 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const { user } = useAuth();
 
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [hasInitalized, setHasInitalized] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -65,7 +66,9 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
     
 
-    fetchAccounts();
+    fetchAccounts().then(() => {
+      setHasInitalized(true);
+    });
   }, [user]);
 
   const updateBalance = async (id, newBalance) => {

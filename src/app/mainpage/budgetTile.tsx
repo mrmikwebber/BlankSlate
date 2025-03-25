@@ -9,13 +9,12 @@ import { useBudgetContext } from "../context/BudgetContext";
 import { format, isSameMonth, parseISO, subMonths } from "date-fns";
 import { TargetSidebar } from "./TargetSidebar";
 export default function CollapsibleTable() {
-  const { accounts } = useAccountContext();
+  const { accounts, hasInitalized } = useAccountContext();
   const {
     currentMonth,
     budgetData,
     setBudgetData,
     setIsDirty,
-    computedData,
     addCategory,
     addItemToCategory,
   } = useBudgetContext();
@@ -117,7 +116,8 @@ export default function CollapsibleTable() {
     if (!creditCardPayments.length) return;
 
     setBudgetData((prev) => {
-      if (!prev[currentMonth]) return prev;
+      const current = prev[currentMonth];
+      if (!current) return prev;
 
       let hasChanges = false;
 
@@ -143,6 +143,8 @@ export default function CollapsibleTable() {
 
       if (!hasChanges) return prev;
 
+      setIsDirty(true);
+
       return {
         ...prev,
         [currentMonth]: {
@@ -151,6 +153,7 @@ export default function CollapsibleTable() {
         },
       };
     });
+
   }, [creditCardPayments]);
 
   const toggleCategory = (category: string) => {
@@ -257,7 +260,7 @@ export default function CollapsibleTable() {
 
       const prevMonth = getPreviousMonth(currentMonth);
 
-      const previousBalance = budgetData[prevMonth]?.readyToAssign || 0;
+      const previousBalance = budgetData[prevMonth]?.ready_to_assign || 0;
 
       setIsDirty(true);
 
@@ -266,8 +269,8 @@ export default function CollapsibleTable() {
         [currentMonth]: {
           ...prev[currentMonth],
           categories: updatedCategories,
-          readyToAssign:
-            (previousBalance + prev[currentMonth]?.assignableMoney || 0) -
+          ready_to_assign:
+            (previousBalance + prev[currentMonth]?.assignable_money || 0) -
             updatedCategories.reduce(
               (sum, cat) =>
                 sum +
@@ -310,7 +313,7 @@ export default function CollapsibleTable() {
   };
 
   useEffect(() => {
-    if (!budgetData[currentMonth]) return;
+    if (!budgetData[currentMonth] || !hasInitalized) return;
 
     const currentlyAssigned = budgetData[currentMonth]?.categories?.reduce(
       (sum, category) => {
@@ -386,11 +389,12 @@ export default function CollapsibleTable() {
         [currentMonth]: {
           ...prev[currentMonth],
           categories: updatedCategories,
-          assignableMoney: totalInflow,
-          readyToAssign: totalInflow - currentlyAssigned,
+          assignable_money: totalInflow,
+          ready_to_assign: totalInflow - currentlyAssigned,
         },
       };
     });
+    setIsDirty(true);
   }, [accounts]);
 
   const toggleTargetSideBar = (item) => {
@@ -425,6 +429,7 @@ const getTargetStatus = (item) => {
   }
   return { message: `${formatToUSD(assigned)} / ${formatToUSD(needed)}`, color: "text-gray-600" };
 };
+
 
   return (
     <div className="mx-auto mt-8 rounded-md">
