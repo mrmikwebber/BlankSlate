@@ -19,7 +19,7 @@ export default function CollapsibleTable() {
     budgetData,
     setBudgetData,
     setIsDirty,
-    addCategory,
+    addCategoryGroup,
     addItemToCategory,
     loading: isBudgetLoading,
   } = useBudgetContext();
@@ -77,9 +77,7 @@ export default function CollapsibleTable() {
           }
         });
 
-        return filteredItems.length
-          ? { ...category, categoryItems: filteredItems }
-          : null;
+        return { ...category, categoryItems: filteredItems };
       })
       .filter(Boolean); 
   }, [budgetData, currentMonth, selectedFilter]);
@@ -140,7 +138,12 @@ export default function CollapsibleTable() {
               ? paymentEntry.payment
               : item.available;
 
-            if (newAssigned !== item.assigned) hasChanges = true;
+            if (newAssigned !== item.available) {
+              console.log('change detected')
+              console.log('newAssigned', newAssigned)
+              console.log('item.available', item.available)
+              // hasChanges = true;
+            } 
 
             return { ...item, available: newAssigned };
           });
@@ -150,6 +153,7 @@ export default function CollapsibleTable() {
 
       if (!hasChanges) return prev;
 
+      console.log('setting dirty')
       setIsDirty(true);
 
       return {
@@ -269,6 +273,7 @@ export default function CollapsibleTable() {
 
       const previousBalance = budgetData[prevMonth]?.ready_to_assign || 0;
 
+      console.log('setting dirty')
       setIsDirty(true);
 
       return {
@@ -401,6 +406,7 @@ export default function CollapsibleTable() {
         },
       };
     });
+    console.log('setting dirty')
     setIsDirty(true);
   }, [accounts]);
 
@@ -450,7 +456,7 @@ const getTargetStatus = (item) => {
     <div className="mx-auto mt-8 rounded-md">
       <MonthNav />
       <div className="flex mt-2 mb-2">
-        <AddCategoryButton handleSubmit={addCategory} />
+        <AddCategoryButton handleSubmit={addCategoryGroup} />
       </div>
       <div className="flex gap-2 mb-4">
         {FILTERS.map((filter) => (

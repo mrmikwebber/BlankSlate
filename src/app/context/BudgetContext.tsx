@@ -46,10 +46,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
 
 
   useEffect(() => {
-    console.log('user', user)
     if (!user) return;
-  
-    console.log(user)
 
     const fetchBudget = async () => {
       const { data, error } = await supabase
@@ -119,6 +116,8 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
       assignable_money: data.assignable_money,
       ready_to_assign: data.ready_to_assign,
     };
+
+    console.log('saving budget', payload);
   
     if (existing?.id) {
       const { error } = await supabase
@@ -202,21 +201,28 @@ useEffect(() => {
     }));
   };
 
-  const addCategory = (categoryName: string) => {
+  const addCategoryGroup = (groupName: string) => {
     setBudgetData((prev) => {
-      const newCategories = [
-        ...prev[currentMonth].categories,
-        { name: categoryName, categoryItems: [] },
-      ];
-      setIsDirty(true);
+      const monthData = prev[currentMonth];
+      const groupExists = monthData.categories.some((cat) => cat.name === groupName);
+  
+      if (groupExists) return prev;
+  
+      const updatedMonth = {
+        ...monthData,
+        categories: [
+          ...monthData.categories,
+          { name: groupName, categoryItems: [] },
+        ],
+      };
+  
       return {
         ...prev,
-        [currentMonth]: {
-          ...prev[currentMonth],
-          categories: newCategories,
-        },
+        [currentMonth]: updatedMonth,
       };
     });
+  
+    setIsDirty(true); // Triggers save for current month only
   };
   
   const addItemToCategory = (
@@ -298,6 +304,15 @@ useEffect(() => {
     return new Date(monthA) < new Date(monthB);
   };
 
+  const areCategoriesEqual = (a, b) => {
+    if (a.length !== b.length) return false;
+  
+    const aNames = a.map((cat) => cat.name).sort();
+    const bNames = b.map((cat) => cat.name).sort();
+  
+    return aNames.every((name, idx) => name === bNames[idx]);
+  };
+
   const updateMonth = (newMonth: string, direction: string, accounts) => {
     setCurrentMonth(newMonth); 
     setBudgetData((prev) => {
@@ -337,12 +352,41 @@ useEffect(() => {
             });
 
       if (prev[newMonth]) {
+
+        const allGroupNames = new Set(
+          Object.values(prev).flatMap((month) =>
+            month.categories.map((cat) => cat.name)
+          )
+        );
+        
+        // Find any groups missing from this month's data
+        const existingGroupNames = new Set(
+          prev[newMonth].categories.map((cat) => cat.name)
+        );
+        
+        const missingGroups = [...allGroupNames].filter(
+          (name) => !existingGroupNames.has(name)
+        );
+        
+        const patchedCategories = [
+          ...prev[newMonth].categories,
+          ...missingGroups.map((name) => ({
+            name,
+            categoryItems: [],
+          })),
+        ];
+
+        if (!areCategoriesEqual(patchedCategories, prev[newMonth].categories)) {
+          console.log('categories are not equal', patchedCategories, prev[newMonth].categories);
+          setIsDirty(true);
+        }
+
         return {
           ...prev,
           [newMonth]: {
             ...prev[newMonth],
             ready_to_assign: calculateReadyToAssign(newMonth, accounts),
-            categories: prev[newMonth].categories.map((category) => {
+            categories: patchedCategories.map((category) => {
               if (category.name === 'Credit Card Payemnts') return category
               return {
               ...category,
@@ -481,6 +525,7 @@ useEffect(() => {
       .filter((tx) => tx.category === 'Ready to Assign')
       .reduce((sum, tx) => sum + tx.balance, 0); 
 
+      console.log('setting dirty')
       setIsDirty(true);
       return {
         ...prev,
@@ -503,7 +548,7 @@ useEffect(() => {
         updateMonth,
         computedData,
         addItemToCategory,
-        addCategory,
+        addCategoryGroup,
         setCategoryTarget,
         saveBudgetMonth,
         setIsDirty,
