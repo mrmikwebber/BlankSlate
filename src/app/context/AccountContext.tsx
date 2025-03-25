@@ -47,7 +47,6 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(false);
-  const [hasInitalized, setHasInitalized] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -66,9 +65,7 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
     
 
-    fetchAccounts().then(() => {
-      setHasInitalized(true);
-    });
+    fetchAccounts();
   }, [user]);
 
   const resetAccounts = () => {

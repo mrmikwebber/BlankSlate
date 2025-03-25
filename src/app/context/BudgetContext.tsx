@@ -45,7 +45,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
   },
 ];
 
-const { accounts, hasInitalized } = useAccountContext();
+const { accounts } = useAccountContext();
 
   useEffect(() => {
     if (!user) return;
@@ -137,7 +137,7 @@ const { accounts, hasInitalized } = useAccountContext();
       .select();
     
     const newId = insertedRows?.[0]?.id;
-    
+    console.log('setting budget data', budgetData)
     // Store this in setBudgetData:
     setBudgetData(prev => ({
       ...prev,
@@ -211,6 +211,21 @@ const { accounts, hasInitalized } = useAccountContext();
     return creditCardPayments;
   };
 
+  const getCumulativeAvailable = (passedInData, itemName) => {
+    const pastMonths = Object.keys(passedInData).filter((month) =>
+      isBeforeMonth(month, currentMonth)
+    );
+
+    const past = pastMonths.reduce((sum, month) => {
+      const categoryItem = passedInData[month]?.categories
+        .flatMap((cat) => cat.categoryItems)
+        .find((item) => item.name === itemName);
+
+      return sum + (categoryItem?.assigned + categoryItem?.activity || 0);
+    }, 0);
+    return past;
+  };
+
 useEffect(() => {
 
   if (!budgetData[currentMonth]) return;
@@ -249,7 +264,7 @@ useEffect(() => {
 
 useEffect(() => {
   if (!creditCardPayments.length) return;
-
+  console.log('setting budget data', budgetData)
   setBudgetData((prev) => {
     const current = prev[currentMonth];
     if (!current) return prev;
@@ -295,7 +310,7 @@ useEffect(() => {
 }, [creditCardPayments]);
 
 useEffect(() => {
-  if (!budgetData[currentMonth] || !hasInitalized) return;
+  if (!budgetData[currentMonth]) return;
 
   const currentlyAssigned = budgetData[currentMonth]?.categories?.reduce(
     (sum, category) => {
@@ -346,7 +361,6 @@ useEffect(() => {
           );
 
           const availableSum = item.assigned + itemActivity;
-          console.log(item.name, availableSum + cumlativeAvailable)
           return {
             ...item,
             activity: itemActivity,
@@ -357,6 +371,8 @@ useEffect(() => {
     }
   );
 
+  console.log(updatedCategories)
+
   const totalInflow = accounts
     .filter((acc) => acc.type === "debit")
     .flatMap((acc) => acc.transactions)
@@ -366,6 +382,8 @@ useEffect(() => {
     )
     .filter((tx) => tx.category === "Ready to Assign")
     .reduce((sum, tx) => sum + tx.balance, 0);
+
+  console.log('setting budget data', budgetData)
   setBudgetData((prev) => {
     return {
       ...prev,
