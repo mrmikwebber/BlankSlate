@@ -17,7 +17,7 @@ export default function AccountDetails() {
   const [newTransaction, setNewTransaction] = useState({
     payee: "",
     category: "",
-    categoryGroup: "",
+    category_group: "",
     outflow: false,
     balance: 0,
   });
@@ -30,7 +30,6 @@ export default function AccountDetails() {
       : Math.abs(newTransaction.balance)
 
     addTransaction(account.id, {
-      id: Date.now(),
       date: new Date(),
       ...newTransaction,
       balance: amount,
@@ -38,12 +37,15 @@ export default function AccountDetails() {
     setNewTransaction({
       payee: "",
       category: "",
-      categoryGroup: "",
+      category_group: "",
       outflow: false,
       balance: 0,
     });
     setShowForm(false);
   };
+
+  console.log(newTransaction);
+  console.log(budgetData[currentMonth].categories);
 
   return (
     <div className="mx-auto p-6 relative">
@@ -107,29 +109,53 @@ export default function AccountDetails() {
           <label className="block mb-2">
             Category Group:
             <select
-              value={newTransaction.category}
+              value={newTransaction.category_group}
               onChange={(e) =>
                 setNewTransaction({
                   ...newTransaction,
-                  category: e.target.value,
+                  category_group: e.target.value,
                 })
               }
               className="w-full p-2 border rounded"
               required
             >
-              <option value="">Select Category</option>
               <option key="Ready to Assign" value="Ready to Assign">
                 Ready to Assign
               </option>
               {budgetData[currentMonth].categories.map((category) =>
-                category.categoryItems.map((item) => (
-                  <option key={item.name} value={item.name}>
-                    {item.name}
-                  </option>
-                ))
+                <option key={category.name} value={category.name}>
+                  {category.name}
+                </option>
               )}
             </select>
           </label>
+          
+          {newTransaction.category_group !== "" && (
+            <label className="block mb-2">
+              Category:
+              <select
+                value={newTransaction.category}
+              onChange={(e) =>
+                setNewTransaction({ ...newTransaction, category: e.target.value })
+              }
+              className="w-full p-2 border rounded"
+              required
+            >
+              {newTransaction.category_group === "Ready to Assign" && (
+                <option key="Ready to Assign" value="Ready to Assign">
+                  Ready to Assign
+                </option>
+              )}
+              {budgetData[currentMonth].categories.map((category) =>
+                category.categoryItems.filter((item) => category.name === newTransaction.category_group).map((item) =>
+                  <option key={item.name} value={item.name}>
+                    {item.name}
+                  </option>
+                )
+              )}
+            </select>
+            </label>
+          )}
 
           <label className="block mb-2">
             Amount:

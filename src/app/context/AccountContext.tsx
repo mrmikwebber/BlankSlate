@@ -8,7 +8,7 @@ interface Transaction {
   date: Date;
   payee: string;
   category: string;
-  categoryGroup: string;
+  category_group: string;
   account: string;
   balance: number;
   outflow: boolean;
@@ -102,7 +102,7 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
         user_id: user.id,
         account_id: accountId,
       },
-    ]);
+    ]).select();
 
     if (error) {
       console.error("Add transaction failed:", error);
