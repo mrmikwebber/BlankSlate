@@ -6,7 +6,7 @@ import Navbar from "./navigation/navbar";
 import { AccountProvider } from "./context/AccountContext";
 import { TableProvider, useTableContext } from "./context/TableDataContext";
 import { BudgetProvider } from "./context/BudgetContext";
-
+import { AuthProvider } from "./context/AuthContext";
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -35,12 +35,14 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <Navbar />
-        <TableProvider>
-          <AccountProvider>
-            <BudgetProvider>{children}</BudgetProvider>
-          </AccountProvider>
-        </TableProvider>
+        <AuthProvider>
+          <Navbar />
+          <TableProvider>
+            <AccountProvider>
+              <BudgetProvider>{children}</BudgetProvider>
+            </AccountProvider>
+          </TableProvider>
+        </AuthProvider>
       </body>
     </html>
   );

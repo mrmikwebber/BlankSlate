@@ -8,17 +8,23 @@ import MonthNav from "./MonthNav";
 import { useBudgetContext } from "../context/BudgetContext";
 import { format, isSameMonth, parseISO, subMonths } from "date-fns";
 import { TargetSidebar } from "./TargetSidebar";
+import { LandingCoverPage } from "./LandingCoverPage";
+import { useAuth } from "../context/AuthContext";
+import InterstitialPage from "../interstitial/InterstitialPage";
 
 export default function CollapsibleTable() {
-  const { accounts } = useAccountContext();
+  const { accounts, hasInitalized } = useAccountContext();
   const {
     currentMonth,
     budgetData,
     setBudgetData,
-    computedData,
+    setIsDirty,
     addCategory,
     addItemToCategory,
+    loading: isBudgetLoading,
   } = useBudgetContext();
+  const { loading: isAccountsLoading } = useAccountContext();
+  const { user } = useAuth();
 
   const FILTERS = ["All", "Money Available", "Overspent", "Overfunded", "Underfunded"];
 
@@ -35,33 +41,48 @@ export default function CollapsibleTable() {
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [selectedFilter, setSelectedFilter] = useState("All");
 
-const filteredCategories = useMemo(() => {
-  const allCategories = budgetData[currentMonth]?.categories || [];
+  const [openCategories, setOpenCategories] = useState<Record<string, boolean>>({});
 
-  return allCategories
-    .map((category) => {
-      const filteredItems = category.categoryItems.filter((item) => {
-        switch (selectedFilter) {
-          case "Money Available":
-            return item.available > 0;
-          case "Overspent":
-            return item.available < 0;
-          case "Overfunded":
-            return item.target && item.assigned > item.target.amountNeeded;
-          case "Underfunded":
-            return item.target && item.assigned < item.target.amountNeeded;
-          case "All":
-          default:
-            return true;
-        }
-      });
+  useEffect(() => {
+    if (!budgetData || !currentMonth || !budgetData[currentMonth]?.categories) return;
+    
+    const initialOpenState = budgetData[currentMonth].categories.reduce((acc, category) => {
+      acc[category.name] = true;
+      return acc;
+    }, {} as Record<string, boolean>);
+    
+    setOpenCategories(initialOpenState);
+  }, [budgetData, currentMonth]);
 
-      return filteredItems.length
-        ? { ...category, categoryItems: filteredItems }
-        : null;
-    })
-    .filter(Boolean); // remove nulls (categories with no matching items)
-}, [budgetData, currentMonth, selectedFilter]);
+  const filteredCategories = useMemo(() => {
+    if (!budgetData || !currentMonth) return [];
+
+    const allCategories = budgetData[currentMonth]?.categories || [];
+
+    return allCategories
+      .map((category) => {
+        const filteredItems = category.categoryItems.filter((item) => {
+          switch (selectedFilter) {
+            case "Money Available":
+              return item.available > 0;
+            case "Overspent":
+              return item.available < 0;
+            case "Overfunded":
+              return item.target && item.assigned > item.target.amountNeeded;
+            case "Underfunded":
+              return item.target && item.assigned < item.target.amountNeeded;
+            case "All":
+            default:
+              return true;
+          }
+        });
+
+        return filteredItems.length
+          ? { ...category, categoryItems: filteredItems }
+          : null;
+      })
+      .filter(Boolean); 
+  }, [budgetData, currentMonth, selectedFilter]);
 
 
   const computedAccounts = useMemo(
@@ -76,29 +97,6 @@ const filteredCategories = useMemo(() => {
   const getPreviousMonth = (month) => {
     return format(subMonths(parseISO(`${month}-01`), 1), "yyyy-MM");
   };
-
-  useEffect(() => {
-    const totalInflow = computedAccounts
-      .filter((acc) => acc.type === "debit")
-      .flatMap((acc) => acc.transactions)
-      .filter(
-        (tx) =>
-          isSameMonth(tx.date, parseISO(`${currentMonth}-01`)) && !tx.outflow
-      )
-      .filter((tx) => tx.category === "Ready to Assign")
-      .reduce((sum, tx) => sum + tx.balance, 0);
-
-    const assignableMoney = totalInflow;
-
-    setBudgetData((prev) => ({
-      ...prev,
-      [currentMonth]: {
-        ...prev[currentMonth],
-        readyToAssign: assignableMoney,
-        assignableMoney: assignableMoney,
-      },
-    }));
-  }, [computedAccounts]);
 
   useEffect(() => {
     const assignedMoney = budgetData[currentMonth]?.categories?.flatMap(
@@ -125,11 +123,12 @@ const filteredCategories = useMemo(() => {
     if (!creditCardPayments.length) return;
 
     setBudgetData((prev) => {
-      if (!prev[currentMonth]) return prev;
+      const current = prev[currentMonth];
+      if (!current) return prev;
 
       let hasChanges = false;
 
-      const updatedCategories = prev[currentMonth].categories.map(
+      const updatedCategories = prev[currentMonth]?.categories?.map(
         (category) => {
           if (category.name !== "Credit Card Payments") return category;
 
@@ -151,6 +150,8 @@ const filteredCategories = useMemo(() => {
 
       if (!hasChanges) return prev;
 
+      setIsDirty(true);
+
       return {
         ...prev,
         [currentMonth]: {
@@ -159,14 +160,8 @@ const filteredCategories = useMemo(() => {
         },
       };
     });
-  }, [creditCardPayments]);
 
-  const [openCategories, setOpenCategories] = useState(
-    computedData?.reduce((acc, category) => {
-      acc[category.name] = true;
-      return acc;
-    }, {} as Record<string, boolean>)
-  );
+  }, [creditCardPayments]);
 
   const toggleCategory = (category: string) => {
     setOpenCategories((prev) => ({ ...prev, [category]: !prev[category] }));
@@ -272,15 +267,17 @@ const filteredCategories = useMemo(() => {
 
       const prevMonth = getPreviousMonth(currentMonth);
 
-      const previousBalance = budgetData[prevMonth]?.readyToAssign || 0;
+      const previousBalance = budgetData[prevMonth]?.ready_to_assign || 0;
+
+      setIsDirty(true);
 
       return {
         ...prev,
         [currentMonth]: {
           ...prev[currentMonth],
           categories: updatedCategories,
-          readyToAssign:
-            (previousBalance + prev[currentMonth]?.assignableMoney || 0) -
+          ready_to_assign:
+            (previousBalance + prev[currentMonth]?.assignable_money || 0) -
             updatedCategories.reduce(
               (sum, cat) =>
                 sum +
@@ -323,7 +320,7 @@ const filteredCategories = useMemo(() => {
   };
 
   useEffect(() => {
-    if (!budgetData[currentMonth]) return;
+    if (!budgetData[currentMonth] || !hasInitalized) return;
 
     const currentlyAssigned = budgetData[currentMonth]?.categories?.reduce(
       (sum, category) => {
@@ -389,22 +386,22 @@ const filteredCategories = useMemo(() => {
       .flatMap((acc) => acc.transactions)
       .filter(
         (tx) =>
-          isSameMonth(tx.date, parseISO(`${currentMonth}-01`)) && !tx.outflow
+          isSameMonth(parseISO(tx.date), parseISO(`${currentMonth}-01`)) && !tx.outflow
       )
       .filter((tx) => tx.category === "Ready to Assign")
       .reduce((sum, tx) => sum + tx.balance, 0);
-
     setBudgetData((prev) => {
       return {
         ...prev,
         [currentMonth]: {
           ...prev[currentMonth],
           categories: updatedCategories,
-          assignableMoney: totalInflow,
-          readyToAssign: totalInflow - currentlyAssigned,
+          assignable_money: totalInflow,
+          ready_to_assign: totalInflow - currentlyAssigned,
         },
       };
     });
+    setIsDirty(true);
   }, [accounts]);
 
   const toggleTargetSideBar = (item) => {
@@ -439,6 +436,15 @@ const getTargetStatus = (item) => {
   }
   return { message: `${formatToUSD(assigned)} / ${formatToUSD(needed)}`, color: "text-gray-600" };
 };
+
+
+  if (!user) {
+    return <LandingCoverPage />;
+  }
+
+  if (isAccountsLoading || isBudgetLoading) {
+    return <InterstitialPage />;
+  }
 
   return (
     <div className="mx-auto mt-8 rounded-md">
