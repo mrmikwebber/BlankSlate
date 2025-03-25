@@ -334,7 +334,6 @@ useEffect(() => {
       name: account.name,
       assigned: 0,
       activity:
-        -1 *
         account.transactions
           .filter((transaction) =>
             isSameMonth(transaction.date, parseISO(`${currentMonth}-01`))
