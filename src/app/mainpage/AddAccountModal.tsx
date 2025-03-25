@@ -11,18 +11,16 @@ const AddAccountModal = ({ onAddAccount, onClose }) => {
     if (!name || isNaN(parseFloat(balance))) return;
 
     const newAccount = {
-      id: Date.now(),
       name,
       type,
       issuer,
       balance: type === 'credit' ? -1 * parseFloat(balance) : parseFloat(balance),
       transactions: [
         {
-          id: Date.now(),
           date: new Date(),
           payee: "Initial Balance",
           category: type === 'credit' ? "Inital Starting Balance" : "Ready to Assign",
-          categoryGroup: "Starting Balance",
+          category_group: "Starting Balance",
           outflow: type === 'credit' ? true : false,
           balance: type === 'credit' ? -1 * parseFloat(balance) : parseFloat(balance),
         },

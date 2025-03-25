@@ -118,17 +118,24 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const addAccount = async (account) => {
+    const {transactions, ...accountWithoutTransactions} = account;
+    console.log('account', account)
     const { data, error } = await supabase.from("accounts").insert([
       {
-        ...account,
+        ...accountWithoutTransactions,
         user_id: user.id,
       },
-    ]);
+    ]).select();
+
+    
 
     if (error) {
       console.error("Add account failed:", error);
     } else {
-      setAccounts((prev) => [...prev, { ...account, id: data[0].id, transactions: [] }]);
+      console.log('account', account)
+      console.log('data', data)
+      addTransaction(data[0].id, account.transactions[0])
+      setAccounts((prev) => [...prev, { ...account, id: data[0].id}]);
     }
   };
 

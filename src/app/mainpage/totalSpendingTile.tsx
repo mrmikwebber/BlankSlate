@@ -33,7 +33,7 @@ const TotalSpendingTile = () => {
       .filter((tx) => {
         return (
           tx.category === "Ready to Assign" &&
-          isSameMonth(parseISO(tx.date), parseISO(currentMonth))
+          isSameMonth(tx.date instanceof Date ? tx.date : parseISO(tx.date), parseISO(currentMonth))
         );
       })
       .reduce((sum, tx) => sum + tx.balance, 0);
@@ -44,7 +44,8 @@ const TotalSpendingTile = () => {
 
     accounts.forEach((account) => {
       account.transactions.forEach((tx) => {
-        if (tx.outflow && isSameMonth(parseISO(tx.date), parseISO(currentMonth))) {
+        console.log('tx', tx)
+        if (tx.outflow && isSameMonth(tx.date instanceof Date ? tx.date : parseISO(tx.date), parseISO(currentMonth))) {
           if (!categoryTotals[tx.category]) {
             categoryTotals[tx.category] = 0;
           }

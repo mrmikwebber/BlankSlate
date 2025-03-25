@@ -398,17 +398,14 @@ useEffect(() => {
                 .find((c) => c.name === category.name)
                 ?.categoryItems.filter((item) => !existingItemsMap[item.name]) || [];
 
-              console.log('missing items', missingItems)
 
               const patchedCategoryItems = [
                 ...category.categoryItems,
                 ...missingItems,
               ];
 
-              console.log('patched category items', patchedCategoryItems)
 
               if (!areCategoriesEqual(patchedCategoryItems, category.categoryItems)) {
-                console.log('category items are not equal', patchedCategoryItems, category.categoryItems);
                 setIsDirty(true);
               } 
               
