@@ -8,10 +8,9 @@ interface Transaction {
   date: Date;
   payee: string;
   category: string;
-  categoryGroup: string;
+  category_group: string;
   account: string;
   balance: number;
-  outflow: boolean;
 }
 
 export interface Account {
@@ -47,7 +46,6 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(false);
-  const [hasInitalized, setHasInitalized] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -66,9 +64,7 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
     
 
-    fetchAccounts().then(() => {
-      setHasInitalized(true);
-    });
+    fetchAccounts();
   }, [user]);
 
   const resetAccounts = () => {
@@ -102,7 +98,7 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
         user_id: user.id,
         account_id: accountId,
       },
-    ]);
+    ]).select();
 
     if (error) {
       console.error("Add transaction failed:", error);
@@ -118,17 +114,21 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const addAccount = async (account) => {
+    const {transactions, ...accountWithoutTransactions} = account;
     const { data, error } = await supabase.from("accounts").insert([
       {
-        ...account,
+        ...accountWithoutTransactions,
         user_id: user.id,
       },
-    ]);
+    ]).select();
+
+    
 
     if (error) {
       console.error("Add account failed:", error);
     } else {
-      setAccounts((prev) => [...prev, { ...account, id: data[0].id, transactions: [] }]);
+      addTransaction(data[0].id, account.transactions[0])
+      setAccounts((prev) => [...prev, { ...account, id: data[0].id}]);
     }
   };
 

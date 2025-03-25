@@ -14,35 +14,30 @@ export default function AccountDetails() {
   const account = accounts.find((acc) => acc.id === id);
 
   const [showForm, setShowForm] = useState(false);
+  const [isNegative, setIsNegative] = useState(false);
   const [newTransaction, setNewTransaction] = useState({
     payee: "",
     category: "",
-    categoryGroup: "",
-    outflow: false,
+    category_group: "",
     balance: 0,
   });
 
   if (!account) return <p className="text-center mt-10">Account not found.</p>;
 
   const handleAddTransaction = () => {
-    const amount = newTransaction.outflow
-      ? -Math.abs(newTransaction.balance)
-      : Math.abs(newTransaction.balance)
-
     addTransaction(account.id, {
-      id: Date.now(),
       date: new Date(),
       ...newTransaction,
-      balance: amount,
+      balance: isNegative ? -1 * newTransaction.balance : newTransaction.balance,
     });
     setNewTransaction({
       payee: "",
       category: "",
-      categoryGroup: "",
-      outflow: false,
+      category_group: "",
       balance: 0,
     });
     setShowForm(false);
+    setIsNegative(false);
   };
 
   return (
@@ -76,10 +71,10 @@ export default function AccountDetails() {
               <td className="border p-2">{tx.category}</td>
               <td
                 className={`border p-2 ${
-                  tx.outflow ? "text-red-500" : "text-green-500"
+                  tx.balance < 0 ? "text-red-500" : "text-green-500"
                 }`}
               >
-                {tx.outflow ? `${-1 * tx.balance}` : `${tx.balance}`}
+                {tx.balance}
               </td>
             </tr>
           ))}
@@ -107,35 +102,76 @@ export default function AccountDetails() {
           <label className="block mb-2">
             Category Group:
             <select
-              value={newTransaction.category}
+              value={newTransaction.category_group}
               onChange={(e) =>
                 setNewTransaction({
                   ...newTransaction,
-                  category: e.target.value,
+                  category_group: e.target.value,
                 })
               }
               className="w-full p-2 border rounded"
               required
             >
-              <option value="">Select Category</option>
               <option key="Ready to Assign" value="Ready to Assign">
                 Ready to Assign
               </option>
-              {budgetData[currentMonth].categories.map((category) =>
-                category.categoryItems.map((item) => (
-                  <option key={item.name} value={item.name}>
-                    {item.name}
-                  </option>
-                ))
-              )}
+              {budgetData[currentMonth].categories.map((category) => (
+                <option key={category.name} value={category.name}>
+                  {category.name}
+                </option>
+              ))}
             </select>
           </label>
 
+          {newTransaction.category_group !== "" && (
+            <label className="block mb-2">
+              Category:
+              <select
+                value={newTransaction.category}
+                onChange={(e) =>
+                  setNewTransaction({
+                    ...newTransaction,
+                    category: e.target.value,
+                  })
+                }
+                className="w-full p-2 border rounded"
+                required
+              >
+                {newTransaction.category_group === "Ready to Assign" && (
+                  <option key="Ready to Assign" value="Ready to Assign">
+                    Ready to Assign
+                  </option>
+                )}
+                {budgetData[currentMonth].categories
+                  .filter(
+                    (category) =>
+                      category.name === newTransaction.category_group
+                  )
+                  .map((category) =>
+                    category.categoryItems.map((item) => (
+                      <option key={item.name} value={item.name}>
+                        {item.name}
+                      </option>
+                    ))
+                  )}
+              </select>
+            </label>
+          )}
+
           <label className="block mb-2">
+            <button
+              type="button"
+              onClick={() => setIsNegative(!isNegative)}
+              className={`rounded px-2 py-1 font-bold ${
+                isNegative ? "text-red-600" : "text-green-600"
+              }`}
+            >
+              {isNegative ? "−" : "+"}
+            </button>
             Amount:
             <input
               type="number"
-              value={newTransaction.balance}
+              value={Math.abs(newTransaction.balance)}
               onChange={(e) =>
                 setNewTransaction({
                   ...newTransaction,
@@ -145,21 +181,6 @@ export default function AccountDetails() {
               className="w-full p-2 border rounded"
               required
             />
-          </label>
-
-          <label className="block mb-2">
-            <input
-              type="checkbox"
-              checked={newTransaction.outflow}
-              onChange={(e) =>
-                setNewTransaction({
-                  ...newTransaction,
-                  outflow: e.target.checked,
-                })
-              }
-              className="mr-2"
-            />
-            Outflow (Check if money is leaving)
           </label>
 
           <button

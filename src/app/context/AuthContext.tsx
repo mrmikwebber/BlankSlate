@@ -22,7 +22,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     const getInitialSession = async () => {
       const { data } = await supabase.auth.getSession();
-      console.log('data', data)
       setSession(data.session);
       setUser(data.session?.user ?? null);
       setLoading(false);
@@ -31,7 +30,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     getInitialSession();
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      console.log('session', session)
       setSession(session);
       setUser(session?.user ?? null);
     });
@@ -44,7 +42,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const signOut = async () => {
     await supabase.auth.signOut();
     setSession(null);
-    console.log('signing out')
     setUser(null);
   };
 
