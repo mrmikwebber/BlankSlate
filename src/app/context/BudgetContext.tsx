@@ -14,8 +14,9 @@ const BudgetContext = createContext(null);
 
 export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
   const [transactions, setTransactions] = useState([]);
+  const [loading, setLoading] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
-  const { user } = useAuth();
+  const { user } = useAuth() || { user: null };
   const [currentMonth, setCurrentMonth] = useState(
     format(new Date(), "yyyy-MM")
   );
@@ -45,8 +46,11 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
 
 
   useEffect(() => {
+    console.log('user', user)
     if (!user) return;
   
+    console.log(user)
+
     const fetchBudget = async () => {
       const { data, error } = await supabase
         .from("budget_data")
@@ -94,10 +98,13 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
         setBudgetData(formatted);
       }
     };
-  
     fetchBudget();
   }, [user]);
   
+  const resetBudgetData = () => {
+    setBudgetData({});
+    setLoading(true);
+  };
 
   const _saveBudget = async (month, data) => {
     if (!user?.id) {
@@ -500,6 +507,8 @@ useEffect(() => {
         setCategoryTarget,
         saveBudgetMonth,
         setIsDirty,
+        loading,
+        resetBudgetData,
       }}
     >
       {children}

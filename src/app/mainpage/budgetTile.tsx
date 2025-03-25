@@ -8,6 +8,10 @@ import MonthNav from "./MonthNav";
 import { useBudgetContext } from "../context/BudgetContext";
 import { format, isSameMonth, parseISO, subMonths } from "date-fns";
 import { TargetSidebar } from "./TargetSidebar";
+import { LandingCoverPage } from "./LandingCoverPage";
+import { useAuth } from "../context/AuthContext";
+import InterstitialPage from "../interstitial/InterstitialPage";
+
 export default function CollapsibleTable() {
   const { accounts, hasInitalized } = useAccountContext();
   const {
@@ -17,7 +21,10 @@ export default function CollapsibleTable() {
     setIsDirty,
     addCategory,
     addItemToCategory,
+    loading: isBudgetLoading,
   } = useBudgetContext();
+  const { loading: isAccountsLoading } = useAccountContext();
+  const { user } = useAuth();
 
   const FILTERS = ["All", "Money Available", "Overspent", "Overfunded", "Underfunded"];
 
@@ -430,6 +437,14 @@ const getTargetStatus = (item) => {
   return { message: `${formatToUSD(assigned)} / ${formatToUSD(needed)}`, color: "text-gray-600" };
 };
 
+
+  if (!user) {
+    return <LandingCoverPage />;
+  }
+
+  if (isAccountsLoading || isBudgetLoading) {
+    return <InterstitialPage />;
+  }
 
   return (
     <div className="mx-auto mt-8 rounded-md">

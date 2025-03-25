@@ -43,11 +43,11 @@ export const useAccountContext = () => {
 
 export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
-  const { user } = useAuth();
+  const { user } = useAuth() || { user: null };
 
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [loading, setLoading] = useState(false);
   const [hasInitalized, setHasInitalized] = useState(false);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!user) return;
@@ -70,6 +70,11 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
       setHasInitalized(true);
     });
   }, [user]);
+
+  const resetAccounts = () => {
+    setAccounts([]);
+    setLoading(true);
+  };
 
   const updateBalance = async (id, newBalance) => {
     const { error } = await supabase
@@ -128,7 +133,7 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   return (
-    <AccountContext.Provider value={{ accounts, updateBalance, addTransaction, addAccount, loading }}>
+    <AccountContext.Provider value={{ accounts, updateBalance, addTransaction, addAccount, loading, resetAccounts }}>
       {children}
     </AccountContext.Provider>
   );

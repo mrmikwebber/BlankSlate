@@ -3,6 +3,8 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "../../utils/supabaseClient";
 import { Session, User } from "@supabase/supabase-js";
+import { useAccountContext } from "./AccountContext";
+import { useBudgetContext } from "./BudgetContext";
 
 type AuthContextType = {
   session: Session | null;
@@ -10,7 +12,6 @@ type AuthContextType = {
   loading: boolean;
   signOut: () => Promise<void>;
 };
-
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
@@ -21,6 +22,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     const getInitialSession = async () => {
       const { data } = await supabase.auth.getSession();
+      console.log('data', data)
       setSession(data.session);
       setUser(data.session?.user ?? null);
       setLoading(false);
@@ -29,6 +31,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     getInitialSession();
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      console.log('session', session)
       setSession(session);
       setUser(session?.user ?? null);
     });
@@ -41,6 +44,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const signOut = async () => {
     await supabase.auth.signOut();
     setSession(null);
+    console.log('signing out')
     setUser(null);
   };
 

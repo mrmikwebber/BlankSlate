@@ -8,6 +8,7 @@ export default function InterstitialPage() {
   const router = useRouter();
 
   useEffect(() => {
+    console.log(user)
     if (user) {
       router.push("/");
     }
