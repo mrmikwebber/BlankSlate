@@ -119,8 +119,6 @@ const { accounts } = useAccountContext();
       ready_to_assign: data.ready_to_assign,
     };
 
-    console.log('saving budget', payload);
-
     if(process.env.TESTING) return;
   
     if (existing?.id) {
@@ -137,7 +135,6 @@ const { accounts } = useAccountContext();
       .select();
     
     const newId = insertedRows?.[0]?.id;
-    console.log('setting budget data', budgetData)
     // Store this in setBudgetData:
     setBudgetData(prev => ({
       ...prev,
@@ -263,8 +260,8 @@ useEffect(() => {
 }, [accounts, budgetData]);
 
 useEffect(() => {
+  console.log('checking credit card payments')
   if (!creditCardPayments.length) return;
-  console.log('setting budget data', budgetData)
   setBudgetData((prev) => {
     const current = prev[currentMonth];
     if (!current) return prev;
@@ -286,7 +283,6 @@ useEffect(() => {
           if (newAssigned !== item.available) {
             hasChanges = true;
           } 
-          console.log(item.name, newAssigned)
 
           return { ...item, available: newAssigned };
         });
@@ -329,10 +325,22 @@ useEffect(() => {
     (account) => account.type === "credit"
   );
 
+  console.log('credit card accounts', creditCardAccounts);
+
   const creditCardItems = creditCardAccounts.map((account) => {
+
+    const existingItem =
+    budgetData[currentMonth]?.categories
+      .find((cat) => cat.name === 'Credit Card Payments')
+      ?.categoryItems?.find((item) => item.name === account.name);
+
+    const existingAssigned = existingItem?.assigned ?? 0;
+    const safeAssigned = existingAssigned < 0 ? 0 : existingAssigned;
+    console.log(safeAssigned)
+
     return {
       name: account.name,
-      assigned: 0,
+      assigned: safeAssigned,
       activity:
         account.transactions
           .filter((transaction) =>
@@ -344,6 +352,7 @@ useEffect(() => {
   const updatedCategories = budgetData[currentMonth]?.categories?.map(
     (category) => {
       if (category.name === "Credit Card Payments") {
+        console.log('credit card items', creditCardItems);
         return { ...category, categoryItems: creditCardItems };
       }
       return {
@@ -370,8 +379,6 @@ useEffect(() => {
     }
   );
 
-  console.log(updatedCategories)
-
   const totalInflow = accounts
     .filter((acc) => acc.type === "debit")
     .flatMap((acc) => acc.transactions)
@@ -381,8 +388,7 @@ useEffect(() => {
     )
     .filter((tx) => tx.category === "Ready to Assign")
     .reduce((sum, tx) => sum + tx.balance, 0);
-
-  console.log('setting budget data', budgetData)
+    console.log('updated categories', updatedCategories);
   setBudgetData((prev) => {
     return {
       ...prev,
@@ -688,6 +694,10 @@ useEffect(() => {
                 }
 
                 const itemActivity = calculateActivityForMonth(newMonth, item.name);
+
+                console.log('item', item);
+                console.log('item activity', itemActivity);
+                console.log('past available', pastAvailable);
                 
                 return {
                 ...item,
