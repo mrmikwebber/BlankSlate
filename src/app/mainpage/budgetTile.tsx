@@ -108,9 +108,11 @@ export default function CollapsibleTable() {
   };
 
   const handleInputChange = (categoryName, itemName, value) => {
+    console.log('set budget data');
     setBudgetData((prev) => {
       const updatedCategories =
         prev[currentMonth]?.categories.map((category) => {
+          const isCreditCardPayment = categoryName === "Credit Card Payments";
           if (categoryName !== category.name) return category;
           return {
             ...category,
@@ -123,10 +125,11 @@ export default function CollapsibleTable() {
                 item.name
               );
 
+
               return {
                 ...item,
                 assigned: value,
-                available: availableSum + Math.max(cumlativeAvailable, 0),
+                available: isCreditCardPayment ? item.available : availableSum + Math.max(cumlativeAvailable, 0),
               };
             }),
           };

@@ -5,7 +5,7 @@ import { Pie, Cell, Tooltip, Legend } from "recharts";
 import { useAccountContext } from "../context/AccountContext";
 import { useBudgetContext } from "../context/BudgetContext";
 import { formatToUSD } from "../utils/formatToUSD";
-import { isSameMonth, parseISO } from "date-fns";
+import { isSameMonth, parseISO, format } from "date-fns";
 
 const PieChart = dynamic(
   () => import("recharts").then((recharts) => recharts.PieChart),
@@ -33,7 +33,7 @@ const TotalSpendingTile = () => {
       .filter((tx) => {
         return (
           tx.category === "Ready to Assign" &&
-          isSameMonth(tx.date instanceof Date ? tx.date : parseISO(tx.date), parseISO(currentMonth))
+          isSameMonth(tx.date instanceof Date ? tx.date : format(parseISO(tx.date), "yyyy-MM"), format(parseISO(currentMonth), "yyyy-MM"))
         );
       })
       .reduce((sum, tx) => sum + tx.balance, 0);
@@ -44,7 +44,7 @@ const TotalSpendingTile = () => {
 
     accounts.forEach((account) => {
       account.transactions.forEach((tx) => {
-        if (tx.balance < 0 && isSameMonth(tx.date instanceof Date ? tx.date : parseISO(tx.date), parseISO(currentMonth))) {
+        if (tx.balance < 0 && isSameMonth(tx.date instanceof Date ? tx.date : format(parseISO(tx.date), "yyyy-MM"), format(parseISO(currentMonth), "yyyy-MM"))) {
           if (!categoryTotals[tx.category]) {
             categoryTotals[tx.category] = 0;
           }

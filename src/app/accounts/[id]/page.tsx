@@ -1,4 +1,4 @@
-import AccountDetails from "@/app/AccountDetails";
+import AccountDetails from "@/app/mainpage/AccountDetails";
 import Sidebar from "@/app/navigation/sidebar";
 
 export default function AccountPage() {

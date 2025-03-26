@@ -4,7 +4,7 @@ import { formatToUSD } from "../utils/formatToUSD";
 
 const EditableAssigned = ({ categoryName, itemName, item, handleInputChange }: { categoryName: string, itemName: string, item: any, handleInputChange: (categoryName: string, itemName: string, value: number) => void }) => {
   const [isEditing, setIsEditing] = useState(false);
-  const [inputValue, setInputValue] = useState(item.assigned.toString());
+  const [inputValue, setInputValue] = useState((item.assigned ?? 0).toString());
 
   const handleSave = () => {
     try {
