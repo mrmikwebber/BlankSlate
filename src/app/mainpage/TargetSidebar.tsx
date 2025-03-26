@@ -5,6 +5,7 @@ import {
   parseISO,
   subMonths,
   differenceInCalendarMonths,
+  format
 } from "date-fns";
 import { useBudgetContext } from "../context/BudgetContext";
 import { useAccountContext } from "../context/AccountContext";
@@ -84,7 +85,7 @@ export const TargetSidebar = ({ itemName, onClose }) => {
       (targetType === "Custom" || targetType === "Full Payoff") &&
       customTargetDate
     ) {
-      const targetMonthNumber = getMonth(parseISO(customTargetDate)) + 1;
+      const targetMonthNumber = getMonth(format(parseISO(customTargetDate), "yyyy-MM")) + 1;
       const currentMonthNumber = getMonth(new Date()) + 1;
 
       const monthsUntilTarget =
@@ -115,7 +116,7 @@ export const TargetSidebar = ({ itemName, onClose }) => {
   const getPreviousMonthAvailable = (categoryItem) => {
     if (!categoryItem) return 0;
 
-    const prevMonth = subMonths(parseISO(`${currentMonth}-01`), 1);
+    const prevMonth = subMonths(format(parseISO(`${currentMonth}-01`), "yyyy-MM"), 1);
     const prevMonthKey = `${prevMonth.getFullYear()}-${(getMonth(prevMonth) + 1)
       .toString()
       .padStart(2, "0")}`;
@@ -137,7 +138,7 @@ export const TargetSidebar = ({ itemName, onClose }) => {
         (transaction) =>
           transaction.category === categoryItem.name &&
           getMonth(transaction.date) + 1 ===
-            getMonth(parseISO(currentMonth)) + 1
+            getMonth(format(parseISO(currentMonth), "yyyy-MM")) + 1
       )
       .reduce((sum, tx) => sum + Math.abs(tx.balance), 0);
   };

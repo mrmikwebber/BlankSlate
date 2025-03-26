@@ -3,7 +3,8 @@
 import { useParams } from "next/navigation";
 import { useState } from "react";
 import { useAccountContext } from "@/app/context/AccountContext";
-import { useBudgetContext } from "./context/BudgetContext";
+import { useBudgetContext } from "../context/BudgetContext";
+import { parseISO, format } from "date-fns";
 
 export default function AccountDetails() {
   const { id } = useParams();
@@ -11,6 +12,8 @@ export default function AccountDetails() {
   const { accounts, addTransaction } = useAccountContext();
 
   const account = accounts.find((acc) => acc.id === id);
+
+  console.log(account);
 
   const [showForm, setShowForm] = useState(false);
   const [isNegative, setIsNegative] = useState(false);
@@ -64,7 +67,7 @@ export default function AccountDetails() {
           {account.transactions.map((tx) => (
             <tr key={tx.id}>
               <td className="border p-2">
-                {new Date(tx.date).toLocaleDateString()}
+              {format(parseISO(tx.date), "eee, MMM d yyyy")}
               </td>
               <td className="border p-2">{tx.payee}</td>
               <td className="border p-2">{tx.category}</td>

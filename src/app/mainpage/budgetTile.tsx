@@ -81,7 +81,7 @@ export default function CollapsibleTable() {
 
 
   const getPreviousMonth = (month) => {
-    return format(subMonths(parseISO(`${month}-01`), 1), "yyyy-MM");
+    return format(subMonths(format(parseISO(month), "yyyy-MM"), 1), "yyyy-MM");
   };
 
   const toggleCategory = (category: string) => {
