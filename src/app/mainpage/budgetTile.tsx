@@ -81,7 +81,7 @@ export default function CollapsibleTable() {
 
 
   const getPreviousMonth = (month) => {
-    return format(subMonths(format(parseISO(month), "yyyy-MM"), 1), "yyyy-MM");
+    return format(subMonths(parseISO(`${month}-01`), 1), "yyyy-MM");
   };
 
   const toggleCategory = (category: string) => {
@@ -108,9 +108,11 @@ export default function CollapsibleTable() {
   };
 
   const handleInputChange = (categoryName, itemName, value) => {
+    console.log('set budget data');
     setBudgetData((prev) => {
       const updatedCategories =
         prev[currentMonth]?.categories.map((category) => {
+          const isCreditCardPayment = categoryName === "Credit Card Payments";
           if (categoryName !== category.name) return category;
           return {
             ...category,
@@ -123,10 +125,11 @@ export default function CollapsibleTable() {
                 item.name
               );
 
+
               return {
                 ...item,
                 assigned: value,
-                available: availableSum + Math.max(cumlativeAvailable, 0),
+                available: isCreditCardPayment ? item.available : availableSum + Math.max(cumlativeAvailable, 0),
               };
             }),
           };

@@ -7,7 +7,7 @@ import debounce from "lodash.debounce";
 import { useAccountContext } from "./AccountContext";
 
 const getPreviousMonth = (month: string) => {
-  return format(subMonths(format(parseISO(month), "yyyy-MM"), 1), "yyyy-MM");
+  return format(subMonths(parseISO(`${month}-01`), 1), "yyyy-MM");
 }
   
 const BudgetContext = createContext(null);
@@ -211,6 +211,11 @@ const { accounts } = useAccountContext();
       const current = prev[currentMonth];
       if (!current) return prev;
   
+      const prevMonthKey = format(
+        subMonths(parseISO(`${currentMonth}-01`), 1),
+        "yyyy-MM"
+      );
+  
       let hasChanges = false;
   
       const updatedCategories = current.categories.map((cat) => {
@@ -218,14 +223,30 @@ const { accounts } = useAccountContext();
   
         const updatedItems = cat.categoryItems.map((item) => {
           const match = creditCardPayments.find((p) => p.card === item.name);
-          const newAvailable = match?.payment ?? item.available;
+          const categoryAssigned = match?.payment ?? 0;
   
-          if (item.available !== newAvailable) hasChanges = true;
+          const prevAvailable =
+            prev[prevMonthKey]?.categories
+              ?.find((cat) => cat.name === "Credit Card Payments")
+              ?.categoryItems.find((i) => i.name === item.name)?.available ?? 0;
   
-          return { ...item, available: newAvailable };
+          const carryover = prevAvailable > 0 ? prevAvailable : 0;
+          const manualAssigned = item.assigned ?? 0;
+  
+          const newAvailable = carryover + categoryAssigned + manualAssigned;
+  
+          if (newAvailable !== item.available) hasChanges = true;
+  
+          return {
+            ...item,
+            available: newAvailable,
+          };
         });
   
-        return { ...cat, categoryItems: updatedItems };
+        return {
+          ...cat,
+          categoryItems: updatedItems,
+        };
       });
   
       if (!hasChanges) return prev;
@@ -259,7 +280,6 @@ useEffect(() => {
 
 useEffect(() => {
   const payments = calculateCreditCardPayments();
-  console.log("Calculated credit card available:", payments);
   applyCreditCardPaymentsToBudget(payments);
 }, [budgetData, accounts, currentMonth]);
 
@@ -293,6 +313,7 @@ useEffect(() => {
             item.name,
             accounts
           );
+          console.log('updating')
 
           const availableSum = item.assigned + itemActivity;
           return {
@@ -314,7 +335,6 @@ useEffect(() => {
     )
     .filter((tx) => tx.category === "Ready to Assign")
     .reduce((sum, tx) => sum + tx.balance, 0);
-    console.log('updated categories', updatedCategories);
   setBudgetData((prev) => {
     return {
       ...prev,
@@ -602,8 +622,10 @@ useEffect(() => {
 
                 }
 
-                const itemActivity = calculateActivityForMonth(newMonth, item.name);
                 
+
+                const itemActivity = calculateActivityForMonth(newMonth, item.name);
+                console.log(item.name, pastAvailable, itemActivity)
                 return {
                 ...item,
                 activity: itemActivity,
