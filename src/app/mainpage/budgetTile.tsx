@@ -11,6 +11,7 @@ import { TargetSidebar } from "./TargetSidebar";
 import { LandingCoverPage } from "./LandingCoverPage";
 import { useAuth } from "../context/AuthContext";
 import InterstitialPage from "../interstitial/InterstitialPage";
+import { createPortal } from "react-dom";
 
 export default function CollapsibleTable() {
   const {
@@ -21,11 +22,18 @@ export default function CollapsibleTable() {
     addCategoryGroup,
     addItemToCategory,
     loading: isBudgetLoading,
+    deleteCategoryGroup,
   } = useBudgetContext();
   const { loading: isAccountsLoading } = useAccountContext();
   const { user } = useAuth();
 
-  const FILTERS = ["All", "Money Available", "Overspent", "Overfunded", "Underfunded"];
+  const FILTERS = [
+    "All",
+    "Money Available",
+    "Overspent",
+    "Overfunded",
+    "Underfunded",
+  ];
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState("");
   const [targetSidebarOpen, setTargetSidebarOpen] = useState(false);
@@ -37,19 +45,36 @@ export default function CollapsibleTable() {
   });
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [selectedFilter, setSelectedFilter] = useState("All");
-
-  const [openCategories, setOpenCategories] = useState<Record<string, boolean>>({});
+  const [openCategories, setOpenCategories] = useState<Record<string, boolean>>(
+    {}
+  );
+  const [groupContext, setGroupContext] = useState<{
+    x: number;
+    y: number;
+    categoryName: string;
+    itemCount: number;
+  } | null>(null);
 
   useEffect(() => {
-    if (!budgetData || !currentMonth || !budgetData[currentMonth]?.categories) return;
-    
-    const initialOpenState = budgetData[currentMonth].categories.reduce((acc, category) => {
-      acc[category.name] = true;
-      return acc;
-    }, {} as Record<string, boolean>);
-    
+    if (!budgetData || !currentMonth || !budgetData[currentMonth]?.categories)
+      return;
+
+    const initialOpenState = budgetData[currentMonth].categories.reduce(
+      (acc, category) => {
+        acc[category.name] = true;
+        return acc;
+      },
+      {} as Record<string, boolean>
+    );
+
     setOpenCategories(initialOpenState);
   }, [budgetData, currentMonth]);
+
+  useEffect(() => {
+    const closeMenu = () => setGroupContext(null);
+    window.addEventListener("click", closeMenu);
+    return () => window.removeEventListener("click", closeMenu);
+  }, []);
 
   const filteredCategories = useMemo(() => {
     if (!budgetData || !currentMonth) return [];
@@ -76,9 +101,8 @@ export default function CollapsibleTable() {
 
         return { ...category, categoryItems: filteredItems };
       })
-      .filter(Boolean); 
+      .filter(Boolean);
   }, [budgetData, currentMonth, selectedFilter]);
-
 
   const getPreviousMonth = (month) => {
     return format(subMonths(parseISO(`${month}-01`), 1), "yyyy-MM");
@@ -124,11 +148,12 @@ export default function CollapsibleTable() {
                 item.name
               );
 
-
               return {
                 ...item,
                 assigned: value,
-                available: isCreditCardPayment ? item.available : availableSum + Math.max(cumlativeAvailable, 0),
+                available: isCreditCardPayment
+                  ? item.available
+                  : availableSum + Math.max(cumlativeAvailable, 0),
               };
             }),
           };
@@ -179,33 +204,50 @@ export default function CollapsibleTable() {
     setTargetSidebarOpen(true);
   };
 
-const getTargetStatus = (item) => {
-  if (!item.target) return { message: "", color: "" };
+  const getTargetStatus = (item) => {
+    if (!item.target) return { message: "", color: "" };
 
-  const assigned = item.assigned || 0;
-  const needed = item.target.amountNeeded;
-  const activity = Math.abs(item.activity || 0);
-  const available = item.available || 0;
-  const overspent = available < 0;
-  const fullyFunded = assigned === needed;
-  const overFunded = assigned > needed;
-  const partiallyFunded = assigned < needed && assigned >= activity;
-  const stillNeeded = needed - assigned;
+    const assigned = item.assigned || 0;
+    const needed = item.target.amountNeeded;
+    const activity = Math.abs(item.activity || 0);
+    const available = item.available || 0;
+    const overspent = available < 0;
+    const fullyFunded = assigned === needed;
+    const overFunded = assigned > needed;
+    const partiallyFunded = assigned < needed && assigned >= activity;
+    const stillNeeded = needed - assigned;
 
-  if (overspent && assigned < activity) {
-    return { message: `Overspent ${formatToUSD(available * -1)} of ${formatToUSD(assigned)}`, color: "text-red-600 font-semibold" };
-  }
-  if ((fullyFunded || overFunded) && available === 0 || fullyFunded && available > 0) {
-    return { message: "Fully Funded", color: "text-green-600 font-semibold" }; 
-  }
-  if (overFunded) {
-    return { message: `Funded ${formatToUSD(needed)} of ${formatToUSD(assigned)}`, color: "text-blue-600 font-semibold" }; 
-  }
-  if (partiallyFunded) {
-    return { message: `${formatToUSD(stillNeeded)} more needed to fulfill target`, color: "text-yellow-600 font-semibold" }; 
-  }
-  return { message: `${formatToUSD(assigned)} / ${formatToUSD(needed)}`, color: "text-gray-600" };
-};
+    if (overspent && assigned < activity) {
+      return {
+        message: `Overspent ${formatToUSD(available * -1)} of ${formatToUSD(
+          assigned
+        )}`,
+        color: "text-red-600 font-semibold",
+      };
+    }
+    if (
+      ((fullyFunded || overFunded) && available === 0) ||
+      (fullyFunded && available > 0)
+    ) {
+      return { message: "Fully Funded", color: "text-green-600 font-semibold" };
+    }
+    if (overFunded) {
+      return {
+        message: `Funded ${formatToUSD(needed)} of ${formatToUSD(assigned)}`,
+        color: "text-blue-600 font-semibold",
+      };
+    }
+    if (partiallyFunded) {
+      return {
+        message: `${formatToUSD(stillNeeded)} more needed to fulfill target`,
+        color: "text-yellow-600 font-semibold",
+      };
+    }
+    return {
+      message: `${formatToUSD(assigned)} / ${formatToUSD(needed)}`,
+      color: "text-gray-600",
+    };
+  };
 
   if (!user) {
     return <LandingCoverPage />;
@@ -216,6 +258,33 @@ const getTargetStatus = (item) => {
   }
 
   return (
+    <>
+    {groupContext &&
+      createPortal(
+        <div
+          className="fixed z-50 w-[160px] bg-white border shadow rounded text-sm"
+          style={{ top: groupContext.y, left: groupContext.x }}
+          onClick={() => setGroupContext(null)}
+        >
+          {groupContext.itemCount === 0 ? (
+            <button
+              onClick={() => {
+                deleteCategoryGroup(groupContext.categoryName);
+                setGroupContext(null);
+              }}
+              className="px-4 py-2 hover:bg-red-100 text-red-600 w-full text-left"
+            >
+              Delete Group
+            </button>
+          ) : (
+            <div className="px-4 py-2 text-gray-500">
+              Cannot delete: Group not empty
+            </div>
+          )}
+        </div>,
+        document.body
+      )}
+
     <div className="mx-auto mt-8 rounded-md">
       <MonthNav />
       <div className="flex mt-2 mb-2">
@@ -226,7 +295,9 @@ const getTargetStatus = (item) => {
           <button
             key={filter}
             className={`px-4 py-2 rounded-md ${
-              selectedFilter === filter ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-700"
+              selectedFilter === filter
+                ? "bg-blue-600 text-white"
+                : "bg-gray-200 text-gray-700"
             }`}
             onClick={() => setSelectedFilter(filter)}
           >
@@ -245,133 +316,145 @@ const getTargetStatus = (item) => {
             </tr>
           </thead>
           <tbody>
-            {filteredCategories.map(
-              (group) => (
-                <Fragment key={group.name}>
-                  <tr
-                    className="bg-gray-400 text-white"
-                    onMouseEnter={() => setHoveredCategory(group.name)}
-                    onMouseLeave={() => setHoveredCategory(null)}
+            {filteredCategories.map((group) => (
+              <Fragment key={group.name}>
+                <tr
+                  className="bg-gray-400 text-white"
+                  onMouseEnter={() => setHoveredCategory(group.name)}
+                  onMouseLeave={() => setHoveredCategory(null)}
+                >
+                  <td
+                    colSpan={0}
+                    className="p-3 font-bold text-lg w-full"
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      setGroupContext({
+                        x: Math.min(e.clientX, window.innerWidth - 160),
+                        y: Math.min(e.clientY, window.innerHeight - 50),
+                        categoryName: group.name,
+                        itemCount: group.categoryItems.length,
+                      });
+                    }}
                   >
-                    <td colSpan={0} className="p-3 font-bold text-lg w-full">
-                      <div className="flex items-center">
-                        <button
-                          onClick={() => toggleCategory(group.name)}
-                          className="mr-2"
-                        >
-                          {openCategories[group.name] ? "▼" : "▶"}
-                        </button>
-                        {group.name}
-                        {hoveredCategory === group.name && (
-                          <button
-                            onClick={() => setActiveCategory(group.name)}
-                            className="ms-2 text-sm bg-blue-500 text-white px-2 py-1 rounded-full hover:bg-teal-500 transition"
-                          >
-                            +
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                    <td className="p-2 border">
-                      {formatToUSD(
-                        group.categoryItems.reduce(
-                          (sum, item) => sum + item.assigned,
-                          0
-                        )
-                      )}
-                    </td>
-                    <td className="p-2 border">
-                      {formatToUSD(
-                        group.categoryItems.reduce(
-                          (sum, item) => sum + item.activity,
-                          0
-                        )
-                      )}
-                    </td>
-                    <td className="p-2 border">
-                      {group.name === "Credit Card Payments"
-                        ? "Payment - " +
-                          formatToUSD(
-                            group.categoryItems.reduce(
-                              (sum, item) => sum + item.available,
-                              0
-                            ) || 0
-                          )
-                        : formatToUSD(
-                            group.categoryItems.reduce(
-                              (sum, item) => sum + item.available,
-                              0
-                            )
-                          )}
-                    </td>
-                  </tr>
-
-                  {activeCategory === group.name && (
-                    <div className="absolute left-0 mt-2 w-64 bg-white p-4 shadow-lg rounded-lg border z-50">
-                      <input
-                        type="text"
-                        placeholder="Item Name"
-                        value={newItem.name}
-                        onChange={(e) =>
-                          setNewItem({ ...newItem, name: e.target.value })
-                        }
-                        className="w-full border rounded px-2 py-1"
-                      />
+                    <div className="flex items-center">
                       <button
-                        onClick={() => handleAddItem(group.name)}
-                        className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-500 transition"
+                        onClick={() => toggleCategory(group.name)}
+                        className="mr-2"
                       >
-                        Submit
+                        {openCategories[group.name] ? "▼" : "▶"}
                       </button>
-                    </div>
-                  )}
-                  {openCategories[group.name] &&
-                    group.categoryItems.map((item, itemIndex) => (
-                      <tr key={itemIndex} className="border-t">
-                        <td
-                          onClick={() => {toggleTargetSideBar(item)}}
-                          className="p-2 border relative"
+                      {group.name}
+                      {hoveredCategory === group.name && (
+                        <button
+                          onClick={() => setActiveCategory(group.name)}
+                          className="ms-2 text-sm bg-blue-500 text-white px-2 py-1 rounded-full hover:bg-teal-500 transition"
                         >
+                          +
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                  <td className="p-2 border">
+                    {formatToUSD(
+                      group.categoryItems.reduce(
+                        (sum, item) => sum + item.assigned,
+                        0
+                      )
+                    )}
+                  </td>
+                  <td className="p-2 border">
+                    {formatToUSD(
+                      group.categoryItems.reduce(
+                        (sum, item) => sum + item.activity,
+                        0
+                      )
+                    )}
+                  </td>
+                  <td className="p-2 border">
+                    {group.name === "Credit Card Payments"
+                      ? "Payment - " +
+                        formatToUSD(
+                          group.categoryItems.reduce(
+                            (sum, item) => sum + item.available,
+                            0
+                          ) || 0
+                        )
+                      : formatToUSD(
+                          group.categoryItems.reduce(
+                            (sum, item) => sum + item.available,
+                            0
+                          )
+                        )}
+                  </td>
+                </tr>
+
+                {activeCategory === group.name && (
+                  <div className="absolute left-0 mt-2 w-64 bg-white p-4 shadow-lg rounded-lg border z-50">
+                    <input
+                      type="text"
+                      placeholder="Item Name"
+                      value={newItem.name}
+                      onChange={(e) =>
+                        setNewItem({ ...newItem, name: e.target.value })
+                      }
+                      className="w-full border rounded px-2 py-1"
+                    />
+                    <button
+                      onClick={() => handleAddItem(group.name)}
+                      className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-500 transition"
+                    >
+                      Submit
+                    </button>
+                  </div>
+                )}
+                {openCategories[group.name] &&
+                  group.categoryItems.map((item, itemIndex) => (
+                    <tr key={itemIndex} className="border-t">
+                      <td
+                        onClick={() => {
+                          toggleTargetSideBar(item);
+                        }}
+                        className="p-2 border relative"
+                      >
+                        {item.target && (
+                          <div className="absolute top-0 left-0 w-full h-full bg-gray-200 rounded">
+                            <div
+                              className="h-full bg-teal-500 transition-all duration-300 rounded"
+                              style={{
+                                width: `${Math.min(
+                                  (item.assigned / item.target.amountNeeded) *
+                                    100,
+                                  100
+                                )}%`,
+                              }}
+                            ></div>
+                          </div>
+                        )}
+                        <span className="relative z-10 font-medium">
+                          {item.name}{" "}
                           {item.target && (
-                            <div className="absolute top-0 left-0 w-full h-full bg-gray-200 rounded">
-                              <div
-                                className="h-full bg-teal-500 transition-all duration-300 rounded"
-                                style={{
-                                  width: `${Math.min(
-                                    (item.assigned / item.target.amountNeeded) *
-                                      100,
-                                    100
-                                  )}%`,
-                                }}
-                              ></div>
-                            </div>
+                            <span className={getTargetStatus(item).color}>
+                              {getTargetStatus(item).message}
+                            </span>
                           )}
-                          <span className="relative z-10 font-medium">
-                            {item.name}{" "}
-                            {item.target && (
-                              <span className={getTargetStatus(item).color}>
-                                {getTargetStatus(item).message}
-                              </span>
-                            )}
-                          </span>
-                        </td>
-                        <EditableAssigned
-                          categoryName={group.name}
-                          itemName={item.name}
-                          item={item}
-                          handleInputChange={handleInputChange}
-                        />
-                        <td className="p-2 border">
-                          {formatToUSD(item.activity || 0)}
-                        </td>
-                        <td className="p-2 border">
-                          {formatToUSD(item.available || 0)}
-                        </td>
-                      </tr>
-                    ))}
-                </Fragment>
-              )
-            )}
+                        </span>
+                      </td>
+                      <EditableAssigned
+                        categoryName={group.name}
+                        itemName={item.name}
+                        item={item}
+                        handleInputChange={handleInputChange}
+                      />
+                      <td className="p-2 border">
+                        {formatToUSD(item.activity || 0)}
+                      </td>
+                      <td className="p-2 border">
+                        {formatToUSD(item.available || 0)}
+                      </td>
+                    </tr>
+                  ))}
+              </Fragment>
+            ))}
           </tbody>
         </table>
         {targetSidebarOpen && (
@@ -384,5 +467,6 @@ const getTargetStatus = (item) => {
         )}
       </div>
     </div>
+    </>
   );
 }

@@ -384,6 +384,20 @@ useEffect(() => {
   
     setIsDirty(true);
   };
+
+  const deleteCategoryGroup = (groupName: string) => {
+    setBudgetData((prev) => {
+      const updated = { ...prev };
+      for (const month in updated) {
+        updated[month].categories = updated[month].categories.filter(
+          (cat) => cat.name !== groupName
+        );
+      }
+      return updated;
+    });
+  
+    setIsDirty(true); // optional: if saving changes
+  };
   
   const addItemToCategory = (
     categoryName: string,
@@ -766,6 +780,7 @@ useEffect(() => {
         loading,
         resetBudgetData,
         creditCardPayments,
+        deleteCategoryGroup,
       }}
     >
       {children}
