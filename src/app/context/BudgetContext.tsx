@@ -597,14 +597,10 @@ useEffect(() => {
                   const targetMonthNumber = getMonth(parseISO(previousItem.target.targetDate)) + 1;
                   const currentMonthNumber = getMonth(parseISO(newMonth));
 
-                  console.log('targetMonthNumber', targetMonthNumber);
-                  console.log('currentMonthNumber', currentMonthNumber);
-
                 
                   let monthsUntilTarget = targetMonthNumber - currentMonthNumber;
                   if (monthsUntilTarget <= 0) monthsUntilTarget = 1;
 
-                  console.log('monthsUntilTarget', monthsUntilTarget);
                 
                   const totalAssigned = cumulativeAssigned.get(item.name) || 0;
                   const remainingAmount = previousItem.target.amount - totalAssigned;
@@ -638,14 +634,13 @@ useEffect(() => {
                     newTarget = null;
                   }
                 }
-                
 
                 const itemActivity = calculateActivityForMonth(newMonth, item.name);
                 return {
                 ...item,
                 activity: itemActivity,
                 target: newTarget,
-                available: category.name !== 'Credit Card Payments' ? pastAvailable + itemActivity : item.available,
+                available: category.name !== 'Credit Card Payments' ? pastAvailable + itemActivity + item.assigned : item.available,
               }}),
             }}),
           },
@@ -670,40 +665,59 @@ useEffect(() => {
                   .find((c) => c.name === "Credit Card Payments")
                   ?.categoryItems.find((i) => i.name === item.name)?.available || 0
               : Math.max(pastAssigned + pastActivity, 0);
+
               let newTarget = item.target;
 
-              if (item?.target?.type === "Custom" || item?.target?.type === "Full Payoff") {
-                const targetMonthNumber = getMonth(format(parseISO(item.target.targetDate), "yyyy-MM")) + 1;
-                const currentMonthNumber = getMonth(format(parseISO(newMonth), "yyyy-MM")) + 1;
-          
-              
-                let monthsUntilTarget = (targetMonthNumber - currentMonthNumber) + 1;
-                if (monthsUntilTarget <= 0) monthsUntilTarget = 1;
-              
-                const totalAssigned = cumulativeAssigned.get(item.name) || 0;
-                const remainingAmount = item.target.amount - totalAssigned;
-                let newAmountNeeded;
-                
-                if (direction === "forward") {
-                  newAmountNeeded = remainingAmount / monthsUntilTarget;
-                } else {
-                  newAmountNeeded = prev[newMonth]?.categories
-                    ?.flatMap((cat) => cat.categoryItems)
-                    ?.find((i) => i.name === item.name)?.target?.amountNeeded || remainingAmount / monthsUntilTarget;
-                }
-              
-                newTarget = {
-                  ...item.target,
-                  amountNeeded: newAmountNeeded,
-                };
+              const previousItem = prev[previousMonth]?.categories
+                ?.find((cat) => cat.name === category.name)
+                ?.categoryItems.find((i) => i.name === item.name);
 
-                const targetMonth = item.target.type === 'Custom' ? parseISO(newTarget.targetDate) : parseISO(`${newTarget.targetDate}-01`);
-                const currentMonthDate = item.target.type === 'Custom' ? parseISO(newMonth) : parseISO(`${newMonth}-01`);
-  
-                if (differenceInCalendarMonths(currentMonthDate, targetMonth) >= 1) {
-                  newTarget = null;
+                if (previousItem?.target?.type === "monthly") {
+                  newTarget = {
+                    ...previousItem.target,
+                    amount: 0,
+                  };
                 }
-              };
+                else if (previousItem?.target?.type === "Custom" || previousItem?.target?.type === "Full Payoff") {
+                  const targetMonthNumber = getMonth(parseISO(previousItem.target.targetDate)) + 1;
+                  const currentMonthNumber = getMonth(parseISO(newMonth));
+
+                
+                  let monthsUntilTarget = targetMonthNumber - currentMonthNumber;
+                  if (monthsUntilTarget <= 0) monthsUntilTarget = 1;
+                
+                  const totalAssigned = cumulativeAssigned.get(item.name) || 0;
+                  const remainingAmount = previousItem.target.amount - totalAssigned;
+                
+                  const base = Math.floor((remainingAmount / monthsUntilTarget) * 100) / 100;
+                  const baseTotal = base * monthsUntilTarget;
+                  const extraCents = Math.round((remainingAmount - baseTotal) * 100);
+                
+                  const monthAmounts = Array(monthsUntilTarget).fill(base);
+                  for (let i = 0; i < extraCents; i++) {
+                    monthAmounts[i] += 0.01;
+                  }
+
+                  const monthIndex = direction === "forward" ? currentMonthNumber - (targetMonthNumber - monthsUntilTarget) : 0;
+                  const newAmountNeeded = monthAmounts[monthIndex] ?? base;
+                
+                  newTarget = {
+                    ...previousItem.target,
+                    amountNeeded: newAmountNeeded,
+                  };
+                
+                  const targetMonth = previousItem.target.type === 'Custom'
+                    ? parseISO(newTarget.targetDate)
+                    : parseISO(`${newTarget.targetDate}-01`);
+                
+                  const currentMonthDate = previousItem.target.type === 'Custom'
+                    ? parseISO(newMonth)
+                    : parseISO(`${newMonth}-01`);
+
+                  if (differenceInCalendarMonths(currentMonthDate, targetMonth) >= 1) {
+                    newTarget = null;
+                  }
+                }
 
               const itemActivity = calculateActivityForMonth(newMonth, item.name);
 
@@ -712,7 +726,7 @@ useEffect(() => {
               assigned: 0, 
               activity: itemActivity,
               target: newTarget,
-              available: pastAvailable + itemActivity,
+              available: category.name !== 'Credit Card Payments' ? pastAvailable + itemActivity + item.assigned : item.available,
             }}),
           }))
         : createEmptyCategories(prev[getLatestMonth(prev)]?.categories || []);
