@@ -13,7 +13,10 @@ export default function AccountDetails() {
 
   const account = accounts.find((acc) => acc.id === id);
 
-  console.log(account);
+  console.log(account?.transactions);
+
+  console.log(account?.transactions[0].payee);
+  console.log(account?.transactions[0].balance);
 
   const [showForm, setShowForm] = useState(false);
   const [isNegative, setIsNegative] = useState(false);
@@ -67,7 +70,7 @@ export default function AccountDetails() {
           {account.transactions.map((tx) => (
             <tr key={tx.id}>
               <td className="border p-2">
-              {format(parseISO(tx.date), "eee, MMM d yyyy")}
+              {tx.date && format(parseISO(tx.date), "eee, MMM d yyyy")}
               </td>
               <td className="border p-2">{tx.payee}</td>
               <td className="border p-2">{tx.category}</td>

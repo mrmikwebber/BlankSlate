@@ -62,14 +62,13 @@ const { accounts } = useAccountContext();
       }
   
       if (!data || data.length === 0) {
-        // 🆕 New user – initialize default month
         const today = new Date();
         const newMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
         const initial = {
           user_id: user.id,
           month: newMonth,
           data: {
-            categories: createDefaultCategories(), // see below 👇
+            categories: createDefaultCategories(),
           },
           assignable_money: 0,
           ready_to_assign: 0,
@@ -135,7 +134,6 @@ const { accounts } = useAccountContext();
       .select();
     
     const newId = insertedRows?.[0]?.id;
-    // Store this in setBudgetData:
     setBudgetData(prev => ({
       ...prev,
       [month]: {
@@ -146,7 +144,7 @@ const { accounts } = useAccountContext();
     }
   };
   
-  const debouncedSave = debounce(_saveBudget, 450); // waits 1.5s
+  const debouncedSave = debounce(_saveBudget, 450); 
   
   const saveBudgetMonth = (month, data) => {
     debouncedSave(month, data);
@@ -169,6 +167,7 @@ const { accounts } = useAccountContext();
       if (account.type !== "credit") continue;
   
       for (const tx of account.transactions) {
+        if (!tx.date) continue;
         if (!isSameMonth(format(parseISO(tx.date), "yyyy-MM"), format(parseISO(currentMonth), "yyyy-MM"))) continue;
         if (!tx.category) continue;
   
@@ -331,7 +330,7 @@ useEffect(() => {
     .flatMap((acc) => acc.transactions)
     .filter(
       (tx) =>
-        isSameMonth(format(parseISO(tx.date), "yyyy-MM"), format(parseISO(currentMonth), "yyyy-MM")) && tx.balance > 0
+          tx.date && isSameMonth(format(parseISO(tx.date), "yyyy-MM"), format(parseISO(currentMonth), "yyyy-MM")) && tx.balance > 0
     )
     .filter((tx) => tx.category === "Ready to Assign")
     .reduce((sum, tx) => sum + tx.balance, 0);
@@ -386,7 +385,7 @@ useEffect(() => {
       };
     });
   
-    setIsDirty(true); // Triggers save for current month only
+    setIsDirty(true);
   };
   
   const addItemToCategory = (
@@ -434,7 +433,7 @@ useEffect(() => {
     const totalInflow = accounts?
     .filter((acc) => acc.type === "debit") 
     .flatMap((acc) => acc.transactions)
-    .filter((tx) => isSameMonth(format(parseISO(tx.date), "yyyy-MM"), format(parseISO(month), "yyyy-MM")) && tx.balance > 0)
+    .filter((tx) => tx.date && isSameMonth(format(parseISO(tx.date), "yyyy-MM"), format(parseISO(month), "yyyy-MM")) && tx.balance > 0)
     .filter((tx) => tx.category === 'Ready to Assign')
     .reduce((sum, tx) => sum + tx.balance, 0); 
 
@@ -455,9 +454,10 @@ useEffect(() => {
     const filteredAccounts = accounts.flatMap((account) => account.transactions)
       .filter(
         (tx) => {
-          const date = format(parseISO(tx.date), "yyyy-MM");
-          const convertedMonth = format(parseISO(month), "yyyy-MM")
-          return isSameMonth(date, convertedMonth) && tx.category === categoryName
+            if(!tx.date) return false;
+            const date = format(parseISO(tx.date), "yyyy-MM");
+            const convertedMonth = format(parseISO(month), "yyyy-MM")
+            return isSameMonth(date, convertedMonth) && tx.category === categoryName
         }
       )
       return filteredAccounts.reduce((sum, tx) => sum + tx.balance, 0);
@@ -522,7 +522,6 @@ useEffect(() => {
           )
         );
         
-        // Find any groups missing from this month's data
         const existingGroupNames = new Set(
           prev[newMonth].categories.map((cat) => cat.name)
         );
@@ -705,7 +704,7 @@ useEffect(() => {
       const totalInflow = accounts?
       .filter((acc) => acc.type === "debit") 
       .flatMap((acc) => acc.transactions) 
-      .filter((tx) => isSameMonth(format(parseISO(tx.date), "yyyy-MM"), parseISO(newMonth)) && tx.balance > 0)
+      .filter((tx) => tx.date && isSameMonth(format(parseISO(tx.date), "yyyy-MM"), parseISO(newMonth)) && tx.balance > 0)
       .filter((tx) => tx.category === 'Ready to Assign')
       .reduce((sum, tx) => sum + tx.balance, 0); 
 

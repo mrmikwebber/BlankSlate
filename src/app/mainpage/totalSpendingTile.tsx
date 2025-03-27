@@ -33,7 +33,7 @@ const TotalSpendingTile = () => {
       .filter((tx) => {
         return (
           tx.category === "Ready to Assign" &&
-          isSameMonth(tx.date instanceof Date ? tx.date : format(parseISO(tx.date), "yyyy-MM"), format(parseISO(currentMonth), "yyyy-MM"))
+          tx.date && isSameMonth(tx.date instanceof Date ? tx.date : format(parseISO(tx.date), "yyyy-MM"), format(parseISO(currentMonth), "yyyy-MM"))
         );
       })
       .reduce((sum, tx) => sum + tx.balance, 0);
@@ -44,7 +44,8 @@ const TotalSpendingTile = () => {
 
     accounts.forEach((account) => {
       account.transactions.forEach((tx) => {
-        if (tx.balance < 0 && isSameMonth(tx.date instanceof Date ? tx.date : format(parseISO(tx.date), "yyyy-MM"), format(parseISO(currentMonth), "yyyy-MM"))) {
+        if (tx.category === "Ready To Assign") return;
+        if (tx.balance < 0 && tx.date && isSameMonth(tx.date instanceof Date ? tx.date : format(parseISO(tx.date), "yyyy-MM"), format(parseISO(currentMonth), "yyyy-MM"))) {
           if (!categoryTotals[tx.category]) {
             categoryTotals[tx.category] = 0;
           }
@@ -65,6 +66,8 @@ const TotalSpendingTile = () => {
     (sum, category) => sum + category.value,
     0
   );
+
+  console.log(spendingData);
 
   return (
     <div className="bg-white p-4 rounded-lg shadow-md mt-6">
@@ -104,7 +107,7 @@ const TotalSpendingTile = () => {
             </div>
 
             <div className="mt-6 md:mt-0 md:ml-8 w-full max-w-[300px]">
-              <h3 className="text-md font-semibold mb-2">Category Breakdown</h3>
+              <h3 className="text-md font-semibold mb-2">Spending Breakdown</h3>
               <ul className="space-y-2">
                 {spendingData.map((category, index) => (
                   <li

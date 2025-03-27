@@ -12,15 +12,6 @@ const MonthNav = () => {
     const { accounts } = useAccountContext();
 
 
-  const computedAccounts = useMemo(
-    () =>
-      accounts.map((account) => ({
-        ...account,
-        balance: account.transactions.reduce((sum, tx) => sum + tx.balance, 0),
-      })),
-    [accounts]
-  );
-
   const formattedMonth = useMemo(
     () => {
         const parsedDate = parse(currentMonth, 'yyyy-MM', new Date());
@@ -33,14 +24,14 @@ const MonthNav = () => {
     const parsedDate = parse(`${currentMonth}-01`, "yyyy-MM-dd", new Date());
     const nextMonthDate = addMonths(parsedDate, 1);
     const nextMonth = format(nextMonthDate, 'yyyy-MM');
-    updateMonth(nextMonth, 'forward', computedAccounts);
+    updateMonth(nextMonth, 'forward', accounts);
   };
   
   const goToPreviousMonth = () => {
     const parsedDate = parse(`${currentMonth}-01`, "yyyy-MM-dd", new Date());
     const prevMonthDate = subMonths(parsedDate, 1);
     const prevMonth = format(prevMonthDate, 'yyyy-MM');
-    updateMonth(prevMonth, 'backward', computedAccounts);
+    updateMonth(prevMonth, 'backward', accounts);
   };
 
   return (

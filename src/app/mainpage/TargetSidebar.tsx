@@ -34,16 +34,6 @@ export const TargetSidebar = ({ itemName, onClose }) => {
       )
       .find((item) => item.name === itemName);
   };
-
-  const computedAccounts = useMemo(
-    () =>
-      accounts.map((account) => ({
-        ...account,
-        balance: account.transactions.reduce((sum, tx) => sum + tx.balance, 0),
-      })),
-    [accounts]
-  );
-
   useEffect(() => {
     const foundItem = findCategoryItemByName(itemName);
     setCategoryItem(foundItem);
@@ -68,7 +58,7 @@ export const TargetSidebar = ({ itemName, onClose }) => {
     if (targetType === "Full Payoff") {
       const accountBalance =
         -1 *
-        computedAccounts.filter((account) => account.name === itemName)[0]
+        accounts.filter((account) => account.name === itemName)[0]
           .balance;
       setTargetAmount(accountBalance);
     }
