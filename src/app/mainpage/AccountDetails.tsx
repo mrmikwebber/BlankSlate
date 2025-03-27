@@ -13,11 +13,6 @@ export default function AccountDetails() {
 
   const account = accounts.find((acc) => acc.id === id);
 
-  console.log(account?.transactions);
-
-  console.log(account?.transactions[0].payee);
-  console.log(account?.transactions[0].balance);
-
   const [showForm, setShowForm] = useState(false);
   const [isNegative, setIsNegative] = useState(false);
   const [newTransaction, setNewTransaction] = useState({

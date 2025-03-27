@@ -108,7 +108,6 @@ export default function CollapsibleTable() {
   };
 
   const handleInputChange = (categoryName, itemName, value) => {
-    console.log('set budget data');
     setBudgetData((prev) => {
       const updatedCategories =
         prev[currentMonth]?.categories.map((category) => {

@@ -180,8 +180,6 @@ const { accounts } = useAccountContext();
         paymentsMap[account.name] += assignedToCategory;
       }
     }
-
-    console.log("paymentsMap", paymentsMap);
   
     return Object.entries(paymentsMap).map(([card, payment]) => ({
       card,
@@ -312,7 +310,6 @@ useEffect(() => {
             item.name,
             accounts
           );
-          console.log('updating')
 
           const availableSum = item.assigned + itemActivity;
           return {
@@ -624,7 +621,6 @@ useEffect(() => {
                 
 
                 const itemActivity = calculateActivityForMonth(newMonth, item.name);
-                console.log(item.name, pastAvailable, itemActivity)
                 return {
                 ...item,
                 activity: itemActivity,

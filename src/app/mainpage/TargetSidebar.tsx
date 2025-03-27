@@ -46,7 +46,6 @@ export const TargetSidebar = ({ itemName, onClose }) => {
       if(foundItem.categoryName === "Credit Card Payments") {
         setTargetType(existingTarget?.type || "Full Payoff");
       } else {
-        console.log(existingTarget?.type)
         setTargetType(existingTarget?.type.toLowerCase() || "monthly");
       }
       setCustomTargetDate(existingTarget?.targetDate || "");

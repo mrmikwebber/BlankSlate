@@ -67,8 +67,6 @@ const TotalSpendingTile = () => {
     0
   );
 
-  console.log(spendingData);
-
   return (
     <div className="bg-white p-4 rounded-lg shadow-md mt-6">
       <h2 className="text-lg font-semibold mb-4">Current Month Spending</h2>
