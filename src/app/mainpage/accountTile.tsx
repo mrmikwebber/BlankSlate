@@ -16,6 +16,8 @@ export default function AccountTile(props) {
     redirect(`/accounts/${account?.id}`)
   }
 
+  console.log(account);
+
   return (
     <div
       onClick={() => openAccount()}
