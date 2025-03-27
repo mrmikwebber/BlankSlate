@@ -28,6 +28,7 @@ interface AccountContextType {
   addAccount: (newAccount) => void;
   setAccounts: (accounts) => void;
   deleteAccount: (accountId: number) => void;
+  deleteTransaction: (accountId: number, transactionId: number) => void;
 }
 
 const AccountContext = createContext<AccountContextType | undefined>(undefined);
@@ -138,8 +139,30 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   };
 
+  const deleteTransaction = async (accountId: number, transactionId: number) => {
+    setAccounts((prev) =>
+      prev.map((acc) =>
+        acc.id === accountId
+          ? {
+              ...acc,
+              transactions: acc.transactions.filter((tx) => tx.id !== transactionId),
+            }
+          : acc
+      )
+    );
+  
+    const { error } = await supabase
+      .from("transactions")
+      .delete()
+      .eq("id", transactionId);
+  
+    if (error) {
+      console.error("Failed to delete transaction:", error);
+    }
+  };
+
   return (
-    <AccountContext.Provider value={{ accounts, addTransaction, addAccount, deleteAccount, loading, resetAccounts }}>
+    <AccountContext.Provider value={{ accounts, addTransaction, addAccount, deleteAccount, deleteTransaction, resetAccounts }}>
       {children}
     </AccountContext.Provider>
   );

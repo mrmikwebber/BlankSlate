@@ -1,26 +1,40 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAccountContext } from "@/app/context/AccountContext";
 import { useBudgetContext } from "../context/BudgetContext";
 import { parseISO, format } from "date-fns";
+import { formatToUSD } from "../utils/formatToUSD";
 
 export default function AccountDetails() {
   const { id } = useParams();
   const { budgetData, currentMonth } = useBudgetContext();
-  const { accounts, addTransaction } = useAccountContext();
+  const { accounts, addTransaction, deleteTransaction } = useAccountContext();
+
+  useEffect(() => {
+    const handleClick = () => setContextMenu(null);
+    window.addEventListener("click", handleClick);
+    return () => window.removeEventListener("click", handleClick);
+  }, []);
 
   const account = accounts.find((acc) => acc.id === id);
 
   const [showForm, setShowForm] = useState(false);
   const [isNegative, setIsNegative] = useState(false);
+  const [confirming, setConfirming] = useState<number | null>(null);
   const [newTransaction, setNewTransaction] = useState({
     payee: "",
     category: "",
     category_group: "",
     balance: 0,
   });
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    txId: number;
+    accountId: number;
+  } | null>(null);
 
   if (!account) return <p className="text-center mt-10">Account not found.</p>;
 
@@ -28,7 +42,9 @@ export default function AccountDetails() {
     addTransaction(account.id, {
       date: new Date(),
       ...newTransaction,
-      balance: isNegative ? -1 * newTransaction.balance : newTransaction.balance,
+      balance: isNegative
+        ? -1 * newTransaction.balance
+        : newTransaction.balance,
     });
     setNewTransaction({
       payee: "",
@@ -42,6 +58,23 @@ export default function AccountDetails() {
 
   return (
     <div className="mx-auto p-6 relative">
+      {contextMenu && (
+        <div
+          className="fixed z-50 bg-white border rounded shadow-md text-sm"
+          style={{ top: contextMenu.y, left: contextMenu.x }}
+          onClick={() => setContextMenu(null)}
+        >
+          <button
+            onClick={() => {
+              deleteTransaction(contextMenu.accountId, contextMenu.txId);
+              setContextMenu(null);
+            }}
+            className="px-4 py-2 hover:bg-red-100 text-red-600 w-full text-left"
+          >
+            Delete Transaction
+          </button>
+        </div>
+      )}
       <h1 className="text-2xl font-bold mb-4">{account.name} Overview</h1>
       <div className="flex justify-between">
         <h2 className="text-xl font-semibold mb-2">Transactions</h2>
@@ -63,9 +96,20 @@ export default function AccountDetails() {
         </thead>
         <tbody>
           {account.transactions.map((tx) => (
-            <tr key={tx.id}>
+            <tr
+              key={tx.id}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                setContextMenu({
+                  x: e.clientX,
+                  y: e.clientY,                
+                  txId: tx.id,
+                  accountId: account.id,
+                });
+              }}
+            >
               <td className="border p-2">
-              {tx.date && format(parseISO(tx.date), "eee, MMM d yyyy")}
+                {tx.date && format(parseISO(tx.date), "eee, MMM d yyyy")}
               </td>
               <td className="border p-2">{tx.payee}</td>
               <td className="border p-2">{tx.category}</td>
