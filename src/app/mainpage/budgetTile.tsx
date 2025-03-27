@@ -23,6 +23,8 @@ export default function CollapsibleTable() {
     addItemToCategory,
     loading: isBudgetLoading,
     deleteCategoryGroup,
+    deleteCategoryWithReassignment,
+    deleteCategoryItem,
   } = useBudgetContext();
   const { loading: isAccountsLoading } = useAccountContext();
   const { user } = useAuth();
@@ -36,6 +38,7 @@ export default function CollapsibleTable() {
   ];
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState("");
+  const [selectedTargetCategory, setSelectedTargetCategory] = useState("");
   const [targetSidebarOpen, setTargetSidebarOpen] = useState(false);
   const [newItem, setNewItem] = useState({
     name: "",
@@ -53,6 +56,13 @@ export default function CollapsibleTable() {
     y: number;
     categoryName: string;
     itemCount: number;
+  } | null>(null);
+  const [categoryDeleteContext, setCategoryDeleteContext] = useState<{
+    categoryName: string;
+    itemName: string;
+    assigned: number;
+    activity: number;
+    available: number;
   } | null>(null);
 
   useEffect(() => {
@@ -259,214 +269,318 @@ export default function CollapsibleTable() {
 
   return (
     <>
-    {groupContext &&
-      createPortal(
-        <div
-          className="fixed z-50 w-[160px] bg-white border shadow rounded text-sm"
-          style={{ top: groupContext.y, left: groupContext.x }}
-          onClick={() => setGroupContext(null)}
-        >
-          {groupContext.itemCount === 0 ? (
-            <button
-              onClick={() => {
-                deleteCategoryGroup(groupContext.categoryName);
-                setGroupContext(null);
-              }}
-              className="px-4 py-2 hover:bg-red-100 text-red-600 w-full text-left"
-            >
-              Delete Group
-            </button>
-          ) : (
-            <div className="px-4 py-2 text-gray-500">
-              Cannot delete: Group not empty
-            </div>
-          )}
-        </div>,
-        document.body
-      )}
-
-    <div className="mx-auto mt-8 rounded-md">
-      <MonthNav />
-      <div className="flex mt-2 mb-2">
-        <AddCategoryButton handleSubmit={addCategoryGroup} />
-      </div>
-      <div className="flex gap-2 mb-4">
-        {FILTERS.map((filter) => (
-          <button
-            key={filter}
-            className={`px-4 py-2 rounded-md ${
-              selectedFilter === filter
-                ? "bg-blue-600 text-white"
-                : "bg-gray-200 text-gray-700"
-            }`}
-            onClick={() => setSelectedFilter(filter)}
+      {groupContext &&
+        createPortal(
+          <div
+            className="fixed z-50 w-[160px] bg-white border shadow rounded text-sm"
+            style={{ top: groupContext.y, left: groupContext.x }}
+            onClick={() => setGroupContext(null)}
           >
-            {filter}
-          </button>
-        ))}
-      </div>
-      <div className="flex">
-        <table className="w-full border border-gray-300 rounded-md">
-          <thead>
-            <tr className="bg-gray-200 text-left">
-              <th className="p-2 border">Category</th>
-              <th className="p-2 border">Assigned</th>
-              <th className="p-2 border">Activity</th>
-              <th className="p-2 border">Available</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredCategories.map((group) => (
-              <Fragment key={group.name}>
-                <tr
-                  className="bg-gray-400 text-white"
-                  onMouseEnter={() => setHoveredCategory(group.name)}
-                  onMouseLeave={() => setHoveredCategory(null)}
-                >
-                  <td
-                    colSpan={0}
-                    className="p-3 font-bold text-lg w-full"
-                    onContextMenu={(e) => {
-                      e.preventDefault();
-                      setGroupContext({
-                        x: Math.min(e.clientX, window.innerWidth - 160),
-                        y: Math.min(e.clientY, window.innerHeight - 50),
-                        categoryName: group.name,
-                        itemCount: group.categoryItems.length,
-                      });
-                    }}
-                  >
-                    <div className="flex items-center">
-                      <button
-                        onClick={() => toggleCategory(group.name)}
-                        className="mr-2"
-                      >
-                        {openCategories[group.name] ? "▼" : "▶"}
-                      </button>
-                      {group.name}
-                      {hoveredCategory === group.name && (
-                        <button
-                          onClick={() => setActiveCategory(group.name)}
-                          className="ms-2 text-sm bg-blue-500 text-white px-2 py-1 rounded-full hover:bg-teal-500 transition"
-                        >
-                          +
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                  <td className="p-2 border">
-                    {formatToUSD(
-                      group.categoryItems.reduce(
-                        (sum, item) => sum + item.assigned,
-                        0
-                      )
-                    )}
-                  </td>
-                  <td className="p-2 border">
-                    {formatToUSD(
-                      group.categoryItems.reduce(
-                        (sum, item) => sum + item.activity,
-                        0
-                      )
-                    )}
-                  </td>
-                  <td className="p-2 border">
-                    {group.name === "Credit Card Payments"
-                      ? "Payment - " +
-                        formatToUSD(
-                          group.categoryItems.reduce(
-                            (sum, item) => sum + item.available,
-                            0
-                          ) || 0
-                        )
-                      : formatToUSD(
-                          group.categoryItems.reduce(
-                            (sum, item) => sum + item.available,
-                            0
-                          )
-                        )}
-                  </td>
-                </tr>
+            {groupContext.itemCount === 0 ? (
+              <button
+                onClick={() => {
+                  deleteCategoryGroup(groupContext.categoryName);
+                  setGroupContext(null);
+                }}
+                className="px-4 py-2 hover:bg-red-100 text-red-600 w-full text-left"
+              >
+                Delete Group
+              </button>
+            ) : (
+              <div className="px-4 py-2 text-gray-500">
+                Cannot delete: Group not empty
+              </div>
+            )}
+          </div>,
+          document.body
+        )}
 
-                {activeCategory === group.name && (
-                  <div className="absolute left-0 mt-2 w-64 bg-white p-4 shadow-lg rounded-lg border z-50">
-                    <input
-                      type="text"
-                      placeholder="Item Name"
-                      value={newItem.name}
-                      onChange={(e) =>
-                        setNewItem({ ...newItem, name: e.target.value })
-                      }
-                      className="w-full border rounded px-2 py-1"
-                    />
+      {categoryDeleteContext &&
+        createPortal(
+          <div className="fixed inset-0 bg-black bg-opacity-30 z-50 flex items-center justify-center">
+            <div className="bg-white p-6 rounded shadow-lg w-96">
+              <h2 className="text-lg font-bold mb-4">
+                Delete “{categoryDeleteContext.itemName}”?
+              </h2>
+
+              {categoryDeleteContext.assigned !== 0 ||
+              categoryDeleteContext.activity !== 0 ? (
+                <>
+                  <p className="mb-2 text-sm text-gray-600">
+                    This category has existing funds or activity. Where should
+                    they be moved?
+                  </p>
+
+                  <select
+                    className="w-full border p-2 mb-4 rounded"
+                    value={selectedTargetCategory}
+                    onChange={(e) => setSelectedTargetCategory(e.target.value)}
+                  >
+                    <option value="">Select a target category</option>
+                    {budgetData[currentMonth]?.categories
+                      .flatMap((cat) =>
+                        cat.categoryItems
+                          .filter(
+                            (i) => i.name !== categoryDeleteContext.itemName
+                          )
+                          .map((i) => i.name)
+                      )
+                      .map((name) => (
+                        <option key={name} value={name}>
+                          {name}
+                        </option>
+                      ))}
+                  </select>
+
+                  <div className="flex justify-end gap-2">
                     <button
-                      onClick={() => handleAddItem(group.name)}
-                      className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-500 transition"
+                      onClick={() => setCategoryDeleteContext(null)}
+                      className="px-4 py-2 text-gray-600 hover:underline"
                     >
-                      Submit
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => {
+                        deleteCategoryWithReassignment(
+                          categoryDeleteContext,
+                          selectedTargetCategory
+                        );
+                        setCategoryDeleteContext(null);
+                      }}
+                      className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-500"
+                      disabled={!selectedTargetCategory}
+                    >
+                      Confirm & Reassign
                     </button>
                   </div>
-                )}
-                {openCategories[group.name] &&
-                  group.categoryItems.map((item, itemIndex) => (
-                    <tr key={itemIndex} className="border-t">
-                      <td
-                        onClick={() => {
-                          toggleTargetSideBar(item);
-                        }}
-                        className="p-2 border relative"
-                      >
-                        {item.target && (
-                          <div className="absolute top-0 left-0 w-full h-full bg-gray-200 rounded">
-                            <div
-                              className="h-full bg-teal-500 transition-all duration-300 rounded"
-                              style={{
-                                width: `${Math.min(
-                                  (item.assigned / item.target.amountNeeded) *
-                                    100,
-                                  100
-                                )}%`,
-                              }}
-                            ></div>
-                          </div>
-                        )}
-                        <span className="relative z-10 font-medium">
-                          {item.name}{" "}
-                          {item.target && (
-                            <span className={getTargetStatus(item).color}>
-                              {getTargetStatus(item).message}
-                            </span>
-                          )}
-                        </span>
-                      </td>
-                      <EditableAssigned
-                        categoryName={group.name}
-                        itemName={item.name}
-                        item={item}
-                        handleInputChange={handleInputChange}
-                      />
-                      <td className="p-2 border">
-                        {formatToUSD(item.activity || 0)}
-                      </td>
-                      <td className="p-2 border">
-                        {formatToUSD(item.available || 0)}
-                      </td>
-                    </tr>
-                  ))}
-              </Fragment>
-            ))}
-          </tbody>
-        </table>
-        {targetSidebarOpen && (
-          <TargetSidebar
-            itemName={selectedCategory}
-            onClose={() => {
-              setTargetSidebarOpen(false);
-            }}
-          />
+                </>
+              ) : (
+                <>
+                  <p className="mb-4 text-sm text-gray-600">
+                    This category has no funds or activity. Are you sure you
+                    want to delete it?
+                  </p>
+                  <div className="flex justify-end gap-2">
+                    <button
+                      onClick={() => setCategoryDeleteContext(null)}
+                      className="px-4 py-2 text-gray-600 hover:underline"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => {
+                        deleteCategoryItem(categoryDeleteContext);
+                        setCategoryDeleteContext(null);
+                      }}
+                      className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-500"
+                    >
+                      Confirm Delete
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>,
+          document.body
         )}
+
+      <div className="mx-auto mt-8 rounded-md">
+        <MonthNav />
+        <div className="flex mt-2 mb-2">
+          <AddCategoryButton handleSubmit={addCategoryGroup} />
+        </div>
+        <div className="flex gap-2 mb-4">
+          {FILTERS.map((filter) => (
+            <button
+              key={filter}
+              className={`px-4 py-2 rounded-md ${
+                selectedFilter === filter
+                  ? "bg-blue-600 text-white"
+                  : "bg-gray-200 text-gray-700"
+              }`}
+              onClick={() => setSelectedFilter(filter)}
+            >
+              {filter}
+            </button>
+          ))}
+        </div>
+        <div className="flex">
+          <table className="w-full border border-gray-300 rounded-md">
+            <thead>
+              <tr className="bg-gray-200 text-left">
+                <th className="p-2 border">Category</th>
+                <th className="p-2 border">Assigned</th>
+                <th className="p-2 border">Activity</th>
+                <th className="p-2 border">Available</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredCategories.map((group) => (
+                <Fragment key={group.name}>
+                  <tr
+                    className="bg-gray-400 text-white"
+                    onMouseEnter={() => setHoveredCategory(group.name)}
+                    onMouseLeave={() => setHoveredCategory(null)}
+                  >
+                    <td
+                      colSpan={0}
+                      className="p-3 font-bold text-lg w-full"
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        setGroupContext({
+                          x: Math.min(e.clientX, window.innerWidth - 160),
+                          y: Math.min(e.clientY, window.innerHeight - 50),
+                          categoryName: group.name,
+                          itemCount: group.categoryItems.length,
+                        });
+                      }}
+                    >
+                      <div className="flex items-center">
+                        <button
+                          onClick={() => toggleCategory(group.name)}
+                          className="mr-2"
+                        >
+                          {openCategories[group.name] ? "▼" : "▶"}
+                        </button>
+                        {group.name}
+                        {hoveredCategory === group.name && (
+                          <button
+                            onClick={() => setActiveCategory(group.name)}
+                            className="ms-2 text-sm bg-blue-500 text-white px-2 py-1 rounded-full hover:bg-teal-500 transition"
+                          >
+                            +
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                    <td className="p-2 border">
+                      {formatToUSD(
+                        group.categoryItems.reduce(
+                          (sum, item) => sum + item.assigned,
+                          0
+                        )
+                      )}
+                    </td>
+                    <td className="p-2 border">
+                      {formatToUSD(
+                        group.categoryItems.reduce(
+                          (sum, item) => sum + item.activity,
+                          0
+                        )
+                      )}
+                    </td>
+                    <td className="p-2 border">
+                      {group.name === "Credit Card Payments"
+                        ? "Payment - " +
+                          formatToUSD(
+                            group.categoryItems.reduce(
+                              (sum, item) => sum + item.available,
+                              0
+                            ) || 0
+                          )
+                        : formatToUSD(
+                            group.categoryItems.reduce(
+                              (sum, item) => sum + item.available,
+                              0
+                            )
+                          )}
+                    </td>
+                  </tr>
+
+                  {activeCategory === group.name && (
+                    <div className="absolute left-0 mt-2 w-64 bg-white p-4 shadow-lg rounded-lg border z-50">
+                      <input
+                        type="text"
+                        placeholder="Item Name"
+                        value={newItem.name}
+                        onChange={(e) =>
+                          setNewItem({ ...newItem, name: e.target.value })
+                        }
+                        className="w-full border rounded px-2 py-1"
+                      />
+                      <button
+                        onClick={() => handleAddItem(group.name)}
+                        className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-500 transition"
+                      >
+                        Submit
+                      </button>
+                    </div>
+                  )}
+                  {openCategories[group.name] &&
+                    group.categoryItems.map((item, itemIndex) => (
+                      <tr
+                        key={itemIndex}
+                        className="border-t"
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          if (group.name !== "Credit Card Payments") {
+                            setCategoryDeleteContext({
+                              categoryName: group.name,
+                              itemName: item.name,
+                              assigned: item.assigned,
+                              activity: item.activity,
+                              available: item.available,
+                            });
+                          }
+                        }}
+                      >
+                        <td
+                          onClick={() => {
+                            toggleTargetSideBar(item);
+                          }}
+                          className="p-2 border relative"
+                        >
+                          {item.target && (
+                            <div className="absolute top-0 left-0 w-full h-full bg-gray-200 rounded">
+                              <div
+                                className="h-full bg-teal-500 transition-all duration-300 rounded"
+                                style={{
+                                  width: `${Math.min(
+                                    (item.assigned / item.target.amountNeeded) *
+                                      100,
+                                    100
+                                  )}%`,
+                                }}
+                              ></div>
+                            </div>
+                          )}
+                          <span className="relative z-10 font-medium">
+                            {item.name}{" "}
+                            {item.target && (
+                              <span className={getTargetStatus(item).color}>
+                                {getTargetStatus(item).message}
+                              </span>
+                            )}
+                          </span>
+                        </td>
+                        <EditableAssigned
+                          categoryName={group.name}
+                          itemName={item.name}
+                          item={item}
+                          handleInputChange={handleInputChange}
+                        />
+                        <td className="p-2 border">
+                          {formatToUSD(item.activity || 0)}
+                        </td>
+                        <td className="p-2 border">
+                          {formatToUSD(item.available || 0)}
+                        </td>
+                      </tr>
+                    ))}
+                </Fragment>
+              ))}
+            </tbody>
+          </table>
+          {targetSidebarOpen && (
+            <TargetSidebar
+              itemName={selectedCategory}
+              onClose={() => {
+                setTargetSidebarOpen(false);
+              }}
+            />
+          )}
+        </div>
       </div>
-    </div>
     </>
   );
 }

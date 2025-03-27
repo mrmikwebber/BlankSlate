@@ -396,7 +396,7 @@ useEffect(() => {
       return updated;
     });
   
-    setIsDirty(true); // optional: if saving changes
+    setIsDirty(true); 
   };
   
   const addItemToCategory = (
@@ -418,6 +418,61 @@ useEffect(() => {
         },
       };
     });
+  };
+
+  const deleteCategoryWithReassignment = (context, targetItemName) => {
+    setBudgetData((prev) => {
+      const updated = { ...prev };
+      const { itemName, assigned, activity } = context;
+  
+      for (const month in updated) {
+        updated[month].categories = updated[month].categories.map((cat) => {
+          return {
+            ...cat,
+            categoryItems: cat.categoryItems
+              .map((item) => {
+                if (item.name === itemName) return null;
+                if (item.name === targetItemName) {
+                  const newAssigned = item.assigned + assigned;
+                  const newActivity = item.activity + activity;
+                
+                  return {
+                    ...item,
+                    assigned: newAssigned,
+                    activity: newActivity,
+                    available: newAssigned + newActivity, 
+                  };
+                }
+                return item;
+              })
+              .filter(Boolean),
+          };
+        });
+      }
+  
+      return updated;
+    });
+  
+    setIsDirty(true);
+  };
+
+  const deleteCategoryItem = (context) => {
+    const { itemName } = context;
+  
+    setBudgetData((prev) => {
+      const updated = { ...prev };
+  
+      for (const month in updated) {
+        updated[month].categories = updated[month].categories.map((cat) => ({
+          ...cat,
+          categoryItems: cat.categoryItems.filter((item) => item.name !== itemName),
+        }));
+      }
+  
+      return updated;
+    });
+  
+    setIsDirty(true);
   };
 
   const setCategoryTarget = (categoryItemName, target) => {
@@ -781,6 +836,8 @@ useEffect(() => {
         resetBudgetData,
         creditCardPayments,
         deleteCategoryGroup,
+        deleteCategoryWithReassignment,
+        deleteCategoryItem,
       }}
     >
       {children}
