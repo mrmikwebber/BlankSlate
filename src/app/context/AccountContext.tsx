@@ -59,7 +59,7 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
         return;
       }
     
-      setAccounts(data || []); // 👈 empty array if new user
+      setAccounts(data || []);
     };
     
 

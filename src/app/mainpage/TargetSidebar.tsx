@@ -46,7 +46,7 @@ export const TargetSidebar = ({ itemName, onClose }) => {
       if(foundItem.categoryName === "Credit Card Payments") {
         setTargetType(existingTarget?.type || "Full Payoff");
       } else {
-        setTargetType(existingTarget?.type || "Monthly");
+        setTargetType(existingTarget?.type.toLowerCase() || "monthly");
       }
       setCustomTargetDate(existingTarget?.targetDate || "");
       setShowForm(!!existingTarget);
@@ -75,13 +75,14 @@ export const TargetSidebar = ({ itemName, onClose }) => {
       (targetType === "Custom" || targetType === "Full Payoff") &&
       customTargetDate
     ) {
-      const targetMonthNumber = getMonth(format(parseISO(customTargetDate), "yyyy-MM")) + 1;
-      const currentMonthNumber = getMonth(new Date()) + 1;
+      console.log('customTargetDate', customTargetDate);
+      const targetMonthNumber = getMonth(parseISO(customTargetDate)) + 1;
+      const currentMonthNumber = getMonth(parseISO(currentMonth));
 
-      const monthsUntilTarget =
-        targetMonthNumber - currentMonthNumber === 0
-          ? 1
-          : targetMonthNumber - currentMonthNumber + 1;
+      let monthsUntilTarget = targetMonthNumber - currentMonthNumber;
+      if (monthsUntilTarget <= 0) monthsUntilTarget = 1;
+
+      console.log('monthsUntilTarget', monthsUntilTarget);
 
       let totalAssigned = 0;
       Object.keys(budgetData).forEach((month) => {
