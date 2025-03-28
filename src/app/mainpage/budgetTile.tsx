@@ -26,7 +26,6 @@ export default function CollapsibleTable() {
     deleteCategoryWithReassignment,
     deleteCategoryItem,
   } = useBudgetContext();
-  const { loading: isAccountsLoading } = useAccountContext();
   const { user } = useAuth();
 
   const FILTERS = [
@@ -276,10 +275,6 @@ export default function CollapsibleTable() {
 
   if (!user) {
     return <LandingCoverPage />;
-  }
-
-  if (isAccountsLoading || isBudgetLoading) {
-    return <InterstitialPage />;
   }
 
   return (

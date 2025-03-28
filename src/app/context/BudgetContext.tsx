@@ -10,6 +10,22 @@ const getPreviousMonth = (month: string) => {
   return format(subMonths(parseISO(`${month}-01`), 1), "yyyy-MM");
 }
   
+interface BudgetData {
+  categories: {
+    name: string;
+    categoryItems: {
+      name: string;
+      assigned: number;
+      activity: number;
+      available: number;
+      target?: any;
+    }[];
+  }[];
+  assignable_money: number;
+  ready_to_assign: number;
+  id?: string;
+}
+
 const BudgetContext = createContext(null);
 
 export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
@@ -19,7 +35,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
   const [currentMonth, setCurrentMonth] = useState(
     format(new Date(), "yyyy-MM")
   );
-  const [budgetData, setBudgetData] = useState({});
+  const [budgetData, setBudgetData] = useState<Record<string, BudgetData>>({});
 
   const createDefaultCategories = () => [
   {
@@ -81,7 +97,18 @@ const { accounts, setAccounts } = useAccountContext();
           console.error("Insert error:", insertError);
           return;
         }
-        setBudgetData({ [newMonth]: { ...initial, id: inserted[0].id } });
+
+        setBudgetData(prev => ({
+          ...prev,
+          [newMonth]: {
+            id: inserted[0].id,
+            user_id: initial.user_id,
+            month: initial.month,
+            categories: initial.data.categories,
+            assignable_money: initial.assignable_money,
+            ready_to_assign: initial.ready_to_assign,
+          },
+        }));
         setCurrentMonth(newMonth);
       } else {
         const formatted = {};
@@ -173,13 +200,13 @@ const { accounts, setAccounts } = useAccountContext();
         if (remainingAssigned.has(category) && isSameMonth(format(parseISO(transaction.date), "yyyy-MM"), format(parseISO(currentMonth), "yyyy-MM"))) {
           const assignedAmount = remainingAssigned.get(category);
           const deduction = Math.min(
-            assignedAmount,
+            assignedAmount as number,
             Math.abs(transaction.balance)
           );
 
-          remainingAssigned.set(category, assignedAmount - deduction);
+          remainingAssigned.set(category, assignedAmount as number - deduction);
 
-          if (remainingAssigned.get(category) <= 0) {
+          if (remainingAssigned.get(category) as number <= 0) {
             remainingAssigned.delete(category);
           }
         }
@@ -196,14 +223,14 @@ const { accounts, setAccounts } = useAccountContext();
           if (remainingAssigned.has(category) && isSameMonth(format(parseISO(transaction.date), "yyyy-MM"), format(parseISO(currentMonth), "yyyy-MM"))) {
             const assignedAmount = remainingAssigned.get(category);
             const deduction = Math.min(
-              assignedAmount,
+              assignedAmount as number,
               Math.abs(transaction.balance)
             );
 
-            remainingAssigned.set(category, assignedAmount - deduction);
+            remainingAssigned.set(category, assignedAmount as number - deduction);
             payment += deduction;
 
-            if (remainingAssigned.get(category) <= 0) {
+            if (remainingAssigned.get(category) as number <= 0) {
               remainingAssigned.delete(category);
             }
           }
@@ -663,7 +690,7 @@ useEffect(() => {
 
         const allGroupNames = new Set(
           Object.values(prev).flatMap((month) =>
-            month.categories.map((cat) => cat.name)
+            month?.categories?.map((cat) => cat.name) || []
           )
         );
         

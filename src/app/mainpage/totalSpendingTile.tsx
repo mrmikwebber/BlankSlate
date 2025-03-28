@@ -33,7 +33,7 @@ const TotalSpendingTile = () => {
       .filter((tx) => {
         return (
           tx.category === "Ready to Assign" &&
-          tx.date && isSameMonth(tx.date instanceof Date ? tx.date : format(parseISO(tx.date), "yyyy-MM"), format(parseISO(currentMonth), "yyyy-MM"))
+          tx.date && isSameMonth(typeof tx.date === 'string' ? parseISO(tx.date) : tx.date, parseISO(currentMonth))
         );
       })
       .reduce((sum, tx) => sum + tx.balance, 0);
@@ -45,7 +45,7 @@ const TotalSpendingTile = () => {
     accounts.forEach((account) => {
       account.transactions.forEach((tx) => {
         if (tx.category === "Ready To Assign") return;
-        if (tx.balance < 0 && tx.date && isSameMonth(tx.date instanceof Date ? tx.date : format(parseISO(tx.date), "yyyy-MM"), format(parseISO(currentMonth), "yyyy-MM"))) {
+        if (tx.balance < 0 && tx.date && isSameMonth(typeof tx.date === 'string' ? parseISO(tx.date) : tx.date, parseISO(currentMonth))) {
           if (!categoryTotals[tx.category]) {
             categoryTotals[tx.category] = 0;
           }
@@ -57,7 +57,7 @@ const TotalSpendingTile = () => {
     return Object.entries(categoryTotals).map(([category, amount], index) => ({
       name: category,
       value: amount,
-      percentage: totalInflow ? ((amount / totalInflow) * 100).toFixed(1) : 0,
+      percentage: totalInflow ? ((amount as number / totalInflow) * 100).toFixed(1) : 0,
       color: COLORS[index % COLORS.length],
     }));
   }, [accounts, currentMonth]);

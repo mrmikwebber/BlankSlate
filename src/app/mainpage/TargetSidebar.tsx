@@ -58,7 +58,7 @@ export const TargetSidebar = ({ itemName, onClose }) => {
         -1 *
         accounts.filter((account) => account.name === itemName)[0]
           .balance;
-      setTargetAmount(accountBalance);
+      setTargetAmount(accountBalance.toString());
     }
   }, [targetType]);
 

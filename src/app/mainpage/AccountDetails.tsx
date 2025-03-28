@@ -17,7 +17,7 @@ export default function AccountDetails() {
     return () => window.removeEventListener("click", handleClick);
   }, []);
 
-  const account = accounts.find((acc) => acc.id === id);
+  const account = accounts.find((acc) => acc.id.toString() === id);
 
   const [showForm, setShowForm] = useState(false);
   const [isNegative, setIsNegative] = useState(false);
