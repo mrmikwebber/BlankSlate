@@ -5,7 +5,8 @@ import {
   parseISO,
   subMonths,
   differenceInCalendarMonths,
-  format
+  format,
+  isSameMonth
 } from "date-fns";
 import { useBudgetContext } from "../context/BudgetContext";
 import { useAccountContext } from "../context/AccountContext";
@@ -126,8 +127,7 @@ export const TargetSidebar = ({ itemName, onClose }) => {
         (transaction) =>
         {
            return transaction.category === categoryItem.name &&
-          getMonth(transaction.date) + 1 ===
-            getMonth(parseISO(currentMonth)) + 1
+           isSameMonth(format(parseISO(transaction.date), "yyyy-MM"), format(parseISO(currentMonth), "yyyy-MM"))
         }
 
       )
