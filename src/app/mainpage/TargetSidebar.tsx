@@ -152,6 +152,11 @@ export const TargetSidebar = ({ itemName, onClose }) => {
     }
   };
 
+  const handleRemoveTarget = () => {
+    setCategoryTarget(categoryItem.name, null);
+    handleClose();
+  }
+
   const handleClose = () => {
     setIsVisible(false);
     setTargetType("");
@@ -300,6 +305,13 @@ export const TargetSidebar = ({ itemName, onClose }) => {
       >
         {target ? "Update Target" : "Save Target"}
       </button>
+      {target && 
+      <button
+        onClick={handleRemoveTarget}
+        className="mt-4 w-full bg-teal-600 text-white py-2 rounded-md hover:bg-teal-500 transition"
+      >
+        Remove Target
+      </button>}
     </div>
   );
 };

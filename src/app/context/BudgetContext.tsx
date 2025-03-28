@@ -1,6 +1,6 @@
 "use client";
 import { createContext, useContext, useState, useEffect, useRef, useCallback } from "react";
-import { differenceInCalendarMonths, format, getMonth, isSameMonth, parseISO, subMonths } from "date-fns";
+import { differenceInCalendarMonths, format, getMonth, isAfter, isSameMonth, parseISO, subMonths } from "date-fns";
 import { useAuth } from "./AuthContext";
 import { supabase } from "@/utils/supabaseClient";
 import debounce from "lodash.debounce";
@@ -574,18 +574,32 @@ useEffect(() => {
   };
 
   const setCategoryTarget = (categoryItemName, target) => {
-    setBudgetData((prev) => ({
-      ...prev,
-      [currentMonth]: {
-        ...prev[currentMonth],
-        categories: prev[currentMonth].categories.map((category) => ({
-          ...category,
-          categoryItems: category.categoryItems.map((item) =>
-            item.name === categoryItemName ? { ...item, target } : item
-          ),
-        })),
-      },
-    }));
+    setBudgetData((prev) => {
+      const updated = { ...prev };
+  
+      const current = parseISO(`${currentMonth}-01`);
+  
+      for (const monthKey of Object.keys(prev)) {
+        const monthDate = parseISO(`${monthKey}-01`);
+  
+        if (isAfter(monthDate, current) || isSameMonth(monthDate, current)) {
+          const updatedCategories = prev[monthKey].categories.map((category) => ({
+            ...category,
+            categoryItems: category.categoryItems.map((item) =>
+              item.name === categoryItemName ? { ...item, target } : item
+            ),
+          }));
+  
+          updated[monthKey] = {
+            ...prev[monthKey],
+            categories: updatedCategories,
+          };
+        }
+      }
+  
+      return updated;
+    });
+  
     setIsDirty(true);
   };
 
