@@ -65,10 +65,6 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
     fetchAccounts();
   }, [user]);
 
-  const resetAccounts = () => {
-    setAccounts([]);
-  };
-
   const addTransaction = async (accountId, transaction) => {
     const { data, error } = await supabase.from("transactions").insert([
       {
