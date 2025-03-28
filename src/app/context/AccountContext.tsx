@@ -73,7 +73,7 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const { data, error } = await supabase.from("transactions").insert([
       {
         ...transaction,
-        user_id: user.id,
+        user_id: user?.id,
         account_id: accountId,
       },
     ]).select();
@@ -104,7 +104,7 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const { data, error } = await supabase.from("accounts").insert([
       {
         ...account,
-        user_id: user.id,
+        user_id: user?.id,
       },
     ]).select();
 
@@ -158,7 +158,7 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   return (
-    <AccountContext.Provider value={{ accounts, addTransaction, addAccount, deleteAccount, setAccounts, deleteTransaction, resetAccounts }}>
+    <AccountContext.Provider value={{ accounts, addTransaction, addAccount, deleteAccount, setAccounts, deleteTransaction }}>
       {children}
     </AccountContext.Provider>
   );
