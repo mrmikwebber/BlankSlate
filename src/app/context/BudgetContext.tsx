@@ -562,8 +562,7 @@ useEffect(() => {
 
     const previousBalance = budgetData[prevMonth]?.ready_to_assign || 0;
 
-    const totalInflow = accounts?
-    .filter((acc) => acc.type === "debit") 
+    const totalInflow = accounts?.filter((acc) => acc.type === "debit") 
     .flatMap((acc) => acc.transactions)
     .filter((tx) => tx.date && isSameMonth(format(parseISO(tx.date), "yyyy-MM"), format(parseISO(month), "yyyy-MM")) && tx.balance > 0)
     .filter((tx) => tx.category === 'Ready to Assign')

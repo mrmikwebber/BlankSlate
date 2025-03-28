@@ -1,7 +1,7 @@
 "use client";
 import React, { useMemo } from "react";
 import dynamic from "next/dynamic";
-import { Pie, Cell, Tooltip, Legend } from "recharts";
+import { Pie, Cell, Tooltip } from "recharts";
 import { useAccountContext } from "../context/AccountContext";
 import { useBudgetContext } from "../context/BudgetContext";
 import { formatToUSD } from "../utils/formatToUSD";

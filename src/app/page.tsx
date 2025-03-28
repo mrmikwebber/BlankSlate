@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Sidebar from "./navigation/sidebar";
 import AllAccountsTile from "./mainpage/allAccountsTile";
 import BudgetTile from "./mainpage/budgetTile";

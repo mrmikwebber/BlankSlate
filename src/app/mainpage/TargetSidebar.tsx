@@ -1,10 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import {
   getMonth,
   parseISO,
   subMonths,
-  differenceInCalendarMonths,
   format,
   isSameMonth
 } from "date-fns";
@@ -20,7 +19,6 @@ export const TargetSidebar = ({ itemName, onClose }) => {
   const [customTargetDate, setCustomTargetDate] = useState("");
   const [isCreditCard, setIsCreditCard] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
-  const [showForm, setShowForm] = useState(false);
 
   const { currentMonth, budgetData, setCategoryTarget } = useBudgetContext();
   const { accounts } = useAccountContext();
@@ -50,7 +48,6 @@ export const TargetSidebar = ({ itemName, onClose }) => {
         setTargetType(existingTarget?.type.toLowerCase() || "monthly");
       }
       setCustomTargetDate(existingTarget?.targetDate || "");
-      setShowForm(!!existingTarget);
       setIsCreditCard(foundItem.categoryName === "Credit Card Payments");
     }
   }, [itemName, currentMonth]);
@@ -94,7 +91,7 @@ export const TargetSidebar = ({ itemName, onClose }) => {
         );
       });
 
-      let remainingAmount = amount - totalAssigned;
+      const remainingAmount = amount - totalAssigned;
 
       return remainingAmount / monthsUntilTarget;
     }
@@ -152,7 +149,6 @@ export const TargetSidebar = ({ itemName, onClose }) => {
       };
       setCategoryTarget(categoryItem.name, newTarget);
       setTarget(newTarget);
-      setShowForm(true);
     }
   };
 

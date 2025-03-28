@@ -3,8 +3,6 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "../../utils/supabaseClient";
 import { Session, User } from "@supabase/supabase-js";
-import { useAccountContext } from "./AccountContext";
-import { useBudgetContext } from "./BudgetContext";
 
 type AuthContextType = {
   session: Session | null;

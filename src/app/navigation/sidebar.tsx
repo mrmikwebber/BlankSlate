@@ -4,8 +4,6 @@ import { redirect } from "next/navigation";
 import React, { useState } from "react";
 
 const Sidebar = () => {
-  const [isOpen, setIsOpen] = useState(false);
-
   const openDashboard = () => {
     redirect(`/`);
   }

@@ -1,6 +1,5 @@
 "use client"
 import { createContext, useContext, useEffect, useState } from "react";
-import { v4 as uuidv4 } from 'uuid';
 import { useAuth } from "./AuthContext";
 import { supabase } from "@/utils/supabaseClient";
 interface Transaction {
@@ -46,8 +45,6 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const { user } = useAuth() || { user: null };
 
   const [accounts, setAccounts] = useState<Account[]>([]);
-  const [loading, setLoading] = useState(false);
-
   useEffect(() => {
     if (!user) return;
     const fetchAccounts = async () => {
@@ -70,7 +67,6 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const resetAccounts = () => {
     setAccounts([]);
-    setLoading(true);
   };
 
   const addTransaction = async (accountId, transaction) => {

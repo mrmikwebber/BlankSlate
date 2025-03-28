@@ -2,7 +2,7 @@ import { useState } from "react";
 import { evaluate } from "mathjs";
 import { formatToUSD } from "../utils/formatToUSD";
 
-const EditableAssigned = ({ categoryName, itemName, item, handleInputChange }: { categoryName: string, itemName: string, item: any, handleInputChange: (categoryName: string, itemName: string, value: number) => void }) => {
+const EditableAssigned = ({ categoryName, itemName, item, handleInputChange }: { categoryName: string, itemName: string, item, handleInputChange: (categoryName: string, itemName: string, value: number) => void }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [inputValue, setInputValue] = useState((item.assigned ?? 0).toString());
 
@@ -22,6 +22,7 @@ const EditableAssigned = ({ categoryName, itemName, item, handleInputChange }: {
     } catch (error) {
         handleInputChange(categoryName, itemName, 0);
         setIsEditing(false);
+        console.error(error);
     }
   };
 

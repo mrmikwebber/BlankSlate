@@ -6,7 +6,7 @@ import AddCategoryButton from "./AddCategoryButton";
 import EditableAssigned from "./EditableAssigned";
 import MonthNav from "./MonthNav";
 import { useBudgetContext } from "../context/BudgetContext";
-import { format, isSameMonth, parseISO, subMonths } from "date-fns";
+import { format, parseISO, subMonths } from "date-fns";
 import { TargetSidebar } from "./TargetSidebar";
 import { LandingCoverPage } from "./LandingCoverPage";
 import { useAuth } from "../context/AuthContext";
@@ -26,7 +26,7 @@ export default function CollapsibleTable() {
     deleteCategoryWithReassignment,
     deleteCategoryItem,
   } = useBudgetContext();
-  const { loading: isAccountsLoading, accounts } = useAccountContext();
+  const { loading: isAccountsLoading } = useAccountContext();
   const { user } = useAuth();
 
   const FILTERS = [

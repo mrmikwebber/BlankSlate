@@ -5,7 +5,6 @@ import { useEffect, useState } from "react";
 import { useAccountContext } from "@/app/context/AccountContext";
 import { useBudgetContext } from "../context/BudgetContext";
 import { parseISO, format } from "date-fns";
-import { formatToUSD } from "../utils/formatToUSD";
 
 export default function AccountDetails() {
   const { id } = useParams();
@@ -22,7 +21,6 @@ export default function AccountDetails() {
 
   const [showForm, setShowForm] = useState(false);
   const [isNegative, setIsNegative] = useState(false);
-  const [confirming, setConfirming] = useState<number | null>(null);
   const [newTransaction, setNewTransaction] = useState({
     payee: "",
     category: "",

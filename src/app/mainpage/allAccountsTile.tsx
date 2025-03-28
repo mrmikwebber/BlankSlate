@@ -1,6 +1,5 @@
 "use client";
-import Link from "next/link";
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import AccountTile from "./accountTile";
 import { useAccountContext } from "../context/AccountContext";
 import AddAccountModal from "./AddAccountModal";
@@ -33,7 +32,7 @@ export default function AllAccountsTile() {
       {accounts.length === 0 ? (
         <div className="text-center text-gray-600 py-6">
           <p className="text-lg mb-4">
-            It looks like you don't have any accounts.
+            It looks like you dont have any accounts.
           </p>
           <button
             onClick={() => setShowModal(true)}
