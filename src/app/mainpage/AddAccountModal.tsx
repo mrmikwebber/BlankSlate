@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 
 const AddAccountModal = ({ onAddAccount, onClose }) => {
   const [name, setName] = useState("");
@@ -21,7 +22,7 @@ const AddAccountModal = ({ onAddAccount, onClose }) => {
     onClose(); 
   };
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-40">
       <div className="bg-white p-6 rounded-lg shadow-lg w-96">
         <h2 className="text-xl font-bold mb-4">Add New Account</h2>
@@ -68,7 +69,8 @@ const AddAccountModal = ({ onAddAccount, onClose }) => {
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
