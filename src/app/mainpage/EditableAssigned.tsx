@@ -18,6 +18,7 @@ const EditableAssigned = ({ categoryName, itemName, item, handleInputChange }: {
 
       handleInputChange(categoryName, itemName, parsedValue);
       setIsEditing(false);
+      setInputValue(item.assigned ?? '0');
     } catch (error) {
         handleInputChange(categoryName, itemName, 0);
         setIsEditing(false);
