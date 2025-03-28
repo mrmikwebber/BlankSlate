@@ -35,6 +35,7 @@ export default function CollapsibleTable() {
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState("");
   const [selectedTargetCategory, setSelectedTargetCategory] = useState("");
+  const [dropUp, setDropUp] = useState(false);
   const [targetSidebarOpen, setTargetSidebarOpen] = useState(false);
   const [newItem, setNewItem] = useState({
     name: "",
@@ -61,19 +62,44 @@ export default function CollapsibleTable() {
     available: number;
   } | null>(null);
 
+  const addItemRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (addItemRef.current && !addItemRef.current.contains(e.target)) {
+        setActiveCategory(null);
+      }
+    };
+
+    if (activeCategory) {
+      document.addEventListener("mousedown", handleClickOutside);
+
+      const rect = addItemRef.current?.getBoundingClientRect();
+      if (rect && rect.bottom + 120 > window.innerHeight) {
+        setDropUp(true);
+      } else {
+        setDropUp(false);
+      }
+    }
+
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [activeCategory]);
+
   useEffect(() => {
     if (!budgetData || !currentMonth || !budgetData[currentMonth]?.categories)
       return;
 
-    const initialOpenState = budgetData[currentMonth].categories.reduce(
-      (acc, category) => {
-        acc[category.name] = true;
-        return acc;
-      },
-      {} as Record<string, boolean>
-    );
+    setOpenCategories((prev) => {
+      const updated = { ...prev };
 
-    setOpenCategories(initialOpenState);
+      for (const category of budgetData[currentMonth].categories) {
+        if (!(category.name in updated)) {
+          updated[category.name] = true;
+        }
+      }
+
+      return updated;
+    });
   }, [budgetData, currentMonth]);
 
   useEffect(() => {
@@ -216,7 +242,10 @@ export default function CollapsibleTable() {
     if (isDeletingRef.current) return;
     isDeletingRef.current = true;
 
-    deleteCategoryWithReassignment(categoryDeleteContext, selectedTargetCategory);
+    deleteCategoryWithReassignment(
+      categoryDeleteContext,
+      selectedTargetCategory
+    );
     setCategoryDeleteContext(null);
 
     // reset on delay
@@ -490,26 +519,32 @@ export default function CollapsibleTable() {
                           )}
                     </td>
                   </tr>
-
-                  {activeCategory === group.name && (
-                    <div className="absolute left-0 mt-2 w-64 bg-white p-4 shadow-lg rounded-lg border z-50">
-                      <input
-                        type="text"
-                        placeholder="Item Name"
-                        value={newItem.name}
-                        onChange={(e) =>
-                          setNewItem({ ...newItem, name: e.target.value })
-                        }
-                        className="w-full border rounded px-2 py-1"
-                      />
-                      <button
-                        onClick={() => handleAddItem(group.name)}
-                        className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-500 transition"
+                  <div className="relative">
+                    {activeCategory === group.name && (
+                      <div
+                        ref={addItemRef}
+                        className={`${
+                          dropUp ? "bottom-full mb-2" : "top-full mt-2"
+                        } absolute left-0 mt-2 w-64 bg-white p-4 shadow-lg rounded-lg border z-50`}
                       >
-                        Submit
-                      </button>
-                    </div>
-                  )}
+                        <input
+                          type="text"
+                          placeholder="Item Name"
+                          value={newItem.name}
+                          onChange={(e) =>
+                            setNewItem({ ...newItem, name: e.target.value })
+                          }
+                          className="w-full border rounded px-2 py-1"
+                        />
+                        <button
+                          onClick={() => handleAddItem(group.name)}
+                          className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-500 transition"
+                        >
+                          Submit
+                        </button>
+                      </div>
+                    )}
+                  </div>
                   {openCategories[group.name] &&
                     group.categoryItems.map((item, itemIndex) => (
                       <tr
