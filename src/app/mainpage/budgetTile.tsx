@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useMemo, Fragment } from "react";
+import { useState, useEffect, useMemo, Fragment, useRef } from "react";
 import { formatToUSD } from "../utils/formatToUSD";
 import { useAccountContext } from "../context/AccountContext";
 import AddCategoryButton from "./AddCategoryButton";
@@ -214,6 +214,21 @@ export default function CollapsibleTable() {
     setTargetSidebarOpen(true);
   };
 
+  const isDeletingRef = useRef(false);
+
+  const handleReassignDelete = () => {
+    if (isDeletingRef.current) return;
+    isDeletingRef.current = true;
+
+    deleteCategoryWithReassignment(categoryDeleteContext, selectedTargetCategory);
+    setCategoryDeleteContext(null);
+
+    // reset on delay
+    setTimeout(() => {
+      isDeletingRef.current = false;
+    }, 100);
+  };
+
   const getTargetStatus = (item) => {
     if (!item.target) return { message: "", color: "" };
 
@@ -341,10 +356,7 @@ export default function CollapsibleTable() {
                     </button>
                     <button
                       onClick={() => {
-                        deleteCategoryWithReassignment(
-                          categoryDeleteContext,
-                          selectedTargetCategory
-                        );
+                        handleReassignDelete();
                         setCategoryDeleteContext(null);
                       }}
                       className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-500"

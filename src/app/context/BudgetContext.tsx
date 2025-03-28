@@ -1,5 +1,5 @@
 "use client";
-import { createContext, useContext, useState, useEffect, useMemo, useRef } from "react";
+import { createContext, useContext, useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { addMonths, differenceInCalendarMonths, format, getMonth, isSameMonth, parseISO, subMonths } from "date-fns";
 import { useAuth } from "./AuthContext";
 import { supabase } from "@/utils/supabaseClient";
@@ -331,6 +331,7 @@ useEffect(() => {
     )
     .filter((tx) => tx.category === "Ready to Assign")
     .reduce((sum, tx) => sum + tx.balance, 0);
+
   setBudgetData((prev) => {
     return {
       ...prev,
@@ -420,11 +421,19 @@ useEffect(() => {
     });
   };
 
-  const deleteCategoryWithReassignment = (context, targetItemName) => {
+  const hasReassignedRef = useRef(false);
+
+  const deleteCategoryWithReassignment = useCallback((context, targetItemName) => {
+    if (hasReassignedRef.current) return;
+    hasReassignedRef.current = true;
+
+    const updatedMonths = new Set();
+
     setBudgetData((prev) => {
+      if (updatedMonths.has(currentMonth)) return prev;
+      updatedMonths.add(currentMonth);
       const updated = { ...prev };
       const { itemName, assigned, activity } = context;
-  
       for (const month in updated) {
         updated[month].categories = updated[month].categories.map((cat) => {
           return {
@@ -449,12 +458,14 @@ useEffect(() => {
           };
         });
       }
-  
       return updated;
     });
+    setTimeout(() => {
+      hasReassignedRef.current = false;
+    }, 100);
   
     setIsDirty(true);
-  };
+  }, [budgetData, currentMonth]);
 
   const deleteCategoryItem = (context) => {
     const { itemName } = context;

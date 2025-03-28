@@ -75,14 +75,11 @@ export const TargetSidebar = ({ itemName, onClose }) => {
       (targetType === "Custom" || targetType === "Full Payoff") &&
       customTargetDate
     ) {
-      console.log('customTargetDate', customTargetDate);
       const targetMonthNumber = getMonth(parseISO(customTargetDate)) + 1;
       const currentMonthNumber = getMonth(parseISO(currentMonth));
 
       let monthsUntilTarget = targetMonthNumber - currentMonthNumber;
       if (monthsUntilTarget <= 0) monthsUntilTarget = 1;
-
-      console.log('monthsUntilTarget', monthsUntilTarget);
 
       let totalAssigned = 0;
       Object.keys(budgetData).forEach((month) => {
