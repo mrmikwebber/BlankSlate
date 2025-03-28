@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useMemo, Fragment } from "react";
+import { useState, useEffect, useMemo, Fragment, useRef } from "react";
 import { formatToUSD } from "../utils/formatToUSD";
 import { useAccountContext } from "../context/AccountContext";
 import AddCategoryButton from "./AddCategoryButton";
@@ -11,6 +11,7 @@ import { TargetSidebar } from "./TargetSidebar";
 import { LandingCoverPage } from "./LandingCoverPage";
 import { useAuth } from "../context/AuthContext";
 import InterstitialPage from "../interstitial/InterstitialPage";
+import { createPortal } from "react-dom";
 
 export default function CollapsibleTable() {
   const {
@@ -21,13 +22,23 @@ export default function CollapsibleTable() {
     addCategoryGroup,
     addItemToCategory,
     loading: isBudgetLoading,
+    deleteCategoryGroup,
+    deleteCategoryWithReassignment,
+    deleteCategoryItem,
   } = useBudgetContext();
-  const { loading: isAccountsLoading } = useAccountContext();
+  const { loading: isAccountsLoading, accounts } = useAccountContext();
   const { user } = useAuth();
 
-  const FILTERS = ["All", "Money Available", "Overspent", "Overfunded", "Underfunded"];
+  const FILTERS = [
+    "All",
+    "Money Available",
+    "Overspent",
+    "Overfunded",
+    "Underfunded",
+  ];
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState("");
+  const [selectedTargetCategory, setSelectedTargetCategory] = useState("");
   const [targetSidebarOpen, setTargetSidebarOpen] = useState(false);
   const [newItem, setNewItem] = useState({
     name: "",
@@ -37,19 +48,43 @@ export default function CollapsibleTable() {
   });
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [selectedFilter, setSelectedFilter] = useState("All");
-
-  const [openCategories, setOpenCategories] = useState<Record<string, boolean>>({});
+  const [openCategories, setOpenCategories] = useState<Record<string, boolean>>(
+    {}
+  );
+  const [groupContext, setGroupContext] = useState<{
+    x: number;
+    y: number;
+    categoryName: string;
+    itemCount: number;
+  } | null>(null);
+  const [categoryDeleteContext, setCategoryDeleteContext] = useState<{
+    categoryName: string;
+    itemName: string;
+    assigned: number;
+    activity: number;
+    available: number;
+  } | null>(null);
 
   useEffect(() => {
-    if (!budgetData || !currentMonth || !budgetData[currentMonth]?.categories) return;
-    
-    const initialOpenState = budgetData[currentMonth].categories.reduce((acc, category) => {
-      acc[category.name] = true;
-      return acc;
-    }, {} as Record<string, boolean>);
-    
+    if (!budgetData || !currentMonth || !budgetData[currentMonth]?.categories)
+      return;
+
+    const initialOpenState = budgetData[currentMonth].categories.reduce(
+      (acc, category) => {
+        acc[category.name] = true;
+        return acc;
+      },
+      {} as Record<string, boolean>
+    );
+
     setOpenCategories(initialOpenState);
   }, [budgetData, currentMonth]);
+
+  useEffect(() => {
+    const closeMenu = () => setGroupContext(null);
+    window.addEventListener("click", closeMenu);
+    return () => window.removeEventListener("click", closeMenu);
+  }, []);
 
   const filteredCategories = useMemo(() => {
     if (!budgetData || !currentMonth) return [];
@@ -76,9 +111,8 @@ export default function CollapsibleTable() {
 
         return { ...category, categoryItems: filteredItems };
       })
-      .filter(Boolean); 
+      .filter(Boolean);
   }, [budgetData, currentMonth, selectedFilter]);
-
 
   const getPreviousMonth = (month) => {
     return format(subMonths(parseISO(`${month}-01`), 1), "yyyy-MM");
@@ -124,11 +158,12 @@ export default function CollapsibleTable() {
                 item.name
               );
 
-
               return {
                 ...item,
                 assigned: value,
-                available: isCreditCardPayment ? item.available : availableSum + Math.max(cumlativeAvailable, 0),
+                available: isCreditCardPayment
+                  ? item.available
+                  : availableSum + Math.max(cumlativeAvailable, 0),
               };
             }),
           };
@@ -179,33 +214,65 @@ export default function CollapsibleTable() {
     setTargetSidebarOpen(true);
   };
 
-const getTargetStatus = (item) => {
-  if (!item.target) return { message: "", color: "" };
+  const isDeletingRef = useRef(false);
 
-  const assigned = item.assigned || 0;
-  const needed = item.target.amountNeeded;
-  const activity = Math.abs(item.activity || 0);
-  const available = item.available || 0;
-  const overspent = available < 0;
-  const fullyFunded = assigned === needed;
-  const overFunded = assigned > needed;
-  const partiallyFunded = assigned < needed && assigned >= activity;
-  const stillNeeded = needed - assigned;
+  const handleReassignDelete = () => {
+    if (isDeletingRef.current) return;
+    isDeletingRef.current = true;
 
-  if (overspent && assigned < activity) {
-    return { message: `Overspent ${formatToUSD(available * -1)} of ${formatToUSD(assigned)}`, color: "text-red-600 font-semibold" };
-  }
-  if ((fullyFunded || overFunded) && available === 0 || fullyFunded && available > 0) {
-    return { message: "Fully Funded", color: "text-green-600 font-semibold" }; 
-  }
-  if (overFunded) {
-    return { message: `Funded ${formatToUSD(needed)} of ${formatToUSD(assigned)}`, color: "text-blue-600 font-semibold" }; 
-  }
-  if (partiallyFunded) {
-    return { message: `${formatToUSD(stillNeeded)} more needed to fulfill target`, color: "text-yellow-600 font-semibold" }; 
-  }
-  return { message: `${formatToUSD(assigned)} / ${formatToUSD(needed)}`, color: "text-gray-600" };
-};
+    deleteCategoryWithReassignment(categoryDeleteContext, selectedTargetCategory);
+    setCategoryDeleteContext(null);
+
+    // reset on delay
+    setTimeout(() => {
+      isDeletingRef.current = false;
+    }, 100);
+  };
+
+  const getTargetStatus = (item) => {
+    if (!item.target) return { message: "", color: "" };
+
+    const assigned = item.assigned || 0;
+    const needed = item.target.amountNeeded;
+    const activity = Math.abs(item.activity || 0);
+    const available = item.available || 0;
+    const overspent = available < 0;
+    const fullyFunded = assigned === needed;
+    const overFunded = assigned > needed;
+    const partiallyFunded = assigned < needed && assigned >= activity;
+    const stillNeeded = needed - assigned;
+
+    if (overspent && assigned < activity) {
+      return {
+        message: `Overspent ${formatToUSD(available * -1)} of ${formatToUSD(
+          assigned
+        )}`,
+        color: "text-red-600 font-semibold",
+      };
+    }
+    if (
+      ((fullyFunded || overFunded) && available === 0) ||
+      (fullyFunded && available > 0)
+    ) {
+      return { message: "Fully Funded", color: "text-green-600 font-semibold" };
+    }
+    if (overFunded) {
+      return {
+        message: `Funded ${formatToUSD(needed)} of ${formatToUSD(assigned)}`,
+        color: "text-blue-600 font-semibold",
+      };
+    }
+    if (partiallyFunded) {
+      return {
+        message: `${formatToUSD(stillNeeded)} more needed to fulfill target`,
+        color: "text-yellow-600 font-semibold",
+      };
+    }
+    return {
+      message: `${formatToUSD(assigned)} / ${formatToUSD(needed)}`,
+      color: "text-gray-600",
+    };
+  };
 
   if (!user) {
     return <LandingCoverPage />;
@@ -216,44 +283,170 @@ const getTargetStatus = (item) => {
   }
 
   return (
-    <div className="mx-auto mt-8 rounded-md">
-      <MonthNav />
-      <div className="flex mt-2 mb-2">
-        <AddCategoryButton handleSubmit={addCategoryGroup} />
-      </div>
-      <div className="flex gap-2 mb-4">
-        {FILTERS.map((filter) => (
-          <button
-            key={filter}
-            className={`px-4 py-2 rounded-md ${
-              selectedFilter === filter ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-700"
-            }`}
-            onClick={() => setSelectedFilter(filter)}
+    <>
+      {groupContext &&
+        createPortal(
+          <div
+            className="fixed z-50 w-[160px] bg-white border shadow rounded text-sm"
+            style={{ top: groupContext.y, left: groupContext.x }}
+            onClick={() => setGroupContext(null)}
           >
-            {filter}
-          </button>
-        ))}
-      </div>
-      <div className="flex">
-        <table className="w-full border border-gray-300 rounded-md">
-          <thead>
-            <tr className="bg-gray-200 text-left">
-              <th className="p-2 border">Category</th>
-              <th className="p-2 border">Assigned</th>
-              <th className="p-2 border">Activity</th>
-              <th className="p-2 border">Available</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredCategories.map(
-              (group) => (
+            {groupContext.itemCount === 0 ? (
+              <button
+                onClick={() => {
+                  deleteCategoryGroup(groupContext.categoryName);
+                  setGroupContext(null);
+                }}
+                className="px-4 py-2 hover:bg-red-100 text-red-600 w-full text-left"
+              >
+                Delete Group
+              </button>
+            ) : (
+              <div className="px-4 py-2 text-gray-500">
+                Cannot delete: Group not empty
+              </div>
+            )}
+          </div>,
+          document.body
+        )}
+
+      {categoryDeleteContext &&
+        createPortal(
+          <div className="fixed inset-0 bg-black bg-opacity-30 z-50 flex items-center justify-center">
+            <div className="bg-white p-6 rounded shadow-lg w-96">
+              <h2 className="text-lg font-bold mb-4">
+                Delete “{categoryDeleteContext.itemName}”?
+              </h2>
+
+              {categoryDeleteContext.assigned !== 0 ||
+              categoryDeleteContext.activity !== 0 ? (
+                <>
+                  <p className="mb-2 text-sm text-gray-600">
+                    This category has existing funds or activity. Where should
+                    they be moved?
+                  </p>
+
+                  <select
+                    className="w-full border p-2 mb-4 rounded"
+                    value={selectedTargetCategory}
+                    onChange={(e) => setSelectedTargetCategory(e.target.value)}
+                  >
+                    <option value="">Select a target category</option>
+                    {budgetData[currentMonth]?.categories
+                      .flatMap((cat) =>
+                        cat.categoryItems
+                          .filter(
+                            (i) => i.name !== categoryDeleteContext.itemName
+                          )
+                          .map((i) => i.name)
+                      )
+                      .map((name) => (
+                        <option key={name} value={name}>
+                          {name}
+                        </option>
+                      ))}
+                  </select>
+
+                  <div className="flex justify-end gap-2">
+                    <button
+                      onClick={() => setCategoryDeleteContext(null)}
+                      className="px-4 py-2 text-gray-600 hover:underline"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => {
+                        handleReassignDelete();
+                        setCategoryDeleteContext(null);
+                      }}
+                      className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-500"
+                      disabled={!selectedTargetCategory}
+                    >
+                      Confirm & Reassign
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="mb-4 text-sm text-gray-600">
+                    This category has no funds or activity. Are you sure you
+                    want to delete it?
+                  </p>
+                  <div className="flex justify-end gap-2">
+                    <button
+                      onClick={() => setCategoryDeleteContext(null)}
+                      className="px-4 py-2 text-gray-600 hover:underline"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => {
+                        deleteCategoryItem(categoryDeleteContext);
+                        setCategoryDeleteContext(null);
+                      }}
+                      className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-500"
+                    >
+                      Confirm Delete
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>,
+          document.body
+        )}
+
+      <div className="mx-auto mt-8 rounded-md">
+        <MonthNav />
+        <div className="flex mt-2 mb-2">
+          <AddCategoryButton handleSubmit={addCategoryGroup} />
+        </div>
+        <div className="flex gap-2 mb-4">
+          {FILTERS.map((filter) => (
+            <button
+              key={filter}
+              className={`px-4 py-2 rounded-md ${
+                selectedFilter === filter
+                  ? "bg-blue-600 text-white"
+                  : "bg-gray-200 text-gray-700"
+              }`}
+              onClick={() => setSelectedFilter(filter)}
+            >
+              {filter}
+            </button>
+          ))}
+        </div>
+        <div className="flex">
+          <table className="w-full border border-gray-300 rounded-md">
+            <thead>
+              <tr className="bg-gray-200 text-left">
+                <th className="p-2 border">Category</th>
+                <th className="p-2 border">Assigned</th>
+                <th className="p-2 border">Activity</th>
+                <th className="p-2 border">Available</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredCategories.map((group) => (
                 <Fragment key={group.name}>
                   <tr
                     className="bg-gray-400 text-white"
                     onMouseEnter={() => setHoveredCategory(group.name)}
                     onMouseLeave={() => setHoveredCategory(null)}
                   >
-                    <td colSpan={0} className="p-3 font-bold text-lg w-full">
+                    <td
+                      colSpan={0}
+                      className="p-3 font-bold text-lg w-full"
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        setGroupContext({
+                          x: Math.min(e.clientX, window.innerWidth - 160),
+                          y: Math.min(e.clientY, window.innerHeight - 50),
+                          categoryName: group.name,
+                          itemCount: group.categoryItems.length,
+                        });
+                      }}
+                    >
                       <div className="flex items-center">
                         <button
                           onClick={() => toggleCategory(group.name)}
@@ -327,9 +520,26 @@ const getTargetStatus = (item) => {
                   )}
                   {openCategories[group.name] &&
                     group.categoryItems.map((item, itemIndex) => (
-                      <tr key={itemIndex} className="border-t">
+                      <tr
+                        key={itemIndex}
+                        className="border-t"
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          if (group.name !== "Credit Card Payments") {
+                            setCategoryDeleteContext({
+                              categoryName: group.name,
+                              itemName: item.name,
+                              assigned: item.assigned,
+                              activity: item.activity,
+                              available: item.available,
+                            });
+                          }
+                        }}
+                      >
                         <td
-                          onClick={() => {toggleTargetSideBar(item)}}
+                          onClick={() => {
+                            toggleTargetSideBar(item);
+                          }}
                           className="p-2 border relative"
                         >
                           {item.target && (
@@ -370,19 +580,19 @@ const getTargetStatus = (item) => {
                       </tr>
                     ))}
                 </Fragment>
-              )
-            )}
-          </tbody>
-        </table>
-        {targetSidebarOpen && (
-          <TargetSidebar
-            itemName={selectedCategory}
-            onClose={() => {
-              setTargetSidebarOpen(false);
-            }}
-          />
-        )}
+              ))}
+            </tbody>
+          </table>
+          {targetSidebarOpen && (
+            <TargetSidebar
+              itemName={selectedCategory}
+              onClose={() => {
+                setTargetSidebarOpen(false);
+              }}
+            />
+          )}
+        </div>
       </div>
-    </div>
+    </>
   );
 }

@@ -5,7 +5,8 @@ import {
   parseISO,
   subMonths,
   differenceInCalendarMonths,
-  format
+  format,
+  isSameMonth
 } from "date-fns";
 import { useBudgetContext } from "../context/BudgetContext";
 import { useAccountContext } from "../context/AccountContext";
@@ -75,14 +76,11 @@ export const TargetSidebar = ({ itemName, onClose }) => {
       (targetType === "Custom" || targetType === "Full Payoff") &&
       customTargetDate
     ) {
-      console.log('customTargetDate', customTargetDate);
       const targetMonthNumber = getMonth(parseISO(customTargetDate)) + 1;
       const currentMonthNumber = getMonth(parseISO(currentMonth));
 
       let monthsUntilTarget = targetMonthNumber - currentMonthNumber;
       if (monthsUntilTarget <= 0) monthsUntilTarget = 1;
-
-      console.log('monthsUntilTarget', monthsUntilTarget);
 
       let totalAssigned = 0;
       Object.keys(budgetData).forEach((month) => {
@@ -127,9 +125,11 @@ export const TargetSidebar = ({ itemName, onClose }) => {
       .flatMap((account) => account.transactions)
       .filter(
         (transaction) =>
-          transaction.category === categoryItem.name &&
-          getMonth(transaction.date) + 1 ===
-            getMonth(format(parseISO(currentMonth), "yyyy-MM")) + 1
+        {
+           return transaction.category === categoryItem.name &&
+           isSameMonth(format(parseISO(transaction.date), "yyyy-MM"), format(parseISO(currentMonth), "yyyy-MM"))
+        }
+
       )
       .reduce((sum, tx) => sum + Math.abs(tx.balance), 0);
   };

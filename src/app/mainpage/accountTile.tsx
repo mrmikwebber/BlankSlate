@@ -1,32 +1,50 @@
 "use client";
 import Link from "next/link";
-import { redirect } from 'next/navigation'
+import { redirect } from "next/navigation";
 import { useState, useEffect } from "react";
-import { Account } from "../context/AccountContext";
+import { Account, useAccountContext } from "../context/AccountContext";
 import { formatToUSD } from "../utils/formatToUSD";
 
 export default function AccountTile(props) {
   const [account, setAccount] = useState<Account>();
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  const { deleteAccount } = useAccountContext();
 
   useEffect(() => {
-    setAccount(props.account)
+    setAccount(props.account);
   }, [props.account]);
 
   const openAccount = () => {
-    redirect(`/accounts/${account?.id}`)
-  }
+    redirect(`/accounts/${account?.id}`);
+  };
+
+  const handleDelete = () => {
+    setShowConfirm(true);
+  };
+
+  const confirmDelete = () => {
+    deleteAccount(account?.id);
+    setShowConfirm(false);
+  };
+
+  const cancelDelete = () => {
+    setShowConfirm(false);
+  };
 
   return (
     <div
       onClick={() => openAccount()}
-      className={`w-40 h-48 ${account?.issuer == "amex" && "bg-blue-400"} ${
-        account?.issuer == "visa" && "bg-cyan-400"
-      } ${account?.issuer == "discover" && "bg-orange-300"} ${
+      className={`hover:shadow-lg w-40 h-48 ${
+        account?.issuer == "amex" && "bg-blue-400"
+      } ${account?.issuer == "visa" && "bg-cyan-400"} ${
+        account?.issuer == "discover" && "bg-orange-300"
+      } ${
         account?.issuer == "mastercard" && "bg-red-400"
       } rounded-md mx-2 drop-shadow-xl`}
     >
       <div className="m-1 flex justify-between">
-        {account?.type === 'credit' && (
+        {account?.type === "credit" && (
           <svg
             xmlns="http://www.w3.org/2000/svg"
             width="24"
@@ -36,7 +54,7 @@ export default function AccountTile(props) {
             <path d="M880-720v480q0 33-23.5 56.5T800-160H160q-33 0-56.5-23.5T80-240v-480q0-33 23.5-56.5T160-800h640q33 0 56.5 23.5T880-720m-720 80h640v-80H160zm0 160v240h640v-240zm0 240v-480z" />
           </svg>
         )}
-        {account?.type !== 'credit' && (
+        {account?.type !== "credit" && (
           <svg
             xmlns="http://www.w3.org/2000/svg"
             width="24"
@@ -195,6 +213,43 @@ export default function AccountTile(props) {
         <h2 className="ms-2 mb-2">{account?.name}</h2>
         <h1 className="ms-2 text-xl">{formatToUSD(account?.balance)}</h1>
       </div>
+      {/* Always-visible delete button */}
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          handleDelete();
+        }}
+        className="absolute bottom-2 right-2 bg-red-100 text-red-600 p-1 rounded hover:bg-red-200 transition"
+        title="Delete Account"
+      >
+        🗑️
+      </button>
+      {showConfirm && (
+        <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-90 z-10">
+          <div className="bg-white p-4 border rounded shadow">
+            <p className="mb-2">
+              Are you sure you want to delete this account?
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  confirmDelete();
+                }}
+                className="bg-red-500 text-white px-4 py-1 rounded hover:bg-red-600"
+              >
+                Yes, Delete
+              </button>
+              <button
+                onClick={cancelDelete}
+                className="bg-gray-200 px-4 py-1 rounded hover:bg-gray-300"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
