@@ -9,6 +9,13 @@ import { useAccountContext } from "./AccountContext";
 const getPreviousMonth = (month: string) => {
   return format(subMonths(parseISO(`${month}-01`), 1), "yyyy-MM");
 }
+
+interface Target {
+  type: string;
+  amount: number;
+  targetDate: string;
+  amountNeeded: number;
+}
   
 interface BudgetData {
   categories: {
@@ -18,7 +25,7 @@ interface BudgetData {
       assigned: number;
       activity: number;
       available: number;
-      target?: any;
+      target?: Target;
     }[];
   }[];
   assignable_money: number;

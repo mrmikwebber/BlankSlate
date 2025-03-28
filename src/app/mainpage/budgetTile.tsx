@@ -1,7 +1,6 @@
 "use client";
 import { useState, useEffect, useMemo, Fragment, useRef } from "react";
 import { formatToUSD } from "../utils/formatToUSD";
-import { useAccountContext } from "../context/AccountContext";
 import AddCategoryButton from "./AddCategoryButton";
 import EditableAssigned from "./EditableAssigned";
 import MonthNav from "./MonthNav";
@@ -10,7 +9,6 @@ import { format, parseISO, subMonths } from "date-fns";
 import { TargetSidebar } from "./TargetSidebar";
 import { LandingCoverPage } from "./LandingCoverPage";
 import { useAuth } from "../context/AuthContext";
-import InterstitialPage from "../interstitial/InterstitialPage";
 import { createPortal } from "react-dom";
 
 export default function CollapsibleTable() {
@@ -21,7 +19,6 @@ export default function CollapsibleTable() {
     setIsDirty,
     addCategoryGroup,
     addItemToCategory,
-    loading: isBudgetLoading,
     deleteCategoryGroup,
     deleteCategoryWithReassignment,
     deleteCategoryItem,

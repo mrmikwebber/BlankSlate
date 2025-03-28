@@ -5,7 +5,7 @@ import { Pie, Cell, Tooltip } from "recharts";
 import { useAccountContext } from "../context/AccountContext";
 import { useBudgetContext } from "../context/BudgetContext";
 import { formatToUSD } from "../utils/formatToUSD";
-import { isSameMonth, parseISO, format } from "date-fns";
+import { isSameMonth, parseISO } from "date-fns";
 
 const PieChart = dynamic(
   () => import("recharts").then((recharts) => recharts.PieChart),
@@ -63,7 +63,7 @@ const TotalSpendingTile = () => {
   }, [accounts, currentMonth]);
 
   const totalOutflow = spendingData.reduce(
-    (sum, category) => sum + category.value,
+    (sum, category) => sum + (category.value as number),
     0
   );
 
