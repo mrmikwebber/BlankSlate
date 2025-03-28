@@ -1,6 +1,6 @@
 "use client";
-import { createContext, useContext, useState, useEffect, useMemo, useRef, useCallback } from "react";
-import { addMonths, differenceInCalendarMonths, format, getMonth, isSameMonth, parseISO, subMonths } from "date-fns";
+import { createContext, useContext, useState, useEffect, useRef, useCallback } from "react";
+import { differenceInCalendarMonths, format, getMonth, isSameMonth, parseISO, subMonths } from "date-fns";
 import { useAuth } from "./AuthContext";
 import { supabase } from "@/utils/supabaseClient";
 import debounce from "lodash.debounce";
@@ -13,8 +13,6 @@ const getPreviousMonth = (month: string) => {
 const BudgetContext = createContext(null);
 
 export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
-  const [transactions, setTransactions] = useState([]);
-  const [lastAppliedPayments, setLastAppliedPayments] = useState([]);
   const [loading, setLoading] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const { user } = useAuth() || { user: null };
@@ -167,7 +165,7 @@ const { accounts, setAccounts } = useAccountContext();
       assignedMoney?.map((entry) => [entry.category, entry.amount])
     );
 
-    let remainingAssigned = new Map(assignedCategories);
+    const remainingAssigned = new Map(assignedCategories);
 
     for (const account of accounts.filter((acc) => acc.type === "debit")) {
       for (const transaction of account.transactions) {
@@ -894,8 +892,7 @@ useEffect(() => {
           }))
         : createEmptyCategories(prev[getLatestMonth(prev)]?.categories || []);
 
-      const totalInflow = accounts?
-      .filter((acc) => acc.type === "debit") 
+      const totalInflow = accounts?.filter((acc) => acc.type === "debit") 
       .flatMap((acc) => acc.transactions) 
       .filter((tx) => tx.date && isSameMonth(format(parseISO(tx.date), "yyyy-MM"), parseISO(newMonth)) && tx.balance > 0)
       .filter((tx) => tx.category === 'Ready to Assign')
@@ -918,7 +915,6 @@ useEffect(() => {
       value={{
         budgetData,
         setBudgetData,
-        transactions,
         currentMonth,
         updateMonth,
         addItemToCategory,
