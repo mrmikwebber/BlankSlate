@@ -64,16 +64,18 @@ export default function CollapsibleTable() {
   useEffect(() => {
     if (!budgetData || !currentMonth || !budgetData[currentMonth]?.categories)
       return;
-
-    const initialOpenState = budgetData[currentMonth].categories.reduce(
-      (acc, category) => {
-        acc[category.name] = true;
-        return acc;
-      },
-      {} as Record<string, boolean>
-    );
-
-    setOpenCategories(initialOpenState);
+  
+    setOpenCategories((prev) => {
+      const updated = { ...prev };
+  
+      for (const category of budgetData[currentMonth].categories) {
+        if (!(category.name in updated)) {
+          updated[category.name] = true;
+        }
+      }
+  
+      return updated;
+    });
   }, [budgetData, currentMonth]);
 
   useEffect(() => {
