@@ -172,7 +172,7 @@ const { accounts, setAccounts } = useAccountContext();
     for (const account of accounts.filter((acc) => acc.type === "debit")) {
       for (const transaction of account.transactions) {
         const category = transaction.category;
-        if (remainingAssigned.has(category)) {
+        if (remainingAssigned.has(category) && isSameMonth(format(parseISO(transaction.date), "yyyy-MM"), format(parseISO(currentMonth), "yyyy-MM"))) {
           const assignedAmount = remainingAssigned.get(category);
           const deduction = Math.min(
             assignedAmount,
@@ -195,7 +195,7 @@ const { accounts, setAccounts } = useAccountContext();
 
         for (const transaction of card.transactions) {
           const category = transaction.category;
-          if (remainingAssigned.has(category)) {
+          if (remainingAssigned.has(category) && isSameMonth(format(parseISO(transaction.date), "yyyy-MM"), format(parseISO(currentMonth), "yyyy-MM"))) {
             const assignedAmount = remainingAssigned.get(category);
             const deduction = Math.min(
               assignedAmount,
