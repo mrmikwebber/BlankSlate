@@ -8,6 +8,8 @@ export default function AllAccountsTile() {
   const { accounts, addAccount } = useAccountContext();
   const [showModal, setShowModal] = useState(false);
 
+
+
   const handleAddAccount = (newAccount) => {
     addAccount(newAccount);
   };

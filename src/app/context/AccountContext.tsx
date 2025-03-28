@@ -77,13 +77,7 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (error) {
       console.error("Add transaction failed:", error);
     } else {
-      setAccounts((prev) =>
-        prev.map((account) =>
-          account.id === accountId
-            ? { ...account, transactions: [...account.transactions, data[0]] }
-            : account
-        )
-      );
+      await refreshSingleAccount(accountId);
       return data;
     }
   };
@@ -96,6 +90,20 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
     balance: 0,
   }
 
+  const refreshSingleAccount = async (accountId) => {
+    const { data, error } = await supabase
+      .from("accounts")
+      .select("*, transactions(*)")
+      .eq("id", accountId)
+      .single();
+  
+    if (!error && data) {
+      setAccounts((prev) =>
+        prev.map((acc) => (acc.id === accountId ? data : acc))
+      );
+    }
+  };
+
   const addAccount = async (account) => {
     const { data, error } = await supabase.from("accounts").insert([
       {
@@ -103,9 +111,6 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
         user_id: user?.id,
       },
     ]).select();
-
-    
-
     if (error) {
       console.error("Add account failed:", error);
     } else {
@@ -119,8 +124,6 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const deleteAccount = async (accountId: number) => {
-    setAccounts((prev) => prev.filter((acc) => acc.id !== accountId));
-  
     const { error } = await supabase
       .from("accounts")
       .delete()
@@ -128,21 +131,12 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
   
     if (error) {
       console.error("Failed to delete account:", error);
+    } else {
+      setAccounts((prev) => prev.filter((acc) => acc.id !== accountId));
     }
   };
 
   const deleteTransaction = async (accountId: number, transactionId: number) => {
-    setAccounts((prev) =>
-      prev.map((acc) =>
-        acc.id === accountId
-          ? {
-              ...acc,
-              transactions: acc.transactions.filter((tx) => tx.id !== transactionId),
-            }
-          : acc
-      )
-    );
-  
     const { error } = await supabase
       .from("transactions")
       .delete()
@@ -150,6 +144,8 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
   
     if (error) {
       console.error("Failed to delete transaction:", error);
+    } else {
+      await refreshSingleAccount(accountId);
     }
   };
 
