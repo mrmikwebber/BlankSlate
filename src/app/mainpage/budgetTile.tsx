@@ -282,8 +282,6 @@ export default function CollapsibleTable() {
     return <InterstitialPage />;
   }
 
-  console.log(accounts);
-
   return (
     <>
       {groupContext &&

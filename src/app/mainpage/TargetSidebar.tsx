@@ -124,9 +124,12 @@ export const TargetSidebar = ({ itemName, onClose }) => {
       .flatMap((account) => account.transactions)
       .filter(
         (transaction) =>
-          transaction.category === categoryItem.name &&
+        {
+           return transaction.category === categoryItem.name &&
           getMonth(transaction.date) + 1 ===
-            getMonth(format(parseISO(currentMonth), "yyyy-MM")) + 1
+            getMonth(parseISO(currentMonth)) + 1
+        }
+
       )
       .reduce((sum, tx) => sum + Math.abs(tx.balance), 0);
   };

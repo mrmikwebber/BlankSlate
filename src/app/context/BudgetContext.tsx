@@ -305,11 +305,14 @@ useEffect(() => {
             budgetData,
             item.name
           );
-          const itemActivity = calculateActivityForMonth(
-            currentMonth,
-            item.name,
-            accounts
-          );
+
+          let itemActivity
+
+          if (category.name === 'Credit Card Payments') {
+            itemActivity = calculateCreditCardAccountActivity(currentMonth, item.name);
+          } else {
+            itemActivity = calculateActivityForMonth(currentMonth, item.name);
+          }
 
           const availableSum = item.assigned + itemActivity;
           return {
@@ -465,20 +468,14 @@ useEffect(() => {
       cat.categoryItems.some((item) => item.name === targetItemName)
     )?.name;
 
-    console.log(context);
-    console.log(targetItemName);
-    console.log(targetCategoryGroup)
-
     setAccounts((prevAccounts) =>
       prevAccounts.map((account) => ({
         ...account,
         transactions: account.transactions.map((tx) => {
-          console.log(tx);
           if (
             tx.category === context.itemName &&
             tx.category_group === context.categoryName
           ) {
-            console.log(tx);
             return {
               ...tx,
               category: targetItemName,
@@ -555,6 +552,22 @@ useEffect(() => {
         );
       }, 0) || 0;
     return (previousBalance + totalInflow) - totalAssigned;
+  };
+
+  const calculateCreditCardAccountActivity = (month, accountName) => {
+    const monthStr = format(parseISO(`${month}-01`), "yyyy-MM");
+  
+    const account = accounts.find((a) => a.name === accountName);
+    if (!account) return 0;
+  
+    const matchingTxs = account.transactions.filter((tx) => {
+      if (!tx.date) return false;
+  
+      const txMonth = format(parseISO(tx.date), "yyyy-MM");
+      return txMonth === monthStr;
+    });
+  
+    return matchingTxs.reduce((sum, tx) => sum + tx.balance, 0);
   };
 
   const calculateActivityForMonth = (month, categoryName) => {
@@ -745,7 +758,14 @@ useEffect(() => {
                   }
                 }
 
-                const itemActivity = calculateActivityForMonth(newMonth, item.name);
+                let itemActivity
+
+                if (category.name === 'Credit Card Payments') {
+                  itemActivity = calculateCreditCardAccountActivity(newMonth, item.name);
+                } else {
+                  itemActivity = calculateActivityForMonth(newMonth, item.name);
+                }
+
                 return {
                 ...item,
                 activity: itemActivity,
@@ -829,7 +849,13 @@ useEffect(() => {
                   }
                 }
 
-              const itemActivity = calculateActivityForMonth(newMonth, item.name);
+              let itemActivity
+
+              if (category.name === 'Credit Card Payments') {
+                itemActivity = calculateCreditCardAccountActivity(newMonth, item.name);
+              } else {
+                itemActivity = calculateActivityForMonth(newMonth, item.name);
+              }
 
               return {
               ...item,
