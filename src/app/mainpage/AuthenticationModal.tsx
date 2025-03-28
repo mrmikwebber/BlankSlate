@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { supabase } from "../../utils/supabaseClient";
+import { createPortal } from 'react-dom'
 import { X } from "lucide-react";
 
 const AuthModal = ({ onClose }: { onClose: () => void }) => {
@@ -51,8 +52,8 @@ const AuthModal = ({ onClose }: { onClose: () => void }) => {
   };
   
 
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+  return createPortal(
+    <div id='auth-modal' className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
       <div className="bg-white rounded-lg shadow-md p-6 w-full max-w-md relative">
         <button onClick={onClose} className="absolute top-2 right-2">
           <X />
@@ -120,7 +121,8 @@ const AuthModal = ({ onClose }: { onClose: () => void }) => {
           </button>
         </p>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

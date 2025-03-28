@@ -167,7 +167,7 @@ export const TargetSidebar = ({ itemName, onClose }) => {
 
   return (
     <div
-      className={`fixed right-0 top-0 h-full w-64 bg-white shadow-lg border-l border-gray-300 p-4 
+      className={`fixed right-0 top-[76px] h-full w-64 bg-white shadow-lg border-l border-gray-300 p-4 
       transition-transform duration-300 ${
         isVisible ? "translate-x-0" : "translate-x-full"
       }`}
