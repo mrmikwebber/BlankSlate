@@ -45,7 +45,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
   },
 ];
 
-const { accounts } = useAccountContext();
+const { accounts, setAccounts } = useAccountContext();
 
   useEffect(() => {
     if (!user) return;
@@ -449,7 +449,7 @@ useEffect(() => {
                     ...item,
                     assigned: newAssigned,
                     activity: newActivity,
-                    available: newAssigned + newActivity, 
+                    available: newAssigned + newActivity,
                   };
                 }
                 return item;
@@ -460,6 +460,36 @@ useEffect(() => {
       }
       return updated;
     });
+
+    const targetCategoryGroup = budgetData[currentMonth]?.categories.find((cat) =>
+      cat.categoryItems.some((item) => item.name === targetItemName)
+    )?.name;
+
+    console.log(context);
+    console.log(targetItemName);
+    console.log(targetCategoryGroup)
+
+    setAccounts((prevAccounts) =>
+      prevAccounts.map((account) => ({
+        ...account,
+        transactions: account.transactions.map((tx) => {
+          console.log(tx);
+          if (
+            tx.category === context.itemName &&
+            tx.category_group === context.categoryName
+          ) {
+            console.log(tx);
+            return {
+              ...tx,
+              category: targetItemName,
+              category_group: targetCategoryGroup,
+            };
+          }
+          return tx;
+        }),
+      }))
+    );
+
     setTimeout(() => {
       hasReassignedRef.current = false;
     }, 100);

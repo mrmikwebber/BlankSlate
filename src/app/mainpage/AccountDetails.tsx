@@ -156,6 +156,7 @@ export default function AccountDetails() {
               className="w-full p-2 border rounded"
               required
             >
+               <option value="" disabled hidden>Select a category group</option>
               <option key="Ready to Assign" value="Ready to Assign">
                 Ready to Assign
               </option>
@@ -181,6 +182,7 @@ export default function AccountDetails() {
                 className="w-full p-2 border rounded"
                 required
               >
+                 <option value="" disabled hidden>Select a category</option>
                 {newTransaction.category_group === "Ready to Assign" && (
                   <option key="Ready to Assign" value="Ready to Assign">
                     Ready to Assign

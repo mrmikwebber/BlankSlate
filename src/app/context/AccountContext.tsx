@@ -162,7 +162,7 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   return (
-    <AccountContext.Provider value={{ accounts, addTransaction, addAccount, deleteAccount, deleteTransaction, resetAccounts }}>
+    <AccountContext.Provider value={{ accounts, addTransaction, addAccount, deleteAccount, setAccounts, deleteTransaction, resetAccounts }}>
       {children}
     </AccountContext.Provider>
   );
