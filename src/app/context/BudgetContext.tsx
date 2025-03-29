@@ -708,7 +708,6 @@ useEffect(() => {
             });
 
       if (prev[newMonth]) {
-
         const allGroupNames = new Set(
           Object.values(prev).flatMap((month) =>
             month?.categories?.map((cat) => cat.name) || []
@@ -930,12 +929,14 @@ useEffect(() => {
                 itemActivity = calculateActivityForMonth(newMonth, item.name);
               }
 
+              
+
               return {
               ...item,
               assigned: 0, 
               activity: itemActivity,
               target: newTarget,
-              available: category.name !== 'Credit Card Payments' ? pastAvailable + itemActivity + item.assigned : item.available,
+              available: category.name !== 'Credit Card Payments' ? pastAvailable + itemActivity : item.available,
             }}),
           }))
         : createEmptyCategories(prev[getLatestMonth(prev)]?.categories || []);
