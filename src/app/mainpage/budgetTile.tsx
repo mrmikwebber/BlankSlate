@@ -63,6 +63,7 @@ export default function CollapsibleTable() {
   } | null>(null);
 
   const addItemRef = useRef(null);
+  const addCategoryGroupRef = useRef(null);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
