@@ -421,6 +421,7 @@ useEffect(() => {
         assigned: 0,
         activity: 0,
         available: 0,
+        target: null,
       })),
     }));
   };
@@ -880,6 +881,7 @@ useEffect(() => {
                     amount: 0,
                   };
                 }
+
                 else if (previousItem?.target?.type === "Custom" || previousItem?.target?.type === "Full Payoff") {
                   const targetMonthNumber = getMonth(parseISO(previousItem.target.targetDate)) + 1;
                   const currentMonthNumber = getMonth(parseISO(newMonth));
@@ -928,8 +930,6 @@ useEffect(() => {
               } else {
                 itemActivity = calculateActivityForMonth(newMonth, item.name);
               }
-
-              
 
               return {
               ...item,
