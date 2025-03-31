@@ -114,9 +114,10 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (error) {
       console.error("Add account failed:", error);
     } else {
+      console.log(account.balance);
       const newTransaction = {
         ...defaultTransaction,
-        balance: account.type === 'credit' ? -1 * account.balance : account.balance,
+        balance: account.balance,
       }
       const generatedTransaction = await addTransaction(data[0].id, newTransaction);
       setAccounts((prev) => [...prev, { ...account, id: data[0].id, transactions: generatedTransaction}]);
