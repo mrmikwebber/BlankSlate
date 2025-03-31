@@ -3,7 +3,6 @@ import { createContext, useContext, useState, useEffect, useRef, useCallback } f
 import { differenceInCalendarMonths, format, getMonth, isAfter, isSameMonth, parseISO, subMonths } from "date-fns";
 import { useAuth } from "./AuthContext";
 import { supabase } from "@/utils/supabaseClient";
-import debounce from "lodash.debounce";
 import { useAccountContext } from "./AccountContext";
 
 const getPreviousMonth = (month: string) => {
