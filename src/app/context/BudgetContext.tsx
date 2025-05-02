@@ -530,15 +530,21 @@ useEffect(() => {
   const deleteCategoryGroup = (groupName: string) => {
     setBudgetData((prev) => {
       const updated = { ...prev };
+  
       for (const month in updated) {
-        updated[month].categories = updated[month].categories.filter(
-          (cat) => cat.name !== groupName
-        );
+        const before = updated[month].categories;
+        const after = before.filter((cat) => cat.name !== groupName);
+  
+        if (before.length !== after.length) {
+          updated[month].categories = after;
+          dirtyMonths.current.add(month);
+        }
       }
+  
       return updated;
     });
   
-    setIsDirty(true); 
+    setIsDirty(true);
   };
   
   const addItemToCategory = (
@@ -585,7 +591,7 @@ useEffect(() => {
                 if (item.name === targetItemName) {
                   const newAssigned = item.assigned + assigned;
                   const newActivity = item.activity + activity;
-                
+      
                   return {
                     ...item,
                     assigned: newAssigned,
@@ -598,6 +604,7 @@ useEffect(() => {
               .filter(Boolean),
           };
         });
+        dirtyMonths.current.add(month);
       }
       return updated;
     });
@@ -639,10 +646,13 @@ useEffect(() => {
       const updated = { ...prev };
   
       for (const month in updated) {
+        const before = updated[month].categories.map(cat => cat.categoryItems.length).join();
         updated[month].categories = updated[month].categories.map((cat) => ({
           ...cat,
           categoryItems: cat.categoryItems.filter((item) => item.name !== itemName),
         }));
+        const after = updated[month].categories.map(cat => cat.categoryItems.length).join();
+        if (before !== after) dirtyMonths.current.add(month); // 💥 Mark month as dirty!
       }
   
       return updated;
