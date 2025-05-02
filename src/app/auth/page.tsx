@@ -59,7 +59,8 @@ export default function AuthPage() {
     if (error) {
       setError(error.message);
     } else if (data?.session) {
-      router.push('/dashboard');
+    //   router.push('/dashboard');
+    window.location.href = '/dashboard'
     } else {
       setError("Check your email to confirm your account.");
     }
