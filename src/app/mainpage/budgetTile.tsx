@@ -22,6 +22,8 @@ export default function CollapsibleTable() {
     deleteCategoryGroup,
     deleteCategoryWithReassignment,
     deleteCategoryItem,
+    refreshAllReadyToAssign,
+    getCumulativeAvailable,
   } = useBudgetContext();
   const { user } = useAuth();
 
@@ -148,75 +150,48 @@ export default function CollapsibleTable() {
     return new Date(monthA) < new Date(monthB);
   };
 
-  const getCumulativeAvailable = (passedInData, itemName) => {
-    const pastMonths = Object.keys(passedInData).filter((month) =>
-      isBeforeMonth(month, currentMonth)
-    );
-
-    const past = pastMonths.reduce((sum, month) => {
-      const categoryItem = passedInData[month]?.categories
-        .flatMap((cat) => cat.categoryItems)
-        .find((item) => item.name === itemName);
-
-      return sum + (categoryItem?.assigned + categoryItem?.activity || 0);
-    }, 0);
-    return past;
-  };
-
   const handleInputChange = (categoryName, itemName, value) => {
     setBudgetData((prev) => {
-      const updatedCategories =
-        prev[currentMonth]?.categories.map((category) => {
-          const isCreditCardPayment = categoryName === "Credit Card Payments";
-          if (categoryName !== category.name) return category;
-          return {
-            ...category,
-            categoryItems: category.categoryItems.map((item) => {
-              if (itemName !== item.name) return item;
-
-              const availableSum = value + item.activity;
-              const cumlativeAvailable = getCumulativeAvailable(
-                prev,
-                item.name
-              );
-
-              return {
-                ...item,
-                assigned: value,
-                available: isCreditCardPayment
-                  ? item.available
-                  : availableSum + Math.max(cumlativeAvailable, 0),
-              };
-            }),
-          };
-        }) || [];
-
-      const prevMonth = getPreviousMonth(currentMonth);
-
-      const previousBalance = budgetData[prevMonth]?.ready_to_assign || 0;
-
-      setIsDirty(true);
-
-      return {
-        ...prev,
-        [currentMonth]: {
-          ...prev[currentMonth],
-          categories: updatedCategories,
-          ready_to_assign:
-            (previousBalance + prev[currentMonth]?.assignable_money || 0) -
-            updatedCategories.reduce(
-              (sum, cat) =>
-                sum +
-                cat.categoryItems.reduce(
-                  (itemSum, item) => itemSum + item.assigned,
-                  0
-                ),
-              0
-            ),
-        },
+      const updated = { ...prev };
+  
+      const updatedCategories = updated[currentMonth]?.categories.map((category) => {
+        if (category.name !== categoryName) return category;
+  
+        return {
+          ...category,
+          categoryItems: category.categoryItems.map((item) => {
+            if (item.name !== itemName) return item;
+  
+            const isCreditCard = category.name === "Credit Card Payments";
+            const activity = item.activity || 0;
+            const cumulative = getCumulativeAvailable(updated, item.name);
+  
+            return {
+              ...item,
+              assigned: value,
+              available: isCreditCard
+                ? item.available
+                : value + activity + Math.max(cumulative, 0),
+            };
+          }),
+        };
+      });
+  
+      updated[currentMonth] = {
+        ...updated[currentMonth],
+        categories: updatedCategories,
       };
+  
+      setTimeout(() => {
+        refreshAllReadyToAssign(updated);
+      }, 0);
+  
+      return updated;
     });
+  
+    setIsDirty(true);
   };
+  
 
   const handleAddItem = (category: string) => {
     if (newItem.name.trim() !== "") {
@@ -248,7 +223,6 @@ export default function CollapsibleTable() {
     );
     setCategoryDeleteContext(null);
 
-    // reset on delay
     setTimeout(() => {
       isDeletingRef.current = false;
     }, 100);

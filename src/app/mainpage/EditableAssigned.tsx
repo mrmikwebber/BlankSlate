@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { evaluate } from "mathjs";
 import { formatToUSD } from "../utils/formatToUSD";
 
@@ -10,21 +10,26 @@ const EditableAssigned = ({ categoryName, itemName, item, handleInputChange }: {
     try {
       const evaluatedValue = evaluate(inputValue);
       const parsedValue = parseFloat(evaluatedValue);
-
+  
       if (isNaN(parsedValue)) {
         handleInputChange(categoryName, itemName, 0);
-        setIsEditing(false);
-      } 
-
-      handleInputChange(categoryName, itemName, parsedValue);
+      } else {
+        handleInputChange(categoryName, itemName, parsedValue);
+      }
+  
       setIsEditing(false);
-      setInputValue(item.assigned ?? '0');
     } catch (error) {
-        handleInputChange(categoryName, itemName, 0);
-        setIsEditing(false);
-        console.error(error);
+      handleInputChange(categoryName, itemName, 0);
+      setIsEditing(false);
+      console.error(error);
     }
   };
+
+  useEffect(() => {
+    if (!isEditing) {
+      setInputValue((item.assigned ?? 0).toString());
+    }
+  }, [item.assigned, isEditing]);
 
   return (
     <td className="border border-gray-300 px-4 py-2">
