@@ -43,7 +43,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     if (error) {
       console.error('Error signing out:', error.message);
     } else {
-      router.push('/auth');
+      setTimeout(() => {
+        window.location.href = '/auth';
+      }, 200);
     }
   };
 
