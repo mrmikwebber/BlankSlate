@@ -17,6 +17,7 @@ export default function AuthPage() {
   useEffect(() => {
     const checkSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
+      console.log('Auth page session check:', session);
       if (session) {
         router.push('/dashboard');
       } else {
