@@ -8,10 +8,16 @@ import { supabase } from "@/utils/supabaseClient";
 import { useState, useEffect } from "react";
 
 export default function Home() {
-  const router = useRouter();
+  const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
   useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
@@ -21,9 +27,9 @@ export default function Home() {
       }
     };
     checkAuth();
-  }, [router]);
+  }, [mounted]);
 
-  if (loading) {
+  if (!mounted || loading) {
     return (
       <div className="min-h-screen flex justify-center items-center">
         <p className="text-teal-600 text-lg">Loading your dashboard...</p>
