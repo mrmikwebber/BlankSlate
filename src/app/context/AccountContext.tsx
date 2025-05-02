@@ -114,7 +114,6 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (error) {
       console.error("Add account failed:", error);
     } else {
-      console.log(account.balance);
       const newTransaction = {
         ...defaultTransaction,
         balance: account.balance,

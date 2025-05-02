@@ -5,7 +5,6 @@ import AddCategoryButton from "./AddCategoryButton";
 import EditableAssigned from "./EditableAssigned";
 import MonthNav from "./MonthNav";
 import { useBudgetContext } from "../context/BudgetContext";
-import { format, parseISO, subMonths } from "date-fns";
 import { TargetSidebar } from "./TargetSidebar";
 import { LandingCoverPage } from "./LandingCoverPage";
 import { useAuth } from "../context/AuthContext";
@@ -138,16 +137,8 @@ export default function CollapsibleTable() {
       .filter(Boolean);
   }, [budgetData, currentMonth, selectedFilter]);
 
-  const getPreviousMonth = (month) => {
-    return format(subMonths(parseISO(`${month}-01`), 1), "yyyy-MM");
-  };
-
   const toggleCategory = (category: string) => {
     setOpenCategories((prev) => ({ ...prev, [category]: !prev[category] }));
-  };
-
-  const isBeforeMonth = (monthA: string, monthB: string): boolean => {
-    return new Date(monthA) < new Date(monthB);
   };
 
   const handleInputChange = (categoryName, itemName, value) => {
@@ -176,7 +167,7 @@ export default function CollapsibleTable() {
           }),
         };
       });
-  
+
       updated[currentMonth] = {
         ...updated[currentMonth],
         categories: updatedCategories,

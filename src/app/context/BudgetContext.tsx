@@ -367,13 +367,6 @@ useEffect(() => {
 useEffect(() => {
   if (!budgetData[currentMonth]) return;
 
-  const currentlyAssigned = budgetData[currentMonth]?.categories?.reduce(
-    (sum, category) =>
-      sum +
-      category.categoryItems.reduce((itemSum, item) => itemSum + item.assigned, 0),
-    0
-  );
-
   const creditCardAccounts = accounts.filter((acc) => acc.type === "credit");
   const creditCardAccountNames = creditCardAccounts.map((acc) => acc.name);
 
@@ -439,15 +432,20 @@ useEffect(() => {
     .filter((tx) => tx.category === "Ready to Assign")
     .reduce((sum, tx) => sum + tx.balance, 0);
 
-  setBudgetData((prev) => ({
+  setBudgetData((prev) => {
+    
+    const updated = {
     ...prev,
     [currentMonth]: {
       ...prev[currentMonth],
       categories: updatedCategories,
       assignable_money: totalInflow,
-      ready_to_assign: calculateReadyToAssign(currentMonth),
     },
-  }));
+  }
+
+  refreshAllReadyToAssign(updated);
+  return updated;
+});
   setIsDirty(true);
 }, [accounts]);
 
@@ -706,21 +704,18 @@ useEffect(() => {
     return inflowMonths.sort()[0] ?? null;
   };
 
-  const calculateReadyToAssign = (month: string): number => {
-    const allMonths = Object.keys(budgetData).sort();
+  const calculateReadyToAssign = (month: string, data): number => {
+    const allMonths = Object.keys(data).sort();
     const currentIndex = allMonths.indexOf(month);
     if (currentIndex === -1) return 0;
   
     const firstInflowMonth = getFirstInflowMonth();
-
-    console.log("firstInflowMonth =", firstInflowMonth, "| checking RTA for", month);
-    console.log(month < firstInflowMonth);
-
+  
     if (firstInflowMonth && month < firstInflowMonth) {
       const assignedUpTo = allMonths
         .slice(0, currentIndex + 1)
         .reduce((sum, m) => {
-          const assigned = budgetData[m]?.categories?.reduce(
+          const assigned = data[m]?.categories?.reduce(
             (catSum, cat) =>
               catSum +
               cat.categoryItems.reduce((itemSum, item) => itemSum + item.assigned, 0),
@@ -729,7 +724,7 @@ useEffect(() => {
           return sum + (assigned || 0);
         }, 0);
   
-      return -assignedUpTo; 
+      return -assignedUpTo;
     }
 
     const inflowUpTo = allMonths
@@ -752,8 +747,8 @@ useEffect(() => {
         return sum + inflow;
       }, 0);
   
-    const totalAssigned = Object.keys(budgetData).reduce((sum, m) => {
-      const assigned = budgetData[m]?.categories?.reduce(
+    const totalAssigned = Object.keys(data).reduce((sum, m) => { 
+      const assigned = data[m]?.categories?.reduce(
         (catSum, cat) =>
           catSum +
           cat.categoryItems.reduce((itemSum, item) => itemSum + item.assigned, 0),
@@ -766,13 +761,13 @@ useEffect(() => {
   };
   
   
+  
   const refreshAllReadyToAssign = (data = budgetData) => {
     const updated = { ...data };
     const sortedMonths = Object.keys(updated).sort();
   
     for (const month of sortedMonths) {
-      console.log("🟢 Setting RTA for", month, "to", calculateReadyToAssign(month));
-      updated[month].ready_to_assign = calculateReadyToAssign(month);
+      updated[month].ready_to_assign = calculateReadyToAssign(month, data);
       dirtyMonths.current.add(month);
     }
   
@@ -1107,11 +1102,7 @@ useEffect(() => {
         },
       };
 
-      const sortedMonths = Object.keys(newBudgetData).sort();
-      for (const m of sortedMonths) {
-        newBudgetData[m].ready_to_assign = calculateReadyToAssign(m);
-        dirtyMonths.current.add(m);
-      }
+      refreshAllReadyToAssign(newBudgetData);
 
       setIsDirty(true);
       return newBudgetData;
@@ -1136,7 +1127,6 @@ useEffect(() => {
         deleteCategoryWithReassignment,
         deleteCategoryItem,
         dirtyMonths,
-        calculateReadyToAssign,
         refreshAllReadyToAssign,
         getCumulativeAvailable,
       }}
