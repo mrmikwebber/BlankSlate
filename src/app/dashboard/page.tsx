@@ -20,6 +20,7 @@ export default function Home() {
     if (!mounted) return;
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
+      console.log('Dashboard session check:', session);
       if (!session) {
         router.push('/auth');
       } else {

@@ -7,7 +7,8 @@ export default function AuthListener() {
   const router = useRouter();
 
   useEffect(() => {
-    const { data: listener } = supabase.auth.onAuthStateChange((event) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+        console.log('Auth state changed:', event, session);
       if (event === 'SIGNED_OUT') {
         router.push('/auth');
       }
