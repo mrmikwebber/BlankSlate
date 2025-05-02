@@ -27,8 +27,8 @@ interface BudgetData {
       target?: Target;
     }[];
   }[];
-  assignable_money: number;
-  ready_to_assign: number;
+  assignable_money?: number;
+  ready_to_assign?: number;
   id?: string;
 }
 
