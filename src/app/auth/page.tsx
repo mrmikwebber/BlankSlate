@@ -27,6 +27,14 @@ export default function AuthPage() {
     checkSession();
   }, []);
 
+  useEffect(() => {
+    const debugSession = async () => {
+      const { data } = await supabase.auth.getSession();
+      console.log('[Page Boot] Session:', data.session);
+    };
+    debugSession();
+  }, []);
+
   const handleAuth = async () => {
     setError("");
   
@@ -57,13 +65,11 @@ export default function AuthPage() {
     console.log('Auth result:', result);
     console.log('Session returned after login:', result.data?.session);
   
-    const { error, data } = result;
+    const { error } = result;
     setLoading(false);
   
     if (error) {
       setError(error.message);
-    } else if (data?.session) {
-      window.location.href = '/dashboard';
     } else {
       setError("Check your email to confirm your account.");
     }

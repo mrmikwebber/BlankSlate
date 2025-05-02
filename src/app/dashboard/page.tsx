@@ -17,6 +17,14 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    const debugSession = async () => {
+      const { data } = await supabase.auth.getSession();
+      console.log('[Page Boot] Session:', data.session);
+    };
+    debugSession();
+  }, []);
+
+  useEffect(() => {
     if (!mounted) return;
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
