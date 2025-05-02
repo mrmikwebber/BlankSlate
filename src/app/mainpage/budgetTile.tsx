@@ -6,8 +6,6 @@ import EditableAssigned from "./EditableAssigned";
 import MonthNav from "./MonthNav";
 import { useBudgetContext } from "../context/BudgetContext";
 import { TargetSidebar } from "./TargetSidebar";
-import { LandingCoverPage } from "./LandingCoverPage";
-import { useAuth } from "../context/AuthContext";
 import { createPortal } from "react-dom";
 
 export default function CollapsibleTable() {
@@ -24,7 +22,6 @@ export default function CollapsibleTable() {
     refreshAllReadyToAssign,
     getCumulativeAvailable,
   } = useBudgetContext();
-  const { user } = useAuth();
 
   const FILTERS = [
     "All",
@@ -263,10 +260,6 @@ export default function CollapsibleTable() {
       color: "text-gray-600",
     };
   };
-
-  if (!user) {
-    return <LandingCoverPage />;
-  }
 
   return (
     <>

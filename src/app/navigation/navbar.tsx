@@ -1,11 +1,9 @@
 "use client";
 import Link from "next/link";
 import { useState } from "react";
-import AuthenticationModal from "../mainpage/AuthenticationModal";
 import { useAuth } from "../context/AuthContext";
 export default function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const toggleMobileMenu = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen);
   };
@@ -50,24 +48,19 @@ export default function Navbar() {
           <div className="hidden lg:block">
             <ul className="flex flex-col gap-2 mt-2 mb-4 lg:mb-0 lg:mt-0 lg:flex-row lg:items-center lg:gap-6">
               <li>
-                {user ? (
+                {user && (
                   <div className="flex items-center gap-2">
                     <p className="text-sm text-gray-600">Hello, {name || "User"}</p>
                     <button onClick={signOut} className="bg-teal-600 hover:bg-teal-500 text-white px-8 py-2 rounded-md">
                       Sign Out
                     </button>
                   </div>
-                ) : (
-                  <button onClick={() => setIsAuthModalOpen(true)} className="bg-teal-600 hover:bg-teal-500 text-white px-8 py-2 rounded-md">
-                    Login
-                  </button>
                 )}
               </li>
             </ul>
           </div>
         </div>
       </nav>
-      {isAuthModalOpen && <AuthenticationModal onClose={() => setIsAuthModalOpen(false)} />}
     </div>
   );
 }
