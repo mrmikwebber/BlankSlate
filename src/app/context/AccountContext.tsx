@@ -58,7 +58,9 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
         return;
       }
     
-      setAccounts(data || []);
+      if (!error && data) {
+        setAccounts(data as unknown as Account[]);
+      }
     };
     
 
@@ -97,11 +99,16 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
       .eq("id", accountId)
       .single();
   
-    if (!error && data) {
-      setAccounts((prev) =>
-        prev.map((acc) => (acc.id === accountId ? data : acc))
-      );
-    }
+      if (!error && data) {
+        const isValidAccount = typeof data.id === 'string' && typeof data.name === 'string';
+        if (isValidAccount) {
+          setAccounts((prev) =>
+            prev.map((acc) => (acc.id === accountId ? data as unknown as Account : acc))
+          );
+        } else {
+          console.warn('Skipping update: data is not a valid Account', data);
+        }
+      }
   };
 
   const addAccount = async (account) => {
