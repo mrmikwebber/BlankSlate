@@ -1,44 +1,22 @@
-"use client"
-import Sidebar from "../navigation/sidebar";
-import AllAccountsTile from "../mainpage/allAccountsTile";
-import BudgetTile from "../mainpage/budgetTile";
-import TotalSpendingTile from "../mainpage/totalSpendingTile";
-import { useRouter } from "next/navigation";
-import { supabase } from "@/utils/supabaseClient";
-import { useState, useEffect } from "react";
+import { useEffect } from 'react';
+import { useAuth } from "../context/AuthContext"; 
+import { useRouter } from 'next/navigation';
+import Sidebar from '../navigation/sidebar';
+import AllAccountsTile from '../mainpage/allAccountsTile';
+import TotalSpendingTile from '../mainpage/totalSpendingTile';
+import BudgetTile from '../mainpage/budgetTile';
 
 export default function Home() {
-  const [mounted, setMounted] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const { session, loading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    setMounted(true);
-  }, []);
+    if (!loading && !session) {
+      router.push('/auth');
+    }
+  }, [loading, session]);
 
-  useEffect(() => {
-    const debugSession = async () => {
-      const { data } = await supabase.auth.getSession();
-      console.log('[Page Boot] Session:', data.session);
-    };
-    debugSession();
-  }, []);
-
-  useEffect(() => {
-    if (!mounted) return;
-    const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      console.log('Dashboard session check:', session);
-      if (!session) {
-        router.push('/auth');
-      } else {
-        setLoading(false);
-      }
-    };
-    checkAuth();
-  }, [mounted]);
-
-  if (!mounted || loading) {
+  if (loading || !session) {
     return (
       <div className="min-h-screen flex justify-center items-center">
         <p className="text-teal-600 text-lg">Loading your dashboard...</p>
