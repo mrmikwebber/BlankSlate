@@ -35,7 +35,9 @@ export default function AuthPage() {
     debugSession();
   }, []);
 
-  const handleAuth = async () => {
+  const handleAuth = async (e: React.FormEvent) => {
+    e.preventDefault(); // 🛑 Prevents the page reload
+  
     setError("");
   
     if (!email || !password || (isSignUp && (!firstName || !lastName))) {
@@ -61,7 +63,7 @@ export default function AuthPage() {
     } else {
       result = await supabase.auth.signInWithPassword({ email, password });
     }
-
+  
     console.log('Auth result:', result);
     console.log('Session returned after login:', result.data?.session);
   
@@ -74,6 +76,7 @@ export default function AuthPage() {
       setError("Check your email to confirm your account.");
     }
   };
+  
 
   if (checkingSession) {
     return (
