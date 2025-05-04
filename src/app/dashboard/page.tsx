@@ -1,29 +1,24 @@
-"use client"
-import Sidebar from "../navigation/sidebar";
-import AllAccountsTile from "../mainpage/allAccountsTile";
-import BudgetTile from "../mainpage/budgetTile";
-import TotalSpendingTile from "../mainpage/totalSpendingTile";
-import { useRouter } from "next/navigation";
-import { supabase } from "@/utils/supabaseClient";
-import { useState, useEffect } from "react";
+'use client'
+import { useEffect } from 'react';
+import { useAuth } from "../context/AuthContext"; 
+import { useRouter } from 'next/navigation';
+import Sidebar from '../navigation/sidebar';
+import AllAccountsTile from '../mainpage/allAccountsTile';
+import TotalSpendingTile from '../mainpage/totalSpendingTile';
+import BudgetTile from '../mainpage/budgetTile';
 
 export default function Home() {
+  const { session, loading } = useAuth();
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        router.push('/auth');
-      } else {
-        setLoading(false);
-      }
-    };
-    checkAuth();
-  }, [router]);
+    console.log(loading, session);
+    if (!loading && !session) {
+      router.push('/auth');
+    }
+  }, [loading, session]);
 
-  if (loading) {
+  if (loading || !session) {
     return (
       <div className="min-h-screen flex justify-center items-center">
         <p className="text-teal-600 text-lg">Loading your dashboard...</p>

@@ -32,6 +32,18 @@ interface BudgetData {
   id?: string;
 }
 
+interface CategoryItem {
+  name: string;
+  assigned: number;
+  activity: number;
+  available: number;
+}
+
+interface Category {
+  name: string;
+  categoryItems: CategoryItem[];
+}
+
 const BudgetContext = createContext(null);
 
 export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
@@ -108,7 +120,7 @@ const { accounts, setAccounts } = useAccountContext();
         setBudgetData(prev => ({
           ...prev,
           [newMonth]: {
-            id: inserted[0].id,
+            id: inserted[0].id as string,
             user_id: initial.user_id,
             month: initial.month,
             categories: initial.data.categories,
@@ -119,10 +131,17 @@ const { accounts, setAccounts } = useAccountContext();
         setCurrentMonth(newMonth);
       } else {
         const formatted = {};
-        data.forEach((entry) => {
-          formatted[entry.month] = {
-            ...entry,
-            categories: entry.data.categories,
+        data.forEach((entryRaw) => {
+          const { month, data: { categories }, ...rest } = entryRaw as {
+            month: string;
+            data: { categories: Category[] };
+            [key: string]: any;
+          };
+        
+          formatted[month] = {
+            ...rest,
+            month,
+            categories,
           };
         });
         setBudgetData(formatted);

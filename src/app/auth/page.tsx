@@ -17,6 +17,7 @@ export default function AuthPage() {
   useEffect(() => {
     const checkSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
+      console.log('Auth page session check:', session);
       if (session) {
         router.push('/dashboard');
       } else {
@@ -26,7 +27,17 @@ export default function AuthPage() {
     checkSession();
   }, []);
 
-  const handleAuth = async () => {
+  useEffect(() => {
+    const debugSession = async () => {
+      const { data } = await supabase.auth.getSession();
+      console.log('[Page Boot] Session:', data.session);
+    };
+    debugSession();
+  }, []);
+
+  const handleAuth = async (e: React.FormEvent) => {
+    e.preventDefault(); // 🛑 Prevents the page reload
+  
     setError("");
   
     if (!email || !password || (isSignUp && (!firstName || !lastName))) {
@@ -53,17 +64,20 @@ export default function AuthPage() {
       result = await supabase.auth.signInWithPassword({ email, password });
     }
   
-    const { error, data } = result;
+    console.log('Auth result:', result);
+    console.log('Session returned after login:', result.data?.session);
+  
+    const { error } = result;
     setLoading(false);
   
     if (error) {
       setError(error.message);
-    } else if (data?.session) {
-      router.push('/dashboard');
     } else {
+      router.push('/dashboard');
       setError("Check your email to confirm your account.");
     }
   };
+  
 
   if (checkingSession) {
     return (
