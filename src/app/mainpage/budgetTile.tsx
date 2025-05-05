@@ -123,7 +123,7 @@ export default function CollapsibleTable() {
     const closeMenu = () => {
       setGroupContext(null);
       setCategoryContext(null);
-    }
+    };
     window.addEventListener("click", closeMenu);
     return () => window.removeEventListener("click", closeMenu);
   }, []);
@@ -675,14 +675,31 @@ export default function CollapsibleTable() {
                               autoFocus
                             />
                           ) : (
-                            <span className="relative z-10 font-medium">
-                              {item.name}{" "}
+                            <>
                               {item.target && (
-                                <span className={getTargetStatus(item).color}>
-                                  {getTargetStatus(item).message}
-                                </span>
+                                <div className="absolute top-0 left-0 w-full h-full bg-gray-200 rounded">
+                                  <div
+                                    className="h-full bg-teal-500 transition-all duration-300 rounded"
+                                    style={{
+                                      width: `${Math.min(
+                                        (item.assigned /
+                                          item.target.amountNeeded) *
+                                          100,
+                                        100
+                                      )}%`,
+                                    }}
+                                  ></div>
+                                </div>
                               )}
-                            </span>
+                              <span className="relative z-10 font-medium">
+                                {item.name}{" "}
+                                {item.target && (
+                                  <span className={getTargetStatus(item).color}>
+                                    {getTargetStatus(item).message}
+                                  </span>
+                                )}
+                              </span>
+                            </>
                           )}
                         </td>
 
