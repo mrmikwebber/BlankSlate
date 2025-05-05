@@ -36,8 +36,7 @@ export default function AuthPage() {
   }, []);
 
   const handleAuth = async (e: React.FormEvent) => {
-    e.preventDefault(); // 🛑 Prevents the page reload
-  
+    e.preventDefault();
     setError("");
   
     if (!email || !password || (isSignUp && (!firstName || !lastName))) {

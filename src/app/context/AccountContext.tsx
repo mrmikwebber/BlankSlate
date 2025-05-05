@@ -33,6 +33,7 @@ interface AccountContextType {
     transactionId: number,
     updatedTransaction: Transaction
   ) => void;
+  editAccountName: (accountId: number, newName: string) => void;
 }
 
 const AccountContext = createContext<AccountContextType | undefined>(undefined);
@@ -122,6 +123,24 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
       })
     );
   };
+
+  const editAccountName = async (accountId: number, newName: string) => {
+    const { error } = await supabase
+      .from("accounts")
+      .update({ name: newName })
+      .eq("id", accountId);
+  
+    if (error) {
+      console.error("Failed to update account name:", error.message);
+      return;
+    }
+  
+    setAccounts((prev) =>
+      prev.map((acc) =>
+        acc.id === accountId ? { ...acc, name: newName } : acc
+      )
+    );
+  };
   
 
   const defaultTransaction = {
@@ -197,7 +216,7 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   return (
-    <AccountContext.Provider value={{ accounts, addTransaction, addAccount, deleteAccount, setAccounts, deleteTransaction, editTransaction }}>
+    <AccountContext.Provider value={{ accounts, addTransaction, addAccount, deleteAccount, setAccounts, deleteTransaction, editTransaction, editAccountName }}>
       {children}
     </AccountContext.Provider>
   );

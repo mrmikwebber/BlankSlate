@@ -14,6 +14,7 @@ export default function AccountDetails() {
     addTransaction,
     deleteTransaction,
     editTransaction,
+    editAccountName,
   } = useAccountContext();
 
   const [showForm, setShowForm] = useState(false);
@@ -32,8 +33,17 @@ export default function AccountDetails() {
     accountId: number;
   } | null>(null);
 
-  const [editingTransactionId, setEditingTransactionId] = useState<number | null>(null);
+  console.log(id);
+  const account = accounts.find((acc) => acc.id.toString() === id);
+
+  console.log(account);
+
+  const [editingTransactionId, setEditingTransactionId] = useState<
+    number | null
+  >(null);
   const [editedTransaction, setEditedTransaction] = useState<any>(null);
+  const [isEditingAccountName, setIsEditingAccountName] = useState(false);
+  const [newAccountName, setNewAccountName] = useState(account.name);
 
   const formRowRef = useRef<HTMLTableRowElement | null>(null);
   const payeeInputRef = useRef<HTMLInputElement | null>(null);
@@ -58,11 +68,8 @@ export default function AccountDetails() {
     }
   }, [editingTransactionId]);
 
-  const account = accounts.find((acc) => acc.id.toString() === id);
-  if (!account) return <p className="text-center mt-10">Account not found.</p>;
-
   const handleAddTransaction = () => {
-    console.log(newTransaction)
+    console.log(newTransaction);
     addTransaction(account.id, {
       ...newTransaction,
       date: new Date(newTransaction.date),
@@ -110,6 +117,13 @@ export default function AccountDetails() {
     setEditedTransaction(null);
   };
 
+  const handleRenameAccount = async () => {
+    await editAccountName(account.id, newAccountName);
+    setIsEditingAccountName(false);
+  };
+
+  if (!account) return <p className="text-center mt-10">Account not found.</p>;
+
   return (
     <div className="mx-auto p-6 relative">
       {contextMenu && (
@@ -130,7 +144,42 @@ export default function AccountDetails() {
         </div>
       )}
 
-      <h1 className="text-2xl font-bold mb-4">{account.name} Overview</h1>
+      <div className="flex items-center gap-2 mb-4">
+        {isEditingAccountName ? (
+          <>
+            <input
+              className="text-2xl font-bold border-b border-gray-400 focus:outline-none"
+              value={newAccountName}
+              onChange={(e) => setNewAccountName(e.target.value)}
+            />
+            <button
+              onClick={handleRenameAccount}
+              className="text-green-600 hover:underline"
+            >
+              Save
+            </button>
+            <button
+              onClick={() => {
+                setNewAccountName(account.name);
+                setIsEditingAccountName(false);
+              }}
+              className="text-gray-500 hover:underline"
+            >
+              Cancel
+            </button>
+          </>
+        ) : (
+          <>
+            <h1 className="text-2xl font-bold">{account.name} Overview</h1>
+            <button
+              onClick={() => setIsEditingAccountName(true)}
+              className="text-blue-600 hover:underline text-sm"
+            >
+              Edit
+            </button>
+          </>
+        )}
+      </div>
 
       <div className="flex justify-between">
         <h2 className="text-xl font-semibold mb-2">Transactions</h2>
@@ -208,7 +257,9 @@ export default function AccountDetails() {
                       }
                       className="w-full p-1 border rounded"
                     >
-                      <option value="" disabled hidden>Select Category</option>
+                      <option value="" disabled hidden>
+                        Select Category
+                      </option>
                       {budgetData[currentMonth].categories.flatMap((cat) =>
                         cat.categoryItems.map((item) => (
                           <option key={item.name} value={item.name}>
@@ -300,7 +351,10 @@ export default function AccountDetails() {
                   type="date"
                   value={newTransaction.date}
                   onChange={(e) =>
-                    setNewTransaction({ ...newTransaction, date: e.target.value })
+                    setNewTransaction({
+                      ...newTransaction,
+                      date: e.target.value,
+                    })
                   }
                   className="w-full p-1 border rounded"
                 />
@@ -311,7 +365,10 @@ export default function AccountDetails() {
                   type="text"
                   value={newTransaction.payee}
                   onChange={(e) =>
-                    setNewTransaction({ ...newTransaction, payee: e.target.value })
+                    setNewTransaction({
+                      ...newTransaction,
+                      payee: e.target.value,
+                    })
                   }
                   className="w-full p-1 border rounded"
                   placeholder="Payee"
@@ -322,12 +379,17 @@ export default function AccountDetails() {
                 <select
                   value={newTransaction.category}
                   onChange={(e) =>
-                    setNewTransaction({ ...newTransaction, category: e.target.value })
+                    setNewTransaction({
+                      ...newTransaction,
+                      category: e.target.value,
+                    })
                   }
                   className="w-full p-1 border rounded"
                   required
                 >
-                  <option value="" disabled hidden>Select Category</option>
+                  <option value="" disabled hidden>
+                    Select Category
+                  </option>
                   {budgetData[currentMonth].categories.flatMap((cat) =>
                     cat.categoryItems.map((item) => (
                       <option key={item.name} value={item.name}>
