@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { useAccountContext } from "@/app/context/AccountContext";
 import { useBudgetContext } from "../context/BudgetContext";
 import { parseISO, format } from "date-fns";
+import InlineAddTransaction from "./InlineAddTransaction";
 
 export default function AccountDetails() {
   const { id } = useParams();
@@ -342,105 +343,7 @@ export default function AccountDetails() {
           ))}
 
           {showForm && (
-            <tr
-              ref={formRowRef}
-              className="bg-gray-50 transition-opacity duration-300 opacity-100"
-            >
-              <td className="border p-2">
-                <input
-                  type="date"
-                  value={newTransaction.date}
-                  onChange={(e) =>
-                    setNewTransaction({
-                      ...newTransaction,
-                      date: e.target.value,
-                    })
-                  }
-                  className="w-full p-1 border rounded"
-                />
-              </td>
-              <td className="border p-2">
-                <input
-                  ref={payeeInputRef}
-                  type="text"
-                  value={newTransaction.payee}
-                  onChange={(e) =>
-                    setNewTransaction({
-                      ...newTransaction,
-                      payee: e.target.value,
-                    })
-                  }
-                  className="w-full p-1 border rounded"
-                  placeholder="Payee"
-                  required
-                />
-              </td>
-              <td className="border p-2">
-                <select
-                  value={newTransaction.category}
-                  onChange={(e) =>
-                    setNewTransaction({
-                      ...newTransaction,
-                      category: e.target.value,
-                    })
-                  }
-                  className="w-full p-1 border rounded"
-                  required
-                >
-                  <option value="" disabled hidden>
-                    Select Category
-                  </option>
-                  {budgetData[currentMonth].categories.flatMap((cat) =>
-                    cat.categoryItems.map((item) => (
-                      <option key={item.name} value={item.name}>
-                        {cat.name} → {item.name}
-                      </option>
-                    ))
-                  )}
-                </select>
-              </td>
-              <td className="border p-2">
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setIsNegative(!isNegative)}
-                    className={`rounded px-2 py-1 font-bold ${
-                      isNegative ? "text-red-600" : "text-green-600"
-                    }`}
-                  >
-                    {isNegative ? "−" : "+"}
-                  </button>
-                  <input
-                    type="number"
-                    value={newTransaction.balance}
-                    onChange={(e) =>
-                      setNewTransaction({
-                        ...newTransaction,
-                        balance: e.target.value,
-                      })
-                    }
-                    className="w-full p-1 border rounded"
-                    required
-                  />
-                  <button
-                    onClick={(e) => {
-                      e.preventDefault();
-                      handleAddTransaction();
-                    }}
-                    className="bg-teal-600 text-white px-2 py-1 rounded"
-                  >
-                    ✓
-                  </button>
-                  <button
-                    onClick={() => setShowForm(false)}
-                    className="text-gray-500 hover:underline"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </td>
-              <td className="border p-2"></td>
-            </tr>
+            <InlineAddTransaction accountId={account.id}/>
           )}
         </tbody>
       </table>
