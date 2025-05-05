@@ -21,6 +21,8 @@ export default function CollapsibleTable() {
     deleteCategoryItem,
     refreshAllReadyToAssign,
     getCumulativeAvailable,
+    renameCategory,
+    renameCategoryGroup,
   } = useBudgetContext();
 
   const FILTERS = [
@@ -35,6 +37,14 @@ export default function CollapsibleTable() {
   const [selectedTargetCategory, setSelectedTargetCategory] = useState("");
   const [dropUp, setDropUp] = useState(false);
   const [targetSidebarOpen, setTargetSidebarOpen] = useState(false);
+  const [editingGroup, setEditingGroup] = useState<string | null>(null);
+  const [newGroupName, setNewGroupName] = useState<string>("");
+  const [editingItem, setEditingItem] = useState<{
+    category: string;
+    item: string;
+  } | null>(null);
+  const [newCategoryName, setNewCategoryName] = useState("");
+
   const [newItem, setNewItem] = useState({
     name: "",
     assigned: 0,
@@ -54,6 +64,15 @@ export default function CollapsibleTable() {
   } | null>(null);
   const [categoryDeleteContext, setCategoryDeleteContext] = useState<{
     categoryName: string;
+    itemName: string;
+    assigned: number;
+    activity: number;
+    available: number;
+  } | null>(null);
+  const [categoryContext, setCategoryContext] = useState<{
+    x: number;
+    y: number;
+    groupName: string;
     itemName: string;
     assigned: number;
     activity: number;
@@ -141,45 +160,46 @@ export default function CollapsibleTable() {
   const handleInputChange = (categoryName, itemName, value) => {
     setBudgetData((prev) => {
       const updated = { ...prev };
-  
-      const updatedCategories = updated[currentMonth]?.categories.map((category) => {
-        if (category.name !== categoryName) return category;
-  
-        return {
-          ...category,
-          categoryItems: category.categoryItems.map((item) => {
-            if (item.name !== itemName) return item;
-  
-            const isCreditCard = category.name === "Credit Card Payments";
-            const activity = item.activity || 0;
-            const cumulative = getCumulativeAvailable(updated, item.name);
-  
-            return {
-              ...item,
-              assigned: value,
-              available: isCreditCard
-                ? item.available
-                : value + activity + Math.max(cumulative, 0),
-            };
-          }),
-        };
-      });
+
+      const updatedCategories = updated[currentMonth]?.categories.map(
+        (category) => {
+          if (category.name !== categoryName) return category;
+
+          return {
+            ...category,
+            categoryItems: category.categoryItems.map((item) => {
+              if (item.name !== itemName) return item;
+
+              const isCreditCard = category.name === "Credit Card Payments";
+              const activity = item.activity || 0;
+              const cumulative = getCumulativeAvailable(updated, item.name);
+
+              return {
+                ...item,
+                assigned: value,
+                available: isCreditCard
+                  ? item.available
+                  : value + activity + Math.max(cumulative, 0),
+              };
+            }),
+          };
+        }
+      );
 
       updated[currentMonth] = {
         ...updated[currentMonth],
         categories: updatedCategories,
       };
-  
+
       setTimeout(() => {
         refreshAllReadyToAssign(updated);
       }, 0);
-  
+
       return updated;
     });
-  
+
     setIsDirty(true);
   };
-  
 
   const handleAddItem = (category: string) => {
     if (newItem.name.trim() !== "") {
@@ -270,16 +290,28 @@ export default function CollapsibleTable() {
             style={{ top: groupContext.y, left: groupContext.x }}
             onClick={() => setGroupContext(null)}
           >
+            <button
+              onClick={() => {
+                setEditingGroup(groupContext.categoryName);
+                setNewGroupName(groupContext.categoryName);
+                setGroupContext(null);
+              }}
+              className="px-4 py-2 hover:bg-blue-100 text-blue-600 w-full text-left"
+            >
+              Rename Group
+            </button>
             {groupContext.itemCount === 0 ? (
-              <button
-                onClick={() => {
-                  deleteCategoryGroup(groupContext.categoryName);
-                  setGroupContext(null);
-                }}
-                className="px-4 py-2 hover:bg-red-100 text-red-600 w-full text-left"
-              >
-                Delete Group
-              </button>
+              <>
+                <button
+                  onClick={() => {
+                    deleteCategoryGroup(groupContext.categoryName);
+                    setGroupContext(null);
+                  }}
+                  className="px-4 py-2 hover:bg-red-100 text-red-600 w-full text-left"
+                >
+                  Delete Group
+                </button>
+              </>
             ) : (
               <div className="px-4 py-2 text-gray-500">
                 Cannot delete: Group not empty
@@ -375,6 +407,55 @@ export default function CollapsibleTable() {
           document.body
         )}
 
+      {categoryContext &&
+        createPortal(
+          <div
+            className="fixed z-50 bg-white border rounded shadow-md text-sm"
+            style={{ top: categoryContext.y, left: categoryContext.x }}
+            onClick={() => setCategoryContext(null)}
+          >
+            <button
+              onClick={() => {
+                setEditingItem({
+                  category: categoryContext.groupName,
+                  item: categoryContext.itemName,
+                });
+                setNewCategoryName(categoryContext.itemName);
+                setCategoryContext(null);
+              }}
+              className="px-4 py-2 hover:bg-blue-100 text-blue-600 w-full text-left"
+            >
+              Rename Category
+            </button>
+
+            {/* Optional: Hide delete if it's a special group or has assigned value */}
+            {categoryContext.assigned === 0 &&
+            categoryContext.activity === 0 &&
+            categoryContext.available === 0 ? (
+              <button
+                onClick={() => {
+                  setCategoryDeleteContext({
+                    categoryName: categoryContext.groupName,
+                    itemName: categoryContext.itemName,
+                    assigned: categoryContext.assigned,
+                    activity: categoryContext.activity,
+                    available: categoryContext.available,
+                  });
+                  setCategoryContext(null);
+                }}
+                className="px-4 py-2 hover:bg-red-100 text-red-600 w-full text-left"
+              >
+                Delete Category
+              </button>
+            ) : (
+              <div className="px-4 py-2 text-gray-400">
+                Cannot delete (non-zero activity)
+              </div>
+            )}
+          </div>,
+          document.body
+        )}
+
       <div className="mx-auto mt-8 rounded-md">
         <MonthNav />
         <div className="flex mt-2 mb-2">
@@ -433,7 +514,32 @@ export default function CollapsibleTable() {
                         >
                           {openCategories[group.name] ? "▼" : "▶"}
                         </button>
-                        {group.name}
+                        {editingGroup === group.name ? (
+                          <input
+                            value={newGroupName}
+                            onChange={(e) => setNewGroupName(e.target.value)}
+                            onBlur={async () => {
+                              await renameCategoryGroup(
+                                editingGroup,
+                                newGroupName
+                              );
+                              setEditingGroup(null);
+                            }}
+                            onKeyDown={async (e) => {
+                              if (e.key === "Enter") {
+                                await renameCategoryGroup(
+                                  editingGroup,
+                                  newGroupName
+                                );
+                                setEditingGroup(null);
+                              }
+                            }}
+                            className="text-black font-bold w-full"
+                            autoFocus
+                          />
+                        ) : (
+                          group.name
+                        )}
                         {hoveredCategory === group.name && (
                           <button
                             onClick={() => setActiveCategory(group.name)}
@@ -510,46 +616,75 @@ export default function CollapsibleTable() {
                         className="border-t"
                         onContextMenu={(e) => {
                           e.preventDefault();
-                          if (group.name !== "Credit Card Payments") {
-                            setCategoryDeleteContext({
-                              categoryName: group.name,
+                          setCategoryContext({
+                            x: e.clientX,
+                            y: e.clientY,
+                            groupName: group.name,
+                            itemName: item.name,
+                            assigned: item.assigned,
+                            activity: item.activity,
+                            available: item.available,
+                          });
+                        }}
+                      >
+                        <td
+                          className="p-2 border relative"
+                          onClick={() => {
+                            toggleTargetSideBar(item);
+                          }}
+                          onContextMenu={(e) => {
+                            e.preventDefault();
+                            setCategoryContext({
+                              x: e.clientX,
+                              y: e.clientY,
+                              groupName: group.name,
                               itemName: item.name,
                               assigned: item.assigned,
                               activity: item.activity,
                               available: item.available,
                             });
-                          }
-                        }}
-                      >
-                        <td
-                          onClick={() => {
-                            toggleTargetSideBar(item);
                           }}
-                          className="p-2 border relative"
                         >
-                          {item.target && (
-                            <div className="absolute top-0 left-0 w-full h-full bg-gray-200 rounded">
-                              <div
-                                className="h-full bg-teal-500 transition-all duration-300 rounded"
-                                style={{
-                                  width: `${Math.min(
-                                    (item.assigned / item.target.amountNeeded) *
-                                      100,
-                                    100
-                                  )}%`,
-                                }}
-                              ></div>
-                            </div>
+                          {editingItem?.category === group.name &&
+                          editingItem?.item === item.name ? (
+                            <input
+                              value={newCategoryName}
+                              onChange={(e) =>
+                                setNewCategoryName(e.target.value)
+                              }
+                              onBlur={async () => {
+                                await renameCategory(
+                                  group.name,
+                                  editingItem.item,
+                                  newCategoryName
+                                );
+                                setEditingItem(null);
+                              }}
+                              onKeyDown={async (e) => {
+                                if (e.key === "Enter") {
+                                  await renameCategory(
+                                    group.name,
+                                    editingItem.item,
+                                    newCategoryName
+                                  );
+                                  setEditingItem(null);
+                                }
+                              }}
+                              className="w-full"
+                              autoFocus
+                            />
+                          ) : (
+                            <span className="relative z-10 font-medium">
+                              {item.name}{" "}
+                              {item.target && (
+                                <span className={getTargetStatus(item).color}>
+                                  {getTargetStatus(item).message}
+                                </span>
+                              )}
+                            </span>
                           )}
-                          <span className="relative z-10 font-medium">
-                            {item.name}{" "}
-                            {item.target && (
-                              <span className={getTargetStatus(item).color}>
-                                {getTargetStatus(item).message}
-                              </span>
-                            )}
-                          </span>
                         </td>
+
                         <EditableAssigned
                           categoryName={group.name}
                           itemName={item.name}
