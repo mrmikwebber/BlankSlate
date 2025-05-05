@@ -1,12 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
-import {
-  getMonth,
-  parseISO,
-  subMonths,
-  format,
-  isSameMonth
-} from "date-fns";
+import { getMonth, parseISO, subMonths, format, isSameMonth } from "date-fns";
 import { useBudgetContext } from "../context/BudgetContext";
 import { useAccountContext } from "../context/AccountContext";
 import { formatToUSD } from "../utils/formatToUSD";
@@ -22,6 +16,21 @@ export const TargetSidebar = ({ itemName, onClose }) => {
 
   const { currentMonth, budgetData, setCategoryTarget } = useBudgetContext();
   const { accounts } = useAccountContext();
+
+  const sidebarRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (sidebarRef.current && !sidebarRef.current.contains(event.target)) {
+        handleClose();
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
   const findCategoryItemByName = (itemName) => {
     return budgetData[currentMonth]?.categories
@@ -42,7 +51,7 @@ export const TargetSidebar = ({ itemName, onClose }) => {
       const existingTarget = foundItem.target || null;
       setTarget(existingTarget);
       setTargetAmount(existingTarget?.amount || "");
-      if(foundItem.categoryName === "Credit Card Payments") {
+      if (foundItem.categoryName === "Credit Card Payments") {
         setTargetType(existingTarget?.type || "Full Payoff");
       } else {
         setTargetType(existingTarget?.type.toLowerCase() || "monthly");
@@ -55,9 +64,7 @@ export const TargetSidebar = ({ itemName, onClose }) => {
   useEffect(() => {
     if (targetType === "Full Payoff") {
       const accountBalance =
-        -1 *
-        accounts.filter((account) => account.name === itemName)[0]
-          .balance;
+        -1 * accounts.filter((account) => account.name === itemName)[0].balance;
       setTargetAmount(accountBalance.toString());
     }
   }, [targetType]);
@@ -102,7 +109,10 @@ export const TargetSidebar = ({ itemName, onClose }) => {
   const getPreviousMonthAvailable = (categoryItem) => {
     if (!categoryItem) return 0;
 
-    const prevMonth = subMonths(format(parseISO(`${currentMonth}-01`), "yyyy-MM"), 1);
+    const prevMonth = subMonths(
+      format(parseISO(`${currentMonth}-01`), "yyyy-MM"),
+      1
+    );
     const prevMonthKey = `${prevMonth.getFullYear()}-${(getMonth(prevMonth) + 1)
       .toString()
       .padStart(2, "0")}`;
@@ -120,14 +130,15 @@ export const TargetSidebar = ({ itemName, onClose }) => {
     return accounts
       .filter((account) => account.type === type)
       .flatMap((account) => account.transactions)
-      .filter(
-        (transaction) =>
-        {
-           return transaction.category === categoryItem.name &&
-           isSameMonth(format(parseISO(transaction.date), "yyyy-MM"), format(parseISO(currentMonth), "yyyy-MM"))
-        }
-
-      )
+      .filter((transaction) => {
+        return (
+          transaction.category === categoryItem.name &&
+          isSameMonth(
+            format(parseISO(transaction.date), "yyyy-MM"),
+            format(parseISO(currentMonth), "yyyy-MM")
+          )
+        );
+      })
       .reduce((sum, tx) => sum + Math.abs(tx.balance), 0);
   };
 
@@ -155,7 +166,7 @@ export const TargetSidebar = ({ itemName, onClose }) => {
   const handleRemoveTarget = () => {
     setCategoryTarget(categoryItem.name, null);
     handleClose();
-  }
+  };
 
   const handleClose = () => {
     setIsVisible(false);
@@ -167,6 +178,7 @@ export const TargetSidebar = ({ itemName, onClose }) => {
 
   return (
     <div
+      ref={sidebarRef}
       className={`fixed right-0 top-[76px] h-full w-64 bg-white shadow-lg border-l border-gray-300 p-4 
       transition-transform duration-300 ${
         isVisible ? "translate-x-0" : "translate-x-full"
@@ -305,13 +317,14 @@ export const TargetSidebar = ({ itemName, onClose }) => {
       >
         {target ? "Update Target" : "Save Target"}
       </button>
-      {target && 
-      <button
-        onClick={handleRemoveTarget}
-        className="mt-4 w-full bg-teal-600 text-white py-2 rounded-md hover:bg-teal-500 transition"
-      >
-        Remove Target
-      </button>}
+      {target && (
+        <button
+          onClick={handleRemoveTarget}
+          className="mt-4 w-full bg-teal-600 text-white py-2 rounded-md hover:bg-teal-500 transition"
+        >
+          Remove Target
+        </button>
+      )}
     </div>
   );
 };
