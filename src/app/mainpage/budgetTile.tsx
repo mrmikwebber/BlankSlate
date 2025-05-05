@@ -120,7 +120,10 @@ export default function CollapsibleTable() {
   }, [budgetData, currentMonth]);
 
   useEffect(() => {
-    const closeMenu = () => setGroupContext(null);
+    const closeMenu = () => {
+      setGroupContext(null);
+      setCategoryContext(null);
+    }
     window.addEventListener("click", closeMenu);
     return () => window.removeEventListener("click", closeMenu);
   }, []);
@@ -429,9 +432,7 @@ export default function CollapsibleTable() {
             </button>
 
             {/* Optional: Hide delete if it's a special group or has assigned value */}
-            {categoryContext.assigned === 0 &&
-            categoryContext.activity === 0 &&
-            categoryContext.available === 0 ? (
+            {categoryContext.groupName !== "Credit Card Payments" ? (
               <button
                 onClick={() => {
                   setCategoryDeleteContext({
@@ -449,7 +450,7 @@ export default function CollapsibleTable() {
               </button>
             ) : (
               <div className="px-4 py-2 text-gray-400">
-                Cannot delete (non-zero activity)
+                Cannot delete (Credit Credit Category)
               </div>
             )}
           </div>,
