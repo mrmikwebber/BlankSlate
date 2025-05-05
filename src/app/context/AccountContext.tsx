@@ -28,6 +28,11 @@ interface AccountContextType {
   setAccounts: (accounts) => void;
   deleteAccount: (accountId: number) => void;
   deleteTransaction: (accountId: number, transactionId: number) => void;
+  editTransaction: (
+    accountId: number,
+    transactionId: number,
+    updatedTransaction: Transaction
+  ) => void;
 }
 
 const AccountContext = createContext<AccountContextType | undefined>(undefined);
@@ -83,6 +88,41 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
       return data;
     }
   };
+
+  const editTransaction = async (
+    accountId: number,
+    transactionId: number,
+    updatedTransaction: Transaction
+  ) => {
+    const { error } = await supabase
+      .from("transactions")
+      .update({
+        date: updatedTransaction.date,
+        payee: updatedTransaction.payee,
+        category: updatedTransaction.category,
+        balance: updatedTransaction.balance,
+      })
+      .eq("id", transactionId)
+      .eq("account_id", accountId);
+  
+    if (error) {
+      console.error("Failed to update transaction:", error.message);
+      return;
+    }
+  
+    setAccounts((prevAccounts) =>
+      prevAccounts.map((account) => {
+        if (account.id !== accountId) return account;
+  
+        const updatedTransactions = account.transactions.map((tx) =>
+          tx.id === transactionId ? { ...tx, ...updatedTransaction } : tx
+        );
+  
+        return { ...account, transactions: updatedTransactions };
+      })
+    );
+  };
+  
 
   const defaultTransaction = {
     date: new Date().toISOString(),
@@ -157,7 +197,7 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   return (
-    <AccountContext.Provider value={{ accounts, addTransaction, addAccount, deleteAccount, setAccounts, deleteTransaction }}>
+    <AccountContext.Provider value={{ accounts, addTransaction, addAccount, deleteAccount, setAccounts, deleteTransaction, editTransaction }}>
       {children}
     </AccountContext.Provider>
   );
