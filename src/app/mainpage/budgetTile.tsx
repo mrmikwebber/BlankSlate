@@ -7,6 +7,7 @@ import MonthNav from "./MonthNav";
 import { useBudgetContext } from "../context/BudgetContext";
 import { TargetSidebar } from "./TargetSidebar";
 import { createPortal } from "react-dom";
+import InlineTargetEditor from "./TargetInlineEditor";
 
 export default function CollapsibleTable() {
   const {
@@ -35,9 +36,11 @@ export default function CollapsibleTable() {
   ];
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState("");
+  const [inlineEditorCategory, setInlineEditorCategory] = useState<
+    string | null
+  >(null);
   const [selectedTargetCategory, setSelectedTargetCategory] = useState("");
   const [dropUp, setDropUp] = useState(false);
-  const [targetSidebarOpen, setTargetSidebarOpen] = useState(false);
   const [editingGroup, setEditingGroup] = useState<string | null>(null);
   const [newGroupName, setNewGroupName] = useState<string>("");
   const [editingItem, setEditingItem] = useState<{
@@ -224,11 +227,6 @@ export default function CollapsibleTable() {
       setNewItem({ name: "", assigned: 0, activity: 0, available: 0 });
       setActiveCategory(null);
     }
-  };
-
-  const toggleTargetSideBar = (item) => {
-    setSelectedCategory(item.name);
-    setTargetSidebarOpen(true);
   };
 
   const isDeletingRef = useRef(false);
@@ -625,27 +623,10 @@ export default function CollapsibleTable() {
                   </tr>
                   {openCategories[group.name] &&
                     group.categoryItems.map((item, itemIndex) => (
-                      <tr
-                        key={itemIndex}
-                        className="hover:bg-slate-50 border-b transition"
-                        onContextMenu={(e) => {
-                          e.preventDefault();
-                          setCategoryContext({
-                            x: e.clientX,
-                            y: e.clientY,
-                            groupName: group.name,
-                            itemName: item.name,
-                            assigned: item.assigned,
-                            activity: item.activity,
-                            available: item.available,
-                          });
-                        }}
-                      >
-                        <td
-                          className="p-2 border relative"
-                          onClick={() => {
-                            toggleTargetSideBar(item);
-                          }}
+                      <Fragment>
+                        <tr
+                          key={itemIndex}
+                          className="hover:bg-slate-50 border-b transition"
                           onContextMenu={(e) => {
                             e.preventDefault();
                             setCategoryContext({
@@ -659,93 +640,111 @@ export default function CollapsibleTable() {
                             });
                           }}
                         >
-                          {editingItem?.category === group.name &&
-                          editingItem?.item === item.name ? (
-                            <input
-                              value={newCategoryName}
-                              onChange={(e) =>
-                                setNewCategoryName(e.target.value)
-                              }
-                              onBlur={async () => {
-                                await renameCategory(
-                                  group.name,
-                                  editingItem.item,
-                                  newCategoryName
-                                );
-                                setEditingItem(null);
-                              }}
-                              onKeyDown={async (e) => {
-                                if (e.key === "Enter") {
+                          <td
+                            className="p-2 border relative"
+                            onClick={() => {
+                              setInlineEditorCategory((prev) =>
+                                prev === item.name ? null : item.name
+                              );
+                            }}
+                            onContextMenu={(e) => {
+                              e.preventDefault();
+                              setCategoryContext({
+                                x: e.clientX,
+                                y: e.clientY,
+                                groupName: group.name,
+                                itemName: item.name,
+                                assigned: item.assigned,
+                                activity: item.activity,
+                                available: item.available,
+                              });
+                            }}
+                          >
+                            {editingItem?.category === group.name &&
+                            editingItem?.item === item.name ? (
+                              <input
+                                value={newCategoryName}
+                                onChange={(e) =>
+                                  setNewCategoryName(e.target.value)
+                                }
+                                onBlur={async () => {
                                   await renameCategory(
                                     group.name,
                                     editingItem.item,
                                     newCategoryName
                                   );
                                   setEditingItem(null);
-                                }
-                              }}
-                              className="w-full"
-                              autoFocus
-                            />
-                          ) : (
-                            <div className="relative h-6 rounded overflow-hidden bg-gray-50">
-                              {item.target && (
-                                <div
-                                  className="absolute top-0 left-0 h-full bg-gradient-to-r from-teal-500 to-teal-400 transition-all duration-300 rounded"
-                                  style={{
-                                    width: `${Math.min(
-                                      (item.assigned /
-                                        item.target.amountNeeded) *
-                                        100,
-                                      100
-                                    )}%`,
-                                  }}
-                                />
-                              )}
-                              <div className="relative z-10 px-2 text-sm flex justify-between items-center h-full">
-                                <span className="font-medium truncate">
-                                  {item.name}
-                                </span>
+                                }}
+                                onKeyDown={async (e) => {
+                                  if (e.key === "Enter") {
+                                    await renameCategory(
+                                      group.name,
+                                      editingItem.item,
+                                      newCategoryName
+                                    );
+                                    setEditingItem(null);
+                                  }
+                                }}
+                                className="w-full"
+                                autoFocus
+                              />
+                            ) : (
+                              <div className="relative h-6 rounded overflow-hidden bg-gray-50">
                                 {item.target && (
-                                  <span
-                                    className={`text-xs ml-2 ${
-                                      getTargetStatus(item).color
-                                    }`}
-                                  >
-                                    {getTargetStatus(item).message}
-                                  </span>
+                                  <div
+                                    className="absolute top-0 left-0 h-full bg-gradient-to-r from-teal-500 to-teal-400 transition-all duration-300 rounded"
+                                    style={{
+                                      width: `${Math.min(
+                                        (item.assigned /
+                                          item.target.amountNeeded) *
+                                          100,
+                                        100
+                                      )}%`,
+                                    }}
+                                  />
                                 )}
+                                <div className="relative z-10 px-2 text-sm flex justify-between items-center h-full">
+                                  <span className="font-medium truncate">
+                                    {item.name}
+                                  </span>
+                                  {item.target && (
+                                    <span
+                                      className={`text-xs ml-2 ${
+                                        getTargetStatus(item).color
+                                      }`}
+                                    >
+                                      {getTargetStatus(item).message}
+                                    </span>
+                                  )}
+                                </div>
                               </div>
-                            </div>
-                          )}
-                        </td>
-
-                        <EditableAssigned
-                          categoryName={group.name}
-                          itemName={item.name}
-                          item={item}
-                          handleInputChange={handleInputChange}
-                        />
-                        <td className="p-2 border">
-                          {formatToUSD(item.activity || 0)}
-                        </td>
-                        <td className="p-2 border">
-                          {formatToUSD(item.available || 0)}
-                        </td>
-                      </tr>
+                            )}
+                          </td>
+                          <EditableAssigned
+                            categoryName={group.name}
+                            itemName={item.name}
+                            item={item}
+                            handleInputChange={handleInputChange}
+                          />
+                          <td className="p-2 border">
+                            {formatToUSD(item.activity || 0)}
+                          </td>
+                          <td className="p-2 border">
+                            {formatToUSD(item.available || 0)}
+                          </td>
+                        </tr>
+                        {inlineEditorCategory === item.name && (
+                          <InlineTargetEditor
+                            itemName={item.name}
+                            onClose={() => setInlineEditorCategory(null)}
+                          />
+                        )}
+                      </Fragment>
                     ))}
                 </Fragment>
               ))}
             </tbody>
           </table>
-          {targetSidebarOpen && (
-            <TargetSidebar
-              itemName={selectedCategory}
-              onClose={() => {
-                setTargetSidebarOpen(false);
-              }}
-            />
-          )}
         </div>
       </div>
     </>
