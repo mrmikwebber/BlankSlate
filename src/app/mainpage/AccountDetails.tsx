@@ -10,7 +10,6 @@ import InlineTransactionRow from "./InlineTransactionRow";
 
 export default function AccountDetails() {
   const { id } = useParams();
-  const { budgetData, currentMonth } = useBudgetContext();
   const {
     accounts,
     addTransaction,
@@ -20,16 +19,6 @@ export default function AccountDetails() {
   } = useAccountContext();
 
   const [showForm, setShowForm] = useState(false);
-  const [editingTransaction, setEditingTransaction] =
-    useState<Transaction | null>(null);
-  const [isNegative, setIsNegative] = useState(false);
-  const [newTransaction, setNewTransaction] = useState({
-    date: new Date().toISOString().split("T")[0],
-    payee: "",
-    category: "",
-    category_group: "",
-    balance: "",
-  });
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
@@ -69,49 +58,11 @@ export default function AccountDetails() {
     }
   }, [editingTransactionId]);
 
-  // const handleAddTransaction = () => {
-  //   console.log(newTransaction);
-  //   addTransaction(account.id, {
-  //     ...newTransaction,
-  //     date: new Date(newTransaction.date),
-  //     balance: isNegative
-  //       ? -1 * Number(newTransaction.balance)
-  //       : Number(newTransaction.balance),
-  //   });
-  //   setNewTransaction({
-  //     date: new Date().toISOString().split("T")[0],
-  //     payee: "",
-  //     category: "",
-  //     category_group: "",
-  //     balance: "",
-  //   });
-  //   setShowForm(false);
-  //   setIsNegative(false);
-  // };
-
   const startEdit = (tx: any) => {
     setEditedTransaction(tx);
     setEditingTransactionId(tx.id);
   };
 
-  const cancelEdit = () => {
-    setEditingTransactionId(null);
-    setEditedTransaction(null);
-  };
-
-  const handleEditTransaction = async () => {
-    if (!editedTransaction) return;
-    const updated = {
-      ...editedTransaction,
-      date: editedTransaction.date,
-      balance: editedTransaction.isNegative
-        ? -1 * Number(editedTransaction.balance)
-        : Number(editedTransaction.balance),
-    };
-    await editTransaction(account.id, editedTransaction.id, updated);
-    setEditingTransactionId(null);
-    setEditedTransaction(null);
-  };
 
   const handleRenameAccount = async () => {
     await editAccountName(account.id, newAccountName);
@@ -221,11 +172,11 @@ export default function AccountDetails() {
                 initialData={editedTransaction}
                 onSave={() => {
                   setEditingTransactionId(null);
-                  setEditingTransaction(null);
+                  setEditedTransaction(null);
                 }}
                 onCancel={() => {
                   setEditingTransactionId(null);
-                  setEditingTransaction(null);
+                  setEditedTransaction(null);
                 }}
               />
             ) : (

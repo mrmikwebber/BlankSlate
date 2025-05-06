@@ -46,8 +46,8 @@ export default function InlineTransactionRow({
     const itemName = newItemMode ? newItemName.trim() : selectedItem;
     if (!payee || !amount || !itemName || !groupName) return;
 
-    let updatedCategories = [...budgetData[currentMonth].categories];
-    let groupIndex = updatedCategories.findIndex((g) => g.name === groupName);
+    const updatedCategories = [...budgetData[currentMonth].categories];
+    const groupIndex = updatedCategories.findIndex((g) => g.name === groupName);
 
     if (groupIndex === -1) {
       updatedCategories.push({
