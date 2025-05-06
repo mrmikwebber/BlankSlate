@@ -1,11 +1,10 @@
-'use client'
-import { useEffect } from 'react';
-import { useAuth } from "../context/AuthContext"; 
-import { useRouter } from 'next/navigation';
-import AllAccountsTile from '../mainpage/allAccountsTile';
-import TotalSpendingTile from '../mainpage/totalSpendingTile';
-import BudgetTile from '../mainpage/budgetTile';
-import ActivitySidebar from '../mainpage/ActivitySidebar';
+"use client";
+import { useEffect } from "react";
+import { useAuth } from "../context/AuthContext";
+import { useRouter } from "next/navigation";
+import BudgetTile from "../mainpage/budgetTile";
+import ActivitySidebar from "../mainpage/ActivitySidebar";
+import SidebarPanel from "../mainpage/SidebarPanel";
 
 export default function Home() {
   const { session, loading } = useAuth();
@@ -14,7 +13,7 @@ export default function Home() {
   useEffect(() => {
     console.log(loading, session);
     if (!loading && !session) {
-      router.push('/auth');
+      router.push("/auth");
     }
   }, [loading, session]);
 
@@ -27,21 +26,19 @@ export default function Home() {
   }
 
   return (
-    <div className="relative isolate">
-      <div className="flex z-1">
-        <ActivitySidebar page="dashboard"/>
-        <div className="m-4 grid grid-cols-[auto_1fr] gap-3 w-screen">
-          <div className="bg-zinc-100 p-4 rounded-md drop-shadow-md">
-            <AllAccountsTile />
-          </div>
-          <div className="bg-zinc-100 p-4 row-span-2 w-full rounded-md drop-shadow-md overflow-scroll">
-            <BudgetTile />
-          </div>
-          <div className="bg-zinc-100 p-4 rounded-md drop-shadow-md">
-            <TotalSpendingTile />
-          </div>
+    <div className="h-[calc(100vh-76px)] flex overflow-hidden">
+      <ActivitySidebar page="dashboard" />
+  
+      <div className="m-4 grid grid-cols-1 lg:grid-cols-[35%_65%] gap-3 w-full overflow-hidden">
+        <div className="bg-zinc-100 p-4 rounded-md drop-shadow-md h-full overflow-y-auto">
+          <SidebarPanel />
+        </div>
+  
+        <div className="bg-zinc-100 p-4 rounded-md drop-shadow-md h-full overflow-y-auto min-w-[600px]">
+          <BudgetTile />
         </div>
       </div>
     </div>
   );
+  
 }
