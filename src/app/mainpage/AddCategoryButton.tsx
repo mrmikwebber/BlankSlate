@@ -16,7 +16,7 @@ const AddCategoryButton = ({ handleSubmit }: { handleSubmit: (categoryName: stri
     <div className="relative inline-block">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="bg-teal-500 text-white px-4 py-2 rounded-md shadow-md hover:bg-blue-500 transition"
+        className="bg-blue-600 text-white px-4 py-2 rounded-xl shadow hover:bg-teal-600 transition"
       >
         Add Category Group
       </button>
@@ -35,7 +35,7 @@ const AddCategoryButton = ({ handleSubmit }: { handleSubmit: (categoryName: stri
           />
           <button
             onClick={onSubmit}
-            className="mt-3 w-full bg-teal-500 text-white py-2 rounded-md hover:bg-green-500 transition"
+            className="mt-3 w-full bg-blue-600 text-white py-2 rounded-md hover:bg-teal-600 transition"
           >
             Submit
           </button>

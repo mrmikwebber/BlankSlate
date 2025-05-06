@@ -31,7 +31,7 @@ interface AccountContextType {
   editTransaction: (
     accountId: number,
     transactionId: number,
-    updatedTransaction: Transaction
+    updatedTransaction: Partial<Transaction>
   ) => void;
   editAccountName: (accountId: number, newName: string) => void;
 }
