@@ -9,11 +9,7 @@ import InlineTransactionRow from "./InlineTransactionRow";
 
 export default function AccountDetails() {
   const { id } = useParams();
-  const {
-    accounts,
-    deleteTransaction,
-    editAccountName,
-  } = useAccountContext();
+  const { accounts, deleteTransaction, editAccountName } = useAccountContext();
 
   const [showForm, setShowForm] = useState(false);
   const [contextMenu, setContextMenu] = useState<{
@@ -59,7 +55,6 @@ export default function AccountDetails() {
     setEditedTransaction(tx);
     setEditingTransactionId(tx.id);
   };
-
 
   const handleRenameAccount = async () => {
     await editAccountName(account.id, newAccountName);
@@ -150,70 +145,72 @@ export default function AccountDetails() {
         )}
       </div>
 
-      <table className="w-full border-collapse border border-gray-300">
-        <thead>
-          <tr className="bg-gray-100">
-            <th className="border p-2">Date</th>
-            <th className="border p-2">Payee</th>
-            <th className="border p-2">Category</th>
-            <th className="border p-2">Amount</th>
-          </tr>
-        </thead>
-        <tbody>
-          {account.transactions.map((tx) =>
-            editingTransactionId === tx.id ? (
-              <InlineAddTransaction
-                key={`edit-${tx.id}`}
+      <div className="rounded-xl border bg-white shadow-sm mt-4">
+        <table className="w-full border border-gray-300 rounded-md bg-white shadow-sm text-sm">
+          <thead>
+            <tr className="bg-gray-100 text-gray-700 uppercase tracking-wide">
+              <th className="p-2 border">Date</th>
+              <th className="p-2 border">Payee</th>
+              <th className="p-2 border">Category</th>
+              <th className="p-2 border text-right">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {account.transactions.map((tx) =>
+              editingTransactionId === tx.id ? (
+                <InlineAddTransaction
+                  key={`edit-${tx.id}`}
+                  accountId={account.id}
+                  mode="edit"
+                  initialData={editedTransaction}
+                  onSave={() => {
+                    setEditingTransactionId(null);
+                    setEditedTransaction(null);
+                  }}
+                  onCancel={() => {
+                    setEditingTransactionId(null);
+                    setEditedTransaction(null);
+                  }}
+                />
+              ) : (
+                <tr
+                  key={tx.id}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    setContextMenu({
+                      x: e.clientX,
+                      y: e.clientY,
+                      txId: tx.id,
+                      accountId: account.id,
+                    });
+                  }}
+                >
+                  <td className="border p-2">
+                    {tx.date && format(parseISO(tx.date), "eee, MMM d yyyy")}
+                  </td>
+                  <td className="border p-2">{tx.payee}</td>
+                  <td className="border p-2">{tx.category}</td>
+                  <td
+                    className={`border p-2 text-right font-medium ${
+                      tx.balance < 0 ? "text-red-600" : "text-green-600"
+                    }`}
+                  >
+                    {tx.balance}
+                  </td>
+                </tr>
+              )
+            )}
+            {showForm && (
+              <InlineTransactionRow
                 accountId={account.id}
-                mode="edit"
-                initialData={editedTransaction}
-                onSave={() => {
-                  setEditingTransactionId(null);
-                  setEditedTransaction(null);
-                }}
                 onCancel={() => {
-                  setEditingTransactionId(null);
-                  setEditedTransaction(null);
+                  setShowForm(false);
                 }}
               />
-            ) : (
-              <tr
-                key={tx.id}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  setContextMenu({
-                    x: e.clientX,
-                    y: e.clientY,
-                    txId: tx.id,
-                    accountId: account.id,
-                  });
-                }}
-              >
-                <td className="border p-2">
-                  {tx.date && format(parseISO(tx.date), "eee, MMM d yyyy")}
-                </td>
-                <td className="border p-2">{tx.payee}</td>
-                <td className="border p-2">{tx.category}</td>
-                <td
-                  className={`border p-2 ${
-                    tx.balance < 0 ? "text-red-500" : "text-green-500"
-                  }`}
-                >
-                  {tx.balance}
-                </td>
-              </tr>
-            )
-          )}
-          {showForm && (
-            <InlineTransactionRow
-              accountId={account.id}
-              onCancel={() => {
-                setShowForm(false);
-              }}
-            />
-          )}
-        </tbody>
-      </table>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
