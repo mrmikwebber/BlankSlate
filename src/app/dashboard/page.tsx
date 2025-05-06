@@ -2,10 +2,10 @@
 import { useEffect } from 'react';
 import { useAuth } from "../context/AuthContext"; 
 import { useRouter } from 'next/navigation';
-import Sidebar from '../navigation/sidebar';
 import AllAccountsTile from '../mainpage/allAccountsTile';
 import TotalSpendingTile from '../mainpage/totalSpendingTile';
 import BudgetTile from '../mainpage/budgetTile';
+import ActivitySidebar from '../mainpage/ActivitySidebar';
 
 export default function Home() {
   const { session, loading } = useAuth();
@@ -29,7 +29,7 @@ export default function Home() {
   return (
     <div className="relative isolate">
       <div className="flex z-1">
-        <Sidebar />
+        <ActivitySidebar page="dashboard"/>
         <div className="m-4 grid grid-cols-[auto_1fr] gap-3 w-screen">
           <div className="bg-zinc-100 p-4 rounded-md drop-shadow-md">
             <AllAccountsTile />

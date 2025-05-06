@@ -2,8 +2,7 @@
 
 import { useParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { Transaction, useAccountContext } from "@/app/context/AccountContext";
-import { useBudgetContext } from "../context/BudgetContext";
+import { useAccountContext } from "@/app/context/AccountContext";
 import { parseISO, format } from "date-fns";
 import InlineAddTransaction from "./InlineTransactionRow";
 import InlineTransactionRow from "./InlineTransactionRow";
@@ -12,9 +11,7 @@ export default function AccountDetails() {
   const { id } = useParams();
   const {
     accounts,
-    addTransaction,
     deleteTransaction,
-    editTransaction,
     editAccountName,
   } = useAccountContext();
 

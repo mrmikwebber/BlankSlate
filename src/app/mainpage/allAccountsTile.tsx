@@ -8,14 +8,12 @@ export default function AllAccountsTile() {
   const { accounts, addAccount } = useAccountContext();
   const [showModal, setShowModal] = useState(false);
 
-
-
   const handleAddAccount = (newAccount) => {
     addAccount(newAccount);
   };
 
   return (
-    <div className="flex flex-col bg-zinc-100 rounded-md p-2">
+    <div className="bg-white rounded-2xl border shadow p-6 space-y-4">
       <div className="flex justify-between">
         <h1>Accounts</h1>
         <button
@@ -46,16 +44,18 @@ export default function AllAccountsTile() {
       ) : (
         <>
           <h2>Cash</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-1 m-2">
-            {accounts.map(
-              (account) =>
-                account.type === "debit" && (
-                  <AccountTile key={account.id} account={account} />
-                )
-            )}
+          <div className="overflow-x-auto">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+              {accounts.map(
+                (account) =>
+                  account.type === "debit" && (
+                    <AccountTile key={account.id} account={account} />
+                  )
+              )}
+            </div>
           </div>
           <h2>Credit</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-1 m-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
             {accounts.map(
               (account) =>
                 account.type === "credit" && (

@@ -23,6 +23,7 @@ export interface Account {
 
 interface AccountContextType {
   accounts: Account[];
+  recentTransactions: Transaction[];
   addTransaction: (accountId, transaction) => void;
   addAccount: (newAccount) => void;
   setAccounts: (accounts) => void;
@@ -51,6 +52,7 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const { user } = useAuth() || { user: null };
 
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [recentTransactions, setRecentTransactions] = useState([]);
   useEffect(() => {
     if (!user) return;
     const fetchAccounts = async () => {
@@ -82,6 +84,14 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
       },
     ]).select();
 
+    setRecentTransactions((prev) => [
+      ...prev.slice(-9),
+      {
+        ...data[0],
+        timestamp: new Date().toISOString(),
+      },
+    ]);
+
     if (error) {
       console.error("Add transaction failed:", error);
     } else {
@@ -105,6 +115,13 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
       })
       .eq("id", transactionId)
       .eq("account_id", accountId);
+
+      setRecentTransactions((prev) => {
+        const updated = prev.map((t) =>
+          t.id === updatedTransaction.id ? { ...updatedTransaction, timestamp: new Date().toISOString() } : t
+        );
+        return [...updated.slice(-10)];
+      });
   
     if (error) {
       console.error("Failed to update transaction:", error.message);
@@ -207,6 +224,10 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
       .from("transactions")
       .delete()
       .eq("id", transactionId);
+
+      setRecentTransactions((prev) =>
+        prev.filter((t) => t.id !== transactionId)
+      );
   
     if (error) {
       console.error("Failed to delete transaction:", error);
@@ -216,7 +237,7 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   return (
-    <AccountContext.Provider value={{ accounts, addTransaction, addAccount, deleteAccount, setAccounts, deleteTransaction, editTransaction, editAccountName }}>
+    <AccountContext.Provider value={{ accounts, addTransaction, addAccount, deleteAccount, setAccounts, deleteTransaction, editTransaction, editAccountName, recentTransactions }}>
       {children}
     </AccountContext.Provider>
   );

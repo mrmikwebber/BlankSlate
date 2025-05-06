@@ -23,6 +23,7 @@ export default function CollapsibleTable() {
     getCumulativeAvailable,
     renameCategory,
     renameCategoryGroup,
+    setRecentChanges,
   } = useBudgetContext();
 
   const FILTERS = [
@@ -202,6 +203,14 @@ export default function CollapsibleTable() {
     });
 
     setIsDirty(true);
+
+    setRecentChanges((prev) => [
+      ...prev.slice(-9),
+      {
+        description: `Assigned $${value} to '${itemName}' in '${categoryName}'`,
+        timestamp: new Date().toISOString(),
+      },
+    ]);
   };
 
   const handleAddItem = (category: string) => {
@@ -586,32 +595,34 @@ export default function CollapsibleTable() {
                           )}
                     </td>
                   </tr>
-                  <div className="relative">
-                    {activeCategory === group.name && (
-                      <div
-                        ref={addItemRef}
-                        className={`${
-                          dropUp ? "bottom-full mb-2" : "top-full mt-2"
-                        } absolute left-0 mt-2 w-64 bg-white p-4 shadow-lg rounded-lg border z-50`}
-                      >
-                        <input
-                          type="text"
-                          placeholder="Item Name"
-                          value={newItem.name}
-                          onChange={(e) =>
-                            setNewItem({ ...newItem, name: e.target.value })
-                          }
-                          className="w-full border rounded px-2 py-1"
-                        />
-                        <button
-                          onClick={() => handleAddItem(group.name)}
-                          className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-500 transition"
+                  <tr>
+                    <td colSpan={4} className="relative p-0">
+                      {activeCategory === group.name && (
+                        <div
+                          ref={addItemRef}
+                          className={`${
+                            dropUp ? "bottom-full mb-2" : "top-full mt-2"
+                          } absolute left-0 mt-2 w-64 bg-white p-4 shadow-lg rounded-lg border z-50`}
                         >
-                          Submit
-                        </button>
-                      </div>
-                    )}
-                  </div>
+                          <input
+                            type="text"
+                            placeholder="Item Name"
+                            value={newItem.name}
+                            onChange={(e) =>
+                              setNewItem({ ...newItem, name: e.target.value })
+                            }
+                            className="w-full border rounded px-2 py-1"
+                          />
+                          <button
+                            onClick={() => handleAddItem(group.name)}
+                            className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-500 transition"
+                          >
+                            Submit
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
                   {openCategories[group.name] &&
                     group.categoryItems.map((item, itemIndex) => (
                       <tr
