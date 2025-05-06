@@ -485,7 +485,7 @@ export default function CollapsibleTable() {
             </button>
           ))}
         </div>
-        <div className="flex">
+        <div className="flex max-h-[calc(100vh-150px)] overflow-y-auto">
           <table className="w-full border border-gray-300 rounded-md bg-white shadow-sm">
             <thead>
               <tr className="bg-gray-100 text-sm text-gray-700 uppercase tracking-wide">
@@ -553,7 +553,10 @@ export default function CollapsibleTable() {
                         )}
                         <div className="ms-2 w-6 h-6 flex items-center justify-center">
                           {hoveredCategory === group.name && (
-                            <button className="text-sm bg-blue-500 text-white px-2 py-1 rounded-full hover:bg-teal-500 transition">
+                            <button
+                              onClick={() => setActiveCategory(group.name)}
+                              className="text-sm bg-blue-500 text-white px-2 py-1 rounded-full hover:bg-teal-500 transition"
+                            >
                               +
                             </button>
                           )}
