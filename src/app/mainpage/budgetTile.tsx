@@ -5,7 +5,7 @@ import AddCategoryButton from "./AddCategoryButton";
 import EditableAssigned from "./EditableAssigned";
 import MonthNav from "./MonthNav";
 import { useBudgetContext } from "../context/BudgetContext";
-import { TargetSidebar } from "./TargetSidebar";
+import { getTargetStatus } from "../utils/getTargetStatus";
 import { createPortal } from "react-dom";
 import InlineTargetEditor from "./TargetInlineEditor";
 
@@ -134,10 +134,16 @@ export default function CollapsibleTable() {
 
   const filteredCategories = useMemo(() => {
     if (!budgetData || !currentMonth) return [];
-
+  
     const allCategories = budgetData[currentMonth]?.categories || [];
-
-    return allCategories
+  
+    const sortedCategories = [...allCategories].sort((a, b) => {
+      if (a.name === "Credit Card Payments") return -1;
+      if (b.name === "Credit Card Payments") return 1;
+      return 0;
+    });
+  
+    return sortedCategories
       .map((category) => {
         const filteredItems = category.categoryItems.filter((item) => {
           switch (selectedFilter) {
@@ -154,11 +160,12 @@ export default function CollapsibleTable() {
               return true;
           }
         });
-
+  
         return { ...category, categoryItems: filteredItems };
       })
       .filter(Boolean);
   }, [budgetData, currentMonth, selectedFilter]);
+  
 
   const toggleCategory = (category: string) => {
     setOpenCategories((prev) => ({ ...prev, [category]: !prev[category] }));
@@ -244,51 +251,6 @@ export default function CollapsibleTable() {
     setTimeout(() => {
       isDeletingRef.current = false;
     }, 100);
-  };
-
-  const getTargetStatus = (item) => {
-    if (!item.target) return { message: "", color: "" };
-
-    const assigned = item.assigned || 0;
-    const needed = item.target.amountNeeded;
-    const activity = Math.abs(item.activity || 0);
-    const available = item.available || 0;
-    const overspent = available < 0;
-    const fullyFunded = assigned === needed;
-    const overFunded = assigned > needed;
-    const partiallyFunded = assigned < needed && assigned >= activity;
-    const stillNeeded = needed - assigned;
-
-    if (overspent && assigned < activity) {
-      return {
-        message: `Overspent ${formatToUSD(available * -1)} of ${formatToUSD(
-          assigned
-        )}`,
-        color: "text-red-600 font-semibold",
-      };
-    }
-    if (
-      ((fullyFunded || overFunded) && available === 0) ||
-      (fullyFunded && available > 0)
-    ) {
-      return { message: "Fully Funded", color: "text-green-600 font-semibold" };
-    }
-    if (overFunded) {
-      return {
-        message: `Funded ${formatToUSD(needed)} of ${formatToUSD(assigned)}`,
-        color: "text-blue-600 font-semibold",
-      };
-    }
-    if (partiallyFunded) {
-      return {
-        message: `${formatToUSD(stillNeeded)} more needed to fulfill target`,
-        color: "text-yellow-600 font-semibold",
-      };
-    }
-    return {
-      message: `${formatToUSD(assigned)} / ${formatToUSD(needed)}`,
-      color: "text-gray-600",
-    };
   };
 
   return (
@@ -464,7 +426,7 @@ export default function CollapsibleTable() {
           document.body
         )}
 
-      <div className="mx-auto mt-8 rounded-2xl bg-white border shadow p-6 space-y-6">
+      <div className="mx-auto rounded-2xl bg-white border shadow p-6 space-y-6">
         <h2 className="text-xl font-bold text-gray-800 mb-2">Your Budget</h2>
         <MonthNav />
         <div className="mt-6 mb-2 flex items-center justify-between">
@@ -486,7 +448,7 @@ export default function CollapsibleTable() {
           ))}
         </div>
         <div className="flex max-h-[calc(100vh-150px)] overflow-y-auto">
-          <table className="w-full border border-gray-300 rounded-md bg-white shadow-sm">
+          <table className="w-full border border-gray-300 rounded-md bg-white shadow-sm min-w-full table-auto">
             <thead>
               <tr className="bg-gray-100 text-sm text-gray-700 uppercase tracking-wide">
                 <th className="p-2 border">Category</th>
@@ -710,7 +672,7 @@ export default function CollapsibleTable() {
                                   <span className="font-medium truncate">
                                     {item.name}
                                   </span>
-                                  {item.target && (
+                                  {getTargetStatus(item).message && (
                                     <span
                                       className={`text-xs ml-2 ${
                                         getTargetStatus(item).color

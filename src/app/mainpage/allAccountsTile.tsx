@@ -13,7 +13,7 @@ export default function AllAccountsTile() {
   };
 
   return (
-    <div className="bg-white rounded-2xl border shadow p-6 space-y-4">
+    <div className="bg-white rounded-2xl border shadow p-6 space-y-4 w-full">
       <div className="flex justify-between">
         <h1>Accounts</h1>
         <button
