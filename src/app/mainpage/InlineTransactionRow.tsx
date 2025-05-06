@@ -1,20 +1,33 @@
-'use client';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from "react";
 import { useBudgetContext } from '@/app/context/BudgetContext';
-import { useAccountContext } from '@/app/context/AccountContext';
+import { useAccountContext, Transaction } from '@/app/context/AccountContext';
 import { format } from 'date-fns';
 import { supabase } from '@/utils/supabaseClient';
 
-export default function InlineAddTransaction({ accountId }: { accountId: number }) {
+export default function InlineTransactionRow({
+  accountId,
+  mode = 'add',
+  initialData,
+  onCancel,
+  onSave,
+}: {
+  accountId: number;
+  mode?: 'add' | 'edit';
+  initialData?: Transaction;
+  onCancel?: () => void;
+  onSave?: () => void;
+}) {
+  const isEdit = mode === 'edit';
   const { budgetData, currentMonth, setBudgetData } = useBudgetContext();
-  const { addTransaction } = useAccountContext();
+  const { addTransaction, editTransaction } = useAccountContext();
 
   const today = format(new Date(), 'yyyy-MM-dd');
-  const [date, setDate] = useState(today);
-  const [payee, setPayee] = useState('');
-  const [amount, setAmount] = useState('');
-  const [isNegative, setIsNegative] = useState(true);
-
+  const [date, setDate] = useState(isEdit && initialData ? initialData.date : today);
+  const [payee, setPayee] = useState(isEdit && initialData ? initialData.payee : '');
+  const [amount, setAmount] = useState(isEdit && initialData ? Math.abs(initialData.balance).toString() : '');
+  const [isNegative, setIsNegative] = useState(
+    isEdit && initialData ? initialData.balance < 0 : true
+  );
   const [selectedGroup, setSelectedGroup] = useState('');
   const [selectedItem, setSelectedItem] = useState('');
   const [newGroupMode, setNewGroupMode] = useState(false);
@@ -22,20 +35,19 @@ export default function InlineAddTransaction({ accountId }: { accountId: number 
   const [newGroupName, setNewGroupName] = useState('');
   const [newItemName, setNewItemName] = useState('');
 
+  const formRef = useRef<HTMLTableRowElement>(null);
+
   const categoryGroups = budgetData[currentMonth].categories.map((cat) => cat.name);
   const getItemsForGroup = (groupName: string) =>
     budgetData[currentMonth].categories.find((cat) => cat.name === groupName)?.categoryItems.map((item) => item.name) || [];
 
   const handleSubmit = async () => {
-    if (!payee || !amount || (!selectedItem && !newItemName)) return;
-
     const groupName = newGroupMode ? newGroupName.trim() : selectedGroup;
     const itemName = newItemMode ? newItemName.trim() : selectedItem;
+    if (!payee || !amount || !itemName || !groupName) return;
 
-    if (!groupName || !itemName) return;
-
-    let updatedCategories = [...budgetData[currentMonth].categories];
-    let groupIndex = updatedCategories.findIndex((g) => g.name === groupName);
+    const updatedCategories = [...budgetData[currentMonth].categories];
+    const groupIndex = updatedCategories.findIndex((g) => g.name === groupName);
 
     if (groupIndex === -1) {
       updatedCategories.push({
@@ -75,27 +87,51 @@ export default function InlineAddTransaction({ accountId }: { accountId: number 
       },
     }));
 
-    await addTransaction(accountId, {
+    const transactionData = {
       date,
       payee,
       category: itemName,
       balance: (isNegative ? -1 : 1) * Number(amount),
-    });
+    };
 
-    setDate(today);
-    setPayee('');
-    setAmount('');
-    setIsNegative(true);
-    setSelectedGroup('');
-    setSelectedItem('');
-    setNewGroupMode(false);
-    setNewItemMode(false);
-    setNewGroupName('');
-    setNewItemName('');
+    if (isEdit && initialData) {
+      await editTransaction(accountId, initialData.id, transactionData);
+    } else {
+      await addTransaction(accountId, transactionData);
+    }
+
+    onSave?.();
   };
 
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (formRef.current && !formRef.current.contains(e.target as Node)) {
+        onCancel?.();
+      }
+    };
+  
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [onCancel]);
+
+  useEffect(() => {
+    if (mode === 'edit' && initialData?.category) {
+      const group = budgetData[currentMonth].categories.find((catGroup) =>
+        catGroup.categoryItems.some((item) => item.name === initialData.category)
+      );
+  
+      if (group) {
+        setSelectedGroup(group.name);
+        setSelectedItem(initialData.category);
+      } else {
+        setSelectedGroup('');
+        setSelectedItem('');
+      }
+    }
+  }, [mode, initialData, budgetData, currentMonth]);
+
   return (
-    <tr className="bg-gray-50 transition-opacity duration-300 opacity-100">
+    <tr ref={formRef} className="bg-gray-50 transition-opacity duration-300 opacity-100">
       <td className="border p-2">
         <input
           type="date"
@@ -138,9 +174,7 @@ export default function InlineAddTransaction({ accountId }: { accountId: number 
             >
               <option value="">Select Group</option>
               {categoryGroups.map((group) => (
-                <option key={group} value={group}>
-                  {group}
-                </option>
+                <option key={group} value={group}>{group}</option>
               ))}
               <option value="__new__">➕ New Group...</option>
             </select>
@@ -169,9 +203,7 @@ export default function InlineAddTransaction({ accountId }: { accountId: number 
             >
               <option value="">Select Category</option>
               {(selectedGroup ? getItemsForGroup(selectedGroup) : []).map((item) => (
-                <option key={item} value={item}>
-                  {item}
-                </option>
+                <option key={item} value={item}>{item}</option>
               ))}
               <option value="__new__">➕ New Category...</option>
             </select>
@@ -183,9 +215,7 @@ export default function InlineAddTransaction({ accountId }: { accountId: number 
           <button
             type="button"
             onClick={() => setIsNegative((prev) => !prev)}
-            className={`rounded px-2 py-1 font-bold ${
-              isNegative ? 'text-red-600' : 'text-green-600'
-            }`}
+            className={`rounded px-2 py-1 font-bold ${isNegative ? 'text-red-600' : 'text-green-600'}`}
           >
             {isNegative ? '−' : '+'}
           </button>
@@ -204,7 +234,6 @@ export default function InlineAddTransaction({ accountId }: { accountId: number 
           </button>
         </div>
       </td>
-      <td className="border p-2 text-center text-gray-400 text-sm">New</td>
     </tr>
   );
 }

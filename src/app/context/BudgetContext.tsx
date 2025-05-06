@@ -64,6 +64,7 @@ const BudgetContext = createContext(null);
 export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
+  const [recentChanges, setRecentChanges] = useState([]);
   const dirtyMonths = useRef<Set<string>>(new Set());
   const { user } = useAuth() || { user: null };
   const [currentMonth, setCurrentMonth] = useState(
@@ -389,6 +390,13 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
       updated[currentMonth].categories = updatedCategories;
       return updated;
     });
+    setRecentChanges((prev) => [
+      ...prev.slice(-9),
+      {
+        description: `Renamed group '${oldName}' to '${newName}'`,
+        timestamp: new Date().toISOString(),
+      },
+    ]);
   };
   
   
@@ -419,6 +427,13 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
       );
       return updated;
     });
+    setRecentChanges((prev) => [
+      ...prev.slice(-9),
+      {
+        description: `Renamed category '${oldItem}' to '${newItem}' in '${categoryName}'`,
+        timestamp: new Date().toISOString(),
+      },
+    ]);
   };
 
   const applyCreditCardPaymentsToBudget = (payments) => {
@@ -680,6 +695,13 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
     });
 
     setIsDirty(true);
+    setRecentChanges((prev) => [
+      ...prev.slice(-9),
+      {
+        description: `Added group '${groupName}'`,
+        timestamp: new Date().toISOString(),
+      },
+    ]);
   };
 
   const deleteCategoryGroup = (groupName: string) => {
@@ -700,6 +722,13 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
     });
 
     setIsDirty(true);
+    setRecentChanges((prev) => [
+      ...prev.slice(-9),
+      {
+        description: `Deleted group '${groupName}'`,
+        timestamp: new Date().toISOString(),
+      },
+    ]);
   };
 
   const addItemToCategory = (
@@ -718,6 +747,13 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
           : cat
       );
       setIsDirty(true);
+      setRecentChanges((prev) => [
+        ...prev.slice(-9),
+        {
+          description: `Added category '${newItem.name}' to group '${categoryName}'`,
+          timestamp: new Date().toISOString(),
+        },
+      ]);
       return {
         ...prev,
         [currentMonth]: {
@@ -828,6 +864,13 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
     });
 
     setIsDirty(true);
+    setRecentChanges((prev) => [
+      ...prev.slice(-9),
+      {
+        description: `Deleted category '${itemName}'`,
+        timestamp: new Date().toISOString(),
+      },
+    ]);
   };
 
   const setCategoryTarget = (categoryItemName, target) => {
@@ -860,6 +903,13 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
     });
 
     setIsDirty(true);
+    setRecentChanges((prev) => [
+      ...prev.slice(-9),
+      {
+        description: `Set target for '${categoryItemName}' to ${target?.amount ?? 0}`,
+        timestamp: new Date().toISOString(),
+      },
+    ]);
   };
 
   const getFirstInflowMonth = () => {
@@ -1367,7 +1417,9 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
         refreshAllReadyToAssign,
         getCumulativeAvailable,
         renameCategory,
-        renameCategoryGroup
+        renameCategoryGroup,
+        recentChanges,
+        setRecentChanges,
       }}
     >
       {children}
