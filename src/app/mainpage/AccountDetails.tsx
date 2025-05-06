@@ -2,10 +2,11 @@
 
 import { useParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { useAccountContext } from "@/app/context/AccountContext";
+import { Transaction, useAccountContext } from "@/app/context/AccountContext";
 import { useBudgetContext } from "../context/BudgetContext";
 import { parseISO, format } from "date-fns";
-import InlineAddTransaction from "./InlineAddTransaction";
+import InlineAddTransaction from "./InlineTransactionRow";
+import InlineTransactionRow from "./InlineTransactionRow";
 
 export default function AccountDetails() {
   const { id } = useParams();
@@ -19,6 +20,8 @@ export default function AccountDetails() {
   } = useAccountContext();
 
   const [showForm, setShowForm] = useState(false);
+  const [editingTransaction, setEditingTransaction] =
+    useState<Transaction | null>(null);
   const [isNegative, setIsNegative] = useState(false);
   const [newTransaction, setNewTransaction] = useState({
     date: new Date().toISOString().split("T")[0],
@@ -34,17 +37,14 @@ export default function AccountDetails() {
     accountId: number;
   } | null>(null);
 
-  console.log(id);
   const account = accounts.find((acc) => acc.id.toString() === id);
-
-  console.log(account);
 
   const [editingTransactionId, setEditingTransactionId] = useState<
     number | null
   >(null);
   const [editedTransaction, setEditedTransaction] = useState<any>(null);
   const [isEditingAccountName, setIsEditingAccountName] = useState(false);
-  const [newAccountName, setNewAccountName] = useState(account.name);
+  const [newAccountName, setNewAccountName] = useState(account?.name);
 
   const formRowRef = useRef<HTMLTableRowElement | null>(null);
   const payeeInputRef = useRef<HTMLInputElement | null>(null);
@@ -69,34 +69,29 @@ export default function AccountDetails() {
     }
   }, [editingTransactionId]);
 
-  const handleAddTransaction = () => {
-    console.log(newTransaction);
-    addTransaction(account.id, {
-      ...newTransaction,
-      date: new Date(newTransaction.date),
-      balance: isNegative
-        ? -1 * Number(newTransaction.balance)
-        : Number(newTransaction.balance),
-    });
-    setNewTransaction({
-      date: new Date().toISOString().split("T")[0],
-      payee: "",
-      category: "",
-      category_group: "",
-      balance: "",
-    });
-    setShowForm(false);
-    setIsNegative(false);
-  };
+  // const handleAddTransaction = () => {
+  //   console.log(newTransaction);
+  //   addTransaction(account.id, {
+  //     ...newTransaction,
+  //     date: new Date(newTransaction.date),
+  //     balance: isNegative
+  //       ? -1 * Number(newTransaction.balance)
+  //       : Number(newTransaction.balance),
+  //   });
+  //   setNewTransaction({
+  //     date: new Date().toISOString().split("T")[0],
+  //     payee: "",
+  //     category: "",
+  //     category_group: "",
+  //     balance: "",
+  //   });
+  //   setShowForm(false);
+  //   setIsNegative(false);
+  // };
 
   const startEdit = (tx: any) => {
+    setEditedTransaction(tx);
     setEditingTransactionId(tx.id);
-    setEditedTransaction({
-      ...tx,
-      isNegative: tx.balance < 0,
-      balance: Math.abs(tx.balance),
-      date: tx.date,
-    });
   };
 
   const cancelEdit = () => {
@@ -141,6 +136,19 @@ export default function AccountDetails() {
             className="px-4 py-2 hover:bg-red-100 text-red-600 w-full text-left"
           >
             Delete Transaction
+          </button>
+          <button
+            onClick={() => {
+              const transaction = account.transactions.find(
+                (t) => t.id === contextMenu.txId
+              );
+              console.log(transaction);
+              startEdit(transaction);
+              setContextMenu(null);
+            }}
+            className="px-4 py-2 hover:bg-blue-100 text-blue-600 w-full text-left"
+          >
+            Edit Transaction
           </button>
         </div>
       )}
@@ -201,149 +209,60 @@ export default function AccountDetails() {
             <th className="border p-2">Payee</th>
             <th className="border p-2">Category</th>
             <th className="border p-2">Amount</th>
-            <th className="border p-2">Actions</th>
           </tr>
         </thead>
         <tbody>
-          {account.transactions.map((tx) => (
-            <tr
-              key={tx.id}
-              onContextMenu={(e) => {
-                e.preventDefault();
-                setContextMenu({
-                  x: e.clientX,
-                  y: e.clientY,
-                  txId: tx.id,
-                  accountId: account.id,
-                });
-              }}
-            >
-              {editingTransactionId === tx.id ? (
-                <>
-                  <td className="border p-2">
-                    <input
-                      type="date"
-                      value={editedTransaction.date}
-                      onChange={(e) =>
-                        setEditedTransaction((prev: any) => ({
-                          ...prev,
-                          date: e.target.value,
-                        }))
-                      }
-                      className="w-full p-1 border rounded"
-                    />
-                  </td>
-                  <td className="border p-2">
-                    <input
-                      ref={editInputRef}
-                      type="text"
-                      value={editedTransaction.payee}
-                      onChange={(e) =>
-                        setEditedTransaction((prev: any) => ({
-                          ...prev,
-                          payee: e.target.value,
-                        }))
-                      }
-                      className="w-full p-1 border rounded"
-                    />
-                  </td>
-                  <td className="border p-2">
-                    <select
-                      value={editedTransaction.category}
-                      onChange={(e) =>
-                        setEditedTransaction((prev: any) => ({
-                          ...prev,
-                          category: e.target.value,
-                        }))
-                      }
-                      className="w-full p-1 border rounded"
-                    >
-                      <option value="" disabled hidden>
-                        Select Category
-                      </option>
-                      {budgetData[currentMonth].categories.flatMap((cat) =>
-                        cat.categoryItems.map((item) => (
-                          <option key={item.name} value={item.name}>
-                            {cat.name} → {item.name}
-                          </option>
-                        ))
-                      )}
-                    </select>
-                  </td>
-                  <td className="border p-2">
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() =>
-                          setEditedTransaction((prev: any) => ({
-                            ...prev,
-                            isNegative: !prev.isNegative,
-                          }))
-                        }
-                        className={`rounded px-2 py-1 font-bold ${
-                          editedTransaction.isNegative
-                            ? "text-red-600"
-                            : "text-green-600"
-                        }`}
-                      >
-                        {editedTransaction.isNegative ? "−" : "+"}
-                      </button>
-                      <input
-                        type="number"
-                        value={editedTransaction.balance}
-                        onChange={(e) =>
-                          setEditedTransaction((prev: any) => ({
-                            ...prev,
-                            balance: e.target.value,
-                          }))
-                        }
-                        className="w-full p-1 border rounded"
-                      />
-                    </div>
-                  </td>
-                  <td className="border p-2 space-x-2">
-                    <button
-                      onClick={handleEditTransaction}
-                      className="text-green-600 hover:underline"
-                    >
-                      Save
-                    </button>
-                    <button
-                      onClick={cancelEdit}
-                      className="text-gray-500 hover:underline"
-                    >
-                      Cancel
-                    </button>
-                  </td>
-                </>
-              ) : (
-                <>
-                  <td className="border p-2">
-                    {tx.date && format(parseISO(tx.date), "eee, MMM d yyyy")}
-                  </td>
-                  <td className="border p-2">{tx.payee}</td>
-                  <td className="border p-2">{tx.category}</td>
-                  <td
-                    className={`border p-2 ${
-                      tx.balance < 0 ? "text-red-500" : "text-green-500"
-                    }`}
-                  >
-                    {tx.balance}
-                  </td>
-                  <td className="border p-2 space-x-2">
-                    <button
-                      onClick={() => startEdit(tx)}
-                      className="text-blue-600 hover:underline"
-                    >
-                      Edit
-                    </button>
-                  </td>
-                </>
-              )}
-            </tr>
-          ))}
-
+          {account.transactions.map((tx) =>
+            editingTransactionId === tx.id ? (
+              <InlineAddTransaction
+                key={`edit-${tx.id}`}
+                accountId={account.id}
+                mode="edit"
+                initialData={editedTransaction}
+                onSave={() => {
+                  setEditingTransactionId(null);
+                  setEditingTransaction(null);
+                }}
+                onCancel={() => {
+                  setEditingTransactionId(null);
+                  setEditingTransaction(null);
+                }}
+              />
+            ) : (
+              <tr
+                key={tx.id}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  setContextMenu({
+                    x: e.clientX,
+                    y: e.clientY,
+                    txId: tx.id,
+                    accountId: account.id,
+                  });
+                }}
+              >
+                <td className="border p-2">
+                  {tx.date && format(parseISO(tx.date), "eee, MMM d yyyy")}
+                </td>
+                <td className="border p-2">{tx.payee}</td>
+                <td className="border p-2">{tx.category}</td>
+                <td
+                  className={`border p-2 ${
+                    tx.balance < 0 ? "text-red-500" : "text-green-500"
+                  }`}
+                >
+                  {tx.balance}
+                </td>
+              </tr>
+            )
+          )}
           {showForm && (
-            <InlineAddTransaction accountId={account.id}/>
+            <InlineTransactionRow
+              accountId={account.id}
+              onCancel={() => {
+                setShowForm(false);
+              }}
+            />
           )}
         </tbody>
       </table>

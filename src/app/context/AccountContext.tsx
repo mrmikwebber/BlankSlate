@@ -2,7 +2,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { useAuth } from "./AuthContext";
 import { supabase } from "@/utils/supabaseClient";
-interface Transaction {
+export interface Transaction {
   id: number;
   date: string;
   payee: string;
