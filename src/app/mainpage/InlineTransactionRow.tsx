@@ -19,7 +19,7 @@ export default function InlineTransactionRow({
 }) {
   const isEdit = mode === 'edit';
   const { budgetData, currentMonth, setBudgetData } = useBudgetContext();
-  const { addTransaction, editTransaction } = useAccountContext();
+  const { addTransaction, editTransaction, accounts } = useAccountContext();
 
   const today = format(new Date(), 'yyyy-MM-dd');
   const [date, setDate] = useState(isEdit && initialData ? initialData.date : today);
@@ -34,6 +34,7 @@ export default function InlineTransactionRow({
   const [newItemMode, setNewItemMode] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
   const [newItemName, setNewItemName] = useState('');
+  const [transferPayee, setTransferPayee] = useState('');
 
   const formRef = useRef<HTMLTableRowElement>(null);
 
@@ -44,7 +45,7 @@ export default function InlineTransactionRow({
   const handleSubmit = async () => {
     const groupName = newGroupMode ? newGroupName.trim() : selectedGroup;
     const itemName = newItemMode ? newItemName.trim() : selectedItem;
-    if (!payee || !amount || !itemName || !groupName) return;
+    if (!amount || !itemName || !groupName || !transferPayee) return;
 
     const updatedCategories = [...budgetData[currentMonth].categories];
     const groupIndex = updatedCategories.findIndex((g) => g.name === groupName);
@@ -87,17 +88,49 @@ export default function InlineTransactionRow({
       },
     }));
 
+    const balance = (isNegative ? -1 : 1) * Number(amount);
+    const thisAccount = accounts.find((a) => a.id === accountId);
+    const otherAccount = accounts.find((a) => a.name === transferPayee);
+
+    const payeeLabel = (() => {
+      if (!thisAccount || !otherAccount) return '';
+
+      const isThisCredit = thisAccount.type === 'credit';
+      const isOtherCredit = otherAccount.type === 'credit';
+
+      if (balance < 0) {
+        if (isThisCredit) return `Transfer to ${otherAccount.name}`;
+        return isOtherCredit ? `Payment to ${otherAccount.name}` : `Transfer to ${otherAccount.name}`;
+      } else {
+        if (isThisCredit) return isOtherCredit ? `Transfer from ${otherAccount.name}` : `Payment from ${otherAccount.name}`;
+        return `Transfer from ${otherAccount.name}`;
+      }
+    })();
+
     const transactionData = {
       date,
-      payee,
+      payee: payeeLabel,
       category: itemName,
-      balance: (isNegative ? -1 : 1) * Number(amount),
+      balance,
     };
 
     if (isEdit && initialData) {
       await editTransaction(accountId, initialData.id, transactionData);
     } else {
       await addTransaction(accountId, transactionData);
+
+      if (otherAccount) {
+        const mirrorPayee = balance < 0
+          ? (thisAccount.type === 'credit' ? `Transfer from ${thisAccount.name}` : `Transfer from ${thisAccount.name}`)
+          : (thisAccount.type === 'credit' ? `Transfer to ${thisAccount.name}` : `Transfer to ${thisAccount.name}`);
+
+        await addTransaction(otherAccount.id, {
+          date,
+          payee: mirrorPayee,
+          category: itemName,
+          balance: -balance,
+        });
+      }
     }
 
     onSave?.();
@@ -109,7 +142,7 @@ export default function InlineTransactionRow({
         onCancel?.();
       }
     };
-  
+
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [onCancel]);
@@ -119,7 +152,7 @@ export default function InlineTransactionRow({
       const group = budgetData[currentMonth].categories.find((catGroup) =>
         catGroup.categoryItems.some((item) => item.name === initialData.category)
       );
-  
+
       if (group) {
         setSelectedGroup(group.name);
         setSelectedItem(initialData.category);
@@ -129,6 +162,31 @@ export default function InlineTransactionRow({
       }
     }
   }, [mode, initialData, budgetData, currentMonth]);
+
+  const allPayees = Array.from(new Set(accounts.flatMap((acc) => acc.transactions.map((t) => t.payee)).filter(Boolean)));
+
+  const transferTargets = accounts.filter((a) => a.id !== accountId);
+
+  const getPreviewLabel = (targetName: string) => {
+    const thisAccount = accounts.find((a) => a.id === accountId);
+    const otherAccount = accounts.find((a) => a.name === targetName);
+    if (!thisAccount || !otherAccount) return targetName;
+
+    const isThisCredit = thisAccount.type === 'credit';
+    const isOtherCredit = otherAccount.type === 'credit';
+    const amt = parseFloat(amount || '0');
+    const isNeg = isNegative;
+
+    if (amt === 0 || isNaN(amt)) return `To/From: ${targetName}`;
+
+    if (isNeg) {
+      if (isThisCredit) return `Transfer to ${targetName}`;
+      return isOtherCredit ? `Payment to ${targetName}` : `Transfer to ${targetName}`;
+    } else {
+      if (isThisCredit) return isOtherCredit ? `Transfer from ${targetName}` : `Payment from ${targetName}`;
+      return `Transfer from ${targetName}`;
+    }
+  };
 
   return (
     <tr ref={formRef} className="bg-gray-50 transition-opacity duration-300 opacity-100">
@@ -141,13 +199,22 @@ export default function InlineTransactionRow({
         />
       </td>
       <td className="border p-2">
-        <input
-          type="text"
-          value={payee}
-          onChange={(e) => setPayee(e.target.value)}
+        <select
+          value={transferPayee}
+          onChange={(e) => setTransferPayee(e.target.value)}
           className="w-full p-1 border rounded text-sm"
-          placeholder="Payee"
-        />
+        >
+          <optgroup label="Payments & Transfers">
+            {transferTargets.map((acc) => (
+              <option key={acc.id} value={acc.name}>{getPreviewLabel(acc.name)}</option>
+            ))}
+          </optgroup>
+          <optgroup label="Saved Payees">
+            {allPayees.map((p) => (
+              <option key={p} value={p}>{p}</option>
+            ))}
+          </optgroup>
+        </select>
       </td>
       <td className="border p-2">
         <div className="flex flex-col gap-1">
