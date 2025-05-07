@@ -2,7 +2,7 @@
 import { useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useRouter } from "next/navigation";
-import BudgetTile from "../mainpage/budgetTile";
+import BudgetTable from "../mainpage/BudgetTable";
 import ActivitySidebar from "../mainpage/ActivitySidebar";
 import SidebarPanel from "../mainpage/SidebarPanel";
 
@@ -35,7 +35,7 @@ export default function Home() {
         </div>
   
         <div className="bg-zinc-100 p-4 rounded-md drop-shadow-md h-full overflow-y-auto min-w-[600px]">
-          <BudgetTile />
+          <BudgetTable />
         </div>
       </div>
     </div>
