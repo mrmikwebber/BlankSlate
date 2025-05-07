@@ -1,62 +1,105 @@
 import { useEffect, useRef, useState } from "react";
-import { useBudgetContext } from '@/app/context/BudgetContext';
-import { useAccountContext, Transaction } from '@/app/context/AccountContext';
-import { format } from 'date-fns';
-import { supabase } from '@/utils/supabaseClient';
+import { useBudgetContext } from "@/app/context/BudgetContext";
+import { useAccountContext, Transaction } from "@/app/context/AccountContext";
+import { format } from "date-fns";
+import { supabase } from "@/utils/supabaseClient";
 
 export default function InlineTransactionRow({
   accountId,
-  mode = 'add',
+  mode = "add",
   initialData,
   onCancel,
   onSave,
 }: {
   accountId: number;
-  mode?: 'add' | 'edit';
+  mode?: "add" | "edit";
   initialData?: Transaction;
   onCancel?: () => void;
   onSave?: () => void;
 }) {
-  const isEdit = mode === 'edit';
+  const isEdit = mode === "edit";
   const { budgetData, currentMonth, setBudgetData } = useBudgetContext();
-  const { addTransaction, editTransaction, accounts } = useAccountContext();
+  const { addTransaction, editTransaction, accounts, deleteTransaction } =
+    useAccountContext();
 
-  const today = format(new Date(), 'yyyy-MM-dd');
-  const [date, setDate] = useState(isEdit && initialData ? initialData.date : today);
-  const [payee, setPayee] = useState(isEdit && initialData ? initialData.payee : '');
-  const [amount, setAmount] = useState(isEdit && initialData ? Math.abs(initialData.balance).toString() : '');
+  const today = format(new Date(), "yyyy-MM-dd");
+  const [date, setDate] = useState(
+    isEdit && initialData ? initialData.date : today
+  );
+  const [payee, setPayee] = useState(
+    isEdit && initialData ? initialData.payee : ""
+  );
+  const [amount, setAmount] = useState(
+    isEdit && initialData ? Math.abs(initialData.balance).toString() : ""
+  );
   const [isNegative, setIsNegative] = useState(
     isEdit && initialData ? initialData.balance < 0 : true
   );
-  const [selectedGroup, setSelectedGroup] = useState('');
-  const [selectedItem, setSelectedItem] = useState('');
+  const [selectedGroup, setSelectedGroup] = useState("");
+  const [selectedItem, setSelectedItem] = useState("");
   const [newGroupMode, setNewGroupMode] = useState(false);
   const [newItemMode, setNewItemMode] = useState(false);
-  const [newGroupName, setNewGroupName] = useState('');
-  const [newItemName, setNewItemName] = useState('');
-  const [transferPayee, setTransferPayee] = useState('');
+  const [newPayeeMode, setNewPayeeMode] = useState(false);
+  const [newGroupName, setNewGroupName] = useState("");
+  const [newItemName, setNewItemName] = useState("");
+  const [newPayeeName, setNewPayeeName] = useState("");
+  const [transferPayee, setTransferPayee] = useState("");
 
   const formRef = useRef<HTMLTableRowElement>(null);
 
-  const categoryGroups = budgetData[currentMonth].categories.map((cat) => cat.name);
+  const thisAccount = accounts.find((a) => a.id === accountId);
+  const otherAccount = accounts.find((a) => a.name === transferPayee);
+  const sameTypeTransfer =
+    thisAccount && otherAccount && thisAccount.type === otherAccount.type;
+  const crossTypeTransfer =
+    thisAccount && otherAccount && thisAccount.type !== otherAccount.type;
+
+  const categoryGroups = budgetData[currentMonth].categories.map(
+    (cat) => cat.name
+  );
   const getItemsForGroup = (groupName: string) =>
-    budgetData[currentMonth].categories.find((cat) => cat.name === groupName)?.categoryItems.map((item) => item.name) || [];
+    budgetData[currentMonth].categories
+      .find((cat) => cat.name === groupName)
+      ?.categoryItems.map((item) => item.name) || [];
+
+  useEffect(() => {
+    if (crossTypeTransfer) {
+      const creditAccount =
+        thisAccount?.type === "credit" ? thisAccount : otherAccount;
+      setSelectedGroup("Credit Card Payments");
+      setSelectedItem(creditAccount?.name || "");
+      setNewGroupMode(false);
+      setNewItemMode(false);
+    }
+  }, [transferPayee, isNegative, amount]);
 
   const handleSubmit = async () => {
     const groupName = newGroupMode ? newGroupName.trim() : selectedGroup;
     const itemName = newItemMode ? newItemName.trim() : selectedItem;
-    if (!amount || !itemName || !groupName || !transferPayee) return;
+    const payeeName = newPayeeMode ? newPayeeName.trim() : transferPayee;
+
+    const thisAccount = accounts.find((a) => a.id === accountId);
+    const otherAccount = accounts.find((a) => a.name === payeeName);
+    const isSameType =
+      thisAccount && otherAccount && thisAccount.type === otherAccount.type;
+
+    if (!amount || !payeeName || (!isSameType && (!itemName || !groupName)))
+      return;
 
     const updatedCategories = [...budgetData[currentMonth].categories];
     const groupIndex = updatedCategories.findIndex((g) => g.name === groupName);
 
-    if (groupIndex === -1) {
+    if (groupName && itemName && groupIndex === -1) {
       updatedCategories.push({
         name: groupName,
-        categoryItems: [{ name: itemName, assigned: 0, activity: 0, available: 0 }],
+        categoryItems: [
+          { name: itemName, assigned: 0, activity: 0, available: 0 },
+        ],
       });
-    } else {
-      const itemExists = updatedCategories[groupIndex].categoryItems.some((i) => i.name === itemName);
+    } else if (groupName && itemName && groupIndex >= 0) {
+      const itemExists = updatedCategories[groupIndex].categoryItems.some(
+        (i) => i.name === itemName
+      );
       if (!itemExists) {
         updatedCategories[groupIndex].categoryItems.push({
           name: itemName,
@@ -68,16 +111,18 @@ export default function InlineTransactionRow({
     }
 
     const existingRow = await supabase
-      .from('budget_data')
-      .select('id')
-      .eq('month', currentMonth)
+      .from("budget_data")
+      .select("id")
+      .eq("month", currentMonth)
       .single();
 
     if (existingRow.data?.id) {
       await supabase
-        .from('budget_data')
-        .update({ data: { ...budgetData[currentMonth], categories: updatedCategories } })
-        .eq('id', existingRow.data.id);
+        .from("budget_data")
+        .update({
+          data: { ...budgetData[currentMonth], categories: updatedCategories },
+        })
+        .eq("id", existingRow.data.id);
     }
 
     setBudgetData((prev) => ({
@@ -89,20 +134,23 @@ export default function InlineTransactionRow({
     }));
 
     const balance = (isNegative ? -1 : 1) * Number(amount);
-    const thisAccount = accounts.find((a) => a.id === accountId);
-    const otherAccount = accounts.find((a) => a.name === transferPayee);
 
     const payeeLabel = (() => {
-      if (!thisAccount || !otherAccount) return '';
+      if (!thisAccount || !otherAccount) return payeeName;
 
-      const isThisCredit = thisAccount.type === 'credit';
-      const isOtherCredit = otherAccount.type === 'credit';
+      const isThisCredit = thisAccount.type === "credit";
+      const isOtherCredit = otherAccount.type === "credit";
 
       if (balance < 0) {
         if (isThisCredit) return `Transfer to ${otherAccount.name}`;
-        return isOtherCredit ? `Payment to ${otherAccount.name}` : `Transfer to ${otherAccount.name}`;
+        return isOtherCredit
+          ? `Payment to ${otherAccount.name}`
+          : `Transfer to ${otherAccount.name}`;
       } else {
-        if (isThisCredit) return isOtherCredit ? `Transfer from ${otherAccount.name}` : `Payment from ${otherAccount.name}`;
+        if (isThisCredit)
+          return isOtherCredit
+            ? `Transfer from ${otherAccount.name}`
+            : `Payment from ${otherAccount.name}`;
         return `Transfer from ${otherAccount.name}`;
       }
     })();
@@ -110,30 +158,74 @@ export default function InlineTransactionRow({
     const transactionData = {
       date,
       payee: payeeLabel,
-      category: itemName,
+      category: itemName || null,
       balance,
     };
 
     if (isEdit && initialData) {
       await editTransaction(accountId, initialData.id, transactionData);
-    } else {
-      await addTransaction(accountId, transactionData);
 
+      // Remove old mirrored transaction if it was a transfer
+      const matchMirror = accounts.find((acc) =>
+        acc.transactions.some(
+          (t) =>
+            t.date === initialData.date &&
+            t.balance === -initialData.balance &&
+            t.category === initialData.category &&
+            t.payee?.includes(thisAccount?.name ?? "")
+        )
+      );
+
+      if (matchMirror) {
+        const mirrored = matchMirror.transactions.find(
+          (t) =>
+            t.date === initialData.date &&
+            t.balance === -initialData.balance &&
+            t.category === initialData.category &&
+            t.payee?.includes(thisAccount?.name ?? "")
+        );
+        if (mirrored) {
+          await deleteTransaction(matchMirror.id, mirrored.id);
+        }
+      }
+
+      // Add new mirror if still a transfer
       if (otherAccount) {
-        const mirrorPayee = balance < 0
-          ? (thisAccount.type === 'credit' ? `Transfer from ${thisAccount.name}` : `Transfer from ${thisAccount.name}`)
-          : (thisAccount.type === 'credit' ? `Transfer to ${thisAccount.name}` : `Transfer to ${thisAccount.name}`);
+        const mirrorPayee =
+          balance < 0
+            ? `Transfer from ${thisAccount.name}`
+            : `Transfer to ${thisAccount.name}`;
 
         await addTransaction(otherAccount.id, {
           date,
           payee: mirrorPayee,
-          category: itemName,
+          category: itemName || null,
+          balance: -balance,
+        });
+      }
+    } else {
+      await addTransaction(accountId, transactionData);
+
+      if (otherAccount) {
+        const mirrorPayee =
+          balance < 0
+            ? `Transfer from ${thisAccount.name}`
+            : `Transfer to ${thisAccount.name}`;
+
+        await addTransaction(otherAccount.id, {
+          date,
+          payee: mirrorPayee,
+          category: itemName || null,
           balance: -balance,
         });
       }
     }
 
     onSave?.();
+    setTransferPayee('');
+    setSelectedGroup('')
+    setSelectedItem('');
+    setAmount('');
   };
 
   useEffect(() => {
@@ -148,22 +240,30 @@ export default function InlineTransactionRow({
   }, [onCancel]);
 
   useEffect(() => {
-    if (mode === 'edit' && initialData?.category) {
+    if (mode === "edit" && initialData?.category) {
       const group = budgetData[currentMonth].categories.find((catGroup) =>
-        catGroup.categoryItems.some((item) => item.name === initialData.category)
+        catGroup.categoryItems.some(
+          (item) => item.name === initialData.category
+        )
       );
 
       if (group) {
         setSelectedGroup(group.name);
         setSelectedItem(initialData.category);
       } else {
-        setSelectedGroup('');
-        setSelectedItem('');
+        setSelectedGroup("");
+        setSelectedItem("");
       }
     }
   }, [mode, initialData, budgetData, currentMonth]);
 
-  const allPayees = Array.from(new Set(accounts.flatMap((acc) => acc.transactions.map((t) => t.payee)).filter(Boolean)));
+  const allPayees = Array.from(
+    new Set(
+      accounts
+        .flatMap((acc) => acc.transactions.map((t) => t.payee))
+        .filter(Boolean)
+    )
+  );
 
   const transferTargets = accounts.filter((a) => a.id !== accountId);
 
@@ -172,24 +272,32 @@ export default function InlineTransactionRow({
     const otherAccount = accounts.find((a) => a.name === targetName);
     if (!thisAccount || !otherAccount) return targetName;
 
-    const isThisCredit = thisAccount.type === 'credit';
-    const isOtherCredit = otherAccount.type === 'credit';
-    const amt = parseFloat(amount || '0');
+    const isThisCredit = thisAccount.type === "credit";
+    const isOtherCredit = otherAccount.type === "credit";
+    const amt = parseFloat(amount || "0");
     const isNeg = isNegative;
 
     if (amt === 0 || isNaN(amt)) return `To/From: ${targetName}`;
 
     if (isNeg) {
       if (isThisCredit) return `Transfer to ${targetName}`;
-      return isOtherCredit ? `Payment to ${targetName}` : `Transfer to ${targetName}`;
+      return isOtherCredit
+        ? `Payment to ${targetName}`
+        : `Transfer to ${targetName}`;
     } else {
-      if (isThisCredit) return isOtherCredit ? `Transfer from ${targetName}` : `Payment from ${targetName}`;
+      if (isThisCredit)
+        return isOtherCredit
+          ? `Transfer from ${targetName}`
+          : `Payment from ${targetName}`;
       return `Transfer from ${targetName}`;
     }
   };
 
   return (
-    <tr ref={formRef} className="bg-gray-50 transition-opacity duration-300 opacity-100">
+    <tr
+      ref={formRef}
+      className="bg-gray-50 transition-opacity duration-300 opacity-100"
+    >
       <td className="border p-2">
         <input
           type="date"
@@ -199,22 +307,44 @@ export default function InlineTransactionRow({
         />
       </td>
       <td className="border p-2">
-        <select
-          value={transferPayee}
-          onChange={(e) => setTransferPayee(e.target.value)}
-          className="w-full p-1 border rounded text-sm"
-        >
-          <optgroup label="Payments & Transfers">
-            {transferTargets.map((acc) => (
-              <option key={acc.id} value={acc.name}>{getPreviewLabel(acc.name)}</option>
-            ))}
-          </optgroup>
-          <optgroup label="Saved Payees">
-            {allPayees.map((p) => (
-              <option key={p} value={p}>{p}</option>
-            ))}
-          </optgroup>
-        </select>
+        {newPayeeMode ? (
+          <input
+            type="text"
+            placeholder="New Payee Name"
+            className="w-full p-1 border rounded text-sm"
+            value={newPayeeName}
+            onChange={(e) => setNewPayeeName(e.target.value)}
+          />
+        ) : (
+          <select
+            value={transferPayee}
+            onChange={(e) => {
+              if (e.target.value === "__new__") {
+                setNewPayeeMode(true);
+                setTransferPayee("");
+              } else {
+                setTransferPayee(e.target.value);
+              }
+            }}
+            className="w-full p-1 border rounded text-sm"
+          >
+            <optgroup label="Payments & Transfers">
+              {transferTargets.map((acc) => (
+                <option key={acc.id} value={acc.name}>
+                  {getPreviewLabel(acc.name)}
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label="Saved Payees">
+              <option value="__new__">➕ New Payee...</option>
+              {allPayees.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+            </optgroup>
+          </select>
+        )}
       </td>
       <td className="border p-2">
         <div className="flex flex-col gap-1">
@@ -225,23 +355,27 @@ export default function InlineTransactionRow({
               className="w-full p-1 border rounded text-sm"
               value={newGroupName}
               onChange={(e) => setNewGroupName(e.target.value)}
+              disabled={sameTypeTransfer}
             />
           ) : (
             <select
               className="w-full p-1 border rounded text-sm"
               value={selectedGroup}
               onChange={(e) => {
-                if (e.target.value === '__new__') {
+                if (e.target.value === "__new__") {
                   setNewGroupMode(true);
-                  setSelectedGroup('');
+                  setSelectedGroup("");
                 } else {
                   setSelectedGroup(e.target.value);
                 }
               }}
+              disabled={sameTypeTransfer}
             >
               <option value="">Select Group</option>
               {categoryGroups.map((group) => (
-                <option key={group} value={group}>{group}</option>
+                <option key={group} value={group}>
+                  {group}
+                </option>
               ))}
               <option value="__new__">➕ New Group...</option>
             </select>
@@ -254,24 +388,30 @@ export default function InlineTransactionRow({
               className="w-full p-1 border rounded text-sm"
               value={newItemName}
               onChange={(e) => setNewItemName(e.target.value)}
+              disabled={sameTypeTransfer}
             />
           ) : (
             <select
               className="w-full p-1 border rounded text-sm"
               value={selectedItem}
               onChange={(e) => {
-                if (e.target.value === '__new__') {
+                if (e.target.value === "__new__") {
                   setNewItemMode(true);
-                  setSelectedItem('');
+                  setSelectedItem("");
                 } else {
                   setSelectedItem(e.target.value);
                 }
               }}
+              disabled={sameTypeTransfer}
             >
               <option value="">Select Category</option>
-              {(selectedGroup ? getItemsForGroup(selectedGroup) : []).map((item) => (
-                <option key={item} value={item}>{item}</option>
-              ))}
+              {(selectedGroup ? getItemsForGroup(selectedGroup) : []).map(
+                (item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                )
+              )}
               <option value="__new__">➕ New Category...</option>
             </select>
           )}
@@ -282,9 +422,11 @@ export default function InlineTransactionRow({
           <button
             type="button"
             onClick={() => setIsNegative((prev) => !prev)}
-            className={`rounded px-2 py-1 font-bold ${isNegative ? 'text-red-600' : 'text-green-600'}`}
+            className={`rounded px-2 py-1 font-bold ${
+              isNegative ? "text-red-600" : "text-green-600"
+            }`}
           >
-            {isNegative ? '−' : '+'}
+            {isNegative ? "−" : "+"}
           </button>
           <input
             type="number"

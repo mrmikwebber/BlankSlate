@@ -29,6 +29,7 @@ interface AccountContextType {
   setAccounts: (accounts) => void;
   deleteAccount: (accountId: number) => void;
   deleteTransaction: (accountId: number, transactionId: number) => void;
+  deleteTransactionWithMirror: (accountId: number, transactionId: number) => void;
   editTransaction: (
     accountId: number,
     transactionId: number,
@@ -236,8 +237,44 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   };
 
+  const deleteTransactionWithMirror = async (
+    accountId: number,
+    transactionId: number
+  ) => {
+    const account = accounts.find((a) => a.id === accountId);
+    const transaction = account?.transactions.find((t) => t.id === transactionId);
+    if (!transaction || !account) return;
+  
+    // Delete the main transaction
+    await deleteTransaction(accountId, transactionId);
+  
+    // Try to find and delete the mirrored transaction
+    const mirrorAccount = accounts.find((a) =>
+      a.transactions.some(
+        (t) =>
+          t.date === transaction.date &&
+          t.category === transaction.category &&
+          t.balance === -transaction.balance &&
+          t.payee?.includes(account.name)
+      )
+    );
+  
+    if (mirrorAccount) {
+      const mirror = mirrorAccount.transactions.find(
+        (t) =>
+          t.date === transaction.date &&
+          t.category === transaction.category &&
+          t.balance === -transaction.balance &&
+          t.payee?.includes(account.name)
+      );
+      if (mirror) {
+        await deleteTransaction(mirrorAccount.id, mirror.id);
+      }
+    }
+  };
+
   return (
-    <AccountContext.Provider value={{ accounts, addTransaction, addAccount, deleteAccount, setAccounts, deleteTransaction, editTransaction, editAccountName, recentTransactions }}>
+    <AccountContext.Provider value={{ accounts, addTransaction, addAccount, deleteAccount, setAccounts, deleteTransaction, deleteTransactionWithMirror, editTransaction, editAccountName, recentTransactions }}>
       {children}
     </AccountContext.Provider>
   );

@@ -6,10 +6,11 @@ import AccountCardCompact from "./AccountCardCompact";
 import ItemsToAddress from "./ItemsToAddress";
 import { isSameMonth, parseISO } from "date-fns";
 import { useBudgetContext } from "../context/BudgetContext";
+import AddAccountModal from "./AddAccountModal";
 
 export default function SidebarPanel() {
   const [showModal, setShowModal] = useState(false);
-  const { accounts } = useAccountContext();
+  const { accounts, addAccount } = useAccountContext();
   const { currentMonth, budgetData } = useBudgetContext();
 
     const COLORS = [
@@ -81,6 +82,11 @@ export default function SidebarPanel() {
     0
   );
 
+  
+  const handleAddAccount = (newAccount) => {
+    addAccount(newAccount);
+  };
+
   return (
     <div className="bg-white rounded-xl shadow-sm p-4 space-y-6 overflow-y-auto max-h-[calc(100vh-160px)] w-full text-sm">
       {/* Header Row */}
@@ -92,6 +98,12 @@ export default function SidebarPanel() {
         >
           Add
         </button>
+        {showModal && (
+          <AddAccountModal
+            onAddAccount={handleAddAccount}
+            onClose={() => setShowModal(false)}
+          />
+        )}
       </div>
 
       {/* Account Cards */}

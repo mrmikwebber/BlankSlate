@@ -9,7 +9,7 @@ import { getTargetStatus } from "../utils/getTargetStatus";
 import { createPortal } from "react-dom";
 import InlineTargetEditor from "./TargetInlineEditor";
 
-export default function CollapsibleTable() {
+export default function BudgetTable() {
   const {
     currentMonth,
     budgetData,
