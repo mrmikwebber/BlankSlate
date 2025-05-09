@@ -83,7 +83,7 @@ export default function InlineTransactionRow({
     const isSameType =
       thisAccount && otherAccount && thisAccount.type === otherAccount.type;
 
-    if (!amount || !payeeName || (!isSameType && (!itemName || !groupName)))
+    if (!amount || !payeeName || (!isSameType && groupName !== "Ready to Assign" && (!itemName || !groupName)))
       return;
 
     const updatedCategories = [...budgetData[currentMonth].categories];
