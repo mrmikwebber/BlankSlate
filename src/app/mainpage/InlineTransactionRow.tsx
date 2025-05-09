@@ -371,11 +371,12 @@ export default function InlineTransactionRow({
               }}
               disabled={sameTypeTransfer}
             >
+              <option value="Ready to Assign">Ready to Assign</option>
               <option value="">Select Group</option>
               {categoryGroups.map((group) => (
                 <option key={group} value={group}>
                   {group}
-                </option>
+                    </option>
               ))}
               <option value="__new__">➕ New Group...</option>
             </select>
@@ -402,7 +403,7 @@ export default function InlineTransactionRow({
                   setSelectedItem(e.target.value);
                 }
               }}
-              disabled={sameTypeTransfer}
+              disabled={sameTypeTransfer || selectedGroup === "Ready to Assign"}
             >
               <option value="">Select Category</option>
               {(selectedGroup ? getItemsForGroup(selectedGroup) : []).map(
