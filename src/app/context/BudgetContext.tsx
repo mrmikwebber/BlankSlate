@@ -18,7 +18,7 @@ import {
 } from "date-fns";
 import { useAuth } from "./AuthContext";
 import { supabase } from "@/utils/supabaseClient";
-import { useAccountContext } from "./AccountContext";
+import { Account, useAccountContext } from "./AccountContext";
 
 const getPreviousMonth = (month: string) => {
   return format(subMonths(parseISO(`${month}-01`), 1), "yyyy-MM");
@@ -191,6 +191,20 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
     setLoading(true);
   };
 
+  const refreshAccounts = async () => {
+    const { data, error } = await supabase
+      .from("accounts")
+      .select("*, transactions(*)") // fetch nested transactions
+      .order("date", { foreignTable: "transactions", ascending: true });
+  
+    if (error) {
+      console.error("Error refreshing accounts:", error);
+      return;
+    }
+  
+    setAccounts(data);
+  };
+
   const _saveBudget = async (month, data) => {
     if (!user?.id) {
       console.error("No user ID found. Not saving budget.");
@@ -282,6 +296,23 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
       }
     }
 
+    const cardPaymentsByName = new Map<string, number>();
+
+    for (const card of accounts.filter((acc) => acc.type === "credit")) {
+      const payments = card.transactions
+        .filter(
+          (tx) =>
+            tx.category_group === "Credit Card Payments" &&
+            isSameMonth(
+              format(parseISO(tx.date), "yyyy-MM"),
+              format(parseISO(currentMonth), "yyyy-MM")
+            )
+        )
+        .reduce((sum, tx) => sum + tx.balance, 0);
+
+      cardPaymentsByName.set(card.name, payments);
+    }
+
     const creditCardPayments = accounts
       .filter((acc) => acc.type === "credit")
       .map((card) => {
@@ -314,7 +345,12 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
             }
           }
         }
-        return { card: card.name, payment };
+
+        const paymentAdjustment = cardPaymentsByName.get(card.name) ?? 0;
+        return {
+          card: card.name,
+          payment: Math.max(payment - paymentAdjustment, 0),
+        };
       });
     return creditCardPayments;
   };
@@ -351,15 +387,15 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
       .select("id, data")
       .eq("month", currentMonth)
       .single();
-  
+
     if (fetchError || !existingRows) {
       console.error("Failed to fetch budget data:", fetchError?.message);
       return;
     }
-  
+
     const updatedCategories = existingRows.data.categories.map((group) => {
       if (group.name !== oldName) return group;
-  
+
       return {
         ...group,
         name: newName,
@@ -369,17 +405,17 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
         })),
       };
     });
-  
+
     const updatedData = {
       ...existingRows.data,
       categories: updatedCategories,
     };
-  
+
     const { error: updateError } = await supabase
       .from("budget_data")
       .update({ data: updatedData })
       .eq("id", existingRows.id);
-  
+
     if (updateError) {
       console.error("Failed to rename group in Supabase:", updateError.message);
       return;
@@ -398,8 +434,6 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
       },
     ]);
   };
-  
-  
 
   const renameCategory = async (
     categoryName: string,
@@ -437,6 +471,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const applyCreditCardPaymentsToBudget = (payments) => {
+    console.log("applying!");
     setBudgetData((prev) => {
       const current = prev[currentMonth];
       if (!current) return prev;
@@ -508,6 +543,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
 
   useEffect(() => {
     const payments = calculateCreditCardPayments();
+    console.log(payments);
     applyCreditCardPaymentsToBudget(payments);
   }, [budgetData, currentMonth]);
 
@@ -906,7 +942,9 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
     setRecentChanges((prev) => [
       ...prev.slice(-9),
       {
-        description: `Set target for '${categoryItemName}' to ${target?.amount ?? 0}`,
+        description: `Set target for '${categoryItemName}' to ${
+          target?.amount ?? 0
+        }`,
         timestamp: new Date().toISOString(),
       },
     ]);
@@ -1420,6 +1458,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
         renameCategoryGroup,
         recentChanges,
         setRecentChanges,
+        refreshAccounts,
       }}
     >
       {children}

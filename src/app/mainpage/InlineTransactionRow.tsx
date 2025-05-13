@@ -18,7 +18,12 @@ export default function InlineTransactionRow({
   onSave?: () => void;
 }) {
   const isEdit = mode === "edit";
-  const { budgetData, currentMonth, setBudgetData } = useBudgetContext();
+  const {
+    budgetData,
+    currentMonth,
+    setBudgetData,
+    refreshAccounts,
+  } = useBudgetContext();
   const { addTransaction, editTransaction, accounts, deleteTransaction } =
     useAccountContext();
 
@@ -167,6 +172,7 @@ export default function InlineTransactionRow({
       date,
       payee: payeeLabel,
       category: groupName === "Ready to Assign" ? groupName : itemName || null,
+      category_group: groupName === "Credit Card Payments" ? groupName : null,
       balance,
     };
 
@@ -228,6 +234,7 @@ export default function InlineTransactionRow({
         });
       }
     }
+    await refreshAccounts();
 
     onSave?.();
     setTransferPayee("");
