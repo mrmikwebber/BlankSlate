@@ -18,7 +18,12 @@ export default function InlineTransactionRow({
   onSave?: () => void;
 }) {
   const isEdit = mode === "edit";
-  const { budgetData, currentMonth, setBudgetData } = useBudgetContext();
+  const {
+    budgetData,
+    currentMonth,
+    setBudgetData,
+    refreshAccounts,
+  } = useBudgetContext();
   const { addTransaction, editTransaction, accounts, deleteTransaction } =
     useAccountContext();
 
@@ -83,30 +88,38 @@ export default function InlineTransactionRow({
     const isSameType =
       thisAccount && otherAccount && thisAccount.type === otherAccount.type;
 
-    if (!amount || !payeeName || (!isSameType && groupName !== "Ready to Assign" && (!itemName || !groupName)))
+    if (
+      !amount ||
+      !payeeName ||
+      (!isSameType &&
+        groupName !== "Ready to Assign" &&
+        (!itemName || !groupName))
+    )
       return;
 
     const updatedCategories = [...budgetData[currentMonth].categories];
     const groupIndex = updatedCategories.findIndex((g) => g.name === groupName);
 
-    if (groupName && itemName && groupIndex === -1) {
-      updatedCategories.push({
-        name: groupName,
-        categoryItems: [
-          { name: itemName, assigned: 0, activity: 0, available: 0 },
-        ],
-      });
-    } else if (groupName && itemName && groupIndex >= 0) {
-      const itemExists = updatedCategories[groupIndex].categoryItems.some(
-        (i) => i.name === itemName
-      );
-      if (!itemExists) {
-        updatedCategories[groupIndex].categoryItems.push({
-          name: itemName,
-          assigned: 0,
-          activity: 0,
-          available: 0,
+    if (groupName !== "Ready to Assign") {
+      if (groupName && itemName && groupIndex === -1) {
+        updatedCategories.push({
+          name: groupName,
+          categoryItems: [
+            { name: itemName, assigned: 0, activity: 0, available: 0 },
+          ],
         });
+      } else if (groupName && itemName && groupIndex >= 0) {
+        const itemExists = updatedCategories[groupIndex].categoryItems.some(
+          (i) => i.name === itemName
+        );
+        if (!itemExists) {
+          updatedCategories[groupIndex].categoryItems.push({
+            name: itemName,
+            assigned: 0,
+            activity: 0,
+            available: 0,
+          });
+        }
       }
     }
 
@@ -158,7 +171,8 @@ export default function InlineTransactionRow({
     const transactionData = {
       date,
       payee: payeeLabel,
-      category: itemName || null,
+      category: groupName === "Ready to Assign" ? groupName : itemName || null,
+      category_group: groupName === "Credit Card Payments" ? groupName : null,
       balance,
     };
 
@@ -220,12 +234,13 @@ export default function InlineTransactionRow({
         });
       }
     }
+    await refreshAccounts();
 
     onSave?.();
-    setTransferPayee('');
-    setSelectedGroup('')
-    setSelectedItem('');
-    setAmount('');
+    setTransferPayee("");
+    setSelectedGroup("");
+    setSelectedItem("");
+    setAmount("");
   };
 
   useEffect(() => {
@@ -376,7 +391,7 @@ export default function InlineTransactionRow({
               {categoryGroups.map((group) => (
                 <option key={group} value={group}>
                   {group}
-                    </option>
+                </option>
               ))}
               <option value="__new__">➕ New Group...</option>
             </select>
