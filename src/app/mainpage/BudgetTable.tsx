@@ -24,6 +24,8 @@ export default function BudgetTable() {
     getCumulativeAvailable,
     renameCategory,
     renameCategoryGroup,
+    calculateCreditCardAccountActivity,
+    calculateActivityForMonth,
     setRecentChanges,
   } = useBudgetContext();
 
@@ -171,57 +173,54 @@ export default function BudgetTable() {
     setOpenCategories((prev) => ({ ...prev, [category]: !prev[category] }));
   };
 
-  const handleInputChange = (categoryName, itemName, value) => {
-    setBudgetData((prev) => {
-      const updated = { ...prev };
+const handleInputChange = (categoryName, itemName, value) => {
+  setBudgetData((prev) => {
+    const updated = { ...prev };
 
-      const updatedCategories = updated[currentMonth]?.categories.map(
-        (category) => {
-          if (category.name !== categoryName) return category;
+    const updatedCategories = updated[currentMonth]?.categories.map(
+      (category) => {
+        const updatedItems = category.categoryItems.map((item) => {
+          if (item.name !== itemName) return item;
+
+          const isCreditCard = category.name === "Credit Card Payments";
+          const itemActivity = isCreditCard
+            ? calculateCreditCardAccountActivity(currentMonth, item.name)
+            : calculateActivityForMonth(currentMonth, item.name);
+
+          const cumulative = getCumulativeAvailable(updated, item.name);
+          const available = value + itemActivity + Math.max(cumulative, 0);
 
           return {
-            ...category,
-            categoryItems: category.categoryItems.map((item) => {
-              if (item.name !== itemName) return item;
-
-              const isCreditCard = category.name === "Credit Card Payments";
-              const activity = item.activity || 0;
-              const cumulative = getCumulativeAvailable(updated, item.name);
-
-              return {
-                ...item,
-                assigned: value,
-                available: isCreditCard
-                  ? item.available
-                  : value + activity + Math.max(cumulative, 0),
-              };
-            }),
+            ...item,
+            assigned: value,
+            activity: itemActivity,
+            available,
           };
-        }
-      );
+        });
 
-      updated[currentMonth] = {
-        ...updated[currentMonth],
-        categories: updatedCategories,
-      };
+        return { ...category, categoryItems: updatedItems };
+      }
+    );
 
-      setTimeout(() => {
-        refreshAllReadyToAssign(updated);
-      }, 0);
+    updated[currentMonth] = {
+      ...updated[currentMonth],
+      categories: updatedCategories,
+    };
 
-      return updated;
-    });
+    refreshAllReadyToAssign(updated);
+    return updated;
+  });
 
-    setIsDirty(true);
+  setIsDirty(true);
+  setRecentChanges((prev) => [
+    ...prev.slice(-9),
+    {
+      description: `Assigned $${value} to '${itemName}' in '${categoryName}'`,
+      timestamp: new Date().toISOString(),
+    },
+  ]);
+};
 
-    setRecentChanges((prev) => [
-      ...prev.slice(-9),
-      {
-        description: `Assigned $${value} to '${itemName}' in '${categoryName}'`,
-        timestamp: new Date().toISOString(),
-      },
-    ]);
-  };
 
   const handleAddItem = (category: string) => {
     if (newItem.name.trim() !== "") {
