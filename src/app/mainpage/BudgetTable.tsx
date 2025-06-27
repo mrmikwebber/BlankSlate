@@ -8,6 +8,7 @@ import { useBudgetContext } from "../context/BudgetContext";
 import { getTargetStatus } from "../utils/getTargetStatus";
 import { createPortal } from "react-dom";
 import InlineTargetEditor from "./TargetInlineEditor";
+import { useAccountContext } from "../context/AccountContext";
 
 export default function BudgetTable() {
   const {
@@ -24,8 +25,12 @@ export default function BudgetTable() {
     getCumulativeAvailable,
     renameCategory,
     renameCategoryGroup,
+    calculateCreditCardAccountActivity,
+    calculateActivityForMonth,
     setRecentChanges,
   } = useBudgetContext();
+
+  const { accounts } = useAccountContext();
 
   const FILTERS = [
     "All",
@@ -134,15 +139,15 @@ export default function BudgetTable() {
 
   const filteredCategories = useMemo(() => {
     if (!budgetData || !currentMonth) return [];
-  
+
     const allCategories = budgetData[currentMonth]?.categories || [];
-  
+
     const sortedCategories = [...allCategories].sort((a, b) => {
       if (a.name === "Credit Card Payments") return -1;
       if (b.name === "Credit Card Payments") return 1;
       return 0;
     });
-  
+
     return sortedCategories
       .map((category) => {
         const filteredItems = category.categoryItems.filter((item) => {
@@ -160,12 +165,11 @@ export default function BudgetTable() {
               return true;
           }
         });
-  
+
         return { ...category, categoryItems: filteredItems };
       })
       .filter(Boolean);
   }, [budgetData, currentMonth, selectedFilter]);
-  
 
   const toggleCategory = (category: string) => {
     setOpenCategories((prev) => ({ ...prev, [category]: !prev[category] }));
@@ -177,26 +181,25 @@ export default function BudgetTable() {
 
       const updatedCategories = updated[currentMonth]?.categories.map(
         (category) => {
-          if (category.name !== categoryName) return category;
+          const updatedItems = category.categoryItems.map((item) => {
+            if (item.name !== itemName) return item;
 
-          return {
-            ...category,
-            categoryItems: category.categoryItems.map((item) => {
-              if (item.name !== itemName) return item;
+            const itemActivity = calculateActivityForMonth(
+              currentMonth,
+              item.name
+            );
+            const cumulative = getCumulativeAvailable(updated, item.name);
+            const available = value + itemActivity + Math.max(cumulative, 0);
 
-              const isCreditCard = category.name === "Credit Card Payments";
-              const activity = item.activity || 0;
-              const cumulative = getCumulativeAvailable(updated, item.name);
+            return {
+              ...item,
+              assigned: value,
+              activity: itemActivity,
+              available,
+            };
+          });
 
-              return {
-                ...item,
-                assigned: value,
-                available: isCreditCard
-                  ? item.available
-                  : value + activity + Math.max(cumulative, 0),
-              };
-            }),
-          };
+          return { ...category, categoryItems: updatedItems };
         }
       );
 
@@ -205,15 +208,40 @@ export default function BudgetTable() {
         categories: updatedCategories,
       };
 
-      setTimeout(() => {
-        refreshAllReadyToAssign(updated);
-      }, 0);
+      const creditCardAccounts = accounts.filter(
+        (acc) => acc.type === "credit"
+      );
+      const updatedCategoriesWithCreditCards = updated[
+        currentMonth
+      ].categories.map((category) => {
+        if (category.name !== "Credit Card Payments") return category;
 
+        const updatedItems = category.categoryItems.map((item) => {
+          const activity = calculateCreditCardAccountActivity(
+            currentMonth,
+            item.name,
+            updated
+          );
+          const cumulative = getCumulativeAvailable(updated, item.name);
+          const available = item.assigned + activity + Math.max(cumulative, 0);
+
+          return {
+            ...item,
+            activity,
+            available,
+          };
+        });
+
+        return { ...category, categoryItems: updatedItems };
+      });
+
+      updated[currentMonth].categories = updatedCategoriesWithCreditCards;
+
+      refreshAllReadyToAssign(updated);
       return updated;
     });
 
     setIsDirty(true);
-
     setRecentChanges((prev) => [
       ...prev.slice(-9),
       {

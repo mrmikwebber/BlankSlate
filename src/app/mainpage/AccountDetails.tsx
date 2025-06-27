@@ -85,7 +85,6 @@ export default function AccountDetails() {
               const transaction = account.transactions.find(
                 (t) => t.id === contextMenu.txId
               );
-              console.log(transaction);
               startEdit(transaction);
               setContextMenu(null);
             }}
@@ -156,7 +155,9 @@ export default function AccountDetails() {
             </tr>
           </thead>
           <tbody>
-            {account.transactions.map((tx) =>
+            {[...account.transactions]
+            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+            .map((tx) =>
               editingTransactionId === tx.id ? (
                 <InlineAddTransaction
                   key={`edit-${tx.id}`}

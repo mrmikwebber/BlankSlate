@@ -5,7 +5,6 @@ import { supabase } from '../../utils/supabaseClient';
 export default function AuthListener() {
   useEffect(() => {
     const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log('[AuthListener] Auth event:', event, session);
     });
 
     return () => {
