@@ -9,7 +9,8 @@ import InlineTransactionRow from "./InlineTransactionRow";
 
 export default function AccountDetails() {
   const { id } = useParams();
-  const { accounts, deleteTransactionWithMirror, editAccountName } = useAccountContext();
+  const { accounts, deleteTransactionWithMirror, editAccountName } =
+    useAccountContext();
 
   const [showForm, setShowForm] = useState(false);
   const [contextMenu, setContextMenu] = useState<{
@@ -73,7 +74,10 @@ export default function AccountDetails() {
         >
           <button
             onClick={() => {
-              deleteTransactionWithMirror(contextMenu.accountId, contextMenu.txId);
+              deleteTransactionWithMirror(
+                contextMenu.accountId,
+                contextMenu.txId
+              );
               setContextMenu(null);
             }}
             className="px-4 py-2 hover:bg-red-100 text-red-600 w-full text-left"
@@ -156,6 +160,14 @@ export default function AccountDetails() {
             </tr>
           </thead>
           <tbody>
+            {showForm && (
+              <InlineTransactionRow
+                accountId={account.id}
+                onCancel={() => {
+                  setShowForm(false);
+                }}
+              />
+            )}
             {account.transactions.map((tx) =>
               editingTransactionId === tx.id ? (
                 <InlineAddTransaction
@@ -199,14 +211,6 @@ export default function AccountDetails() {
                   </td>
                 </tr>
               )
-            )}
-            {showForm && (
-              <InlineTransactionRow
-                accountId={account.id}
-                onCancel={() => {
-                  setShowForm(false);
-                }}
-              />
             )}
           </tbody>
         </table>

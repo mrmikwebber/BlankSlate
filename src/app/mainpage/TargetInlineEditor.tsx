@@ -6,8 +6,6 @@ import { getMonth, parseISO } from "date-fns";
 
 export default function InlineTargetEditor({ itemName, onClose }) {
   const { currentMonth, budgetData, setCategoryTarget } = useBudgetContext();
-  const { accounts } = useAccountContext();
-
   const [targetAmount, setTargetAmount] = useState("");
   const [targetType, setTargetType] = useState("monthly");
   const [customTargetDate, setCustomTargetDate] = useState("");
