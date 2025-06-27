@@ -17,7 +17,6 @@ export default function AuthPage() {
   useEffect(() => {
     const checkSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      console.log('Auth page session check:', session);
       if (session) {
         router.push('/dashboard');
       } else {
@@ -30,7 +29,6 @@ export default function AuthPage() {
   useEffect(() => {
     const debugSession = async () => {
       const { data } = await supabase.auth.getSession();
-      console.log('[Page Boot] Session:', data.session);
     };
     debugSession();
   }, []);
@@ -62,9 +60,6 @@ export default function AuthPage() {
     } else {
       result = await supabase.auth.signInWithPassword({ email, password });
     }
-  
-    console.log('Auth result:', result);
-    console.log('Session returned after login:', result.data?.session);
   
     const { error } = result;
     setLoading(false);

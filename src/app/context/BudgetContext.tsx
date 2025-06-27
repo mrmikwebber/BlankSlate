@@ -194,14 +194,14 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
   const refreshAccounts = async () => {
     const { data, error } = await supabase
       .from("accounts")
-      .select("*, transactions(*)") // fetch nested transactions
+      .select("*, transactions(*)")
       .order("date", { foreignTable: "transactions", ascending: true });
-  
+
     if (error) {
       console.error("Error refreshing accounts:", error);
       return;
     }
-  
+
     setAccounts(data);
   };
 
@@ -251,66 +251,69 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
 
   const lastSaved = useRef<string | null>(null);
   const calculateCreditCardPayments = () => {
-    const assignedMoney = budgetData[currentMonth]?.categories?.flatMap(
-      (category) =>
-        category.categoryItems
-          .filter((item) => item.assigned > 0)
-          .map((item) => ({
-            category: item.name,
-            amount: item.assigned,
-          }))
-    );
+    const assignedMap = new Map<string, number>();
 
-    const assignedCategories = new Map(
-      assignedMoney?.map((entry) => [entry.category, entry.amount])
-    );
-
-    const remainingAssigned = new Map(assignedCategories);
-
-    for (const account of accounts.filter((acc) => acc.type === "debit")) {
-      for (const transaction of account.transactions) {
-        const category = transaction.category;
-        if (
-          remainingAssigned.has(category) &&
-          category !== "Ready to Assign" &&
-          isSameMonth(
-            format(parseISO(transaction.date), "yyyy-MM"),
-            format(parseISO(currentMonth), "yyyy-MM")
-          )
-        ) {
-          const assignedAmount = remainingAssigned.get(category);
-          const deduction = Math.min(
-            assignedAmount as number,
-            Math.abs(transaction.balance)
+    for (const category of budgetData[currentMonth]?.categories || []) {
+      for (const item of category.categoryItems) {
+        if (item.assigned > 0) {
+          assignedMap.set(
+            item.name,
+            (assignedMap.get(item.name) || 0) + item.assigned
           );
-
-          remainingAssigned.set(
-            category,
-            (assignedAmount as number) - deduction
-          );
-
-          if ((remainingAssigned.get(category) as number) <= 0) {
-            remainingAssigned.delete(category);
-          }
         }
       }
     }
 
     const cardPaymentsByName = new Map<string, number>();
 
-    for (const card of accounts.filter((acc) => acc.type === "credit")) {
-      const payments = card.transactions
-        .filter(
-          (tx) =>
-            tx.category_group === "Credit Card Payments" &&
-            isSameMonth(
-              format(parseISO(tx.date), "yyyy-MM"),
-              format(parseISO(currentMonth), "yyyy-MM")
-            )
-        )
-        .reduce((sum, tx) => sum + tx.balance, 0);
+    for (const account of accounts.filter((acc) => acc.type === "credit")) {
+      for (const tx of account.transactions) {
+        const category = tx.category;
+        if (
+          assignedMap.has(category) &&
+          category !== "Ready to Assign" &&
+          isSameMonth(
+            format(parseISO(tx.date), "yyyy-MM"),
+            format(parseISO(currentMonth), "yyyy-MM")
+          )
+        ) {
+          const assigned = assignedMap.get(category)!;
+          const spent = Math.abs(tx.balance);
+          const deduction = Math.min(spent, assigned);
+          const newAssigned = assigned - deduction;
 
-      cardPaymentsByName.set(card.name, payments);
+          if (newAssigned <= 0) {
+            assignedMap.delete(category);
+          } else {
+            assignedMap.set(category, newAssigned);
+          }
+        }
+      }
+    }
+
+    for (const account of accounts.filter((acc) => acc.type === "debit")) {
+      for (const tx of account.transactions) {
+        const category = tx.category;
+        if (
+          assignedMap.has(category) &&
+          category !== "Ready to Assign" &&
+          isSameMonth(
+            format(parseISO(tx.date), "yyyy-MM"),
+            format(parseISO(currentMonth), "yyyy-MM")
+          )
+        ) {
+          const assigned = assignedMap.get(category)!;
+          const spent = Math.abs(tx.balance);
+          const deduction = Math.min(spent, assigned);
+          const newAssigned = assigned - deduction;
+
+          if (newAssigned <= 0) {
+            assignedMap.delete(category);
+          } else {
+            assignedMap.set(category, newAssigned);
+          }
+        }
+      }
     }
 
     const creditCardPayments = accounts
@@ -318,40 +321,37 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
       .map((card) => {
         let payment = 0;
 
-        for (const transaction of card.transactions) {
-          const category = transaction.category;
+        for (const tx of card.transactions) {
+          const category = tx.category;
           if (
-            remainingAssigned.has(category) &&
+            assignedMap.has(category) &&
             category !== "Ready to Assign" &&
             isSameMonth(
-              format(parseISO(transaction.date), "yyyy-MM"),
+              format(parseISO(tx.date), "yyyy-MM"),
               format(parseISO(currentMonth), "yyyy-MM")
             )
           ) {
-            const assignedAmount = remainingAssigned.get(category);
-            const deduction = Math.min(
-              assignedAmount as number,
-              Math.abs(transaction.balance)
-            );
-
-            remainingAssigned.set(
-              category,
-              (assignedAmount as number) - deduction
-            );
+            const assigned = assignedMap.get(category)!;
+            const spent = Math.abs(tx.balance);
+            const deduction = Math.min(spent, assigned);
             payment += deduction;
 
-            if ((remainingAssigned.get(category) as number) <= 0) {
-              remainingAssigned.delete(category);
+            const newAssigned = assigned - deduction;
+            if (newAssigned <= 0) {
+              assignedMap.delete(category);
+            } else {
+              assignedMap.set(category, newAssigned);
             }
           }
         }
 
-        const paymentAdjustment = cardPaymentsByName.get(card.name) ?? 0;
+        const paymentsMade = cardPaymentsByName.get(card.name) || 0;
         return {
           card: card.name,
-          payment: Math.max(payment - paymentAdjustment, 0),
+          payment: Math.max(payment - paymentsMade, 0),
         };
       });
+
     return creditCardPayments;
   };
 
@@ -471,7 +471,6 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const applyCreditCardPaymentsToBudget = (payments) => {
-    console.log("applying!");
     setBudgetData((prev) => {
       const current = prev[currentMonth];
       if (!current) return prev;
@@ -539,12 +538,6 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
     saveBudgetMonth(currentMonth, budgetData[currentMonth]);
 
     lastSaved.current = key;
-  }, [budgetData, currentMonth]);
-
-  useEffect(() => {
-    const payments = calculateCreditCardPayments();
-    console.log(payments);
-    applyCreditCardPaymentsToBudget(payments);
   }, [budgetData, currentMonth]);
 
   useEffect(() => {
@@ -649,7 +642,6 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
     });
     setIsDirty(true);
   }, [accounts]);
-
   useEffect(() => {
     if (!accounts.length || !budgetData) return;
 
@@ -1033,21 +1025,62 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
     setIsDirty(true);
   };
 
-  const calculateCreditCardAccountActivity = (month, accountName) => {
-    const monthStr = format(parseISO(`${month}-01`), "yyyy-MM");
+const calculateCreditCardAccountActivity = (
+  month,
+  accountName,
+  data = budgetData
+) => {
+  const monthStr = format(parseISO(`${month}-01`), "yyyy-MM");
+  const account = accounts.find((a) => a.name === accountName);
+  if (!account) return 0;
 
-    const account = accounts.find((a) => a.name === accountName);
-    if (!account) return 0;
+  const assignedMap = new Map();
+  for (const category of data[month]?.categories || []) {
+    for (const item of category.categoryItems) {
+      if (item.assigned > 0) {
+        assignedMap.set(
+          item.name,
+          (assignedMap.get(item.name) || 0) + item.assigned
+        );
+      }
+    }
+  }
 
-    const matchingTxs = account.transactions.filter((tx) => {
-      if (!tx.date || tx.category === "Ready to Assign") return false;
+  let activity = 0;
 
-      const txMonth = format(parseISO(tx.date), "yyyy-MM");
-      return txMonth === monthStr;
-    });
+  for (const tx of account.transactions) {
+    const txMonth = format(parseISO(tx.date), "yyyy-MM");
+    if (txMonth !== monthStr) continue;
 
-    return matchingTxs.reduce((sum, tx) => sum + tx.balance, 0);
-  };
+    const { category, balance } = tx;
+
+    if (
+      category !== "Ready to Assign" &&
+      category !== accountName &&
+      assignedMap.has(category) &&
+      balance < 0
+    ) {
+      const spent = Math.abs(balance);
+      const available = assignedMap.get(category);
+      const used = Math.min(spent, available);
+
+      activity += used;
+
+      if (used === available) {
+        assignedMap.delete(category);
+      } else {
+        assignedMap.set(category, available - used);
+      }
+    }
+
+    if (category === accountName && balance > 0) {
+      activity -= balance;
+    }
+  }
+
+  return activity;
+};
+
 
   const calculateActivityForMonth = (month, categoryName) => {
     const filteredAccounts = accounts
@@ -1266,7 +1299,8 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
                   if (category.name === "Credit Card Payments") {
                     itemActivity = calculateCreditCardAccountActivity(
                       newMonth,
-                      item.name
+                      item.name,
+                      prev
                     );
                   } else {
                     itemActivity = calculateActivityForMonth(
@@ -1453,6 +1487,8 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
         deleteCategoryItem,
         dirtyMonths,
         refreshAllReadyToAssign,
+        calculateCreditCardAccountActivity,
+        calculateActivityForMonth,
         getCumulativeAvailable,
         renameCategory,
         renameCategoryGroup,

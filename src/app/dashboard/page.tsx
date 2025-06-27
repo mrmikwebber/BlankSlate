@@ -11,7 +11,6 @@ export default function Home() {
   const router = useRouter();
 
   useEffect(() => {
-    console.log(loading, session);
     if (!loading && !session) {
       router.push("/auth");
     }

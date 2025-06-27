@@ -179,7 +179,6 @@ export default function InlineTransactionRow({
     if (isEdit && initialData) {
       await editTransaction(accountId, initialData.id, transactionData);
 
-      // Remove old mirrored transaction if it was a transfer
       const matchMirror = accounts.find((acc) =>
         acc.transactions.some(
           (t) =>
@@ -203,7 +202,6 @@ export default function InlineTransactionRow({
         }
       }
 
-      // Add new mirror if still a transfer
       if (otherAccount) {
         const mirrorPayee =
           balance < 0
