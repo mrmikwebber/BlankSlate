@@ -6,9 +6,10 @@ import clsx from "clsx";
 interface Props {
   account: Account;
   onClick?: (id: string) => void;
+  onContextMenu?: (e: React.MouseEvent<HTMLDivElement>) => void;
 }
 
-export default function AccountCardCompact({ account, onClick }: Props) {
+export default function AccountCardCompact({ account, onClick, onContextMenu }: Props) {
   const openAccount = () => {
     redirect(`/accounts/${account?.id}`);
   };
@@ -16,6 +17,7 @@ export default function AccountCardCompact({ account, onClick }: Props) {
   return (
     <div
       onClick={openAccount}
+      onContextMenu={onContextMenu}
       className={clsx(
         "cursor-pointer p-3 rounded-lg border w-full max-w-[150px]",
         "bg-gray-50 hover:bg-gray-100 transition-colors duration-150",
