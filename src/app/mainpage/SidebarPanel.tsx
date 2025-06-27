@@ -40,10 +40,11 @@ export default function SidebarPanel() {
 
   const spendingData = useMemo(() => {
     const categoryTotals = {};
+    const accountNames = new Set(accounts.map((a) => a.name));
 
     accounts.forEach((account) => {
       account.transactions.forEach((tx) => {
-        if (tx.category === "Ready To Assign") return;
+        if (tx.category === "Ready to Assign" || accountNames.has(tx.category)) return;
         if (
           tx.balance < 0 &&
           tx.date &&
@@ -69,6 +70,8 @@ export default function SidebarPanel() {
       color: COLORS[index % COLORS.length],
     }));
   }, [accounts, currentMonth]);
+
+  console.log(spendingData)
 
   const creditCardsThatNeedPayment =
   (budgetData[currentMonth]?.categories.find(
