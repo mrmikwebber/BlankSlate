@@ -8,6 +8,7 @@ import { useBudgetContext } from "../context/BudgetContext";
 import { getTargetStatus } from "../utils/getTargetStatus";
 import { createPortal } from "react-dom";
 import InlineTargetEditor from "./TargetInlineEditor";
+import { useAccountContext } from "../context/AccountContext";
 
 export default function BudgetTable() {
   const {
@@ -28,6 +29,8 @@ export default function BudgetTable() {
     calculateActivityForMonth,
     setRecentChanges,
   } = useBudgetContext();
+
+  const { accounts } = useAccountContext();
 
   const FILTERS = [
     "All",
@@ -136,15 +139,15 @@ export default function BudgetTable() {
 
   const filteredCategories = useMemo(() => {
     if (!budgetData || !currentMonth) return [];
-  
+
     const allCategories = budgetData[currentMonth]?.categories || [];
-  
+
     const sortedCategories = [...allCategories].sort((a, b) => {
       if (a.name === "Credit Card Payments") return -1;
       if (b.name === "Credit Card Payments") return 1;
       return 0;
     });
-  
+
     return sortedCategories
       .map((category) => {
         const filteredItems = category.categoryItems.filter((item) => {
@@ -162,65 +165,93 @@ export default function BudgetTable() {
               return true;
           }
         });
-  
+
         return { ...category, categoryItems: filteredItems };
       })
       .filter(Boolean);
   }, [budgetData, currentMonth, selectedFilter]);
-  
 
   const toggleCategory = (category: string) => {
     setOpenCategories((prev) => ({ ...prev, [category]: !prev[category] }));
   };
 
-const handleInputChange = (categoryName, itemName, value) => {
-  setBudgetData((prev) => {
-    const updated = { ...prev };
+  const handleInputChange = (categoryName, itemName, value) => {
+    setBudgetData((prev) => {
+      const updated = { ...prev };
 
-    const updatedCategories = updated[currentMonth]?.categories.map(
-      (category) => {
+      // Step 1: Update assigned value and local activity/available
+      const updatedCategories = updated[currentMonth]?.categories.map(
+        (category) => {
+          const updatedItems = category.categoryItems.map((item) => {
+            if (item.name !== itemName) return item;
+
+            const itemActivity = calculateActivityForMonth(
+              currentMonth,
+              item.name
+            );
+            const cumulative = getCumulativeAvailable(updated, item.name);
+            const available = value + itemActivity + Math.max(cumulative, 0);
+
+            return {
+              ...item,
+              assigned: value,
+              activity: itemActivity,
+              available,
+            };
+          });
+
+          return { ...category, categoryItems: updatedItems };
+        }
+      );
+
+      updated[currentMonth] = {
+        ...updated[currentMonth],
+        categories: updatedCategories,
+      };
+
+      // Step 2: Recalculate credit card activity + available
+      const creditCardAccounts = accounts.filter(
+        (acc) => acc.type === "credit"
+      );
+      const updatedCategoriesWithCreditCards = updated[
+        currentMonth
+      ].categories.map((category) => {
+        if (category.name !== "Credit Card Payments") return category;
+
         const updatedItems = category.categoryItems.map((item) => {
-          if (item.name !== itemName) return item;
-
-          const isCreditCard = category.name === "Credit Card Payments";
-          const itemActivity = isCreditCard
-            ? calculateCreditCardAccountActivity(currentMonth, item.name)
-            : calculateActivityForMonth(currentMonth, item.name);
-
+          const activity = calculateCreditCardAccountActivity(
+            currentMonth,
+            item.name,
+            updated
+          );
           const cumulative = getCumulativeAvailable(updated, item.name);
-          const available = value + itemActivity + Math.max(cumulative, 0);
+          const available = item.assigned + activity + Math.max(cumulative, 0);
 
           return {
             ...item,
-            assigned: value,
-            activity: itemActivity,
+            activity,
             available,
           };
         });
 
         return { ...category, categoryItems: updatedItems };
-      }
-    );
+      });
 
-    updated[currentMonth] = {
-      ...updated[currentMonth],
-      categories: updatedCategories,
-    };
+      updated[currentMonth].categories = updatedCategoriesWithCreditCards;
 
-    refreshAllReadyToAssign(updated);
-    return updated;
-  });
+      refreshAllReadyToAssign(updated);
+      return updated;
+    });
 
-  setIsDirty(true);
-  setRecentChanges((prev) => [
-    ...prev.slice(-9),
-    {
-      description: `Assigned $${value} to '${itemName}' in '${categoryName}'`,
-      timestamp: new Date().toISOString(),
-    },
-  ]);
-};
-
+    setIsDirty(true);
+    setRecentChanges((prev) => [
+      ...prev.slice(-9),
+      {
+        description: `Assigned $${value} to '${itemName}' in '${categoryName}'`,
+        timestamp: new Date().toISOString(),
+      },
+    ]);
+  };
 
   const handleAddItem = (category: string) => {
     if (newItem.name.trim() !== "") {

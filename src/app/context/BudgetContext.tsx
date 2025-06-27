@@ -1029,57 +1029,61 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
     setIsDirty(true);
   };
 
-  const calculateCreditCardAccountActivity = (month, accountName) => {
-    const monthStr = format(parseISO(`${month}-01`), "yyyy-MM");
-    const account = accounts.find((a) => a.name === accountName);
-    if (!account) return 0;
+const calculateCreditCardAccountActivity = (
+  month,
+  accountName,
+  data = budgetData // fallback to context state
+) => {
+  const monthStr = format(parseISO(`${month}-01`), "yyyy-MM");
+  const account = accounts.find((a) => a.name === accountName);
+  if (!account) return 0;
 
-    const assignedMap = new Map();
+  const assignedMap = new Map();
 
-    for (const category of budgetData[month]?.categories || []) {
-      for (const item of category.categoryItems) {
-        if (item.assigned > 0) {
-          assignedMap.set(
-            item.name,
-            (assignedMap.get(item.name) || 0) + item.assigned
-          );
-        }
+  for (const category of data[month]?.categories || []) {
+    for (const item of category.categoryItems) {
+      if (item.assigned > 0) {
+        assignedMap.set(
+          item.name,
+          (assignedMap.get(item.name) || 0) + item.assigned
+        );
+      }
+    }
+  }
+
+  let activity = 0;
+
+  for (const tx of account.transactions) {
+    const txMonth = format(parseISO(tx.date), "yyyy-MM");
+    if (txMonth !== monthStr) continue;
+
+    const isSpending =
+      tx.category !== "Ready to Assign" &&
+      tx.category !== accountName &&
+      assignedMap.has(tx.category);
+
+    if (isSpending) {
+      const assigned = assignedMap.get(tx.category);
+      const spent = Math.abs(tx.balance);
+      const deduction = Math.min(spent, assigned);
+      activity += deduction;
+
+      const newAssigned = assigned - deduction;
+      if (newAssigned <= 0) {
+        assignedMap.delete(tx.category);
+      } else {
+        assignedMap.set(tx.category, newAssigned);
       }
     }
 
-    let activity = 0;
-
-    for (const tx of account.transactions) {
-      const txMonth = format(parseISO(tx.date), "yyyy-MM");
-      if (txMonth !== monthStr) continue;
-
-      const isSpending =
-        tx.category !== "Ready to Assign" &&
-        tx.category !== accountName &&
-        assignedMap.has(tx.category);
-
-      if (isSpending) {
-        const assigned = assignedMap.get(tx.category);
-        const spent = Math.abs(tx.balance);
-        const deduction = Math.min(spent, assigned);
-        activity += deduction;
-
-        const newAssigned = assigned - deduction;
-        if (newAssigned <= 0) {
-          assignedMap.delete(tx.category);
-        } else {
-          assignedMap.set(tx.category, newAssigned);
-        }
-      }
-
-      // Count positive inflows (payments or returns)
-      if (tx.balance > 0) {
-        activity -= tx.balance;
-      }
+    // Count positive inflows (payments or returns)
+    if (tx.balance > 0) {
+      activity -= tx.balance;
     }
+  }
 
-    return activity;
-  };
+  return activity;
+};
 
   const calculateActivityForMonth = (month, categoryName) => {
     const filteredAccounts = accounts
