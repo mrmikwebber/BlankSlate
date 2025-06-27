@@ -1,16 +1,42 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
-const AddCategoryButton = ({ handleSubmit }: { handleSubmit: (categoryName: string) => void }) => {
+const AddCategoryButton = ({
+  handleSubmit,
+}: {
+  handleSubmit: (categoryName: string) => void;
+}) => {
   const [isOpen, setIsOpen] = useState(false);
   const [categoryGroupName, setCategoryGroupName] = useState("");
+
+  const popupRef = useRef<HTMLDivElement>(null);
+
 
   const onSubmit = () => {
     if (categoryGroupName.trim() !== "") {
       handleSubmit(categoryGroupName);
-      setCategoryGroupName(""); 
-      setIsOpen(false); 
+      setCategoryGroupName("");
+      setIsOpen(false);
     }
   };
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        popupRef.current &&
+        !popupRef.current.contains(event.target as Node)
+      ) {
+        setIsOpen(false);
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isOpen]);
 
   return (
     <div className="relative inline-block">
@@ -22,7 +48,7 @@ const AddCategoryButton = ({ handleSubmit }: { handleSubmit: (categoryName: stri
       </button>
 
       {isOpen && (
-        <div className="absolute left-0 mt-2 w-64 bg-white p-4 shadow-lg rounded-lg border z-50">
+        <div ref={popupRef} className="absolute left-0 mt-2 w-full max-w-xs bg-white p-4 shadow-lg rounded-lg border z-50">
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Category Group Name
           </label>
