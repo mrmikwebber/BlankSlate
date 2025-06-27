@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PieChart, Pie, Cell, Tooltip } from "recharts";
 import { formatToUSD } from "@/app/utils/formatToUSD";
 import { useAccountContext } from "@/app/context/AccountContext";
@@ -7,20 +7,26 @@ import ItemsToAddress from "./ItemsToAddress";
 import { isSameMonth, parseISO } from "date-fns";
 import { useBudgetContext } from "../context/BudgetContext";
 import AddAccountModal from "./AddAccountModal";
+import { createPortal } from "react-dom";
 
 export default function SidebarPanel() {
   const [showModal, setShowModal] = useState(false);
-  const { accounts, addAccount } = useAccountContext();
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    accountId: string;
+  } | null>(null);
+  const { accounts, addAccount, deleteAccount } = useAccountContext();
   const { currentMonth, budgetData } = useBudgetContext();
 
-    const COLORS = [
-      "#0088FE",
-      "#00C49F",
-      "#FFBB28",
-      "#FF8042",
-      "#A728F5",
-      "#FF2D55",
-    ];
+  const COLORS = [
+    "#0088FE",
+    "#00C49F",
+    "#FFBB28",
+    "#FF8042",
+    "#A728F5",
+    "#FF2D55",
+  ];
 
   const totalInflow = useMemo(() => {
     return accounts
@@ -44,7 +50,8 @@ export default function SidebarPanel() {
 
     accounts.forEach((account) => {
       account.transactions.forEach((tx) => {
-        if (tx.category === "Ready to Assign" || accountNames.has(tx.category)) return;
+        if (tx.category === "Ready to Assign" || accountNames.has(tx.category))
+          return;
         if (
           tx.balance < 0 &&
           tx.date &&
@@ -71,12 +78,13 @@ export default function SidebarPanel() {
     }));
   }, [accounts, currentMonth]);
 
-  console.log(spendingData)
+  console.log(spendingData);
 
-  const creditCardsThatNeedPayment =
-  (budgetData[currentMonth]?.categories.find(
-    (group) => group.name === "Credit Card Payments"
-  )?.categoryItems || [])
+  const creditCardsThatNeedPayment = (
+    budgetData[currentMonth]?.categories.find(
+      (group) => group.name === "Credit Card Payments"
+    )?.categoryItems || []
+  )
     .filter((item) => item.available > 0 || item.activity < 0)
     .map((item) => item.name);
 
@@ -85,13 +93,22 @@ export default function SidebarPanel() {
     0
   );
 
-  
   const handleAddAccount = (newAccount) => {
     addAccount(newAccount);
   };
 
+  const handleDeleteAccount = (accountId) => {
+    deleteAccount(accountId);
+  };
+
+  useEffect(() => {
+    const handleClick = () => setContextMenu(null);
+    document.addEventListener("click", handleClick);
+    return () => document.removeEventListener("click", handleClick);
+  }, []);
+
   return (
-    <div className="bg-white rounded-xl shadow-sm p-4 space-y-6 overflow-y-auto max-h-[calc(100vh-160px)] w-full text-sm">
+    <div className="bg-white rounded-xl shadow-sm p-4 space-y-6 overflow-y-auto max-h-[calc(100vh-160px)] w-full text-sm relative">
       {/* Header Row */}
       <div className="flex justify-between items-center">
         <h2 className="text-lg font-semibold">Accounts</h2>
@@ -120,7 +137,18 @@ export default function SidebarPanel() {
               {accounts
                 .filter((a) => a.type === "debit")
                 .map((acc) => (
-                  <AccountCardCompact key={acc.id} account={acc} />
+                  <AccountCardCompact
+                    key={acc.id}
+                    account={acc}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      setContextMenu({
+                        x: e.clientX,
+                        y: e.clientY,
+                        accountId: String(acc.id),
+                      });
+                    }}
+                  />
                 ))}
             </div>
           </div>
@@ -132,7 +160,18 @@ export default function SidebarPanel() {
               {accounts
                 .filter((a) => a.type === "credit")
                 .map((acc) => (
-                  <AccountCardCompact key={acc.id} account={acc} />
+                  <AccountCardCompact
+                    key={acc.id}
+                    account={acc}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      setContextMenu({
+                        x: e.clientX,
+                        y: e.clientY,
+                        accountId: String(acc.id),
+                      });
+                    }}
+                  />
                 ))}
             </div>
           </div>
@@ -189,12 +228,31 @@ export default function SidebarPanel() {
 
       <hr className="border-gray-200" />
 
-
       <ItemsToAddress
         categories={budgetData[currentMonth]?.categories || []}
         unassignedAmount={budgetData[currentMonth]?.ready_to_assign || 0}
         creditCardsNeedingPayment={creditCardsThatNeedPayment}
       />
+
+      {contextMenu && createPortal(
+        <div
+          className="absolute bg-white border rounded shadow-md z-50 text-sm"
+          style={{
+            top: contextMenu.y - document.documentElement.scrollTop,
+            left: contextMenu.x,
+          }}
+          onClick={() => {
+            handleDeleteAccount(contextMenu.accountId);
+            setContextMenu(null);
+          }}
+          onContextMenu={(e) => e.preventDefault()}
+        >
+          <button className="px-4 py-2 w-full text-left hover:bg-red-100 text-red-600">
+            Delete Account
+          </button>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }
