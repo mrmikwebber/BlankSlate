@@ -9,7 +9,8 @@ import InlineTransactionRow from "./InlineTransactionRow";
 
 export default function AccountDetails() {
   const { id } = useParams();
-  const { accounts, deleteTransactionWithMirror, editAccountName } = useAccountContext();
+  const { accounts, deleteTransactionWithMirror, editAccountName } =
+    useAccountContext();
 
   const [showForm, setShowForm] = useState(false);
   const [contextMenu, setContextMenu] = useState<{
@@ -20,6 +21,8 @@ export default function AccountDetails() {
   } | null>(null);
 
   const account = accounts.find((acc) => acc.id.toString() === id);
+  const accountBalance =
+    account?.transactions?.reduce((sum, tx) => sum + tx.balance, 0) ?? 0;
 
   const [editingTransactionId, setEditingTransactionId] = useState<
     number | null
@@ -73,7 +76,10 @@ export default function AccountDetails() {
         >
           <button
             onClick={() => {
-              deleteTransactionWithMirror(contextMenu.accountId, contextMenu.txId);
+              deleteTransactionWithMirror(
+                contextMenu.accountId,
+                contextMenu.txId
+              );
               setContextMenu(null);
             }}
             className="px-4 py-2 hover:bg-red-100 text-red-600 w-full text-left"
@@ -85,6 +91,7 @@ export default function AccountDetails() {
               const transaction = account.transactions.find(
                 (t) => t.id === contextMenu.txId
               );
+              console.log(transaction);
               startEdit(transaction);
               setContextMenu(null);
             }}
@@ -121,7 +128,22 @@ export default function AccountDetails() {
           </>
         ) : (
           <>
-            <h1 className="text-2xl font-bold">{account.name} Overview</h1>
+            <div>
+              <h1 className="text-2xl font-bold">{account.name} Overview</h1>
+              <p className="text-lg text-gray-800 mt-1">
+                Balance:{" "}
+                <span
+                  className={
+                    accountBalance < 0 ? "text-red-600" : "text-green-600"
+                  }
+                >
+                  {accountBalance.toLocaleString("en-US", {
+                    style: "currency",
+                    currency: "USD",
+                  })}
+                </span>
+              </p>
+            </div>
             <button
               onClick={() => setIsEditingAccountName(true)}
               className="text-blue-600 hover:underline text-sm"
@@ -155,52 +177,6 @@ export default function AccountDetails() {
             </tr>
           </thead>
           <tbody>
-            {[...account.transactions]
-            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-            .map((tx) =>
-              editingTransactionId === tx.id ? (
-                <InlineAddTransaction
-                  key={`edit-${tx.id}`}
-                  accountId={account.id}
-                  mode="edit"
-                  initialData={editedTransaction}
-                  onSave={() => {
-                    setEditingTransactionId(null);
-                    setEditedTransaction(null);
-                  }}
-                  onCancel={() => {
-                    setEditingTransactionId(null);
-                    setEditedTransaction(null);
-                  }}
-                />
-              ) : (
-                <tr
-                  key={tx.id}
-                  onContextMenu={(e) => {
-                    e.preventDefault();
-                    setContextMenu({
-                      x: e.clientX,
-                      y: e.clientY,
-                      txId: tx.id,
-                      accountId: account.id,
-                    });
-                  }}
-                >
-                  <td className="border p-2">
-                    {tx.date && format(parseISO(tx.date), "eee, MMM d yyyy")}
-                  </td>
-                  <td className="border p-2">{tx.payee}</td>
-                  <td className="border p-2">{tx.category}</td>
-                  <td
-                    className={`border p-2 text-right font-medium ${
-                      tx.balance < 0 ? "text-red-600" : "text-green-600"
-                    }`}
-                  >
-                    {tx.balance}
-                  </td>
-                </tr>
-              )
-            )}
             {showForm && (
               <InlineTransactionRow
                 accountId={account.id}
@@ -209,6 +185,55 @@ export default function AccountDetails() {
                 }}
               />
             )}
+            {account.transactions
+              .sort(
+                (a, b) =>
+                  new Date(b.date).getTime() - new Date(a.date).getTime()
+              )
+              .map((tx) =>
+                editingTransactionId === tx.id ? (
+                  <InlineAddTransaction
+                    key={`edit-${tx.id}`}
+                    accountId={account.id}
+                    mode="edit"
+                    initialData={editedTransaction}
+                    onSave={() => {
+                      setEditingTransactionId(null);
+                      setEditedTransaction(null);
+                    }}
+                    onCancel={() => {
+                      setEditingTransactionId(null);
+                      setEditedTransaction(null);
+                    }}
+                  />
+                ) : (
+                  <tr
+                    key={tx.id}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      setContextMenu({
+                        x: e.clientX,
+                        y: e.clientY,
+                        txId: tx.id,
+                        accountId: account.id,
+                      });
+                    }}
+                  >
+                    <td className="border p-2">
+                      {tx.date && format(parseISO(tx.date), "eee, MMM d yyyy")}
+                    </td>
+                    <td className="border p-2">{tx.payee}</td>
+                    <td className="border p-2">{tx.category}</td>
+                    <td
+                      className={`border p-2 text-right font-medium ${
+                        tx.balance < 0 ? "text-red-600" : "text-green-600"
+                      }`}
+                    >
+                      {tx.balance}
+                    </td>
+                  </tr>
+                )
+              )}
           </tbody>
         </table>
       </div>

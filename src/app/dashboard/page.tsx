@@ -27,17 +27,16 @@ export default function Home() {
   return (
     <div className="h-[calc(100vh-76px)] flex overflow-hidden">
       <ActivitySidebar page="dashboard" />
-  
+
       <div className="m-4 grid grid-cols-1 lg:grid-cols-[35%_65%] gap-3 w-full overflow-hidden">
-        <div className="bg-zinc-100 p-4 rounded-md drop-shadow-md h-full overflow-y-auto">
+        <div className="bg-zinc-100 p-4 rounded-md drop-shadow-md h-full">
           <SidebarPanel />
         </div>
-  
+
         <div className="bg-zinc-100 p-4 rounded-md drop-shadow-md h-full overflow-y-auto min-w-[600px]">
           <BudgetTable />
         </div>
       </div>
     </div>
   );
-  
 }
