@@ -134,15 +134,15 @@ export default function BudgetTable() {
 
   const filteredCategories = useMemo(() => {
     if (!budgetData || !currentMonth) return [];
-  
+
     const allCategories = budgetData[currentMonth]?.categories || [];
-  
+
     const sortedCategories = [...allCategories].sort((a, b) => {
       if (a.name === "Credit Card Payments") return -1;
       if (b.name === "Credit Card Payments") return 1;
       return 0;
     });
-  
+
     return sortedCategories
       .map((category) => {
         const filteredItems = category.categoryItems.filter((item) => {
@@ -160,12 +160,11 @@ export default function BudgetTable() {
               return true;
           }
         });
-  
+
         return { ...category, categoryItems: filteredItems };
       })
       .filter(Boolean);
   }, [budgetData, currentMonth, selectedFilter]);
-  
 
   const toggleCategory = (category: string) => {
     setOpenCategories((prev) => ({ ...prev, [category]: !prev[category] }));
@@ -426,31 +425,37 @@ export default function BudgetTable() {
           document.body
         )}
 
-      <div className="mx-auto rounded-2xl bg-white border shadow p-6 space-y-6">
-        <h2 className="text-xl font-bold text-gray-800 mb-2">Your Budget</h2>
-        <MonthNav />
-        <div className="mt-6 mb-2 flex items-center justify-between">
-          <AddCategoryButton handleSubmit={addCategoryGroup} />
+      <div className="flex flex-col h-full rounded-2xl bg-white border shadow p-3 space-y-2 overflow-hidden">
+        <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
+          <div className="w-full">
+            <MonthNav />
+          </div>
         </div>
-        <div className="flex gap-2 mb-4 border-t pt-4">
-          {FILTERS.map((filter) => (
-            <button
-              key={filter}
-              className={`px-4 py-2 rounded-md ${
-                selectedFilter === filter
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-200 text-gray-700"
-              }`}
-              onClick={() => setSelectedFilter(filter)}
-            >
-              {filter}
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-4 border-t pt-4">
+          <div className="flex flex-wrap gap-2">
+            {FILTERS.map((filter) => (
+              <button
+                key={filter}
+                className={`px-4 py-2 rounded-md ${
+                  selectedFilter === filter
+                    ? "bg-blue-600 text-white"
+                    : "bg-gray-200 text-gray-700"
+                }`}
+                onClick={() => setSelectedFilter(filter)}
+              >
+                {filter}
+              </button>
+            ))}
+          </div>
+
+          <div className="ml-auto">
+            <AddCategoryButton handleSubmit={addCategoryGroup} />
+          </div>
         </div>
-        <div className="flex max-h-[calc(100vh-150px)] overflow-y-auto">
+        <div className="overflow-y-auto flex-1 min-h-0">
           <table className="w-full border border-gray-300 rounded-md bg-white shadow-sm min-w-full table-auto">
             <thead>
-              <tr className="bg-gray-100 text-sm text-gray-700 uppercase tracking-wide">
+              <tr className="bg-gray-100 text-xs text-gray-700 uppercase">
                 <th className="p-2 border">Category</th>
                 <th className="p-2 border">Assigned</th>
                 <th className="p-2 border">Activity</th>

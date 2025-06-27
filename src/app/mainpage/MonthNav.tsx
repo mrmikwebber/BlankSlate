@@ -30,36 +30,41 @@ const MonthNav = () => {
   };
 
   return (
-    <div className="flex items-center justify-between p-4 bg-gradient-to-r from-slate-50 to-slate-100 rounded-xl border shadow-sm">
-      <button
-        onClick={() => goToPreviousMonth()}
-        className="p-2 rounded-lg hover:bg-gray-200"
-      >
-        <ChevronLeft size={24} />
-      </button>
+    <div className="w-full px-6 py-3 border border-gray-300 rounded-xl bg-white shadow-sm text-sm">
+      <div className="flex justify-between items-center mb-2">
+        <button
+          onClick={goToPreviousMonth}
+          className="p-2 rounded hover:bg-gray-100 text-gray-600"
+        >
+          <ChevronLeft size={18} />
+        </button>
+
+        <span className="font-semibold text-gray-800 tracking-wide">
+          {formattedMonth}
+        </span>
+
+        <button
+          onClick={goToNextMonth}
+          className="p-2 rounded hover:bg-gray-100 text-gray-600"
+        >
+          <ChevronRight size={18} />
+        </button>
+      </div>
 
       {budgetData && currentMonth && (
-        <div className="text-lg font-semibold text-gray-800 tracking-tight">
-          {formattedMonth} —{" "}
-          <span className="text-gray-600">Remaining to Assign:</span>
+        <div className="text-center border-t pt-2 text-gray-700 text-sm">
+          Remaining:{" "}
           <span
-            className={
+            className={`font-semibold ${
               budgetData[currentMonth]?.ready_to_assign >= 0
                 ? "text-green-600"
                 : "text-red-600"
-            }
+            }`}
           >
             {formatToUSD(budgetData[currentMonth]?.ready_to_assign)}
           </span>
         </div>
       )}
-
-      <button
-        onClick={() => goToNextMonth()}
-        className="p-2 rounded-lg hover:bg-gray-200"
-      >
-        <ChevronRight size={24} />
-      </button>
     </div>
   );
 };
