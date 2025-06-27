@@ -168,7 +168,9 @@ export default function AccountDetails() {
                 }}
               />
             )}
-            {account.transactions.map((tx) =>
+            {account.transactions
+              .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+              .map((tx) =>
               editingTransactionId === tx.id ? (
                 <InlineAddTransaction
                   key={`edit-${tx.id}`}
