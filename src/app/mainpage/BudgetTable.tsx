@@ -179,7 +179,6 @@ export default function BudgetTable() {
     setBudgetData((prev) => {
       const updated = { ...prev };
 
-      // Step 1: Update assigned value and local activity/available
       const updatedCategories = updated[currentMonth]?.categories.map(
         (category) => {
           const updatedItems = category.categoryItems.map((item) => {
@@ -209,7 +208,6 @@ export default function BudgetTable() {
         categories: updatedCategories,
       };
 
-      // Step 2: Recalculate credit card activity + available
       const creditCardAccounts = accounts.filter(
         (acc) => acc.type === "credit"
       );

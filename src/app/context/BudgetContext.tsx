@@ -194,7 +194,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
   const refreshAccounts = async () => {
     const { data, error } = await supabase
       .from("accounts")
-      .select("*, transactions(*)") // fetch nested transactions
+      .select("*, transactions(*)")
       .order("date", { foreignTable: "transactions", ascending: true });
 
     if (error) {
@@ -253,7 +253,6 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
   const calculateCreditCardPayments = () => {
     const assignedMap = new Map<string, number>();
 
-    // Step 1: Collect all assigned amounts per category
     for (const category of budgetData[currentMonth]?.categories || []) {
       for (const item of category.categoryItems) {
         if (item.assigned > 0) {
@@ -267,7 +266,6 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
 
     const cardPaymentsByName = new Map<string, number>();
 
-    // Step 1: Apply assignedMap to credit accounts first
     for (const account of accounts.filter((acc) => acc.type === "credit")) {
       for (const tx of account.transactions) {
         const category = tx.category;
@@ -293,7 +291,6 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
       }
     }
 
-    // Step 2: Apply remaining assignedMap to debit accounts
     for (const account of accounts.filter((acc) => acc.type === "debit")) {
       for (const tx of account.transactions) {
         const category = tx.category;
@@ -319,7 +316,6 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
       }
     }
 
-    // Step 4: For each credit card, calculate how much assigned spending was charged to it
     const creditCardPayments = accounts
       .filter((acc) => acc.type === "credit")
       .map((card) => {
@@ -1032,14 +1028,13 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
 const calculateCreditCardAccountActivity = (
   month,
   accountName,
-  data = budgetData // fallback to context state
+  data = budgetData
 ) => {
   const monthStr = format(parseISO(`${month}-01`), "yyyy-MM");
   const account = accounts.find((a) => a.name === accountName);
   if (!account) return 0;
 
   const assignedMap = new Map();
-
   for (const category of data[month]?.categories || []) {
     for (const item of category.categoryItems) {
       if (item.assigned > 0) {
@@ -1057,33 +1052,35 @@ const calculateCreditCardAccountActivity = (
     const txMonth = format(parseISO(tx.date), "yyyy-MM");
     if (txMonth !== monthStr) continue;
 
-    const isSpending =
-      tx.category !== "Ready to Assign" &&
-      tx.category !== accountName &&
-      assignedMap.has(tx.category);
+    const { category, balance } = tx;
 
-    if (isSpending) {
-      const assigned = assignedMap.get(tx.category);
-      const spent = Math.abs(tx.balance);
-      const deduction = Math.min(spent, assigned);
-      activity += deduction;
+    if (
+      category !== "Ready to Assign" &&
+      category !== accountName &&
+      assignedMap.has(category) &&
+      balance < 0
+    ) {
+      const spent = Math.abs(balance);
+      const available = assignedMap.get(category);
+      const used = Math.min(spent, available);
 
-      const newAssigned = assigned - deduction;
-      if (newAssigned <= 0) {
-        assignedMap.delete(tx.category);
+      activity += used;
+
+      if (used === available) {
+        assignedMap.delete(category);
       } else {
-        assignedMap.set(tx.category, newAssigned);
+        assignedMap.set(category, available - used);
       }
     }
 
-    // Count positive inflows (payments or returns)
-    if (tx.balance > 0) {
-      activity -= tx.balance;
+    if (category === accountName && balance > 0) {
+      activity -= balance;
     }
   }
 
   return activity;
 };
+
 
   const calculateActivityForMonth = (month, categoryName) => {
     const filteredAccounts = accounts
@@ -1302,7 +1299,8 @@ const calculateCreditCardAccountActivity = (
                   if (category.name === "Credit Card Payments") {
                     itemActivity = calculateCreditCardAccountActivity(
                       newMonth,
-                      item.name
+                      item.name,
+                      prev
                     );
                   } else {
                     itemActivity = calculateActivityForMonth(
