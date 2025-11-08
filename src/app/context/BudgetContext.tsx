@@ -978,6 +978,48 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
       return -assignedUpTo;
     }
 
+    // Get previous month's overspending for debit transactions only
+    let previousMonthOverspending = 0;
+    if (currentIndex > 0) {
+      const prevMonth = allMonths[currentIndex - 1];
+      const prevMonthCategories = data[prevMonth]?.categories || [];
+      
+      for (const category of prevMonthCategories) {
+        // Skip Credit Card Payments category as it's handled differently
+        if (category.name === "Credit Card Payments") continue;
+        
+        for (const item of category.categoryItems) {
+          // Check if there's overspending
+          if (item.available < 0) {
+            // Get all transactions for this category in the previous month
+            const categoryTransactions = accounts.flatMap(acc => 
+              acc.transactions.filter(tx => 
+                tx.category === item.name && 
+                isSameMonth(format(parseISO(tx.date), "yyyy-MM"), prevMonth)
+              ).map(tx => ({...tx, accountType: acc.type}))
+            );
+
+            // Calculate spending by type
+            const creditSpending = categoryTransactions
+              .filter(tx => tx.accountType === "credit")
+              .reduce((sum, tx) => sum + Math.abs(tx.balance), 0);
+
+            const debitSpending = categoryTransactions
+              .filter(tx => tx.accountType === "debit")
+              .reduce((sum, tx) => sum + Math.abs(tx.balance), 0);
+
+            // Calculate how much of the available budget remains after credit spending
+            const budgetAfterCredit = item.assigned - creditSpending;
+
+            // If debit spending exceeds what's left after credit, that's our overspending amount
+            if (debitSpending > budgetAfterCredit) {
+              previousMonthOverspending += debitSpending - budgetAfterCredit;
+            }
+          }
+        }
+      }
+    }
+
     const inflowUpTo = allMonths.slice(0, currentIndex + 1).reduce((sum, m) => {
       const inflow = accounts
         .filter((acc) => acc.type === "debit")
@@ -1009,7 +1051,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
       return sum + (assigned || 0);
     }, 0);
 
-    return inflowUpTo - totalAssigned;
+    return inflowUpTo - totalAssigned - previousMonthOverspending;
   };
 
   const refreshAllReadyToAssign = (data = budgetData) => {
