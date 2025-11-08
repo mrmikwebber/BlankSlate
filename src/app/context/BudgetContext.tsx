@@ -1088,39 +1088,72 @@ const calculateCreditCardAccountActivity = (
     }
   }
 
-  let activity = 0;
+  // Track spending and refunds separately per category
+  const categoryActivity = new Map();
 
+  // First pass: Process all transactions to get net spending per category
   for (const tx of account.transactions) {
     const txMonth = format(parseISO(tx.date), "yyyy-MM");
     if (txMonth !== monthStr) continue;
 
     const { category, balance } = tx;
-
-    if (
-      category !== "Ready to Assign" &&
-      category !== accountName &&
-      assignedMap.has(category) &&
-      balance < 0
-    ) {
-      const spent = Math.abs(balance);
-      const available = assignedMap.get(category);
-      const used = Math.min(spent, available);
-
-      activity += used;
-
-      if (used === available) {
-        assignedMap.delete(category);
-      } else {
-        assignedMap.set(category, available - used);
+    
+    if (category !== "Ready to Assign" && category !== accountName) {
+      if (!categoryActivity.has(category)) {
+        categoryActivity.set(category, {
+          spending: 0,    // negative transactions (purchases)
+          refunds: 0,     // positive transactions (refunds)
+          netActivity: 0  // net effect on payment needed
+        });
       }
-    }
 
-    if (category === accountName && balance > 0) {
-      activity -= balance;
+      const activity = categoryActivity.get(category);
+      
+      if (balance < 0) {
+        // This is spending
+        activity.spending += Math.abs(balance);
+      } else if (balance > 0) {
+        // This is a refund
+        activity.refunds += balance;
+      }
+
+      // Calculate net activity considering available budget
+      if (assignedMap.has(category)) {
+        const available = assignedMap.get(category);
+        const netSpending = activity.spending - activity.refunds;
+        
+        if (netSpending > 0) {
+          // If there's net spending, limit it to available budget
+          activity.netActivity = Math.min(netSpending, available);
+          // Update remaining available budget
+          assignedMap.set(category, Math.max(0, available - netSpending));
+        } else {
+          // If there's net refund, reduce any previous activity
+          activity.netActivity = 0;
+        }
+      }
+      
+      categoryActivity.set(category, activity);
     }
   }
 
-  return activity;
+  // Calculate total activity from all categories
+  let totalActivity = 0;
+  for (const activity of categoryActivity.values()) {
+    totalActivity += activity.netActivity;
+  }
+
+  // Handle direct payments to the credit card
+  for (const tx of account.transactions) {
+    const txMonth = format(parseISO(tx.date), "yyyy-MM");
+    if (txMonth !== monthStr) continue;
+
+    if (tx.category === accountName && tx.balance > 0) {
+      totalActivity -= tx.balance;
+    }
+  }
+
+  return totalActivity;
 };
 
 
@@ -1338,20 +1371,38 @@ const calculateCreditCardAccountActivity = (
 
                   let itemActivity;
 
-                  if (category.name === "Credit Card Payments") {
-                    itemActivity = calculateCreditCardAccountActivity(
-                      newMonth,
-                      item.name,
-                      prev
-                    );
-                  } else {
-                    itemActivity = calculateActivityForMonth(
-                      newMonth,
-                      item.name
-                    );
-                  }
+              if (category.name === "Credit Card Payments") {
+                // For credit card payments, we need to look at the previous month's activity
+                // and carry over the correct payment amount
+                const prevMonthActivity = calculateCreditCardAccountActivity(
+                  previousMonth,
+                  item.name,
+                  prev
+                );
+                
+                // For the current month, get any new activity
+                const currentMonthActivity = calculateCreditCardAccountActivity(
+                  newMonth,
+                  item.name,
+                  prev
+                );
 
-                  return {
+                itemActivity = currentMonthActivity;
+                
+                // Update the available amount to match the previous month's final state
+                const prevAvailable = prev[previousMonth]?.categories
+                  ?.find(c => c.name === "Credit Card Payments")
+                  ?.categoryItems
+                  ?.find(i => i.name === item.name)
+                  ?.available ?? 0;
+                
+                item.available = prevAvailable + currentMonthActivity;
+              } else {
+                itemActivity = calculateActivityForMonth(
+                  newMonth,
+                  item.name
+                );
+              }                  return {
                     ...item,
                     activity: itemActivity,
                     target: newTarget,
