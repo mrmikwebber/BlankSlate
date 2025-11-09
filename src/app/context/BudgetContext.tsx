@@ -983,13 +983,13 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
     if (currentIndex > 0) {
       const prevMonth = allMonths[currentIndex - 1];
       const prevMonthCategories = data[prevMonth]?.categories || [];
-      
+
       for (const category of prevMonthCategories) {
         // Skip Credit Card Payments category as it's handled differently
         if (category.name === "Credit Card Payments") continue;
-        
+
         for (const item of category.categoryItems) {
-          // Check if there's overspending
+          // Only look at categories with negative available
           if (item.available < 0) {
             // Get all transactions for this category in the previous month
             const categoryTransactions = accounts.flatMap(acc => 
@@ -998,22 +998,17 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
                 isSameMonth(format(parseISO(tx.date), "yyyy-MM"), prevMonth)
               ).map(tx => ({...tx, accountType: acc.type}))
             );
+            
+            // Only include debit transactions that caused overspending
+            const debitTransactions = categoryTransactions.filter(tx => 
+              tx.accountType === "debit" && tx.balance < 0
+            );
 
-            // Calculate spending by type
-            const creditSpending = categoryTransactions
-              .filter(tx => tx.accountType === "credit")
-              .reduce((sum, tx) => sum + Math.abs(tx.balance), 0);
-
-            const debitSpending = categoryTransactions
-              .filter(tx => tx.accountType === "debit")
-              .reduce((sum, tx) => sum + Math.abs(tx.balance), 0);
-
-            // Calculate how much of the available budget remains after credit spending
-            const budgetAfterCredit = item.assigned - creditSpending;
-
-            // If debit spending exceeds what's left after credit, that's our overspending amount
-            if (debitSpending > budgetAfterCredit) {
-              previousMonthOverspending += debitSpending - budgetAfterCredit;
+            // If there are any debit transactions causing overspending
+            if (debitTransactions.length > 0) {
+              // Sum up just the debit overspending
+              const debitOverspentAmount = Math.abs(item.available);
+              previousMonthOverspending += debitOverspentAmount;
             }
           }
         }
@@ -1516,15 +1511,29 @@ const calculateCreditCardAccountActivity = (
                 itemActivity = calculateActivityForMonth(newMonth, item.name);
               }
 
+              // For non-credit card categories, if there was debit overspending,
+              // reset the available to 0 as it's being handled by Ready to Assign
+              const wasDebitOverspent = category.name !== "Credit Card Payments" &&
+                item.available < 0 &&
+                accounts.some(acc => 
+                  acc.type === "debit" && 
+                  acc.transactions.some(tx => 
+                    tx.category === item.name &&
+                    isSameMonth(format(parseISO(tx.date), "yyyy-MM"), previousMonth)
+                  )
+                );
+
               return {
                 ...item,
                 assigned: 0,
                 activity: itemActivity,
                 target: newTarget,
                 available:
-                  category.name !== "Credit Card Payments"
-                    ? pastAvailable + itemActivity
-                    : item.available,
+                  category.name === "Credit Card Payments"
+                    ? item.available
+                    : wasDebitOverspent
+                    ? 0
+                    : pastAvailable + itemActivity,
               };
             }),
           }))
