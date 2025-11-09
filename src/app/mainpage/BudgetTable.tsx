@@ -456,6 +456,9 @@ export default function BudgetTable() {
 
       <div className="flex flex-col h-full rounded-2xl bg-white border shadow p-3 space-y-2 overflow-hidden">
         <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
+          <div data-cy="ready-to-assign" className="text-lg font-semibold">
+            Ready to Assign: {formatToUSD(budgetData[currentMonth]?.ready_to_assign || 0)}
+          </div>
           <div className="w-full">
             <MonthNav />
           </div>
@@ -465,6 +468,7 @@ export default function BudgetTable() {
             {FILTERS.map((filter) => (
               <button
                 key={filter}
+                data-cy={`filter-${filter.toLowerCase().replace(' ', '-')}`}
                 className={`px-4 py-2 rounded-md ${
                   selectedFilter === filter
                     ? "bg-blue-600 text-white"
@@ -495,6 +499,8 @@ export default function BudgetTable() {
               {filteredCategories.map((group) => (
                 <Fragment key={group.name}>
                   <tr
+                    data-cy="category-group-row"
+                    data-category={group.name}
                     className="bg-slate-100 text-sm font-semibold text-gray-800 border-b border-gray-200"
                     onMouseEnter={() => setHoveredCategory(group.name)}
                     onMouseLeave={() => setHoveredCategory(null)}
@@ -559,10 +565,14 @@ export default function BudgetTable() {
                         </div>
                       </div>
                     </td>
-                    <td className="p-2 border">
+                    <td 
+                      className="p-2 border"
+                      data-cy="available-display"
+                      data-category={group.name}
+                    >
                       {formatToUSD(
                         group.categoryItems.reduce(
-                          (sum, item) => sum + item.assigned,
+                          (sum, item) => sum + item.available,
                           0
                         )
                       )}
@@ -625,6 +635,9 @@ export default function BudgetTable() {
                       <Fragment>
                         <tr
                           key={itemIndex}
+                          data-cy="category-row"
+                          data-category={group.name}
+                          data-item={item.name}
                           className="hover:bg-slate-50 border-b transition"
                           onContextMenu={(e) => {
                             e.preventDefault();

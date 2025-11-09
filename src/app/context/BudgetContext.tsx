@@ -452,11 +452,11 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
         (cat) =>
           cat.name === categoryName
             ? {
-                ...cat,
-                categoryItems: cat.categoryItems.map((item) =>
-                  item.name === oldItem ? { ...item, name: newItem } : item
-                ),
-              }
+              ...cat,
+              categoryItems: cat.categoryItems.map((item) =>
+                item.name === oldItem ? { ...item, name: newItem } : item
+              ),
+            }
             : cat
       );
       return updated;
@@ -934,9 +934,8 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
     setRecentChanges((prev) => [
       ...prev.slice(-9),
       {
-        description: `Set target for '${categoryItemName}' to ${
-          target?.amount ?? 0
-        }`,
+        description: `Set target for '${categoryItemName}' to ${target?.amount ?? 0
+          }`,
         timestamp: new Date().toISOString(),
       },
     ]);
@@ -992,15 +991,15 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
           // Only look at categories with negative available
           if (item.available < 0) {
             // Get all transactions for this category in the previous month
-            const categoryTransactions = accounts.flatMap(acc => 
-              acc.transactions.filter(tx => 
-                tx.category === item.name && 
+            const categoryTransactions = accounts.flatMap(acc =>
+              acc.transactions.filter(tx =>
+                tx.category === item.name &&
                 isSameMonth(format(parseISO(tx.date), "yyyy-MM"), prevMonth)
-              ).map(tx => ({...tx, accountType: acc.type}))
+              ).map(tx => ({ ...tx, accountType: acc.type }))
             );
-            
+
             // Only include debit transactions that caused overspending
-            const debitTransactions = categoryTransactions.filter(tx => 
+            const debitTransactions = categoryTransactions.filter(tx =>
               tx.accountType === "debit" && tx.balance < 0
             );
 
@@ -1062,94 +1061,106 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
     setIsDirty(true);
   };
 
-const calculateCreditCardAccountActivity = (
-  month,
-  accountName,
-  data = budgetData
-) => {
-  const monthStr = format(parseISO(`${month}-01`), "yyyy-MM");
-  const account = accounts.find((a) => a.name === accountName);
-  if (!account) return 0;
+  const calculateCreditCardAccountActivity = (
+    month,
+    accountName,
+    data = budgetData
+  ) => {
+    const monthStr = format(parseISO(`${month}-01`), "yyyy-MM");
+    const account = accounts.find((a) => a.name === accountName);
+    if (!account) return 0;
 
-  const assignedMap = new Map();
-  for (const category of data[month]?.categories || []) {
-    for (const item of category.categoryItems) {
-      if (item.assigned > 0) {
-        assignedMap.set(
-          item.name,
-          (assignedMap.get(item.name) || 0) + item.assigned
-        );
-      }
-    }
-  }
-
-  // Track spending and refunds separately per category
-  const categoryActivity = new Map();
-
-  // First pass: Process all transactions to get net spending per category
-  for (const tx of account.transactions) {
-    const txMonth = format(parseISO(tx.date), "yyyy-MM");
-    if (txMonth !== monthStr) continue;
-
-    const { category, balance } = tx;
-    
-    if (category !== "Ready to Assign" && category !== accountName) {
-      if (!categoryActivity.has(category)) {
-        categoryActivity.set(category, {
-          spending: 0,    // negative transactions (purchases)
-          refunds: 0,     // positive transactions (refunds)
-          netActivity: 0  // net effect on payment needed
-        });
-      }
-
-      const activity = categoryActivity.get(category);
-      
-      if (balance < 0) {
-        // This is spending
-        activity.spending += Math.abs(balance);
-      } else if (balance > 0) {
-        // This is a refund
-        activity.refunds += balance;
-      }
-
-      // Calculate net activity considering available budget
-      if (assignedMap.has(category)) {
-        const available = assignedMap.get(category);
-        const netSpending = activity.spending - activity.refunds;
-        
-        if (netSpending > 0) {
-          // If there's net spending, limit it to available budget
-          activity.netActivity = Math.min(netSpending, available);
-          // Update remaining available budget
-          assignedMap.set(category, Math.max(0, available - netSpending));
-        } else {
-          // If there's net refund, reduce any previous activity
-          activity.netActivity = 0;
+    const assignedMap = new Map();
+    for (const category of data[month]?.categories || []) {
+      for (const item of category.categoryItems) {
+        if (item.assigned > 0) {
+          assignedMap.set(
+            item.name,
+            (assignedMap.get(item.name) || 0) + item.assigned
+          );
         }
       }
-      
-      categoryActivity.set(category, activity);
     }
-  }
 
-  // Calculate total activity from all categories
-  let totalActivity = 0;
-  for (const activity of categoryActivity.values()) {
-    totalActivity += activity.netActivity;
-  }
+    // Track spending and refunds separately per category
+    const categoryActivity = new Map();
 
-  // Handle direct payments to the credit card
-  for (const tx of account.transactions) {
-    const txMonth = format(parseISO(tx.date), "yyyy-MM");
-    if (txMonth !== monthStr) continue;
+    // First pass: Process all transactions to get net spending per category
+    for (const tx of account.transactions) {
+      const txMonth = format(parseISO(tx.date), "yyyy-MM");
+      if (txMonth !== monthStr) continue;
 
-    if (tx.category === accountName && tx.balance > 0) {
-      totalActivity -= tx.balance;
+      const { category, balance } = tx;
+
+      if (category !== "Ready to Assign" && category !== accountName) {
+        if (!categoryActivity.has(category)) {
+          categoryActivity.set(category, {
+            spending: 0,    // negative transactions (purchases)
+            refunds: 0,     // positive transactions (refunds)
+            netActivity: 0  // net effect on payment needed
+          });
+        }
+
+        const activity = categoryActivity.get(category);
+
+        if (balance < 0) {
+          // This is spending
+          activity.spending += Math.abs(balance);
+        } else if (balance > 0) {
+          // This is a refund
+          activity.refunds += balance;
+        }
+
+        // After updating activity.spending and activity.refunds:
+        const netSpending = activity.spending - activity.refunds;
+
+        if (assignedMap.has(category)) {
+          const available = assignedMap.get(category) ?? 0;
+
+          if (netSpending > 0) {
+            // Normal case: more spending than refunds this month
+            const used = Math.min(netSpending, available);
+            activity.netActivity = used;
+            assignedMap.set(category, Math.max(0, available - used));
+          } else if (netSpending < 0) {
+            // More refunds than spending IN THIS MONTH:
+            // treat this as reducing how much we need to pay the card
+            activity.netActivity = netSpending; // negative number
+          } else {
+            activity.netActivity = 0;
+          }
+        } else {
+          // No current-month budget, but refunds can still reduce payment
+          if (netSpending < 0) {
+            activity.netActivity = netSpending; // negative
+          } else {
+            activity.netActivity = 0;
+          }
+        }
+
+        categoryActivity.set(category, activity);
+
+      }
     }
-  }
 
-  return totalActivity;
-};
+    // Calculate total activity from all categories
+    let totalActivity = 0;
+    for (const activity of categoryActivity.values()) {
+      totalActivity += activity.netActivity;
+    }
+
+    // Handle direct payments to the credit card
+    for (const tx of account.transactions) {
+      const txMonth = format(parseISO(tx.date), "yyyy-MM");
+      if (txMonth !== monthStr) continue;
+
+      if (tx.category === accountName && tx.balance > 0) {
+        totalActivity -= tx.balance;
+      }
+    }
+
+    return totalActivity;
+  };
 
 
   const calculateActivityForMonth = (month, categoryName) => {
@@ -1286,9 +1297,9 @@ const calculateCreditCardAccountActivity = (
 
                   const pastAvailable = isCreditCardPayment
                     ? prev[previousMonth]?.categories
-                        .find((c) => c.name === "Credit Card Payments")
-                        ?.categoryItems.find((i) => i.name === item.name)
-                        ?.available || 0
+                      .find((c) => c.name === "Credit Card Payments")
+                      ?.categoryItems.find((i) => i.name === item.name)
+                      ?.available || 0
                     : Math.max(pastAssigned + pastActivity, 0);
 
                   let newTarget = item.target;
@@ -1335,7 +1346,7 @@ const calculateCreditCardAccountActivity = (
                     const monthIndex =
                       direction === "forward"
                         ? currentMonthNumber -
-                          (targetMonthNumber - monthsUntilTarget)
+                        (targetMonthNumber - monthsUntilTarget)
                         : 0;
                     const newAmountNeeded = monthAmounts[monthIndex] ?? base;
 
@@ -1366,38 +1377,38 @@ const calculateCreditCardAccountActivity = (
 
                   let itemActivity;
 
-              if (category.name === "Credit Card Payments") {
-                // For credit card payments, we need to look at the previous month's activity
-                // and carry over the correct payment amount
-                const prevMonthActivity = calculateCreditCardAccountActivity(
-                  previousMonth,
-                  item.name,
-                  prev
-                );
-                
-                // For the current month, get any new activity
-                const currentMonthActivity = calculateCreditCardAccountActivity(
-                  newMonth,
-                  item.name,
-                  prev
-                );
+                  if (category.name === "Credit Card Payments") {
+                    // For credit card payments, we need to look at the previous month's activity
+                    // and carry over the correct payment amount
+                    const prevMonthActivity = calculateCreditCardAccountActivity(
+                      previousMonth,
+                      item.name,
+                      prev
+                    );
 
-                itemActivity = currentMonthActivity;
-                
-                // Update the available amount to match the previous month's final state
-                const prevAvailable = prev[previousMonth]?.categories
-                  ?.find(c => c.name === "Credit Card Payments")
-                  ?.categoryItems
-                  ?.find(i => i.name === item.name)
-                  ?.available ?? 0;
-                
-                item.available = prevAvailable + currentMonthActivity;
-              } else {
-                itemActivity = calculateActivityForMonth(
-                  newMonth,
-                  item.name
-                );
-              }                  return {
+                    // For the current month, get any new activity
+                    const currentMonthActivity = calculateCreditCardAccountActivity(
+                      newMonth,
+                      item.name,
+                      prev
+                    );
+
+                    itemActivity = currentMonthActivity;
+
+                    // Update the available amount to match the previous month's final state
+                    const prevAvailable = prev[previousMonth]?.categories
+                      ?.find(c => c.name === "Credit Card Payments")
+                      ?.categoryItems
+                      ?.find(i => i.name === item.name)
+                      ?.available ?? 0;
+
+                    item.available = prevAvailable + currentMonthActivity;
+                  } else {
+                    itemActivity = calculateActivityForMonth(
+                      newMonth,
+                      item.name
+                    );
+                  } return {
                     ...item,
                     activity: itemActivity,
                     target: newTarget,
@@ -1420,123 +1431,123 @@ const calculateCreditCardAccountActivity = (
 
       const updatedCategories = prevCategories.length
         ? prevCategories.map((category) => ({
-            ...category,
-            categoryItems: category.categoryItems.map((item) => {
-              const pastAssigned = cumulativeAssigned.get(item.name) || 0;
-              const pastActivity = cumulativeActivity.get(item.name) || 0;
-              const isCreditCardPayment =
-                category.name === "Credit Card Payments";
-              const pastAvailable = isCreditCardPayment
-                ? prev[previousMonth]?.categories
-                    .find((c) => c.name === "Credit Card Payments")
-                    ?.categoryItems.find((i) => i.name === item.name)
-                    ?.available || 0
-                : Math.max(pastAssigned + pastActivity, 0);
+          ...category,
+          categoryItems: category.categoryItems.map((item) => {
+            const pastAssigned = cumulativeAssigned.get(item.name) || 0;
+            const pastActivity = cumulativeActivity.get(item.name) || 0;
+            const isCreditCardPayment =
+              category.name === "Credit Card Payments";
+            const pastAvailable = isCreditCardPayment
+              ? prev[previousMonth]?.categories
+                .find((c) => c.name === "Credit Card Payments")
+                ?.categoryItems.find((i) => i.name === item.name)
+                ?.available || 0
+              : Math.max(pastAssigned + pastActivity, 0);
 
-              let newTarget = item.target;
+            let newTarget = item.target;
 
-              const previousItem = prev[previousMonth]?.categories
-                ?.find((cat) => cat.name === category.name)
-                ?.categoryItems.find((i) => i.name === item.name);
+            const previousItem = prev[previousMonth]?.categories
+              ?.find((cat) => cat.name === category.name)
+              ?.categoryItems.find((i) => i.name === item.name);
 
-              if (previousItem?.target?.type === "monthly") {
-                newTarget = {
-                  ...previousItem.target,
-                  amount: 0,
-                };
-              } else if (
-                previousItem?.target?.type === "Custom" ||
-                previousItem?.target?.type === "Full Payoff"
+            if (previousItem?.target?.type === "monthly") {
+              newTarget = {
+                ...previousItem.target,
+                amount: 0,
+              };
+            } else if (
+              previousItem?.target?.type === "Custom" ||
+              previousItem?.target?.type === "Full Payoff"
+            ) {
+              const targetMonthNumber =
+                getMonth(parseISO(previousItem.target.targetDate)) + 1;
+              const currentMonthNumber = getMonth(parseISO(newMonth));
+
+              let monthsUntilTarget = targetMonthNumber - currentMonthNumber;
+              if (monthsUntilTarget <= 0) monthsUntilTarget = 1;
+
+              const totalAssigned = cumulativeAssigned.get(item.name) || 0;
+              const remainingAmount =
+                previousItem.target.amount - totalAssigned;
+
+              const base =
+                Math.floor((remainingAmount / monthsUntilTarget) * 100) / 100;
+              const baseTotal = base * monthsUntilTarget;
+              const extraCents = Math.round(
+                (remainingAmount - baseTotal) * 100
+              );
+
+              const monthAmounts = Array(monthsUntilTarget).fill(base);
+              for (let i = 0; i < extraCents; i++) {
+                monthAmounts[i] += 0.01;
+              }
+
+              const monthIndex =
+                direction === "forward"
+                  ? currentMonthNumber -
+                  (targetMonthNumber - monthsUntilTarget)
+                  : 0;
+              const newAmountNeeded = monthAmounts[monthIndex] ?? base;
+
+              newTarget = {
+                ...previousItem.target,
+                amountNeeded: newAmountNeeded,
+              };
+
+              const targetMonth =
+                previousItem.target.type === "Custom"
+                  ? parseISO(newTarget.targetDate)
+                  : parseISO(`${newTarget.targetDate}-01`);
+
+              const currentMonthDate =
+                previousItem.target.type === "Custom"
+                  ? parseISO(newMonth)
+                  : parseISO(`${newMonth}-01`);
+
+              if (
+                differenceInCalendarMonths(currentMonthDate, targetMonth) >= 1
               ) {
-                const targetMonthNumber =
-                  getMonth(parseISO(previousItem.target.targetDate)) + 1;
-                const currentMonthNumber = getMonth(parseISO(newMonth));
-
-                let monthsUntilTarget = targetMonthNumber - currentMonthNumber;
-                if (monthsUntilTarget <= 0) monthsUntilTarget = 1;
-
-                const totalAssigned = cumulativeAssigned.get(item.name) || 0;
-                const remainingAmount =
-                  previousItem.target.amount - totalAssigned;
-
-                const base =
-                  Math.floor((remainingAmount / monthsUntilTarget) * 100) / 100;
-                const baseTotal = base * monthsUntilTarget;
-                const extraCents = Math.round(
-                  (remainingAmount - baseTotal) * 100
-                );
-
-                const monthAmounts = Array(monthsUntilTarget).fill(base);
-                for (let i = 0; i < extraCents; i++) {
-                  monthAmounts[i] += 0.01;
-                }
-
-                const monthIndex =
-                  direction === "forward"
-                    ? currentMonthNumber -
-                      (targetMonthNumber - monthsUntilTarget)
-                    : 0;
-                const newAmountNeeded = monthAmounts[monthIndex] ?? base;
-
-                newTarget = {
-                  ...previousItem.target,
-                  amountNeeded: newAmountNeeded,
-                };
-
-                const targetMonth =
-                  previousItem.target.type === "Custom"
-                    ? parseISO(newTarget.targetDate)
-                    : parseISO(`${newTarget.targetDate}-01`);
-
-                const currentMonthDate =
-                  previousItem.target.type === "Custom"
-                    ? parseISO(newMonth)
-                    : parseISO(`${newMonth}-01`);
-
-                if (
-                  differenceInCalendarMonths(currentMonthDate, targetMonth) >= 1
-                ) {
-                  newTarget = null;
-                }
+                newTarget = null;
               }
+            }
 
-              let itemActivity;
+            let itemActivity;
 
-              if (category.name === "Credit Card Payments") {
-                itemActivity = calculateCreditCardAccountActivity(
-                  newMonth,
-                  item.name
-                );
-              } else {
-                itemActivity = calculateActivityForMonth(newMonth, item.name);
-              }
+            if (category.name === "Credit Card Payments") {
+              itemActivity = calculateCreditCardAccountActivity(
+                newMonth,
+                item.name
+              );
+            } else {
+              itemActivity = calculateActivityForMonth(newMonth, item.name);
+            }
 
-              // For non-credit card categories, if there was debit overspending,
-              // reset the available to 0 as it's being handled by Ready to Assign
-              const wasDebitOverspent = category.name !== "Credit Card Payments" &&
-                item.available < 0 &&
-                accounts.some(acc => 
-                  acc.type === "debit" && 
-                  acc.transactions.some(tx => 
-                    tx.category === item.name &&
-                    isSameMonth(format(parseISO(tx.date), "yyyy-MM"), previousMonth)
-                  )
-                );
+            // For non-credit card categories, if there was debit overspending,
+            // reset the available to 0 as it's being handled by Ready to Assign
+            const wasDebitOverspent = category.name !== "Credit Card Payments" &&
+              item.available < 0 &&
+              accounts.some(acc =>
+                acc.type === "debit" &&
+                acc.transactions.some(tx =>
+                  tx.category === item.name &&
+                  isSameMonth(format(parseISO(tx.date), "yyyy-MM"), previousMonth)
+                )
+              );
 
-              return {
-                ...item,
-                assigned: 0,
-                activity: itemActivity,
-                target: newTarget,
-                available:
-                  category.name === "Credit Card Payments"
-                    ? item.available
-                    : wasDebitOverspent
+            return {
+              ...item,
+              assigned: 0,
+              activity: itemActivity,
+              target: newTarget,
+              available:
+                category.name === "Credit Card Payments"
+                  ? item.available
+                  : wasDebitOverspent
                     ? 0
                     : pastAvailable + itemActivity,
-              };
-            }),
-          }))
+            };
+          }),
+        }))
         : createEmptyCategories(prev[getLatestMonth(prev)]?.categories || []);
 
       const totalInflow = accounts

@@ -35,6 +35,9 @@ const EditableAssigned = ({ categoryName, itemName, item, handleInputChange }: {
     <td className="border border-gray-300 px-4 py-2">
       {isEditing ? (
         <input
+          data-cy="assigned-input"
+          data-category={categoryName}
+          data-item={itemName}
           type="text"
           autoFocus
           value={inputValue}
@@ -47,7 +50,13 @@ const EditableAssigned = ({ categoryName, itemName, item, handleInputChange }: {
           className="w-full p-1 border border-gray-300 rounded"
         />
       ) : (
-        <span onClick={() => setIsEditing(true)} className="cursor-pointer">
+        <span 
+          data-cy="assigned-display"
+          data-category={categoryName}
+          data-item={itemName}
+          onClick={() => setIsEditing(true)} 
+          className="cursor-pointer"
+        >
           {formatToUSD(item.assigned)}
         </span>
       )}
