@@ -41,6 +41,7 @@ const AddCategoryButton = ({
   return (
     <div className="relative inline-block">
       <button
+        data-cy="add-category-group-button"
         onClick={() => setIsOpen(!isOpen)}
         className="bg-blue-600 text-white px-4 py-2 rounded-xl shadow hover:bg-teal-600 transition"
       >
@@ -53,6 +54,7 @@ const AddCategoryButton = ({
             Category Group Name
           </label>
           <input
+            data-cy="add-category-group-input"
             type="text"
             value={categoryGroupName}
             onChange={(e) => setCategoryGroupName(e.target.value)}
@@ -60,6 +62,7 @@ const AddCategoryButton = ({
             placeholder="Enter category group name"
           />
           <button
+            data-cy="add-category-group-submit"
             onClick={onSubmit}
             className="mt-3 w-full bg-blue-600 text-white py-2 rounded-md hover:bg-teal-600 transition"
           >

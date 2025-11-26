@@ -76,6 +76,7 @@ export default function InlineTargetEditor({ itemName, onClose }) {
           <div>
             <label className="block font-medium mb-1">Target Type</label>
             <select
+              data-cy="target-type-select"
               value={targetType}
               onChange={(e) => setTargetType(e.target.value)}
               className="w-full border p-2 rounded"
@@ -91,6 +92,7 @@ export default function InlineTargetEditor({ itemName, onClose }) {
             <div>
               <label className="block font-medium mb-1">Target Date</label>
               <input
+                data-cy="target-date-input"
                 type="date"
                 value={customTargetDate}
                 onChange={(e) => setCustomTargetDate(e.target.value)}
@@ -103,6 +105,7 @@ export default function InlineTargetEditor({ itemName, onClose }) {
             <div>
               <label className="block font-medium mb-1">Target Amount</label>
               <input
+                data-cy="target-amount-input"
                 type="number"
                 value={targetAmount}
                 onChange={(e) => setTargetAmount(e.target.value)}
@@ -112,17 +115,19 @@ export default function InlineTargetEditor({ itemName, onClose }) {
           )}
 
           <div className="flex justify-between items-center">
-            <span className="text-sm text-gray-600">
+            <span data-cy="target-amount-needed" className="text-sm text-gray-600">
               Amount Needed: {formatToUSD(calculateNeededAmount())}
             </span>
             <div className="space-x-2">
               <button
+                data-cy="target-cancel"
                 onClick={onClose}
                 className="bg-gray-200 px-3 py-1 rounded text-sm"
               >
                 Cancel
               </button>
               <button
+                data-cy="target-save"
                 onClick={handleSave}
                 className="bg-teal-600 text-white px-3 py-1 rounded text-sm"
               >

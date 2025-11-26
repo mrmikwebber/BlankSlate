@@ -6,7 +6,7 @@ script-src 'self' 'unsafe-inline';
 style-src 'self' 'unsafe-inline' fonts.googleapis.com;
 font-src 'self' fonts.gstatic.com;
 img-src 'self' data: blob:;
-connect-src 'self' ${process.env.NEXT_PUBLIC_SUPABASE_URL};
+connect-src 'self' ${process.env.NEXT_PUBLIC_SUPABASE_URL} *.supabase.co;
 frame-src 'none';
 object-src 'none';
 base-uri 'self';
