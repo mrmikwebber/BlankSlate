@@ -70,7 +70,7 @@ export default function InlineTargetEditor({ itemName, onClose }) {
   if (!categoryItem) return null;
 
   return (
-    <tr>
+    <tr data-cy="inline-target-editor">
       <td colSpan={4} className="bg-gray-50 border-t px-4 py-3">
         <div className="space-y-3 text-sm">
           <div>

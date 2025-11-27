@@ -29,8 +29,16 @@ describe('UI interactions and misc', () => {
 
   it('Scenario 23 – Add item popover dropUp (visual; best-effort)', () => {
     // This is a best-effort check: open an add item on a group near the bottom and assert popover class contains "bottom-full" or similar
-    cy.get('[data-cy="group-name"]').last().trigger('mouseenter');
-    cy.get('[data-cy="group-add-item-button"]').last().click({ force: true });
+    cy.get('tr[data-cy="category-group-row"]').last().trigger('mouseover');
+    cy.get('tr[data-cy="category-group-row"]').last().within(() => {
+      cy.get('[data-cy="group-add-item-button"]').filter(':visible').first().then(($btn) => {
+        if ($btn.length) {
+          cy.wrap($btn).click();
+        } else {
+          cy.get('[data-cy="group-add-item-button"]').first().click({ force: true });
+        }
+      });
+    });
     cy.get('[data-cy="add-item-input"]').should('exist');
     // Can't reliably assert dropUp without viewport control; user can enhance this test with controlled viewport size.
   });

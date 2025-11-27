@@ -99,7 +99,7 @@ describe("Transaction editing / mutation – YNAB-style", () => {
 
         // Confirm initial category impact
         cy.get(
-          `[data-cy="category-row"][data-group="${groupA}"][data-item="${itemA}"]`
+          `[data-cy="category-row"][data-category="${groupA}"][data-item="${itemA}"]`
         )
           .as("rowA")
           .within(() => {
@@ -118,20 +118,29 @@ describe("Transaction editing / mutation – YNAB-style", () => {
               });
           });
 
-        // Create Group B / Cat B in budget so it's a valid target
-        cy.get("[data-cy=add-group-button]").click();
-        cy.get("[data-cy=new-group-name-input]").type(groupB);
-        cy.get("[data-cy=new-group-submit]").click();
+        // Create Group B / Cat B in budget so it's a valid target (normalized selectors)
+        cy.get("[data-cy=add-category-group-button]").click();
+        cy.get("[data-cy=add-category-group-input]").type(groupB);
+        cy.get("[data-cy=add-category-group-submit]").click();
+
+        // Reveal add-item via hover; click first visible, fallback to forced click
+        cy.get(`tr[data-cy="category-group-row"][data-category="${groupB}"]`).first().trigger("mouseover");
+        cy.get(`[data-category="${groupB}"] [data-cy="group-add-item-button"]`)
+          .filter(":visible")
+          .first()
+          .then(($btn) => {
+            if ($btn.length) {
+              cy.wrap($btn).click();
+            } else {
+              cy.get(`[data-category="${groupB}"] [data-cy="group-add-item-button"]`).first().click({ force: true });
+            }
+          });
+
+        cy.get("[data-cy=add-item-input]").type(itemB);
+        cy.get("[data-cy=add-item-submit]").click();
 
         cy.get(
-          `[data-cy="category-group-row"][data-group="${groupB}"] [data-cy=add-item-button]`
-        ).click();
-
-        cy.get("[data-cy=new-item-name-input]").type(itemB);
-        cy.get("[data-cy=new-item-submit]").click();
-
-        cy.get(
-          `[data-cy="category-row"][data-group="${groupB}"][data-item="${itemB}"]`
+          `[data-cy="category-row"][data-category="${groupB}"][data-item="${itemB}"]`
         ).as("rowB");
 
         // Now go back to Checking and edit the transaction's category
@@ -231,7 +240,7 @@ describe("Transaction editing / mutation – YNAB-style", () => {
     visitBudget();
 
     cy.get(
-      `[data-cy="category-row"][data-group="${groupName}"][data-item="${itemName}"]`
+      `[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"]`
     )
       .as("row")
       .within(() => {
@@ -312,7 +321,7 @@ describe("Transaction editing / mutation – YNAB-style", () => {
     visitBudget();
 
     cy.get(
-      `[data-cy="category-row"][data-group="${groupName}"][data-item="${itemName}"]`
+      `[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"]`
     )
       .as("row")
       .within(() => {
@@ -426,7 +435,7 @@ describe("Transaction editing / mutation – YNAB-style", () => {
 
     // Check CC payment category available changed (just check it's finite & not NaN)
     cy.get(
-      `[data-cy="category-row"][data-group="Credit Card Payments"][data-item="${accounts.amex.name}"]`
+      `[data-cy="category-row"][data-category="Credit Card Payments"][data-item="${accounts.amex.name}"]`
     )
       .as("amexPaymentRow")
       .within(() => {
@@ -441,7 +450,7 @@ describe("Transaction editing / mutation – YNAB-style", () => {
     // Sanity check: some random spending category didn't get hit
     // (this is loose, but helps catch "forgot to clear category on transfer edit" bugs)
     cy.get("[data-cy=category-row]").each(($row) => {
-      const group = $row.attr("data-group")!;
+      const group = $row.attr("data-category")!;
       if (group === "Credit Card Payments") return;
 
       const activityText = $row.find("[data-cy=item-activity]").text();
@@ -485,7 +494,7 @@ describe("Transaction editing / mutation – YNAB-style", () => {
     // Snapshot category and account state
     visitBudget();
     cy.get(
-      `[data-cy="category-row"][data-group="${groupName}"][data-item="${itemName}"]`
+      `[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"]`
     )
       .as("row")
       .within(() => {

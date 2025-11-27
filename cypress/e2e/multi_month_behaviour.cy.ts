@@ -1,8 +1,8 @@
 // cypress/e2e/multi_month_behaviour.cy.ts
+
+import { BUDGET_URL } from "../support/testConstants";
+
 // Normalized selectors (data-category instead of data-group, updated creation selectors, month-nav data-cy attributes)
-
-const BUDGET_URL = "/budget";
-
 interface SeededAccount {
   id: string;
   name: string;
@@ -40,9 +40,18 @@ const createCategoryInCurrentMonth = (groupName: string, itemName: string) => {
   cy.get("[data-cy=add-category-group-input]").type(groupName);
   cy.get("[data-cy=add-category-group-submit]").click();
 
-  cy.get(
-    `[data-cy="category-group-row"][data-category="${groupName}"] [data-cy=group-add-item-button]`
-  ).click();
+  // Reveal the add-item button with hover; prefer first visible, fallback to forced click
+  cy.get(`tr[data-cy="category-group-row"][data-category="${groupName}"]`).first().trigger("mouseover");
+  cy.get(`[data-category="${groupName}"] [data-cy="group-add-item-button"]`)
+    .filter(":visible")
+    .first()
+    .then(($btn) => {
+      if ($btn.length) {
+        cy.wrap($btn).click();
+      } else {
+        cy.get(`[data-category="${groupName}"] [data-cy="group-add-item-button"]`).first().click({ force: true });
+      }
+    });
   cy.get("[data-cy=add-item-input]").type(itemName);
   cy.get("[data-cy=add-item-submit]").click();
 
