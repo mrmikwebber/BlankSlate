@@ -60,8 +60,7 @@ describe("Budget base logic – YNAB style", () => {
         cy.get(`[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"] [data-cy=assigned-display]`).click();
         cy.get(`[data-cy=assigned-input][data-category="${groupName}"][data-item="${itemName}"]`)
           .clear()
-          .type(String(amount))
-          .blur();
+          .type(String(amount) + "{enter}");
 
         cy.get(`[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"]`).within(() => {
           cy.get("[data-cy=assigned-display]")
@@ -98,8 +97,7 @@ describe("Budget base logic – YNAB style", () => {
     cy.get(`[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"] [data-cy=assigned-display]`).click();
     cy.get(`[data-cy=assigned-input][data-category="${groupName}"][data-item="${itemName}"]`)
       .clear()
-      .type(String(initialAssign))
-      .blur();
+      .type(String(initialAssign) + "{enter}");
 
     cy.get("[data-cy=ready-to-assign]")
       .invoke("text")
@@ -109,8 +107,7 @@ describe("Budget base logic – YNAB style", () => {
         cy.get(`[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"] [data-cy=assigned-display]`).click();
         cy.get(`[data-cy=assigned-input][data-category="${groupName}"][data-item="${itemName}"]`)
           .clear()
-          .type(String(reduceTo))
-          .blur();
+          .type(String(reduceTo) + "{enter}");
 
         cy.get(`[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"]`).within(() => {
           cy.get("[data-cy=assigned-display]")
@@ -145,8 +142,7 @@ describe("Budget base logic – YNAB style", () => {
     cy.get(`[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"] [data-cy=assigned-display]`).click();
     cy.get(`[data-cy=assigned-input][data-category="${groupName}"][data-item="${itemName}"]`)
       .clear()
-      .type("10+5-3")
-      .blur();
+      .type("10+5-3{enter}");
     cy.get(`[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"] [data-cy=assigned-display]`)
       .invoke("text")
       .then((txt) => {
@@ -157,8 +153,7 @@ describe("Budget base logic – YNAB style", () => {
     cy.get(`[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"] [data-cy=assigned-display]`).click();
     cy.get(`[data-cy=assigned-input][data-category="${groupName}"][data-item="${itemName}"]`)
       .clear()
-      .type("not a number")
-      .blur();
+      .type("not a number{enter}");
     cy.get(`[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"] [data-cy=assigned-display]`)
       .invoke("text")
       .then((txt) => {
@@ -178,13 +173,11 @@ describe("Budget base logic – YNAB style", () => {
     cy.get(`[data-cy="category-row"][data-category="${groupA}"][data-item="${catA}"] [data-cy=assigned-display]`).click();
     cy.get(`[data-cy=assigned-input][data-category="${groupA}"][data-item="${catA}"]`)
       .clear()
-      .type("100")
-      .blur();
+      .type("100{enter}");
     cy.get(`[data-cy="category-row"][data-category="${groupB}"][data-item="${catB}"] [data-cy=assigned-display]`).click();
     cy.get(`[data-cy=assigned-input][data-category="${groupB}"][data-item="${catB}"]`)
       .clear()
-      .type("50")
-      .blur();
+      .type("50{enter}");
 
     cy.get("[data-cy=ready-to-assign]")
       .invoke("text")
@@ -200,13 +193,16 @@ describe("Budget base logic – YNAB style", () => {
         cy.get(`[data-cy="category-row"][data-category="${groupA}"][data-item="${catA}"] [data-cy=assigned-display]`).click();
         cy.get(`[data-cy=assigned-input][data-category="${groupA}"][data-item="${catA}"]`)
           .clear()
-          .type("70")
-          .blur();
+          .type("70{enter}");
+        
+          cy.wait(500);
+
         cy.get(`[data-cy="category-row"][data-category="${groupB}"][data-item="${catB}"] [data-cy=assigned-display]`).click();
         cy.get(`[data-cy=assigned-input][data-category="${groupB}"][data-item="${catB}"]`)
           .clear()
-          .type("80")
-          .blur();
+          .type("80{enter}");
+
+cy.wait(500);
 
         cy.get("[data-cy=ready-to-assign]")
           .invoke("text")
@@ -233,8 +229,7 @@ describe("Budget base logic – YNAB style", () => {
     cy.get(`[data-cy="category-row"][data-category="${groupName}"][data-item="${catSource}"] [data-cy=assigned-display]`).click();
     cy.get(`[data-cy=assigned-input][data-category="${groupName}"][data-item="${catSource}"]`)
       .clear()
-      .type("75")
-      .blur();
+      .type("75{enter}");
 
     cy.get(`[data-cy="category-row"][data-category="${groupName}"][data-item="${catTarget}"] [data-cy=assigned-display]`)
       .invoke("text")
@@ -248,6 +243,7 @@ describe("Budget base logic – YNAB style", () => {
               .invoke("text")
               .then((rtaText) => {
                 const initialRTA = parseCurrency(rtaText);
+                console.log("Initial RTA:", initialRTA);
                 cy.get(`[data-cy="category-row"][data-category="${groupName}"][data-item="${catSource}"]`).rightclick();
                 cy.get("[data-cy=category-context-menu]")
                   .should("be.visible")
