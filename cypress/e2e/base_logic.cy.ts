@@ -167,65 +167,55 @@ describe("YNAB-style behaviour: purchases, payments, transfers", () => {
       .then((initialRTAText) => {
         const initialRTA = parseCurrency(initialRTAText);
 
-        cy.get(
-          '[data-cy="category-row"][data-item="' +
-          accounts.amex.name +
-          '"]'
-        )
-          .as("ccPaymentRow")
-          .within(() => {
-            cy.get("[data-cy=item-available]")
+        // Narrow to the CC payment row and read initial available
+        cy.get('[data-cy="category-row"][data-item="' + accounts.amex.name + '"]')
+          .as("ccPaymentRow");
+
+        cy.get("@ccPaymentRow").find("[data-cy=item-available]")
+          .invoke("text")
+          .then((initialAvailText) => {
+            const initialAvail = parseCurrency(initialAvailText);
+
+            // 2. Make the payment from checking → credit account
+            visitAccount(accounts.checking.id, accounts.checking.name);
+            cy.get("[data-cy=add-transaction-button]").click();
+            cy.get("[data-cy=tx-payee-select]").select(accounts.amex.name);
+
+            // Outflow 100 (payment)
+            cy.get("[data-cy=tx-sign-toggle]").then(($btn) => {
+              if ($btn.text().trim() !== "−") {
+                cy.wrap($btn).click();
+              }
+            });
+
+            cy.get("[data-cy=tx-amount-input]")
+              .clear()
+              .type(String(amount));
+
+            cy.get("[data-cy=tx-submit]").click();
+
+            cy.wait(1000); // wait for transaction to process
+            // 3. Back to budget to verify behaviour
+            visitBudget();
+
+            // Ready to Assign should remain unchanged
+            cy.get("[data-cy=ready-to-assign]")
               .invoke("text")
-              .then((initialAvailText) => {
-                const initialAvail = parseCurrency(initialAvailText);
+              .then((finalRTAText) => {
+                const finalRTA = parseCurrency(finalRTAText);
+                expect(finalRTA).to.eq(initialRTA);
+              });
 
-                // 2. Make the payment from checking → AMEX
-                visitAccount(accounts.checking.id, accounts.checking.name);
-                cy.get("[data-cy=add-transaction-button]").click();
+            // CC Payment category available should move +amount toward zero (less negative)
+            cy.get('[data-cy="category-row"][data-item="' + accounts.amex.name + '"]')
+              .find("[data-cy=item-available]")
+              .invoke("text")
+              .then((finalAvailText) => {
+                const finalAvail = parseCurrency(finalAvailText);
 
-                cy.get("[data-cy=tx-payee-select]").select(accounts.amex.name);
-
-                // Outflow 100 (payment)
-                cy.get("[data-cy=tx-sign-toggle]").then(($btn) => {
-                  if ($btn.text().trim() !== "−") {
-                    cy.wrap($btn).click();
-                  }
-                });
-
-                cy.get("[data-cy=tx-amount-input]")
-                  .clear()
-                  .type(String(amount));
-
-                cy.get("[data-cy=tx-submit]").click();
-
-                // 3. Back to budget to verify behaviour
-                visitBudget();
-
-                // Ready to Assign should remain unchanged
-                cy.get("[data-cy=ready-to-assign]")
-                  .invoke("text")
-                  .then((finalRTAText) => {
-                    const finalRTA = parseCurrency(finalRTAText);
-                    expect(finalRTA).to.eq(initialRTA);
-                  });
-
-                // CC Payment category available should move +amount toward zero (less negative)
-                cy.get(
-                  '[data-cy="category-row"][data-item="' +
-                  accounts.amex.name +
-                  '"]'
-                )
-                  .within(() => {
-                    cy.get("[data-cy=item-available]")
-                      .invoke("text")
-                      .then((finalAvailText) => {
-                        const finalAvail = parseCurrency(finalAvailText);
-
-                        // If initialAvail was negative, finalAvail should be closer to zero (higher)
-                        // If it was zero, it should now be +amount (extra payment)
-                        expect(finalAvail).to.be.greaterThan(initialAvail);
-                      });
-                  });
+                // If initialAvail was negative, finalAvail should be closer to zero (higher)
+                // If it was zero, it should now be +amount (extra payment)
+                expect(finalAvail).to.be.equal(initialAvail - amount);
               });
           });
       });
