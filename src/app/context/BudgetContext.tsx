@@ -577,6 +577,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
             return {
               ...item,
               activity: itemActivity,
+              // For CC payments, allow carryover rules handled elsewhere; keep raw cumulative
               available: availableSum + cumulativeAvailable,
             };
           });
@@ -601,7 +602,8 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
           return {
             ...item,
             activity: itemActivity,
-            available: availableSum + cumulativeAvailable,
+            // Clamp past carryover to zero to avoid carrying negative overspending into new month
+            available: availableSum + Math.max(cumulativeAvailable, 0),
           };
         });
 
@@ -637,11 +639,15 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
         },
       };
 
-      refreshAllReadyToAssign(updated);
+      // Avoid recalculating all months; update Ready To Assign for currentMonth only
+      const rta = calculateReadyToAssign(currentMonth, updated);
+      updated[currentMonth].ready_to_assign = rta;
+      dirtyMonths.current.add(currentMonth);
+
       return updated;
     });
     setIsDirty(true);
-  }, [accounts]);
+  }, [accounts, currentMonth]);
   useEffect(() => {
     if (!accounts.length || !budgetData) return;
 
@@ -680,7 +686,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
     if (dirtyMonths.current?.size) {
       setIsDirty(true);
     }
-  }, [accounts]);
+  }, [accounts, currentMonth]);
 
   const getLatestMonth = (budgetData) => {
     return Object.keys(budgetData).sort().pop();
@@ -1378,43 +1384,60 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
                   let itemActivity;
 
                   if (category.name === "Credit Card Payments") {
-                    // For credit card payments, we need to look at the previous month's activity
-                    // and carry over the correct payment amount
-                    const prevMonthActivity = calculateCreditCardAccountActivity(
-                      previousMonth,
-                      item.name,
-                      prev
-                    );
-
-                    // For the current month, get any new activity
                     const currentMonthActivity = calculateCreditCardAccountActivity(
                       newMonth,
                       item.name,
                       prev
                     );
-
                     itemActivity = currentMonthActivity;
-
-                    // Update the available amount to match the previous month's final state
                     const prevAvailable = prev[previousMonth]?.categories
                       ?.find(c => c.name === "Credit Card Payments")
                       ?.categoryItems
                       ?.find(i => i.name === item.name)
                       ?.available ?? 0;
-
                     item.available = prevAvailable + currentMonthActivity;
                   } else {
                     itemActivity = calculateActivityForMonth(
                       newMonth,
                       item.name
                     );
-                  } return {
+
+                    // If previous month had debit overspending for this category, reset available to 0 for the new month
+                    const wasDebitOverspent =
+                      (previousItem?.available ?? 0) < 0 &&
+                      accounts.some(acc =>
+                        acc.type === "debit" &&
+                        acc.transactions.some(tx =>
+                          tx.category === item.name &&
+                          isSameMonth(
+                            format(parseISO(tx.date), "yyyy-MM"),
+                            previousMonth
+                          ) &&
+                          tx.balance < 0
+                        )
+                      );
+
+                    // Start new month with zero assigned
+                    item.assigned = 0;
+
+                    if (wasDebitOverspent) {
+                      // Reset available to 0; overspending impact has already been applied to RTA
+                      return {
+                        ...item,
+                        activity: itemActivity,
+                        target: newTarget,
+                        available: 0,
+                      };
+                    }
+                  }
+
+                  return {
                     ...item,
                     activity: itemActivity,
                     target: newTarget,
                     available:
                       category.name !== "Credit Card Payments"
-                        ? pastAvailable + itemActivity + item.assigned
+                        ? pastAvailable + itemActivity + 0 /* assigned reset */
                         : item.available,
                   };
                 }),
@@ -1525,7 +1548,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
             // For non-credit card categories, if there was debit overspending,
             // reset the available to 0 as it's being handled by Ready to Assign
             const wasDebitOverspent = category.name !== "Credit Card Payments" &&
-              item.available < 0 &&
+              (previousItem?.available ?? 0) < 0 &&
               accounts.some(acc =>
                 acc.type === "debit" &&
                 acc.transactions.some(tx =>
