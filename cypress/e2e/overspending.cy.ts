@@ -150,97 +150,92 @@ describe("Overspending & filters – YNAB style", () => {
       .then((initialRTAText) => {
         const initialRTA = parseCurrency(initialRTAText);
 
+        // Read initial CC Payment available without scoping navigation inside .within
         cy.get(
           `[data-cy="category-row"][data-category="Credit Card Payments"][data-item="${ccPaymentItemName}"]`
-        )
-          .as("ccPaymentRow")
-          .within(() => {
-            cy.get("[data-cy=item-available]")
+        ).as("ccPaymentRow");
+
+        cy.get("@ccPaymentRow")
+          .find("[data-cy=item-available]")
+          .invoke("text")
+          .then((initialCCAvailText) => {
+            const initialCCAvail = parseCurrency(initialCCAvailText);
+
+            // Make a purchase ON THE CREDIT CARD
+            visitAccount(accounts.amex.id, accounts.amex.name);
+
+            cy.get("[data-cy=add-transaction-button]").click();
+
+            // New payee
+            cy.get("[data-cy=tx-payee-select]").select("__new__");
+            cy.get("[data-cy=tx-new-payee-input]").type(
+              "Credit Overspend Store"
+            );
+
+            // New group & item
+            cy.get("[data-cy=tx-group-select]").select("__new__");
+            cy.get("[data-cy=tx-new-group-input]").type(groupName);
+
+            cy.get("[data-cy=tx-item-select]").select("__new__");
+            cy.get("[data-cy=tx-new-item-input]").type(itemName);
+
+            // Outflow (negative) on CREDIT account
+            cy.get("[data-cy=tx-sign-toggle]").then(($btn) => {
+              if ($btn.text().trim() !== "−") {
+                cy.wrap($btn).click();
+              }
+            });
+
+            cy.get("[data-cy=tx-amount-input]")
+              .clear()
+              .type(String(amount));
+            cy.get("[data-cy=tx-submit]").click();
+
+            // Budget checks
+            visitBudget();
+
+            // New category should show overspending
+            cy.get(
+              `[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"]`
+            )
+              .as("creditOverspentRow");
+
+            cy.get("@creditOverspentRow").find("[data-cy=assigned-display]")
               .invoke("text")
-              .then((initialCCAvailText) => {
-                const initialCCAvail = parseCurrency(initialCCAvailText);
+              .then((txt) => {
+                const assigned = parseCurrency(txt);
+                expect(assigned).to.eq(0);
+              });
 
-                // Make a purchase ON THE CREDIT CARD
-                visitAccount(accounts.amex.id, accounts.amex.name);
+            cy.get("@creditOverspentRow").find("[data-cy=item-activity]")
+              .invoke("text")
+              .then((txt) => {
+                const activity = parseCurrency(txt);
+                expect(activity).to.eq(-amount);
+              });
 
-                cy.get("[data-cy=add-transaction-button]").click();
+            cy.get("@creditOverspentRow").find("[data-cy=item-available]")
+              .invoke("text")
+              .then((txt) => {
+                const available = parseCurrency(txt);
+                expect(available).to.eq(-amount);
+              });
 
-                // New payee
-                cy.get("[data-cy=tx-payee-select]").select("__new__");
-                cy.get("[data-cy=tx-new-payee-input]").type(
-                  "Credit Overspend Store"
-                );
+            // RTA unchanged by spending
+            cy.get("[data-cy=ready-to-assign]")
+              .invoke("text")
+              .then((finalRTAText) => {
+                const finalRTA = parseCurrency(finalRTAText);
+                expect(finalRTA).to.eq(initialRTA);
+              });
 
-                // New group & item
-                cy.get("[data-cy=tx-group-select]").select("__new__");
-                cy.get("[data-cy=tx-new-group-input]").type(groupName);
-
-                cy.get("[data-cy=tx-item-select]").select("__new__");
-                cy.get("[data-cy=tx-new-item-input]").type(itemName);
-
-                // Outflow (negative) on CREDIT account
-                cy.get("[data-cy=tx-sign-toggle]").then(($btn) => {
-                  if ($btn.text().trim() !== "−") {
-                    cy.wrap($btn).click();
-                  }
-                });
-
-                cy.get("[data-cy=tx-amount-input]")
-                  .clear()
-                  .type(String(amount));
-                cy.get("[data-cy=tx-submit]").click();
-
-                // Budget checks
-                visitBudget();
-
-                // New category should show overspending
-                cy.get(
-                  `[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"]`
-                )
-                  .as("creditOverspentRow")
-                  .within(() => {
-                    cy.get("[data-cy=assigned-display]")
-                      .invoke("text")
-                      .then((txt) => {
-                        const assigned = parseCurrency(txt);
-                        expect(assigned).to.eq(0);
-                      });
-
-                    cy.get("[data-cy=item-activity]")
-                      .invoke("text")
-                      .then((txt) => {
-                        const activity = parseCurrency(txt);
-                        expect(activity).to.eq(-amount);
-                      });
-
-                    cy.get("[data-cy=item-available]")
-                      .invoke("text")
-                      .then((txt) => {
-                        const available = parseCurrency(txt);
-                        expect(available).to.eq(-amount);
-                      });
-                  });
-
-                // RTA unchanged by spending
-                cy.get("[data-cy=ready-to-assign]")
-                  .invoke("text")
-                  .then((finalRTAText) => {
-                    const finalRTA = parseCurrency(finalRTAText);
-                    expect(finalRTA).to.eq(initialRTA);
-                  });
-
-                // CC Payment bucket should not change from purchases
-                cy.get(
-                  `[data-cy="category-row"][data-category="Credit Card Payments"][data-item="${ccPaymentItemName}"]`
-                )
-                  .within(() => {
-                    cy.get("[data-cy=item-available]")
-                      .invoke("text")
-                      .then((finalCCAvailText) => {
-                        const finalCCAvail = parseCurrency(finalCCAvailText);
-                        expect(finalCCAvail).to.eq(initialCCAvail);
-                      });
-                  });
+            // CC Payment bucket should not change from purchases
+            cy.get("@ccPaymentRow")
+              .find("[data-cy=item-available]")
+              .invoke("text")
+              .then((finalCCAvailText) => {
+                const finalCCAvail = parseCurrency(finalCCAvailText);
+                expect(finalCCAvail).to.eq(initialCCAvail);
               });
           });
       });

@@ -48,7 +48,16 @@ export default function InlineTransactionRow({
   const [newGroupName, setNewGroupName] = useState("");
   const [newItemName, setNewItemName] = useState("");
   const [newPayeeName, setNewPayeeName] = useState("");
-  const [transferPayee, setTransferPayee] = useState("");
+
+  // Extract raw payee name from transfer labels like "Transfer to X" or "Payment from Y"
+  const extractPayeeName = (payeeLabel: string): string => {
+    const matches = payeeLabel.match(/(?:Transfer|Payment) (?:to|from) (.+)/);
+    return matches ? matches[1] : payeeLabel;
+  };
+
+  const [transferPayee, setTransferPayee] = useState(
+    isEdit && initialData ? extractPayeeName(initialData.payee) : ""
+  );
 
   const formRef = useRef<HTMLTableRowElement>(null);
 
@@ -203,10 +212,28 @@ export default function InlineTransactionRow({
       }
 
       if (otherAccount) {
-        const mirrorPayee =
-          balance < 0
-            ? `Transfer from ${thisAccount.name}`
-            : `Transfer to ${thisAccount.name}`;
+        const isThisCredit = thisAccount.type === "credit";
+        const isOtherCredit = otherAccount.type === "credit";
+        
+        const mirrorPayee = (() => {
+          if (balance < 0) {
+            // Original is outflow, mirror is inflow
+            if (isOtherCredit) {
+              return isThisCredit
+                ? `Transfer from ${thisAccount.name}`
+                : `Payment from ${thisAccount.name}`;
+            }
+            return `Transfer from ${thisAccount.name}`;
+          } else {
+            // Original is inflow, mirror is outflow
+            if (isOtherCredit) {
+              return `Transfer to ${thisAccount.name}`;
+            }
+            return isThisCredit
+              ? `Payment to ${thisAccount.name}`
+              : `Transfer to ${thisAccount.name}`;
+          }
+        })();
 
         await addTransaction(otherAccount.id, {
           date,
@@ -219,10 +246,28 @@ export default function InlineTransactionRow({
       await addTransaction(accountId, transactionData);
 
       if (otherAccount) {
-        const mirrorPayee =
-          balance < 0
-            ? `Transfer from ${thisAccount.name}`
-            : `Transfer to ${thisAccount.name}`;
+        const isThisCredit = thisAccount.type === "credit";
+        const isOtherCredit = otherAccount.type === "credit";
+        
+        const mirrorPayee = (() => {
+          if (balance < 0) {
+            // Original is outflow, mirror is inflow
+            if (isOtherCredit) {
+              return isThisCredit
+                ? `Transfer from ${thisAccount.name}`
+                : `Payment from ${thisAccount.name}`;
+            }
+            return `Transfer from ${thisAccount.name}`;
+          } else {
+            // Original is inflow, mirror is outflow
+            if (isOtherCredit) {
+              return `Transfer to ${thisAccount.name}`;
+            }
+            return isThisCredit
+              ? `Payment to ${thisAccount.name}`
+              : `Transfer to ${thisAccount.name}`;
+          }
+        })();
 
         await addTransaction(otherAccount.id, {
           date,

@@ -26,7 +26,7 @@ export default function ActivitySidebar({ page }) {
   }, [recentChanges, recentTransactions]);
 
   return (
-    <div className="w-64 bg-white border-r p-4 space-y-3 shadow-sm overflow-y-auto h-screen">
+    <div data-cy="activity-sidebar" className="w-64 bg-white border-r p-4 space-y-3 shadow-sm overflow-y-auto h-screen">
       {page === "account" && (
         <button
           onClick={() => router.push("/dashboard")}
@@ -36,13 +36,15 @@ export default function ActivitySidebar({ page }) {
         </button>
       )}
       <h2 className="text-lg font-semibold text-gray-800">Recent Activity</h2>
-      <ul className="text-sm space-y-2">
+      <ul data-cy="recent-activity-list" className="text-sm space-y-2">
         {activity.length === 0 && (
           <li className="text-gray-400">No recent updates</li>
         )}
         {activity.map((item, idx) => (
           <li
             key={idx}
+            data-cy="activity-item"
+            data-activity-type={item.type}
             className="border-l-4 pl-3 border-blue-200 bg-slate-50 p-2 rounded-md"
           >
             {item.type === "transaction" ? (

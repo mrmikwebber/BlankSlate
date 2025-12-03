@@ -21,11 +21,13 @@ const parseCurrency = (text: string) =>
   Number(text.replace(/[^0-9.-]/g, ""));
 
 const visitBudget = () => {
+    cy.wait(1000); // ensure any prior operations are complete
   cy.visit(BUDGET_URL);
   cy.get("[data-cy=budget-table]").should("exist");
 };
 
 const visitAccount = (id: string, expectedName: string) => {
+    cy.wait(1000); // ensure any prior operations are complete
   cy.visit(`/accounts/${id}`);
   cy.get("[data-cy=account-name]").should("contain.text", expectedName);
 };
@@ -151,20 +153,23 @@ describe("Transaction editing / mutation – YNAB-style", () => {
           .invoke("attr", "data-txid")
           .as("txId");
 
-        // Open edit mode (adjust if you use a button instead of dblclick)
-        cy.get("@createdTxRow").dblclick();
+  // Open edit mode via context menu
+  cy.get("@createdTxRow").rightclick();
+  cy.get('[data-cy=context-edit-transaction]').click();
+  cy.get('[data-cy=transaction-form-row-edit]').as('editForm');
 
-        // Change category to Group B / Cat B
+        // Change category to Group B / Cat B using canonical tx-* selectors
         // If your UI has separate group & item selects, adjust this accordingly.
-        cy.get("@createdTxRow")
-          .find("[data-cy=transaction-group-select]")
+        cy.get("@editForm")
+          .find("[data-cy=tx-group-select]")
           .select(groupB);
 
-        cy.get("@createdTxRow")
-          .find("[data-cy=transaction-item-select]")
+        cy.get("@editForm")
+          .find("[data-cy=tx-item-select]")
           .select(itemB);
 
-        cy.get("@createdTxRow").find("[data-cy=transaction-save]").click();
+        cy.get("@editForm").find("[data-cy=tx-submit]").click();
+        
 
         // Back to budget: Old category should be reset, new category carries activity
         visitBudget();
@@ -264,14 +269,16 @@ describe("Transaction editing / mutation – YNAB-style", () => {
 
     cy.get("[data-cy=transaction-row]").first().as("txRow");
 
-    cy.get("@txRow").dblclick();
+  cy.get("@txRow").rightclick();
+  cy.get('[data-cy=context-edit-transaction]').click();
+  cy.get('[data-cy=transaction-form-row-edit]').as('editForm');
 
-    cy.get("@txRow")
-      .find("[data-cy=transaction-amount-input]")
+    cy.get("@editForm")
+      .find("[data-cy=tx-amount-input]")
       .clear()
       .type(String(editedAmount));
 
-    cy.get("@txRow").find("[data-cy=transaction-save]").click();
+    cy.get("@editForm").find("[data-cy=tx-submit]").click();
 
     // Account balance should have changed by (initialAmount - editedAmount)
     visitAccount(accounts.checking.id, accounts.checking.name);
@@ -345,18 +352,20 @@ describe("Transaction editing / mutation – YNAB-style", () => {
 
     cy.get("[data-cy=transaction-row]").first().as("txRow");
 
-    cy.get("@txRow").dblclick();
+  cy.get("@txRow").rightclick();
+  cy.get('[data-cy=context-edit-transaction]').click();
+  cy.get('[data-cy=transaction-form-row-edit]').as('editForm');
 
     // Change payee to savings account (transfer)
-    cy.get("@txRow")
-      .find("[data-cy=transaction-payee-select]")
+    cy.get("@editForm")
+      .find("[data-cy=tx-payee-select]")
       .select(accounts.savings.name);
 
     // Optionally, clear category in edit UI if needed
-    // cy.get("@txRow").find("[data-cy=transaction-group-select]").select("(none)");
-    // cy.get("@txRow").find("[data-cy=transaction-item-select]").select("(none)");
+    // cy.get("@editForm").find("[data-cy=tx-group-select]").select("(none)");
+    // cy.get("@editForm").find("[data-cy=tx-item-select]").select("(none)");
 
-    cy.get("@txRow").find("[data-cy=transaction-save]").click();
+  cy.get("@editForm").find("[data-cy=tx-submit]").click();
 
     // Budget: category should be cleared of activity/available
     visitBudget();
@@ -423,12 +432,14 @@ describe("Transaction editing / mutation – YNAB-style", () => {
     cy.get("[data-cy=transaction-row]").first().as("transferRow");
 
     // Edit payee to Amex (convert to CC payment)
-    cy.get("@transferRow").dblclick();
-    cy.get("@transferRow")
-      .find("[data-cy=transaction-payee-select]")
+  cy.get("@transferRow").rightclick();
+  cy.get('[data-cy=context-edit-transaction]').click();
+  cy.get('[data-cy=transaction-form-row-edit]').as('editForm');
+    cy.get("@editForm")
+      .find("[data-cy=tx-payee-select]")
       .select(accounts.amex.name);
 
-    cy.get("@transferRow").find("[data-cy=transaction-save]").click();
+    cy.get("@editForm").find("[data-cy=tx-submit]").click();
 
     // Budget: CC payment category should be affected, but no normal category should show activity
     visitBudget();
@@ -464,10 +475,7 @@ describe("Transaction editing / mutation – YNAB-style", () => {
 
     // Accounts: savings should not show that transfer anymore; amex should.
     visitAccount(accounts.savings.id, accounts.savings.name);
-    cy.get("[data-cy=transaction-row]").should(
-      "not.contain",
-      `Transfer from ${accounts.checking.name}`
-    );
+    cy.get("[data-cy=transaction-row]").should("not.exist")
 
     visitAccount(accounts.amex.id, accounts.amex.name);
     cy.get("[data-cy=transaction-row]")
@@ -525,13 +533,15 @@ describe("Transaction editing / mutation – YNAB-style", () => {
     // Edit transaction: flip sign to +amount (refund)
     cy.get("[data-cy=transaction-row]").first().as("txRow");
 
-    cy.get("@txRow").dblclick();
+    cy.get("@txRow").rightclick();
+    cy.get('[data-cy=context-edit-transaction]').click();
+    cy.get('[data-cy=transaction-form-row-edit]').as('editForm');
 
-    cy.get("@txRow")
-      .find("[data-cy=transaction-sign-toggle]")
+    cy.get("@editForm")
+      .find("[data-cy=tx-sign-toggle]")
       .click(); // assumes this flips +/- on edit too
 
-    cy.get("@txRow").find("[data-cy=transaction-save]").click();
+    cy.get("@editForm").find("[data-cy=tx-submit]").click();
 
     // Account balance should increase by 2 * amount (because it goes from -60 to +60)
     visitAccount(accounts.checking.id, accounts.checking.name);

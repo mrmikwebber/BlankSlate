@@ -332,7 +332,7 @@ describe("Debit & credit transactions - UI only", () => {
     cy.get("[data-cy=transaction-row]")
       .first()
       .within(() => {
-        cy.get("td").eq(1).should("contain.text", "Transfer from");
+        cy.get("td").eq(1).should("contain.text", "Payment from");
         cy.get("td").eq(1).should("contain.text", DEBIT_ACCOUNT_NAME);
         cy.get("[data-cy=transaction-amount]")
           .invoke("text")

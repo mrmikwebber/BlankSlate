@@ -21,6 +21,7 @@ let accounts: SeededAccounts;
 const parseCurrency = (text: string) => Number(text.replace(/[^0-9.-]/g, ""));
 
 const visitBudget = () => {
+    cy.wait(1000);
   cy.visit(BUDGET_URL);
   cy.get("[data-cy=budget-table]").should("exist");
 };
@@ -80,14 +81,11 @@ describe("Multi-month behaviour – carryover, overspending, edits", () => {
 
     // Assign money in month N
     cy.get(
-      `[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"] [data-cy=assigned-display]`
-    ).click();
-    cy.get(
-      `[data-cy=assigned-input][data-category="${groupName}"][data-item="${itemName}"]`
-    )
-      .clear()
-      .type(String(amount))
-      .blur();
+      `[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"]`
+    ).within(() => {
+      cy.get('[data-cy="assigned-display"]').click();
+      cy.get('[data-cy="assigned-input"]').clear().type(`${amount}{enter}`);
+    });
 
     // Assert month N state
     cy.get(
@@ -99,11 +97,10 @@ describe("Multi-month behaviour – carryover, overspending, edits", () => {
     });
 
     // Move to month N+1
-    goToNextMonth();
-    getCurrentMonthLabel().then((newLabel) => {
-      cy.get("@monthN").then((oldLabel: any) => {
-        expect(newLabel).not.to.eq(oldLabel);
-      });
+    cy.get("@monthN").then((oldLabel: any) => {
+      goToNextMonth();
+      // Wait for month label to actually change
+      cy.get("[data-cy=month-label]").should('not.contain.text', oldLabel);
     });
 
     cy.get(
@@ -150,9 +147,10 @@ describe("Multi-month behaviour – carryover, overspending, edits", () => {
     });
 
     // Move to N+1
-    goToNextMonth();
-    getCurrentMonthLabel().then((newLabel) => {
-      cy.get("@monthN").then((oldLabel: any) => expect(newLabel).not.to.eq(oldLabel));
+    cy.get("@monthN").then((oldLabel: any) => {
+      goToNextMonth();
+      // Wait for month label to actually change
+      cy.get("[data-cy=month-label]").should('not.contain.text', oldLabel);
     });
 
     // Negative should not persist as starting available
@@ -210,9 +208,11 @@ describe("Multi-month behaviour – carryover, overspending, edits", () => {
     goToPrevMonth();
     visitAccount(accounts.checking.id, accounts.checking.name);
     cy.get("[data-cy=transaction-row]").first().as("txRow");
-    cy.get("@txRow").dblclick();
-    cy.get("@txRow").find("[data-cy=transaction-amount-input]").clear().type(String(editedAmount));
-    cy.get("@txRow").find("[data-cy=transaction-save]").click();
+    cy.get("@txRow").rightclick();
+    cy.get('[data-cy=context-edit-transaction]').click();
+    cy.get('[data-cy=transaction-form-row-edit]').as('editForm');
+    cy.get("@editForm").find("[data-cy=tx-amount-input]").clear().type(String(editedAmount));
+    cy.get("@editForm").find("[data-cy=tx-submit]").click();
 
     // Month N reflects edited amount
     visitBudget();

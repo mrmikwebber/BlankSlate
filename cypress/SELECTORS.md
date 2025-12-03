@@ -71,9 +71,16 @@ cy.get(`[data-category="${groupName}"] [data-cy="group-add-item-button"]`)
   });
 ```
 
+## Activity sidebar
+
+- Sidebar container: `[data-cy="activity-sidebar"]`
+- Activity list: `[data-cy="recent-activity-list"]`
+- Individual activity item: `[data-cy="activity-item"]` (also has `data-activity-type="change"` or `data-activity-type="transaction"`)
+
 ## Do/Don't quick list
 
 - Do use `data-category` (group) and `data-item` (row) attributes; don't use legacy `data-group`.
 - Do use `add-category-group-*` and `add-item-*`; don't use legacy `new-group-*` or `new-item-*` in budget table tests.
 - Do parse currency text for budget balances; account transaction amounts are plain numbers.
 - Do use month navigation `month-prev`/`month-next`/`month-label`.
+- Do scope interactions with `assigned-display`/`assigned-input` within specific category rows using `.within()`.
