@@ -1105,100 +1105,113 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
     accountName,
     data = budgetData
   ) => {
-    const monthStr = format(parseISO(`${month}-01`), "yyyy-MM");
-    const account = accounts.find((a) => a.name === accountName);
-    if (!account) return 0;
+ const monthStr = format(parseISO(`${month}-01`), "yyyy-MM");
+  const account = accounts.find((a) => a.name === accountName);
+  if (!account) return 0;
 
-    const assignedMap = new Map();
-    for (const category of data[month]?.categories || []) {
-      for (const item of category.categoryItems) {
-        if (item.assigned > 0) {
-          assignedMap.set(
-            item.name,
-            (assignedMap.get(item.name) || 0) + item.assigned
-          );
-        }
+  // 1) Build map of how much was assigned to each category this month
+  const assignedMap = new Map<string, number>();
+  for (const category of data[month]?.categories || []) {
+    for (const item of category.categoryItems) {
+      if (item.assigned > 0) {
+        assignedMap.set(
+          item.name,
+          (assignedMap.get(item.name) || 0) + item.assigned
+        );
+      }
+    }
+  }
+
+  // 2) First pass: collect spending/refunds per category (no netActivity yet)
+  type Activity = {
+    spending: number;    // sum of |negative| transactions
+    refunds: number;     // sum of positive transactions
+    netActivity: number; // to fill in later
+  };
+
+  const categoryActivity = new Map<string, Activity>();
+
+  for (const tx of account.transactions) {
+    const txMonth = format(parseISO(tx.date), "yyyy-MM");
+    if (txMonth !== monthStr) continue;
+
+    const { category, balance } = tx;
+
+    // Ignore direct payments + RTA here — we handle those separately
+    if (category === "Ready to Assign" || category === accountName) continue;
+
+    if (!categoryActivity.has(category)) {
+      categoryActivity.set(category, {
+        spending: 0,
+        refunds: 0,
+        netActivity: 0,
+      });
+    }
+
+    const activity = categoryActivity.get(category)!;
+
+    if (balance < 0) {
+      // spending
+      activity.spending += Math.abs(balance);
+    } else if (balance > 0) {
+      // refund
+      activity.refunds += balance;
+    }
+
+    categoryActivity.set(category, activity);
+  }
+
+  // 3) Second pass: compute netActivity using budget + netSpending
+  for (const [category, activity] of categoryActivity.entries()) {
+    const netSpending = activity.spending - activity.refunds;
+
+    if (assignedMap.has(category)) {
+      const available = assignedMap.get(category) ?? 0;
+
+      if (netSpending > 0) {
+        // Normal case: more spending than refunds this month
+        const used = Math.min(netSpending, available);
+        activity.netActivity = used;
+        assignedMap.set(category, Math.max(0, available - used));
+      } else if (netSpending < 0) {
+        // More refunds than spending:
+        // treat this as reducing how much we need to pay the card
+        activity.netActivity = netSpending; // negative number
+      } else {
+        activity.netActivity = 0;
+      }
+    } else {
+      // No current-month budget:
+      // - Positive netSpending: unbudgeted spending → we can decide to ignore or treat as 0
+      // - Negative netSpending: refunds > spending → still reduces payment
+      if (netSpending < 0) {
+        activity.netActivity = netSpending;
+      } else {
+        activity.netActivity = 0;
       }
     }
 
-    // Track spending and refunds separately per category
-    const categoryActivity = new Map();
+    categoryActivity.set(category, activity);
+  }
 
-    // First pass: Process all transactions to get net spending per category
-    for (const tx of account.transactions) {
-      const txMonth = format(parseISO(tx.date), "yyyy-MM");
-      if (txMonth !== monthStr) continue;
+  // 4) Sum up total activity from all categories
+  let totalActivity = 0;
+  for (const activity of categoryActivity.values()) {
+    totalActivity += activity.netActivity;
+  }
 
-      const { category, balance } = tx;
+  // 5) Handle direct payments to the credit card account itself
+  for (const tx of account.transactions) {
+    const txMonth = format(parseISO(tx.date), "yyyy-MM");
+    if (txMonth !== monthStr) continue;
 
-      if (category !== "Ready to Assign" && category !== accountName) {
-        if (!categoryActivity.has(category)) {
-          categoryActivity.set(category, {
-            spending: 0,    // negative transactions (purchases)
-            refunds: 0,     // positive transactions (refunds)
-            netActivity: 0  // net effect on payment needed
-          });
-        }
-
-        const activity = categoryActivity.get(category);
-
-        if (balance < 0) {
-          // This is spending
-          activity.spending += Math.abs(balance);
-        } else if (balance > 0) {
-          // This is a refund
-          activity.refunds += balance;
-        }
-
-        // After updating activity.spending and activity.refunds:
-        const netSpending = activity.spending - activity.refunds;
-
-        if (assignedMap.has(category)) {
-          const available = assignedMap.get(category) ?? 0;
-
-          if (netSpending > 0) {
-            // Normal case: more spending than refunds this month
-            const used = Math.min(netSpending, available);
-            activity.netActivity = used;
-            assignedMap.set(category, Math.max(0, available - used));
-          } else if (netSpending < 0) {
-            // More refunds than spending IN THIS MONTH:
-            // treat this as reducing how much we need to pay the card
-            activity.netActivity = netSpending; // negative number
-          } else {
-            activity.netActivity = 0;
-          }
-        } else {
-          // No current-month budget, but refunds can still reduce payment
-          if (netSpending < 0) {
-            activity.netActivity = netSpending; // negative
-          } else {
-            activity.netActivity = 0;
-          }
-        }
-
-        categoryActivity.set(category, activity);
-
-      }
+    if (tx.category === accountName && tx.balance > 0) {
+      // A positive transaction with category = card name is a payment
+      totalActivity -= tx.balance;
     }
+  }
 
-    // Calculate total activity from all categories
-    let totalActivity = 0;
-    for (const activity of categoryActivity.values()) {
-      totalActivity += activity.netActivity;
-    }
-
-    // Handle direct payments to the credit card
-    for (const tx of account.transactions) {
-      const txMonth = format(parseISO(tx.date), "yyyy-MM");
-      if (txMonth !== monthStr) continue;
-
-      if (tx.category === accountName && tx.balance > 0) {
-        totalActivity -= tx.balance;
-      }
-    }
-
-    return totalActivity;
+  return totalActivity;
   };
 
 
