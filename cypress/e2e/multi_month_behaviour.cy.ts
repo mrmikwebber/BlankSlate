@@ -363,6 +363,14 @@ describe("Multi-month behaviour – carryover, overspending, edits", () => {
     }
   );
 
+  let rtaAfterDelete;
+  
+  cy.get("[data-cy=ready-to-assign]")
+      .invoke("text")
+      .then ((txt) => {
+        rtaAfterDelete = parseCurrency(txt);
+      });
+
   // 3️⃣ Now walk back through months and assert:
   //   - fromItem no longer exists in ANY month
   //   - targetItem available = (previous target + previous from)
@@ -400,12 +408,7 @@ describe("Multi-month behaviour – carryover, overspending, edits", () => {
       .invoke("text")
       .then((txt) => {
         const rtaAfter = parseCurrency(txt);
-        cy.get<number>(`@m${idx}_rta`).then((rtaBefore) => {
-          expect(
-            rtaAfter,
-            `Month ${idx} RTA should be unchanged by category reassignment`
-          ).to.eq(rtaBefore);
-        });
+        expect(rtaAfter, `Month ${idx} RTA should be unchanged by category reassignment`).to.eq(rtaAfterDelete);
       });
   };
 
