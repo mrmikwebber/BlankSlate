@@ -234,4 +234,191 @@ describe("Multi-month behaviour – carryover, overspending, edits", () => {
         .then((txt) => expect(parseCurrency(txt)).to.eq(0));
     });
   });
+
+  it("Scenario – Multi-month delete & reassignment keeps per-month totals", () => {
+  const group = "MultiMonthDeleteGroup";
+  const fromItem = "MM-ToDelete";
+  const targetItem = "MM-Target";
+
+  const parseCurrency = (text: string): number =>
+    Number(text.replace(/[^0-9.-]/g, ""));
+
+  // 1️⃣ Create a dedicated group + two items
+  cy.get('[data-cy="add-category-group-button"]').click();
+  cy.get('[data-cy="add-category-group-input"]').clear().type(group);
+  cy.get('[data-cy="add-category-group-submit"]').click();
+  cy.get(
+    `tr[data-cy="category-group-row"][data-category="${group}"]`
+  ).should("exist");
+
+  const addItem = (name: string) => {
+    cy.get(
+      `tr[data-cy="category-group-row"][data-category="${group}"]`
+    )
+      .first()
+      .trigger("mouseover");
+
+    cy.get(
+      `tr[data-cy="category-group-row"][data-category="${group}"] [data-cy="group-add-item-button"]`
+    )
+      .filter(":visible")
+      .first()
+      .then(($btn) => {
+        if ($btn.length) {
+          cy.wrap($btn).click();
+        } else {
+          cy.get(
+            `tr[data-cy="category-group-row"][data-category="${group}"] [data-cy="group-add-item-button"]`
+          )
+            .first()
+            .click({ force: true });
+        }
+      });
+
+    cy.get("[data-cy=add-item-input]").clear().type(name);
+    cy.get("[data-cy=add-item-submit]").click();
+    cy.get(
+      `tr[data-cy="category-row"][data-category="${group}"][data-item="${name}"]`
+    ).should("exist");
+  };
+
+  addItem(fromItem);
+  addItem(targetItem);
+
+  const setAssigned = (itemName: string, value: number) => {
+    cy.get(
+      `tr[data-cy="category-row"][data-item="${itemName}"] span[data-cy="assigned-display"]`
+    ).click();
+    cy.get(
+      `tr[data-cy="category-row"][data-item="${itemName}"] input[data-cy="assigned-input"]`
+    )
+      .clear()
+      .type(String(value) + "{enter}");
+  };
+
+  // helpers to snapshot per-month state
+  const snapshotMonth = (idx: number) => {
+    // snapshot available for fromItem + targetItem and RTA for this month
+    cy.get(
+      `tr[data-cy="category-row"][data-item="${fromItem}"] [data-cy="item-available"]`
+    )
+      .invoke("text")
+      .then((txt) => {
+        cy.wrap(parseCurrency(txt)).as(`m${idx}_from_avail`);
+      });
+
+    cy.get(
+      `tr[data-cy="category-row"][data-item="${targetItem}"] [data-cy="item-available"]`
+    )
+      .invoke("text")
+      .then((txt) => {
+        cy.wrap(parseCurrency(txt)).as(`m${idx}_target_avail`);
+      });
+
+    cy.get("[data-cy=ready-to-assign]")
+      .invoke("text")
+      .then((txt) => {
+        cy.wrap(parseCurrency(txt)).as(`m${idx}_rta`);
+      });
+  };
+
+  // Month 0: assign some amounts
+  setAssigned(fromItem, 100);
+  setAssigned(targetItem, 20);
+  snapshotMonth(0);
+
+  // Month 1
+  cy.get("[data-cy=month-next]").click();
+  setAssigned(fromItem, 50);
+  setAssigned(targetItem, 40);
+  snapshotMonth(1);
+
+  // Month 2
+  cy.get("[data-cy=month-next]").click();
+  setAssigned(fromItem, 30);
+  setAssigned(targetItem, 10);
+  snapshotMonth(2);
+
+  // 2️⃣ In Month 2, delete fromItem and reassign to targetItem
+  cy.get(`tr[data-cy="category-row"][data-item="${fromItem}"]`).then(
+    ($row) => {
+      if ($row.length) {
+        const delBtn = $row.find("[data-cy='delete-item-button']");
+        if (delBtn.length) {
+          cy.wrap(delBtn).first().click();
+        } else {
+          cy.wrap($row).rightclick();
+          cy.get("[data-cy='category-delete']").first().click({ force: true });
+        }
+
+        cy.get("body").then(($b) => {
+          if ($b.find("[data-cy='reassign-target-select']").length) {
+            cy.get("[data-cy='reassign-target-select']").select(targetItem);
+            cy.get("[data-cy='reassign-confirm']").click();
+          }
+        });
+      } else {
+        cy.log("From-item row not found; cannot run multi-month delete test");
+      }
+    }
+  );
+
+  // 3️⃣ Now walk back through months and assert:
+  //   - fromItem no longer exists in ANY month
+  //   - targetItem available = (previous target + previous from)
+  //   - RTA unchanged per month
+
+  // Go back to Month 0
+  cy.get("[data-cy=month-prev]").click();
+  cy.get("[data-cy=month-prev]").click();
+
+  const assertMonth = (idx: number) => {
+    // fromItem removed
+    cy.get(
+      `tr[data-cy="category-row"][data-item="${fromItem}"]`
+    ).should("not.exist");
+
+    // targetItem available = old target + old from
+    cy.get(
+      `tr[data-cy="category-row"][data-item="${targetItem}"] [data-cy="item-available"]`
+    )
+      .invoke("text")
+      .then((txt) => {
+        const availAfter = parseCurrency(txt);
+        cy.get<number>(`@m${idx}_from_avail`).then((fromBefore) => {
+          cy.get<number>(`@m${idx}_target_avail`).then((targetBefore) => {
+            expect(
+              availAfter,
+              `Month ${idx} target available should equal old target + old from`
+            ).to.eq(fromBefore + targetBefore);
+          });
+        });
+      });
+
+    // RTA unchanged in that month
+    cy.get("[data-cy=ready-to-assign]")
+      .invoke("text")
+      .then((txt) => {
+        const rtaAfter = parseCurrency(txt);
+        cy.get<number>(`@m${idx}_rta`).then((rtaBefore) => {
+          expect(
+            rtaAfter,
+            `Month ${idx} RTA should be unchanged by category reassignment`
+          ).to.eq(rtaBefore);
+        });
+      });
+  };
+
+  // Month 0
+  assertMonth(0);
+
+  // Month 1
+  cy.get("[data-cy=month-next]").click();
+  assertMonth(1);
+
+  // Month 2
+  cy.get("[data-cy=month-next]").click();
+  assertMonth(2);
+});
+
 });

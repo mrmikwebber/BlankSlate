@@ -801,45 +801,86 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
   const hasReassignedRef = useRef(false);
 
   const deleteCategoryWithReassignment = useCallback(
-    (context, targetItemName) => {
+    (context, targetItemName: string) => {
       if (hasReassignedRef.current) return;
       hasReassignedRef.current = true;
 
-      const updatedMonths = new Set();
+      const { itemName } = context;
 
       setBudgetData((prev) => {
-        if (updatedMonths.has(currentMonth)) return prev;
-        updatedMonths.add(currentMonth);
         const updated = { ...prev };
-        const { itemName, assigned, activity } = context;
-        for (const month in updated) {
-          updated[month].categories = updated[month].categories.map((cat) => {
-            return {
-              ...cat,
-              categoryItems: cat.categoryItems
-                .map((item) => {
-                  if (item.name === itemName) return null;
-                  if (item.name === targetItemName) {
-                    const newAssigned = item.assigned + assigned;
-                    const newActivity = item.activity + activity;
 
-                    return {
-                      ...item,
-                      assigned: newAssigned,
-                      activity: newActivity,
-                      available: newAssigned + newActivity,
-                    };
-                  }
-                  return item;
-                })
-                .filter(Boolean),
-            };
+        for (const monthKey of Object.keys(updated)) {
+          const monthData = updated[monthKey];
+          if (!monthData) continue;
+
+          let monthChanged = false;
+
+          const newCategories = monthData.categories.map((cat) => {
+            let fromAssignedDelta = 0;
+            let fromActivityDelta = 0;
+
+            const newItems: CategoryItem[] = [];
+
+            // First pass: remove the fromItem in this month and accumulate its values
+            for (const item of cat.categoryItems) {
+              if (item.name === itemName) {
+                fromAssignedDelta += item.assigned || 0;
+                fromActivityDelta += item.activity || 0;
+                monthChanged = true;
+                continue; // drop this item
+              }
+              newItems.push(item);
+            }
+
+            // If nothing to move from this category in this month, just return as-is
+            if (fromAssignedDelta === 0 && fromActivityDelta === 0) {
+              return { ...cat, categoryItems: newItems };
+            }
+
+            // Second pass: apply the deltas to the target item in THIS month
+            const idx = newItems.findIndex((i) => i.name === targetItemName);
+
+            if (idx !== -1) {
+              const target = newItems[idx];
+              const newAssigned = (target.assigned || 0) + fromAssignedDelta;
+              const newActivity = (target.activity || 0) + fromActivityDelta;
+
+              newItems[idx] = {
+                ...target,
+                assigned: newAssigned,
+                activity: newActivity,
+                available: newAssigned + newActivity,
+              };
+            } else {
+              // If target item somehow doesn't exist in this category for this month,
+              // we can either create it, or just ignore. For now, we create it.
+              const newAssigned = fromAssignedDelta;
+              const newActivity = fromActivityDelta;
+              newItems.push({
+                name: targetItemName,
+                assigned: newAssigned,
+                activity: newActivity,
+                available: newAssigned + newActivity,
+              });
+            }
+
+            return { ...cat, categoryItems: newItems };
           });
-          dirtyMonths.current.add(month);
+
+          if (monthChanged) {
+            updated[monthKey] = {
+              ...monthData,
+              categories: newCategories,
+            };
+            dirtyMonths.current.add(monthKey);
+          }
         }
+
         return updated;
       });
 
+      // Now fix transactions: change their category to the target
       const targetCategoryGroup = budgetData[currentMonth]?.categories.find(
         (cat) => cat.categoryItems.some((item) => item.name === targetItemName)
       )?.name;
@@ -869,8 +910,9 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
 
       setIsDirty(true);
     },
-    [budgetData, currentMonth]
+    [budgetData, currentMonth, setAccounts]
   );
+
 
   const deleteCategoryItem = (context) => {
     const { itemName } = context;
@@ -1273,9 +1315,16 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
               const missingItems =
                 prev[previousMonth]?.categories
                   .find((c) => c.name === category.name)
-                  ?.categoryItems.filter(
-                    (item) => !existingItemsMap[item.name]
-                  ) || [];
+                  ?.categoryItems
+                  .filter((item) => !existingItemsMap[item.name])
+                  .map((item) => ({
+                    ...item,
+                    assigned: 0,
+                    activity: 0,
+                    available: 0,
+                    target: item.target ?? null,
+                  })) || [];
+
 
               const patchedCategoryItems = [
                 ...category.categoryItems,
@@ -1418,7 +1467,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
                       );
 
                     // Start new month with zero assigned
-                    item.assigned = 0;
+                    // item.assigned = 0;
 
                     if (wasDebitOverspent) {
                       // Reset available to 0; overspending impact has already been applied to RTA

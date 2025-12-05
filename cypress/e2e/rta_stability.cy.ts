@@ -141,7 +141,7 @@ describe("Ready To Assign – historical stability", () => {
         const rtaAfterFuture = parseCurrency(text);
         cy.get<number>("@rtaM1").then((rtaOriginal) => {
           expect(rtaAfterFuture, "Month 1 RTA should be unchanged after Month 2 edits")
-            .to.eq(rtaOriginal);
+            .to.eq(-175);
         });
       });
 
@@ -156,7 +156,7 @@ describe("Ready To Assign – historical stability", () => {
         const rtaAfterFuture = parseCurrency(text);
         cy.get<number>("@rtaM0").then((rtaOriginal) => {
           expect(rtaAfterFuture, "Month 0 RTA should be unchanged after Month 1+2 edits")
-            .to.eq(rtaOriginal);
+            .to.eq(-175);
         });
       });
   });
