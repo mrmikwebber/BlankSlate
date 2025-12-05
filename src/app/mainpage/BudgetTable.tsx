@@ -286,11 +286,14 @@ export default function BudgetTable() {
       {groupContext &&
         createPortal(
           <div
+            data-cy="group-context-menu"
             className="fixed z-50 w-[160px] bg-white border shadow rounded text-sm"
             style={{ top: groupContext.y, left: groupContext.x }}
             onClick={() => setGroupContext(null)}
           >
             <button
+              data-cy="group-rename"
+              data-category={groupContext.categoryName}
               onClick={() => {
                 setEditingGroup(groupContext.categoryName);
                 setNewGroupName(groupContext.categoryName);
@@ -303,6 +306,8 @@ export default function BudgetTable() {
             {groupContext.itemCount === 0 ? (
               <>
                 <button
+                  data-cy="group-delete"
+                  data-category={groupContext.categoryName}
                   onClick={() => {
                     deleteCategoryGroup(groupContext.categoryName);
                     setGroupContext(null);
@@ -338,6 +343,7 @@ export default function BudgetTable() {
                   </p>
 
                   <select
+                    data-cy="reassign-target-select"
                     className="w-full border p-2 mb-4 rounded"
                     value={selectedTargetCategory}
                     onChange={(e) => setSelectedTargetCategory(e.target.value)}
@@ -360,12 +366,14 @@ export default function BudgetTable() {
 
                   <div className="flex justify-end gap-2">
                     <button
+                      data-cy="reassign-cancel"
                       onClick={() => setCategoryDeleteContext(null)}
                       className="px-4 py-2 text-gray-600 hover:underline"
                     >
                       Cancel
                     </button>
                     <button
+                      data-cy="reassign-confirm"
                       onClick={() => {
                         handleReassignDelete();
                         setCategoryDeleteContext(null);
@@ -385,12 +393,14 @@ export default function BudgetTable() {
                   </p>
                   <div className="flex justify-end gap-2">
                     <button
+                      data-cy="delete-cancel"
                       onClick={() => setCategoryDeleteContext(null)}
                       className="px-4 py-2 text-gray-600 hover:underline"
                     >
                       Cancel
                     </button>
                     <button
+                      data-cy="delete-confirm"
                       onClick={() => {
                         deleteCategoryItem(categoryDeleteContext);
                         setCategoryDeleteContext(null);
@@ -410,11 +420,15 @@ export default function BudgetTable() {
       {categoryContext &&
         createPortal(
           <div
+            data-cy="category-context-menu"
             className="fixed z-50 bg-white border rounded shadow-md text-sm"
             style={{ top: categoryContext.y, left: categoryContext.x }}
             onClick={() => setCategoryContext(null)}
           >
             <button
+              data-cy="category-rename"
+              data-category={categoryContext.groupName}
+              data-item={categoryContext.itemName}
               onClick={() => {
                 setEditingItem({
                   category: categoryContext.groupName,
@@ -431,6 +445,9 @@ export default function BudgetTable() {
             {/* Optional: Hide delete if it's a special group or has assigned value */}
             {categoryContext.groupName !== "Credit Card Payments" ? (
               <button
+                data-cy="category-delete"
+                data-category={categoryContext.groupName}
+                data-item={categoryContext.itemName}
                 onClick={() => {
                   setCategoryDeleteContext({
                     categoryName: categoryContext.groupName,
@@ -456,6 +473,9 @@ export default function BudgetTable() {
 
       <div className="flex flex-col h-full rounded-2xl bg-white border shadow p-3 space-y-2 overflow-hidden">
         <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
+          <div data-cy="ready-to-assign" className="text-lg font-semibold">
+            Ready to Assign: {formatToUSD(budgetData[currentMonth]?.ready_to_assign || 0)}
+          </div>
           <div className="w-full">
             <MonthNav />
           </div>
@@ -465,6 +485,7 @@ export default function BudgetTable() {
             {FILTERS.map((filter) => (
               <button
                 key={filter}
+                data-cy={`filter-${filter.toLowerCase().replace(' ', '-')}`}
                 className={`px-4 py-2 rounded-md ${
                   selectedFilter === filter
                     ? "bg-blue-600 text-white"
@@ -482,7 +503,7 @@ export default function BudgetTable() {
           </div>
         </div>
         <div className="overflow-y-auto flex-1 min-h-0">
-          <table className="w-full border border-gray-300 rounded-md bg-white shadow-sm min-w-full table-auto">
+          <table data-cy="budget-table" className="w-full border border-gray-300 rounded-md bg-white shadow-sm min-w-full table-auto">
             <thead>
               <tr className="bg-gray-100 text-xs text-gray-700 uppercase">
                 <th className="p-2 border">Category</th>
@@ -495,6 +516,8 @@ export default function BudgetTable() {
               {filteredCategories.map((group) => (
                 <Fragment key={group.name}>
                   <tr
+                    data-cy="category-group-row"
+                    data-category={group.name}
                     className="bg-slate-100 text-sm font-semibold text-gray-800 border-b border-gray-200"
                     onMouseEnter={() => setHoveredCategory(group.name)}
                     onMouseLeave={() => setHoveredCategory(null)}
@@ -514,6 +537,8 @@ export default function BudgetTable() {
                     >
                       <div className="flex items-center">
                         <button
+                          data-cy="group-toggle"
+                          data-category={group.name}
                           onClick={() => toggleCategory(group.name)}
                           className="mr-2"
                         >
@@ -543,13 +568,15 @@ export default function BudgetTable() {
                             autoFocus
                           />
                         ) : (
-                          <span className="text-sm font-semibold leading-tight">
+                          <span data-cy="group-name" data-category={group.name} className="text-sm font-semibold leading-tight">
                             {group.name}
                           </span>
                         )}
                         <div className="ms-2 w-6 h-6 flex items-center justify-center">
                           {hoveredCategory === group.name && (
                             <button
+                              data-cy="group-add-item-button"
+                              data-category={group.name}
                               onClick={() => setActiveCategory(group.name)}
                               className="text-sm bg-blue-500 text-white px-2 py-1 rounded-full hover:bg-teal-500 transition"
                             >
@@ -559,10 +586,14 @@ export default function BudgetTable() {
                         </div>
                       </div>
                     </td>
-                    <td className="p-2 border">
+                    <td 
+                      className="p-2 border"
+                      data-cy="available-display"
+                      data-category={group.name}
+                    >
                       {formatToUSD(
                         group.categoryItems.reduce(
-                          (sum, item) => sum + item.assigned,
+                          (sum, item) => sum + item.available,
                           0
                         )
                       )}
@@ -594,7 +625,7 @@ export default function BudgetTable() {
                   </tr>
                   <tr>
                     <td colSpan={4} className="relative p-0">
-                      {activeCategory === group.name && (
+                          {activeCategory === group.name && (
                         <div
                           ref={addItemRef}
                           className={`${
@@ -602,6 +633,7 @@ export default function BudgetTable() {
                           } absolute left-0 mt-2 w-64 bg-white p-4 shadow-lg rounded-lg border z-50`}
                         >
                           <input
+                            data-cy="add-item-input"
                             type="text"
                             placeholder="Item Name"
                             value={newItem.name}
@@ -611,6 +643,8 @@ export default function BudgetTable() {
                             className="w-full border rounded px-2 py-1"
                           />
                           <button
+                            data-cy="add-item-submit"
+                            data-category={group.name}
                             onClick={() => handleAddItem(group.name)}
                             className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-500 transition"
                           >
@@ -625,6 +659,9 @@ export default function BudgetTable() {
                       <Fragment>
                         <tr
                           key={itemIndex}
+                          data-cy="category-row"
+                          data-category={group.name}
+                          data-item={item.name}
                           className="hover:bg-slate-50 border-b transition"
                           onContextMenu={(e) => {
                             e.preventDefault();
@@ -640,6 +677,9 @@ export default function BudgetTable() {
                           }}
                         >
                           <td
+                            data-cy="category-item-name"
+                            data-category={group.name}
+                            data-item={item.name}
                             className="p-2 border relative"
                             onClick={() => {
                               setInlineEditorCategory((prev) =>
@@ -725,10 +765,10 @@ export default function BudgetTable() {
                             item={item}
                             handleInputChange={handleInputChange}
                           />
-                          <td className="p-2 border">
+                          <td data-cy="item-activity" data-item={item.name} className="p-2 border">
                             {formatToUSD(item.activity || 0)}
                           </td>
-                          <td className="p-2 border">
+                          <td data-cy="item-available" data-item={item.name} className="p-2 border">
                             {formatToUSD(item.available || 0)}
                           </td>
                         </tr>

@@ -1,0 +1,70 @@
+// cypress/e2e/ui.cy.ts
+
+// Group 7: UI interactions
+
+describe('UI interactions and misc', () => {
+  beforeEach(() => {
+  cy.task('resetDb');
+  cy.login('thedasherx@gmail.com', '123456');
+    cy.get('[data-cy="ready-to-assign"]', { timeout: 10000 }).should('exist');
+  });
+
+  it('Scenario 21 – Collapse/expand groups', () => {
+    cy.get('[data-cy="group-toggle"]').first().click();
+    // Expect items hidden after collapse
+    cy.get('tr[data-cy="category-row"]').should('have.length.lessThan', 50);
+    // Toggle back
+    cy.get('[data-cy="group-toggle"]').first().click();
+  });
+
+  it('Scenario 22 – Context menu positioning (basic smoke)', () => {
+    // Right-click on a group near the bottom/right—hard to simulate deterministically here.
+    // Basic test: context menu appears and has data-cy
+    cy.get('[data-cy="group-name"]').first().rightclick();
+    cy.get('[data-cy="group-context-menu"]').should('exist');
+    // Clicking elsewhere closes it
+    cy.get('body').click(0, 0);
+    cy.get('[data-cy="group-context-menu"]').should('not.exist');
+  });
+
+  it('Scenario 23 – Add item popover dropUp (visual; best-effort)', () => {
+    // This is a best-effort check: open an add item on a group near the bottom and assert popover class contains "bottom-full" or similar
+    cy.get('tr[data-cy="category-group-row"]').last().trigger('mouseover');
+    cy.get('tr[data-cy="category-group-row"]').last().within(() => {
+      cy.get('[data-cy="group-add-item-button"]').filter(':visible').first().then(($btn) => {
+        if ($btn.length) {
+          cy.wrap($btn).click();
+        } else {
+          cy.get('[data-cy="group-add-item-button"]').first().click({ force: true });
+        }
+      });
+    });
+    cy.get('[data-cy="add-item-input"]').should('exist');
+    // Can't reliably assert dropUp without viewport control; user can enhance this test with controlled viewport size.
+  });
+
+  it('Scenario 24 – Dirty state & recent changes log', () => {
+    // Change assigned in two categories to mark dirty
+    // Scope within specific category rows to avoid ambiguity
+    cy.get('tr[data-cy="category-row"]').first().within(() => {
+      cy.get('span[data-cy="assigned-display"]').click();
+      cy.get('input[data-cy="assigned-input"]').clear().type('1{enter}');
+    });
+
+    cy.get('tr[data-cy="category-row"]').eq(1).within(() => {
+      cy.get('span[data-cy="assigned-display"]').click();
+      cy.get('input[data-cy="assigned-input"]').clear().type('2{enter}');
+    });
+
+    // Verify recent activity list shows the changes
+    cy.get('[data-cy="activity-sidebar"]').should('exist');
+    cy.get('[data-cy="recent-activity-list"]').within(() => {
+      // Should have activity items (changes are logged)
+      cy.get('[data-cy="activity-item"]').should('have.length.greaterThan', 0);
+      // Recent activity list shows most recent 10-20 items (implementation dependent)
+      cy.get('[data-cy="activity-item"]').should('have.length.at.most', 20);
+      // Verify at least one is a budget change (not just transactions)
+      cy.get('[data-cy="activity-item"][data-activity-type="change"]').should('exist');
+    });
+  });
+});

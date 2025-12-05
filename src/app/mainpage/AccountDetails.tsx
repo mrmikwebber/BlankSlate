@@ -70,11 +70,13 @@ export default function AccountDetails() {
     <div className="mx-auto p-6 relative">
       {contextMenu && (
         <div
+          data-cy="tx-context-menu"
           className="fixed z-50 bg-white border rounded shadow-md text-sm"
           style={{ top: contextMenu.y, left: contextMenu.x }}
           onClick={() => setContextMenu(null)}
         >
           <button
+            data-cy="context-delete-transaction"
             onClick={() => {
               deleteTransactionWithMirror(
                 contextMenu.accountId,
@@ -87,6 +89,7 @@ export default function AccountDetails() {
             Delete Transaction
           </button>
           <button
+            data-cy="context-edit-transaction"
             onClick={() => {
               const transaction = account.transactions.find(
                 (t) => t.id === contextMenu.txId
@@ -129,10 +132,11 @@ export default function AccountDetails() {
         ) : (
           <>
             <div>
-              <h1 className="text-2xl font-bold">{account.name} Overview</h1>
+              <h1 className="text-2xl font-bold" data-cy="account-name">{account.name} Overview</h1>
               <p className="text-lg text-gray-800 mt-1">
                 Balance:{" "}
                 <span
+                  data-cy="account-balance"
                   className={
                     accountBalance < 0 ? "text-red-600" : "text-green-600"
                   }
@@ -158,6 +162,7 @@ export default function AccountDetails() {
         <h2 className="text-xl font-semibold mb-2">Transactions</h2>
         {!showForm && (
           <button
+            data-cy="add-transaction-button"
             onClick={() => setShowForm(true)}
             className="mb-2 bg-teal-600 hover:bg-teal-500 text-white px-4 py-2 rounded"
           >
@@ -209,6 +214,8 @@ export default function AccountDetails() {
                 ) : (
                   <tr
                     key={tx.id}
+                    data-cy="transaction-row"
+                    data-txid={tx.id}
                     onContextMenu={(e) => {
                       e.preventDefault();
                       setContextMenu({
@@ -225,6 +232,7 @@ export default function AccountDetails() {
                     <td className="border p-2">{tx.payee}</td>
                     <td className="border p-2">{tx.category}</td>
                     <td
+                      data-cy="transaction-amount"
                       className={`border p-2 text-right font-medium ${
                         tx.balance < 0 ? "text-red-600" : "text-green-600"
                       }`}

@@ -33,17 +33,19 @@ const MonthNav = () => {
     <div className="w-full px-6 py-3 border border-gray-300 rounded-xl bg-white shadow-sm text-sm">
       <div className="flex justify-between items-center mb-2">
         <button
+          data-cy="month-prev"
           onClick={goToPreviousMonth}
           className="p-2 rounded hover:bg-gray-100 text-gray-600"
         >
           <ChevronLeft size={18} />
         </button>
 
-        <span className="font-semibold text-gray-800 tracking-wide">
+        <span data-cy="month-label" className="font-semibold text-gray-800 tracking-wide">
           {formattedMonth}
         </span>
 
         <button
+          data-cy="month-next"
           onClick={goToNextMonth}
           className="p-2 rounded hover:bg-gray-100 text-gray-600"
         >

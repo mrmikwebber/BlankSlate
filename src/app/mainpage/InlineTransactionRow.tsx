@@ -48,7 +48,16 @@ export default function InlineTransactionRow({
   const [newGroupName, setNewGroupName] = useState("");
   const [newItemName, setNewItemName] = useState("");
   const [newPayeeName, setNewPayeeName] = useState("");
-  const [transferPayee, setTransferPayee] = useState("");
+
+  // Extract raw payee name from transfer labels like "Transfer to X" or "Payment from Y"
+  const extractPayeeName = (payeeLabel: string): string => {
+    const matches = payeeLabel.match(/(?:Transfer|Payment) (?:to|from) (.+)/);
+    return matches ? matches[1] : payeeLabel;
+  };
+
+  const [transferPayee, setTransferPayee] = useState(
+    isEdit && initialData ? extractPayeeName(initialData.payee) : ""
+  );
 
   const formRef = useRef<HTMLTableRowElement>(null);
 
@@ -203,10 +212,28 @@ export default function InlineTransactionRow({
       }
 
       if (otherAccount) {
-        const mirrorPayee =
-          balance < 0
-            ? `Transfer from ${thisAccount.name}`
-            : `Transfer to ${thisAccount.name}`;
+        const isThisCredit = thisAccount.type === "credit";
+        const isOtherCredit = otherAccount.type === "credit";
+        
+        const mirrorPayee = (() => {
+          if (balance < 0) {
+            // Original is outflow, mirror is inflow
+            if (isOtherCredit) {
+              return isThisCredit
+                ? `Transfer from ${thisAccount.name}`
+                : `Payment from ${thisAccount.name}`;
+            }
+            return `Transfer from ${thisAccount.name}`;
+          } else {
+            // Original is inflow, mirror is outflow
+            if (isOtherCredit) {
+              return `Transfer to ${thisAccount.name}`;
+            }
+            return isThisCredit
+              ? `Payment to ${thisAccount.name}`
+              : `Transfer to ${thisAccount.name}`;
+          }
+        })();
 
         await addTransaction(otherAccount.id, {
           date,
@@ -219,10 +246,28 @@ export default function InlineTransactionRow({
       await addTransaction(accountId, transactionData);
 
       if (otherAccount) {
-        const mirrorPayee =
-          balance < 0
-            ? `Transfer from ${thisAccount.name}`
-            : `Transfer to ${thisAccount.name}`;
+        const isThisCredit = thisAccount.type === "credit";
+        const isOtherCredit = otherAccount.type === "credit";
+        
+        const mirrorPayee = (() => {
+          if (balance < 0) {
+            // Original is outflow, mirror is inflow
+            if (isOtherCredit) {
+              return isThisCredit
+                ? `Transfer from ${thisAccount.name}`
+                : `Payment from ${thisAccount.name}`;
+            }
+            return `Transfer from ${thisAccount.name}`;
+          } else {
+            // Original is inflow, mirror is outflow
+            if (isOtherCredit) {
+              return `Transfer to ${thisAccount.name}`;
+            }
+            return isThisCredit
+              ? `Payment to ${thisAccount.name}`
+              : `Transfer to ${thisAccount.name}`;
+          }
+        })();
 
         await addTransaction(otherAccount.id, {
           date,
@@ -309,10 +354,13 @@ export default function InlineTransactionRow({
   return (
     <tr
       ref={formRef}
+      data-cy={isEdit ? "transaction-form-row-edit" : "transaction-form-row-add"}
+      data-mode={isEdit ? "edit" : "add"}
       className="bg-gray-50 transition-opacity duration-300 opacity-100"
     >
       <td className="border p-2">
         <input
+          data-cy="tx-date-input"
           type="date"
           value={date}
           onChange={(e) => setDate(e.target.value)}
@@ -322,6 +370,7 @@ export default function InlineTransactionRow({
       <td className="border p-2">
         {newPayeeMode ? (
           <input
+            data-cy="tx-new-payee-input"
             type="text"
             placeholder="New Payee Name"
             className="w-full p-1 border rounded text-sm"
@@ -330,6 +379,7 @@ export default function InlineTransactionRow({
           />
         ) : (
           <select
+            data-cy="tx-payee-select"
             value={transferPayee}
             onChange={(e) => {
               if (e.target.value === "__new__") {
@@ -363,6 +413,7 @@ export default function InlineTransactionRow({
         <div className="flex flex-col gap-1">
           {newGroupMode ? (
             <input
+              data-cy="tx-new-group-input"
               type="text"
               placeholder="New Group Name"
               className="w-full p-1 border rounded text-sm"
@@ -372,6 +423,7 @@ export default function InlineTransactionRow({
             />
           ) : (
             <select
+              data-cy="tx-group-select"
               className="w-full p-1 border rounded text-sm"
               value={selectedGroup}
               onChange={(e) => {
@@ -397,6 +449,7 @@ export default function InlineTransactionRow({
 
           {newItemMode ? (
             <input
+              data-cy="tx-new-item-input"
               type="text"
               placeholder="New Category Name"
               className="w-full p-1 border rounded text-sm"
@@ -406,6 +459,7 @@ export default function InlineTransactionRow({
             />
           ) : (
             <select
+              data-cy="tx-item-select"
               className="w-full p-1 border rounded text-sm"
               value={selectedItem}
               onChange={(e) => {
@@ -434,6 +488,7 @@ export default function InlineTransactionRow({
       <td className="border p-2">
         <div className="flex items-center gap-2">
           <button
+            data-cy="tx-sign-toggle"
             type="button"
             onClick={() => setIsNegative((prev) => !prev)}
             className={`rounded px-2 py-1 font-bold ${
@@ -443,6 +498,7 @@ export default function InlineTransactionRow({
             {isNegative ? "−" : "+"}
           </button>
           <input
+            data-cy="tx-amount-input"
             type="number"
             className="w-full p-1 border rounded text-sm"
             value={amount}
@@ -450,6 +506,7 @@ export default function InlineTransactionRow({
             placeholder="0.00"
           />
           <button
+            data-cy="tx-submit"
             onClick={handleSubmit}
             className="bg-teal-600 text-white px-2 py-1 rounded text-sm"
           >
