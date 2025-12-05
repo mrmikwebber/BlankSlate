@@ -22,7 +22,9 @@ describe("calculateReadyToAssignPure", () => {
                             {
                                 name: "Electricity",
                                 assigned: 0,
-                                available: -40, // overspent in December
+                                available: -40,
+                                target: null,
+                                activity: 0
                             },
                         ],
                     },
@@ -36,7 +38,9 @@ describe("calculateReadyToAssignPure", () => {
                             {
                                 name: "Electricity",
                                 assigned: 0,
-                                available: 0, // YNAB-style: no red carried forward
+                                available: 0,
+                                target: null,
+                                activity: 0
                             },
                         ],
                     },
@@ -51,6 +55,8 @@ describe("calculateReadyToAssignPure", () => {
                                 name: "Electricity",
                                 assigned: 0,
                                 available: 0,
+                                target: null,
+                                activity: 0
                             },
                         ],
                     },
@@ -91,6 +97,8 @@ describe("calculateReadyToAssignPure", () => {
                                 name: "Electricity",
                                 assigned: 0,
                                 available: -40,
+                                target: null,
+                                activity: 0
                             },
                         ],
                     },
@@ -105,6 +113,8 @@ describe("calculateReadyToAssignPure", () => {
                                 name: "Electricity",
                                 assigned: 40, // user assigns 40 next month to cover
                                 available: 0,
+                                target: null,
+                                activity: 0
                             },
                         ],
                     },
@@ -138,7 +148,7 @@ describe("calculateActivityForMonthPure", () => {
         const accounts = [
             {
                 name: "Checking",
-                type: "debit",
+                type: "debit" as const,
                 transactions: [
                     { date: "2025-01-05", category: "Groceries", balance: -30 },
                     { date: "2025-01-10", category: "Groceries", balance: -20 },
@@ -160,7 +170,7 @@ describe("getCumulativeAvailablePure", () => {
                     {
                         name: "Bills",
                         categoryItems: [
-                            { name: "Electricity", assigned: 50, activity: -40, available: 10 },
+                            { name: "Electricity", assigned: 50, activity: -40, available: 10, target: null },
                         ],
                     },
                 ],
@@ -170,7 +180,7 @@ describe("getCumulativeAvailablePure", () => {
                     {
                         name: "Bills",
                         categoryItems: [
-                            { name: "Electricity", assigned: 20, activity: -10, available: 20 },
+                            { name: "Electricity", assigned: 20, activity: -10, available: 20, target: null },
                         ],
                     },
                 ],
@@ -195,6 +205,8 @@ describe("calculateCreditCardAccountActivityPure", () => {
                                 name: "Groceries",
                                 assigned: 50,
                                 available: 0,
+                                target: null,
+                                activity: 0
                             },
                         ],
                     },
@@ -238,6 +250,8 @@ describe("calculateCreditCardAccountActivityPure", () => {
                                 name: "Groceries",
                                 assigned: 100,
                                 available: 0,
+                                target: null,
+                                activity: 0
                             },
                         ],
                     },
@@ -277,6 +291,8 @@ describe("calculateCreditCardAccountActivityPure", () => {
                                 name: "Groceries",
                                 assigned: 100,
                                 available: 0,
+                                target: null,
+                                activity: 0
                             },
                         ],
                     },
@@ -371,7 +387,7 @@ describe("updateMonthPure", () => {
                     {
                         name: "Bills",
                         categoryItems: [
-                            { name: "Electricity", assigned: 0, activity: -40, available: -40 },
+                            { name: "Electricity", assigned: 0, activity: -40, available: -40, target: null },
                         ],
                     },
                 ],

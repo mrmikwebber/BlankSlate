@@ -14,6 +14,8 @@ export interface Account {
 }
 
 export interface BudgetItem {
+  target: null;
+  activity: number;
   name: string;
   assigned: number;
   available: number;
@@ -26,6 +28,7 @@ export interface BudgetCategory {
 
 export interface BudgetMonth {
   categories: BudgetCategory[];
+  assignable_money?: number;
 }
 
 /**
