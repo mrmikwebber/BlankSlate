@@ -570,4 +570,220 @@ describe("Transaction editing / mutation – YNAB-style", () => {
         });
     });
   });
+
+  it("moves activity and available when editing a transaction's category, while keeping RTA stable", () => {
+  const groupName = "Cross Category Move Group";
+  const itemA = "Category A";
+  const itemB = "Category B";
+  const amount = 40;
+
+  const readySelector = "[data-cy=ready-to-assign]";
+
+  // 1️⃣ Ensure group + Category A & B exist
+  visitBudget();
+
+  cy.get("[data-cy=add-category-group-button]").click();
+  cy.get("[data-cy=add-category-group-input]").clear().type(groupName);
+  cy.get("[data-cy=add-category-group-submit]").click();
+
+  // Add Category A
+  cy.get(
+    `tr[data-cy="category-group-row"][data-category="${groupName}"]`
+  )
+    .first()
+    .trigger("mouseover");
+
+  cy.get(
+    `tr[data-cy="category-group-row"][data-category="${groupName}"] [data-cy="group-add-item-button"]`
+  )
+    .filter(":visible")
+    .first()
+    .then(($btn) => {
+      if ($btn.length) {
+        cy.wrap($btn).click();
+      } else {
+        cy.get(
+          `tr[data-cy="category-group-row"][data-category="${groupName}"] [data-cy="group-add-item-button"]`
+        )
+          .first()
+          .click({ force: true });
+      }
+    });
+
+  cy.get("[data-cy=add-item-input]").type(itemA);
+  cy.get("[data-cy=add-item-submit]").click();
+
+  // Add Category B
+  cy.get(
+    `tr[data-cy="category-group-row"][data-category="${groupName}"]`
+  )
+    .first()
+    .trigger("mouseover");
+
+  cy.get(
+    `tr[data-cy="category-group-row"][data-category="${groupName}"] [data-cy="group-add-item-button"]`
+  )
+    .filter(":visible")
+    .first()
+    .then(($btn) => {
+      if ($btn.length) {
+        cy.wrap($btn).click();
+      } else {
+        cy.get(
+          `tr[data-cy="category-group-row"][data-category="${groupName}"] [data-cy="group-add-item-button"]`
+        )
+          .first()
+          .click({ force: true });
+      }
+    });
+
+  cy.get("[data-cy=add-item-input]").type(itemB);
+  cy.get("[data-cy=add-item-submit]").click();
+
+  // 2️⃣ Create a checking transaction in Category A
+  visitAccount(accounts.checking.id, accounts.checking.name);
+
+  cy.get("[data-cy=add-transaction-button]").click();
+  cy.get("[data-cy=tx-payee-select]").select("__new__");
+  cy.get("[data-cy=tx-new-payee-input]").type("CrossCat Store");
+  cy.get("[data-cy=tx-group-select]").select(groupName);
+  cy.get("[data-cy=tx-item-select]").select(itemA);
+  cy.get("[data-cy=tx-sign-toggle]").then(($btn) => {
+    if ($btn.text().trim() !== "−") cy.wrap($btn).click();
+  });
+  cy.get("[data-cy=tx-amount-input]").clear().type(String(amount));
+  cy.get("[data-cy=tx-submit]").click();
+
+  // 3️⃣ Snapshot budget state BEFORE category change
+  visitBudget();
+
+  cy.get(
+    `[data-cy="category-row"][data-category="${groupName}"][data-item="${itemA}"]`
+  )
+    .as("rowA")
+    .within(() => {
+      cy.get("[data-cy=item-activity]")
+        .invoke("text")
+        .then((txt) =>
+          cy.wrap(parseCurrency(txt)).as("aActivityBefore")
+        );
+
+      cy.get("[data-cy=item-available]")
+        .invoke("text")
+        .then((txt) =>
+          cy.wrap(parseCurrency(txt)).as("aAvailableBefore")
+        );
+    });
+
+  cy.get(
+    `[data-cy="category-row"][data-category="${groupName}"][data-item="${itemB}"]`
+  )
+    .as("rowB")
+    .within(() => {
+      cy.get("[data-cy=item-activity]")
+        .invoke("text")
+        .then((txt) =>
+          cy.wrap(parseCurrency(txt)).as("bActivityBefore")
+        );
+
+      cy.get("[data-cy=item-available]")
+        .invoke("text")
+        .then((txt) =>
+          cy.wrap(parseCurrency(txt)).as("bAvailableBefore")
+        );
+    });
+
+  cy.get(readySelector)
+    .invoke("text")
+    .then((txt) =>
+      cy.wrap(parseCurrency(txt)).as("rtaBefore")
+    );
+
+  // 4️⃣ Edit the transaction: move from Category A → Category B
+  visitAccount(accounts.checking.id, accounts.checking.name);
+
+  cy.get("[data-cy=transaction-row]").first().as("txRow");
+  cy.get("@txRow").rightclick();
+  cy.get("[data-cy=context-edit-transaction]").click();
+  cy.get("[data-cy=transaction-form-row-edit]").as("editForm");
+
+  cy.get("@editForm").find("[data-cy=tx-group-select]").select(groupName);
+  cy.get("@editForm").find("[data-cy=tx-item-select]").select(itemB);
+  // keep same amount; only category moves
+  cy.get("@editForm").find("[data-cy=tx-submit]").click();
+
+  // 5️⃣ Snapshot budget state AFTER category change
+  visitBudget();
+
+  cy.get("@rowA").within(() => {
+    cy.get("[data-cy=item-activity]")
+      .invoke("text")
+      .then((txt) =>
+        cy.wrap(parseCurrency(txt)).as("aActivityAfter")
+      );
+
+    cy.get("[data-cy=item-available]")
+      .invoke("text")
+      .then((txt) =>
+        cy.wrap(parseCurrency(txt)).as("aAvailableAfter")
+      );
+  });
+
+  cy.get("@rowB").within(() => {
+    cy.get("[data-cy=item-activity]")
+      .invoke("text")
+      .then((txt) =>
+        cy.wrap(parseCurrency(txt)).as("bActivityAfter")
+      );
+
+    cy.get("[data-cy=item-available]")
+      .invoke("text")
+      .then((txt) =>
+        cy.wrap(parseCurrency(txt)).as("bAvailableAfter")
+      );
+  });
+
+  cy.get(readySelector)
+    .invoke("text")
+    .then((txt) =>
+      cy.wrap(parseCurrency(txt)).as("rtaAfter")
+    );
+
+  // 6️⃣ Assertions – activity/available moved, RTA stable
+  cy.get<number>("@aActivityBefore").then((aActBefore) => {
+    cy.get<number>("@aActivityAfter").then((aActAfter) => {
+      expect(aActBefore).to.eq(-amount);
+      expect(aActAfter).to.eq(0);
+    });
+  });
+
+  cy.get<number>("@aAvailableBefore").then((aAvailBefore) => {
+    cy.get<number>("@aAvailableAfter").then((aAvailAfter) => {
+      expect(aAvailBefore).to.eq(-amount);
+      expect(aAvailAfter).to.eq(0);
+    });
+  });
+
+  cy.get<number>("@bActivityBefore").then((bActBefore) => {
+    cy.get<number>("@bActivityAfter").then((bActAfter) => {
+      expect(bActBefore).to.eq(0);
+      expect(bActAfter).to.eq(-amount);
+    });
+  });
+
+  cy.get<number>("@bAvailableBefore").then((bAvailBefore) => {
+    cy.get<number>("@bAvailableAfter").then((bAvailAfter) => {
+      expect(bAvailBefore).to.eq(0);
+      expect(bAvailAfter).to.eq(-amount);
+    });
+  });
+
+  cy.get<number>("@rtaBefore").then((rtaBefore) => {
+    cy.get<number>("@rtaAfter").then((rtaAfter) => {
+      expect(rtaAfter).to.eq(rtaBefore);
+    });
+  });
+});
+
+
 });

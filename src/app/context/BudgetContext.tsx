@@ -1004,64 +1004,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
     const currentIndex = allMonths.indexOf(month);
     if (currentIndex === -1) return 0;
 
-    const firstInflowMonth = getFirstInflowMonth();
-
-    if (firstInflowMonth && month < firstInflowMonth) {
-      const assignedUpTo = allMonths
-        .slice(0, currentIndex + 1)
-        .reduce((sum, m) => {
-          const assigned = data[m]?.categories?.reduce(
-            (catSum, cat) =>
-              catSum +
-              cat.categoryItems.reduce(
-                (itemSum, item) => itemSum + item.assigned,
-                0
-              ),
-            0
-          );
-          return sum + (assigned || 0);
-        }, 0);
-
-      return -assignedUpTo;
-    }
-
-    // Get previous month's overspending for debit transactions only
-    let previousMonthOverspending = 0;
-    if (currentIndex > 0) {
-      const prevMonth = allMonths[currentIndex - 1];
-      const prevMonthCategories = data[prevMonth]?.categories || [];
-
-      for (const category of prevMonthCategories) {
-        // Skip Credit Card Payments category as it's handled differently
-        if (category.name === "Credit Card Payments") continue;
-
-        for (const item of category.categoryItems) {
-          // Only look at categories with negative available
-          if (item.available < 0) {
-            // Get all transactions for this category in the previous month
-            const categoryTransactions = accounts.flatMap(acc =>
-              acc.transactions.filter(tx =>
-                tx.category === item.name &&
-                isSameMonth(format(parseISO(tx.date), "yyyy-MM"), prevMonth)
-              ).map(tx => ({ ...tx, accountType: acc.type }))
-            );
-
-            // Only include debit transactions that caused overspending
-            const debitTransactions = categoryTransactions.filter(tx =>
-              tx.accountType === "debit" && tx.balance < 0
-            );
-
-            // If there are any debit transactions causing overspending
-            if (debitTransactions.length > 0) {
-              // Sum up just the debit overspending
-              const debitOverspentAmount = Math.abs(item.available);
-              previousMonthOverspending += debitOverspentAmount;
-            }
-          }
-        }
-      }
-    }
-
+    // 1️⃣ Inflows up to and including `month`
     const inflowUpTo = allMonths.slice(0, currentIndex + 1).reduce((sum, m) => {
       const inflow = accounts
         .filter((acc) => acc.type === "debit")
@@ -1077,15 +1020,17 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
             tx.category === "Ready to Assign"
         )
         .reduce((s, tx) => s + tx.balance, 0);
+
       return sum + inflow;
     }, 0);
 
+    // 2️⃣ Total assigned across ALL months (future budgeting hits the same pool)
     const totalAssigned = Object.keys(data).reduce((sum, m) => {
       const assigned = data[m]?.categories?.reduce(
         (catSum, cat) =>
           catSum +
           cat.categoryItems.reduce(
-            (itemSum, item) => itemSum + item.assigned,
+            (itemSum, item) => itemSum + (item.assigned || 0),
             0
           ),
         0
@@ -1093,8 +1038,54 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
       return sum + (assigned || 0);
     }, 0);
 
-    return inflowUpTo - totalAssigned - previousMonthOverspending;
+    // 3️⃣ Total cash overspending from ALL *past* months
+    //    (months strictly before the current one)
+    let totalCashOverspending = 0;
+
+    const pastMonths = allMonths.slice(0, currentIndex); // all months < current
+    for (const m of pastMonths) {
+      const monthCategories = data[m]?.categories || [];
+
+      for (const category of monthCategories) {
+        // Skip credit card payments – they use different rules
+        if (category.name === "Credit Card Payments") continue;
+
+        for (const item of category.categoryItems) {
+          if (item.available >= 0) continue;
+
+          // Find all transactions for this category in this month
+          const categoryTransactions = accounts.flatMap((acc) =>
+            acc.transactions
+              .filter((tx) => {
+                if (!tx.date) return false;
+                const txMonth = format(parseISO(tx.date), "yyyy-MM");
+                return (
+                  tx.category === item.name &&
+                  isSameMonth(txMonth, m) // same month as this m
+                );
+              })
+              .map((tx) => ({
+                ...tx,
+                accountType: acc.type,
+              }))
+          );
+
+          // Only count overspending caused by **debit** transactions
+          const debitSpending = categoryTransactions.some(
+            (tx) => tx.accountType === "debit" && tx.balance < 0
+          );
+
+          if (debitSpending) {
+            totalCashOverspending += Math.abs(item.available);
+          }
+        }
+      }
+    }
+
+    // 4️⃣ Final RTA
+    return inflowUpTo - totalAssigned - totalCashOverspending;
   };
+
 
   const refreshAllReadyToAssign = (data = budgetData) => {
     const updated = { ...data };
