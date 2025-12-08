@@ -69,16 +69,16 @@ describe("Debit & credit transactions - UI only", () => {
         cy.get("[data-cy=tx-new-payee-input]")
           .type("Chipotle");
 
-        // New group mode
-  cy.get("[data-cy=tx-group-select]").select("__new__");
+        // New group and category mode
+  cy.get("[data-cy=tx-item-select]").select("__new_category__");
   cy.wait(150);
-        cy.get("[data-cy=tx-new-group-input]")
+  cy.get("[data-cy=tx-category-group-select]").select("__new_group__");
+  cy.wait(150);
+        cy.get("[data-cy=tx-new-category-group-input]")
           .type("Food & Dining");
 
         // New category item under that group
-  cy.get("[data-cy=tx-item-select]").select("__new__");
-  cy.wait(150);
-        cy.get("[data-cy=tx-new-item-input]")
+  cy.get("[data-cy=tx-new-category-input]")
           .type("Restaurants");
 
         // Ensure it's an outflow
@@ -96,17 +96,17 @@ describe("Debit & credit transactions - UI only", () => {
   cy.get("[data-cy=tx-submit]").click();
   cy.wait(200);
 
-        // A new transaction row should appear with Chipotle + Restaurants
+        // A new transaction row should appear with Chipotle + Food & Dining: Restaurants
         cy.get("[data-cy=transaction-row]")
           .first()
           .within(() => {
             cy.get("td").eq(1).should("contain.text", "Chipotle");    // payee
-            cy.get("td").eq(2).should("contain.text", "Restaurants"); // category
+            cy.get("td").eq(2).should("contain.text", "Food & Dining: Restaurants"); // category in Group: Item format
             cy.get("[data-cy=transaction-amount]")
               .should("have.class", "text-red-600")
               .invoke("text")
               .then((amtText) => {
-                const amt = Number(amtText);
+                const amt = parseCurrency(amtText);
                 expect(amt).to.eq(-25);
               });
           });
@@ -166,8 +166,8 @@ describe("Debit & credit transactions - UI only", () => {
 
 
     // For same-type transfer, group/item are optional (default Ready to Assign),
-    // and selects are disabled for new groups/categories.
-  cy.get("[data-cy=tx-group-select]").should("be.disabled");
+    // and group select is now hidden (not disabled).
+  cy.get("[data-cy=tx-group-select]").should("have.value", "");
 
     // Make it an outflow
     cy.get("[data-cy=tx-sign-toggle]").then(($btn) => {
@@ -199,7 +199,7 @@ describe("Debit & credit transactions - UI only", () => {
         cy.get("[data-cy=transaction-amount]")
           .invoke("text")
           .then((txt) => {
-            const amt = Number(txt);
+            const amt = parseCurrency(txt);
             expect(amt).to.eq(-50);
           });
       });
@@ -224,7 +224,7 @@ describe("Debit & credit transactions - UI only", () => {
         cy.get("[data-cy=transaction-amount]")
           .invoke("text")
           .then((txt) => {
-            const amt = Number(txt);
+            const amt = parseCurrency(txt);
             expect(amt).to.eq(50);
           });
       });
@@ -283,7 +283,7 @@ describe("Debit & credit transactions - UI only", () => {
       .should("have.value", "Credit Card Payments");
 
     cy.get("[data-cy=tx-item-select]")
-      .should("have.value", CREDIT_ACCOUNT_NAME);
+      .should("have.value", `Credit Card Payments::${CREDIT_ACCOUNT_NAME}`);
 
     // Outflow of 100 (payment from DEBIT to CREDIT)
     cy.get("[data-cy=tx-sign-toggle]").then(($btn) => {
@@ -313,7 +313,7 @@ describe("Debit & credit transactions - UI only", () => {
         cy.get("[data-cy=transaction-amount]")
           .invoke("text")
           .then((txt) => {
-            const amt = Number(txt);
+            const amt = parseCurrency(txt);
             expect(amt).to.eq(-100);
           });
       });
@@ -337,7 +337,7 @@ describe("Debit & credit transactions - UI only", () => {
         cy.get("[data-cy=transaction-amount]")
           .invoke("text")
           .then((txt) => {
-            const amt = Number(txt);
+            const amt = parseCurrency(txt);
             expect(amt).to.eq(100);
           });
       });

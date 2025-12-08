@@ -32,7 +32,7 @@ const visitAccount = (id: string, expectedName: string) => {
   cy.get("[data-cy=account-name]").should("contain.text", expectedName);
 };
 
-describe("Transaction editing / mutation – YNAB-style", () => {
+describe("Transaction editing / mutation", () => {
   beforeEach(() => {
     // cy.dbReset();
     cy.login("thedasherx@gmail.com", "123456");
@@ -56,11 +56,10 @@ describe("Transaction editing / mutation – YNAB-style", () => {
     cy.get("[data-cy=tx-payee-select]").select("__new__");
     cy.get("[data-cy=tx-new-payee-input]").type("Edit Test Store");
 
-    cy.get("[data-cy=tx-group-select]").select("__new__");
-    cy.get("[data-cy=tx-new-group-input]").type(groupName);
-
-    cy.get("[data-cy=tx-item-select]").select("__new__");
-    cy.get("[data-cy=tx-new-item-input]").type(itemName);
+    cy.get("[data-cy=tx-item-select]").select("__new_category__");
+    cy.get("[data-cy=tx-category-group-select]").select("__new_group__");
+    cy.get("[data-cy=tx-new-category-group-input]").type(groupName);
+    cy.get("[data-cy=tx-new-category-input]").type(itemName);
 
     cy.get("[data-cy=tx-sign-toggle]").then(($btn) => {
       if ($btn.text().trim() !== "−") {
@@ -161,12 +160,8 @@ describe("Transaction editing / mutation – YNAB-style", () => {
         // Change category to Group B / Cat B using canonical tx-* selectors
         // If your UI has separate group & item selects, adjust this accordingly.
         cy.get("@editForm")
-          .find("[data-cy=tx-group-select]")
-          .select(groupB);
-
-        cy.get("@editForm")
           .find("[data-cy=tx-item-select]")
-          .select(itemB);
+          .select(`${groupB}::${itemB}`);
 
         cy.get("@editForm").find("[data-cy=tx-submit]").click();
         
@@ -646,8 +641,7 @@ describe("Transaction editing / mutation – YNAB-style", () => {
   cy.get("[data-cy=add-transaction-button]").click();
   cy.get("[data-cy=tx-payee-select]").select("__new__");
   cy.get("[data-cy=tx-new-payee-input]").type("CrossCat Store");
-  cy.get("[data-cy=tx-group-select]").select(groupName);
-  cy.get("[data-cy=tx-item-select]").select(itemA);
+  cy.get("[data-cy=tx-item-select]").select(`${groupName}::${itemA}`);
   cy.get("[data-cy=tx-sign-toggle]").then(($btn) => {
     if ($btn.text().trim() !== "−") cy.wrap($btn).click();
   });
@@ -707,8 +701,7 @@ describe("Transaction editing / mutation – YNAB-style", () => {
   cy.get("[data-cy=context-edit-transaction]").click();
   cy.get("[data-cy=transaction-form-row-edit]").as("editForm");
 
-  cy.get("@editForm").find("[data-cy=tx-group-select]").select(groupName);
-  cy.get("@editForm").find("[data-cy=tx-item-select]").select(itemB);
+  cy.get("@editForm").find("[data-cy=tx-item-select]").select(`${groupName}::${itemB}`);
   // keep same amount; only category moves
   cy.get("@editForm").find("[data-cy=tx-submit]").click();
 

@@ -128,8 +128,7 @@ describe("Multi-month behaviour – carryover, overspending, edits", () => {
     cy.get("[data-cy=add-transaction-button]").click();
     cy.get("[data-cy=tx-payee-select]").select("__new__");
     cy.get("[data-cy=tx-new-payee-input]").type("Overspend Store");
-    cy.get("[data-cy=tx-group-select]").select(groupName);
-    cy.get("[data-cy=tx-item-select]").select(itemName);
+    cy.get("[data-cy=tx-item-select]").select(`${groupName}::${itemName}`);
     cy.get("[data-cy=tx-sign-toggle]").then(($btn) => {
       if ($btn.text().trim() !== "−") cy.wrap($btn).click();
     });
@@ -179,8 +178,7 @@ describe("Multi-month behaviour – carryover, overspending, edits", () => {
     cy.get("[data-cy=add-transaction-button]").click();
     cy.get("[data-cy=tx-payee-select]").select("__new__");
     cy.get("[data-cy=tx-new-payee-input]").type("Scoped Store");
-    cy.get("[data-cy=tx-group-select]").select(groupName);
-    cy.get("[data-cy=tx-item-select]").select(itemName);
+    cy.get("[data-cy=tx-item-select]").select(`${groupName}::${itemName}`);
     cy.get("[data-cy=tx-sign-toggle]").then(($btn) => {
       if ($btn.text().trim() !== "−") cy.wrap($btn).click();
     });
@@ -625,8 +623,7 @@ describe("Multi-month behaviour – carryover, overspending, edits", () => {
     cy.get("[data-cy=add-transaction-button]").click();
     cy.get("[data-cy=tx-payee-select]").select("__new__");
     cy.get("[data-cy=tx-new-payee-input]").type("Deep History Store");
-    cy.get("[data-cy=tx-group-select]").select(groupName);
-    cy.get("[data-cy=tx-item-select]").select(oldItem);
+    cy.get("[data-cy=tx-item-select]").select(`${groupName}::${oldItem}`);
     cy.get("[data-cy=tx-sign-toggle]").then(($btn) => {
       if ($btn.text().trim() !== "−") cy.wrap($btn).click();
     });
@@ -656,8 +653,7 @@ describe("Multi-month behaviour – carryover, overspending, edits", () => {
     cy.get("[data-cy=context-edit-transaction]").click();
     cy.get("[data-cy=transaction-form-row-edit]").as("editForm");
 
-    cy.get("@editForm").find("[data-cy=tx-group-select]").select(groupName);
-    cy.get("@editForm").find("[data-cy=tx-item-select]").select(newItem);
+    cy.get("@editForm").find("[data-cy=tx-item-select]").select(`${groupName}::${newItem}`);
     // keep same amount; only category changes
     cy.get("@editForm").find("[data-cy=tx-submit]").click();
 

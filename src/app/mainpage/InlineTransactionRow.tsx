@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import type { KeyboardEvent } from "react";
 import { useBudgetContext } from "@/app/context/BudgetContext";
 import { useAccountContext, Transaction } from "@/app/context/AccountContext";
 import { format } from "date-fns";
@@ -10,20 +11,24 @@ export default function InlineTransactionRow({
   initialData,
   onCancel,
   onSave,
+  autoFocus = false,
 }: {
   accountId: number;
   mode?: "add" | "edit";
   initialData?: Transaction;
   onCancel?: () => void;
   onSave?: () => void;
+  autoFocus?: boolean;
 }) {
   const isEdit = mode === "edit";
   const {
     budgetData,
     currentMonth,
-    setBudgetData,
     refreshAccounts,
+    addCategoryGroup,
+    addItemToCategory,
   } = useBudgetContext();
+
   const { addTransaction, editTransaction, accounts, deleteTransaction } =
     useAccountContext();
 
@@ -31,129 +36,240 @@ export default function InlineTransactionRow({
   const [date, setDate] = useState(
     isEdit && initialData ? initialData.date : today
   );
-  const [payee, setPayee] = useState(
-    isEdit && initialData ? initialData.payee : ""
-  );
   const [amount, setAmount] = useState(
     isEdit && initialData ? Math.abs(initialData.balance).toString() : ""
   );
   const [isNegative, setIsNegative] = useState(
     isEdit && initialData ? initialData.balance < 0 : true
   );
+
+  // category group + item (backing state)
   const [selectedGroup, setSelectedGroup] = useState("");
   const [selectedItem, setSelectedItem] = useState("");
-  const [newGroupMode, setNewGroupMode] = useState(false);
-  const [newItemMode, setNewItemMode] = useState(false);
-  const [newPayeeMode, setNewPayeeMode] = useState(false);
-  const [newGroupName, setNewGroupName] = useState("");
-  const [newItemName, setNewItemName] = useState("");
-  const [newPayeeName, setNewPayeeName] = useState("");
 
-  // Extract raw payee name from transfer labels like "Transfer to X" or "Payment from Y"
+  // "add new category" flow
+  const [newCategoryMode, setNewCategoryMode] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [newCategoryGroupIsNew, setNewCategoryGroupIsNew] = useState(false);
+  const [newCategoryGroupName, setNewCategoryGroupName] = useState("");
+
+  // payee / transfer
   const extractPayeeName = (payeeLabel: string): string => {
     const matches = payeeLabel.match(/(?:Transfer|Payment) (?:to|from) (.+)/);
     return matches ? matches[1] : payeeLabel;
   };
-
+  const [newPayeeMode, setNewPayeeMode] = useState(false);
+  const [newPayeeName, setNewPayeeName] = useState("");
   const [transferPayee, setTransferPayee] = useState(
     isEdit && initialData ? extractPayeeName(initialData.payee) : ""
   );
 
+
+
   const formRef = useRef<HTMLTableRowElement>(null);
+  const dateRef = useRef<HTMLInputElement | null>(null);
+  const payeeSelectRef =
+    useRef<HTMLSelectElement | HTMLInputElement | null>(null);
+  const amountInputRef = useRef<HTMLInputElement | null>(null);
+  const newCategoryInputRef = useRef<HTMLInputElement | null>(null);
+  const newCategoryGroupInputRef = useRef<HTMLInputElement | null>(null);
+
+
 
   const thisAccount = accounts.find((a) => a.id === accountId);
   const otherAccount = accounts.find((a) => a.name === transferPayee);
+
   const sameTypeTransfer =
     thisAccount && otherAccount && thisAccount.type === otherAccount.type;
   const crossTypeTransfer =
     thisAccount && otherAccount && thisAccount.type !== otherAccount.type;
 
-  const categoryGroups = budgetData[currentMonth].categories.map(
-    (cat) => cat.name
-  );
-  const getItemsForGroup = (groupName: string) =>
-    budgetData[currentMonth].categories
-      .find((cat) => cat.name === groupName)
-      ?.categoryItems.map((item) => item.name) || [];
+  const categoryGroups = budgetData[currentMonth].categories;
 
+  // when editing, initialize category from existing transaction
   useEffect(() => {
-    if (crossTypeTransfer) {
-      const creditAccount =
-        thisAccount?.type === "credit" ? thisAccount : otherAccount;
-      setSelectedGroup("Credit Card Payments");
-      setSelectedItem(creditAccount?.name || "");
-      setNewGroupMode(false);
-      setNewItemMode(false);
+    if (mode === "edit" && initialData?.category) {
+      const group = categoryGroups.find((catGroup) =>
+        catGroup.categoryItems.some(
+          (item) => item.name === initialData.category
+        )
+      );
+
+      if (group) {
+        setSelectedGroup(group.name);
+        setSelectedItem(initialData.category);
+      } else {
+        setSelectedGroup("");
+        setSelectedItem("");
+      }
     }
-  }, [transferPayee, isNegative, amount]);
+  }, [mode, initialData, categoryGroups]);
+
+  // cross-type transfer → default to "Credit Card Payments / <Card>"
+  useEffect(() => {
+    if (crossTypeTransfer && thisAccount && otherAccount) {
+      const creditAccount =
+        thisAccount.type === "credit" ? thisAccount : otherAccount;
+      setSelectedGroup("Credit Card Payments");
+      setSelectedItem(creditAccount.name);
+    }
+  }, [crossTypeTransfer, thisAccount, otherAccount]);
+
+  // Autofocus for “excely” feel
+  useEffect(() => {
+    if (!autoFocus) return;
+
+    if (newPayeeMode && payeeSelectRef.current instanceof HTMLInputElement) {
+      payeeSelectRef.current.focus();
+      return;
+    }
+    if (payeeSelectRef.current instanceof HTMLSelectElement) {
+      payeeSelectRef.current.focus();
+      return;
+    }
+    if (dateRef.current) {
+      dateRef.current.focus();
+    }
+  }, [autoFocus, newPayeeMode]);
+
+  // Close on click outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (formRef.current && !formRef.current.contains(e.target as Node)) {
+        onCancel?.();
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [onCancel]);
+
+  // Autofocus when starting "Add New Category"
+  useEffect(() => {
+    if (newCategoryMode && newCategoryInputRef.current) {
+      // Small timeout ensures element has rendered
+      setTimeout(() => newCategoryInputRef.current?.focus(), 10);
+    }
+  }, [newCategoryMode]);
+
+  // Autofocus when "Add New Category Group" is selected
+  useEffect(() => {
+    if (newCategoryGroupIsNew && newCategoryGroupInputRef.current) {
+      setTimeout(() => newCategoryGroupInputRef.current?.focus(), 10);
+    }
+  }, [newCategoryGroupIsNew]);
+
+
+  const allPayees = Array.from(
+    new Set(
+      accounts
+        .flatMap((acc) => acc.transactions.map((t) => t.payee))
+        .filter(Boolean)
+    )
+  );
+
+  const transferTargets = accounts.filter((a) => a.id !== accountId);
+
+  const getPreviewLabel = (targetName: string) => {
+    if (!thisAccount) return targetName;
+    const other = accounts.find((a) => a.name === targetName);
+    if (!other) return targetName;
+
+    const isThisCredit = thisAccount.type === "credit";
+    const isOtherCredit = other.type === "credit";
+    const amt = parseFloat(amount || "0");
+    const isNeg = isNegative;
+
+    if (!amt || Number.isNaN(amt)) return `To/From: ${targetName}`;
+
+    if (isNeg) {
+      if (isThisCredit) return `Transfer to ${targetName}`;
+      return isOtherCredit
+        ? `Payment to ${targetName}`
+        : `Transfer to ${targetName}`;
+    } else {
+      if (isThisCredit)
+        return isOtherCredit
+          ? `Transfer from ${targetName}`
+          : `Payment from ${targetName}`;
+      return `Transfer from ${targetName}`;
+    }
+  };
+
+  const handleKeyDown = (e: KeyboardEvent) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      void handleSubmit();
+    }
+    if (e.key === "Escape") {
+      e.preventDefault();
+      onCancel?.();
+    }
+  };
 
   const handleSubmit = async () => {
-    const groupName = newGroupMode ? newGroupName.trim() : selectedGroup;
-    const itemName = newItemMode ? newItemName.trim() : selectedItem;
     const payeeName = newPayeeMode ? newPayeeName.trim() : transferPayee;
+
+    let groupName = selectedGroup;
+    let itemName = selectedItem;
+
+    // If we're creating a new category, override from the "new" fields
+    if (newCategoryMode) {
+      const catName = newCategoryName.trim();
+      const newGroup = newCategoryGroupName.trim();
+
+      if (!catName) {
+        return; // need a category name
+      }
+
+      if (newCategoryGroupIsNew) {
+        if (!newGroup) return; // need a group name
+        groupName = newGroup;
+      } else {
+        // must have chosen an existing group
+        if (!groupName && newGroup) {
+          groupName = newGroup;
+        }
+        if (!groupName) return;
+      }
+
+      itemName = catName;
+    }
+
 
     const thisAccount = accounts.find((a) => a.id === accountId);
     const otherAccount = accounts.find((a) => a.name === payeeName);
     const isSameType =
       thisAccount && otherAccount && thisAccount.type === otherAccount.type;
 
+    const isTransfer = Boolean(otherAccount);
+    if (isTransfer) {
+      groupName = "";
+      itemName = "";
+    }
+
+    // Basic validation
     if (
       !amount ||
       !payeeName ||
-      (!isSameType &&
+      (!isTransfer &&
+        !isSameType &&
         groupName !== "Ready to Assign" &&
         (!itemName || !groupName))
-    )
+    ) {
       return;
-
-    const updatedCategories = [...budgetData[currentMonth].categories];
-    const groupIndex = updatedCategories.findIndex((g) => g.name === groupName);
-
-    if (groupName !== "Ready to Assign") {
-      if (groupName && itemName && groupIndex === -1) {
-        updatedCategories.push({
-          name: groupName,
-          categoryItems: [
-            { name: itemName, assigned: 0, activity: 0, available: 0 },
-          ],
-        });
-      } else if (groupName && itemName && groupIndex >= 0) {
-        const itemExists = updatedCategories[groupIndex].categoryItems.some(
-          (i) => i.name === itemName
-        );
-        if (!itemExists) {
-          updatedCategories[groupIndex].categoryItems.push({
-            name: itemName,
-            assigned: 0,
-            activity: 0,
-            available: 0,
-          });
-        }
-      }
     }
 
-    const existingRow = await supabase
-      .from("budget_data")
-      .select("id")
-      .eq("month", currentMonth)
-      .single();
-
-    if (existingRow.data?.id) {
-      await supabase
-        .from("budget_data")
-        .update({
-          data: { ...budgetData[currentMonth], categories: updatedCategories },
-        })
-        .eq("id", existingRow.data.id);
+    if (groupName && groupName !== "Ready to Assign" && itemName) {
+      addItemToCategory(groupName, {
+        name: itemName,
+        assigned: 0,
+        activity: 0,
+        available: 0,
+      });
     }
 
-    setBudgetData((prev) => ({
-      ...prev,
-      [currentMonth]: {
-        ...prev[currentMonth],
-        categories: updatedCategories,
-      },
-    }));
+
 
     const balance = (isNegative ? -1 : 1) * Number(amount);
 
@@ -177,11 +293,14 @@ export default function InlineTransactionRow({
       }
     })();
 
+    const isReadyToAssign = groupName === "Ready to Assign";
+
     const transactionData = {
       date,
       payee: payeeLabel,
-      category: groupName === "Ready to Assign" ? groupName : itemName || null,
-      category_group: groupName === "Credit Card Payments" ? groupName : null,
+      category: isTransfer ? null : isReadyToAssign ? groupName : itemName || null,
+      // for anything that's not "Ready to Assign", store the group
+      category_group: isTransfer ? null : isReadyToAssign ? null : groupName || null,
       balance,
     };
 
@@ -214,10 +333,9 @@ export default function InlineTransactionRow({
       if (otherAccount) {
         const isThisCredit = thisAccount.type === "credit";
         const isOtherCredit = otherAccount.type === "credit";
-        
+
         const mirrorPayee = (() => {
           if (balance < 0) {
-            // Original is outflow, mirror is inflow
             if (isOtherCredit) {
               return isThisCredit
                 ? `Transfer from ${thisAccount.name}`
@@ -225,7 +343,6 @@ export default function InlineTransactionRow({
             }
             return `Transfer from ${thisAccount.name}`;
           } else {
-            // Original is inflow, mirror is outflow
             if (isOtherCredit) {
               return `Transfer to ${thisAccount.name}`;
             }
@@ -248,10 +365,9 @@ export default function InlineTransactionRow({
       if (otherAccount) {
         const isThisCredit = thisAccount.type === "credit";
         const isOtherCredit = otherAccount.type === "credit";
-        
+
         const mirrorPayee = (() => {
           if (balance < 0) {
-            // Original is outflow, mirror is inflow
             if (isOtherCredit) {
               return isThisCredit
                 ? `Transfer from ${thisAccount.name}`
@@ -259,7 +375,6 @@ export default function InlineTransactionRow({
             }
             return `Transfer from ${thisAccount.name}`;
           } else {
-            // Original is inflow, mirror is outflow
             if (isOtherCredit) {
               return `Transfer to ${thisAccount.name}`;
             }
@@ -277,6 +392,7 @@ export default function InlineTransactionRow({
         });
       }
     }
+
     await refreshAccounts();
 
     onSave?.();
@@ -284,101 +400,80 @@ export default function InlineTransactionRow({
     setSelectedGroup("");
     setSelectedItem("");
     setAmount("");
+
+    setNewCategoryMode(false);
+    setNewCategoryName("");
+    setNewCategoryGroupIsNew(false);
+    setNewCategoryGroupName("");
+
   };
 
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (formRef.current && !formRef.current.contains(e.target as Node)) {
-        onCancel?.();
-      }
-    };
+  // Build one dropdown: bold group headers, selectable items
+  const categorySelectValue =
+    selectedGroup === "Ready to Assign"
+      ? "RTA::RTA"
+      : selectedGroup && selectedItem
+        ? `${selectedGroup}::${selectedItem}`
+        : "";
 
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [onCancel]);
-
-  useEffect(() => {
-    if (mode === "edit" && initialData?.category) {
-      const group = budgetData[currentMonth].categories.find((catGroup) =>
-        catGroup.categoryItems.some(
-          (item) => item.name === initialData.category
-        )
-      );
-
-      if (group) {
-        setSelectedGroup(group.name);
-        setSelectedItem(initialData.category);
-      } else {
-        setSelectedGroup("");
-        setSelectedItem("");
-      }
-    }
-  }, [mode, initialData, budgetData, currentMonth]);
-
-  const allPayees = Array.from(
-    new Set(
-      accounts
-        .flatMap((acc) => acc.transactions.map((t) => t.payee))
-        .filter(Boolean)
-    )
-  );
-
-  const transferTargets = accounts.filter((a) => a.id !== accountId);
-
-  const getPreviewLabel = (targetName: string) => {
-    const thisAccount = accounts.find((a) => a.id === accountId);
-    const otherAccount = accounts.find((a) => a.name === targetName);
-    if (!thisAccount || !otherAccount) return targetName;
-
-    const isThisCredit = thisAccount.type === "credit";
-    const isOtherCredit = otherAccount.type === "credit";
-    const amt = parseFloat(amount || "0");
-    const isNeg = isNegative;
-
-    if (amt === 0 || isNaN(amt)) return `To/From: ${targetName}`;
-
-    if (isNeg) {
-      if (isThisCredit) return `Transfer to ${targetName}`;
-      return isOtherCredit
-        ? `Payment to ${targetName}`
-        : `Transfer to ${targetName}`;
-    } else {
-      if (isThisCredit)
-        return isOtherCredit
-          ? `Transfer from ${targetName}`
-          : `Payment from ${targetName}`;
-      return `Transfer from ${targetName}`;
-    }
-  };
+  const categoryOptions = [
+    { kind: "option" as const, value: "RTA::RTA", label: "Ready to Assign" },
+    // NEW: add new category entry at the top
+    {
+      kind: "option" as const,
+      value: "__new_category__",
+      label: "➕ Add New Category...",
+    },
+    ...categoryGroups.flatMap((group) => [
+      {
+        kind: "header" as const,
+        key: `header-${group.name}`,
+        label: group.name,
+      },
+      ...group.categoryItems.map((item) => ({
+        kind: "option" as const,
+        value: `${group.name}::${item.name}`,
+        label: item.name,
+      })),
+    ]),
+  ];
 
   return (
     <tr
       ref={formRef}
-      data-cy={isEdit ? "transaction-form-row-edit" : "transaction-form-row-add"}
+      data-cy={
+        isEdit ? "transaction-form-row-edit" : "transaction-form-row-add"
+      }
       data-mode={isEdit ? "edit" : "add"}
-      className="bg-gray-50 transition-opacity duration-300 opacity-100"
+      className="bg-teal-50 transition-colors duration-150"
     >
       <td className="border p-2">
         <input
+          ref={dateRef}
           data-cy="tx-date-input"
           type="date"
           value={date}
           onChange={(e) => setDate(e.target.value)}
+          onKeyDown={handleKeyDown}
           className="w-full p-1 border rounded text-sm"
         />
       </td>
+
       <td className="border p-2">
         {newPayeeMode ? (
           <input
+            ref={payeeSelectRef as React.RefObject<HTMLInputElement>}
             data-cy="tx-new-payee-input"
             type="text"
             placeholder="New Payee Name"
             className="w-full p-1 border rounded text-sm"
             value={newPayeeName}
             onChange={(e) => setNewPayeeName(e.target.value)}
+            onKeyDown={handleKeyDown}
           />
         ) : (
           <select
+            ref={payeeSelectRef as React.RefObject<HTMLSelectElement>}
             data-cy="tx-payee-select"
             value={transferPayee}
             onChange={(e) => {
@@ -389,6 +484,7 @@ export default function InlineTransactionRow({
                 setTransferPayee(e.target.value);
               }
             }}
+            onKeyDown={handleKeyDown}
             className="w-full p-1 border rounded text-sm"
           >
             <optgroup label="Payments & Transfers">
@@ -409,108 +505,175 @@ export default function InlineTransactionRow({
           </select>
         )}
       </td>
+
       <td className="border p-2">
-        <div className="flex flex-col gap-1">
-          {newGroupMode ? (
+        {/* Hidden group value for tests / debugging */}
+        <input
+          type="hidden"
+          data-cy="tx-group-select"
+          value={selectedGroup}
+          readOnly
+        />
+
+        {newCategoryMode ? (
+          <div className="flex flex-col gap-2">
+            {/* New category name */}
             <input
-              data-cy="tx-new-group-input"
+              data-cy="tx-new-category-input"
+              ref={newCategoryInputRef}
               type="text"
-              placeholder="New Group Name"
               className="w-full p-1 border rounded text-sm"
-              value={newGroupName}
-              onChange={(e) => setNewGroupName(e.target.value)}
+              placeholder="New Category Name"
+              value={newCategoryName}
+              onChange={(e) => setNewCategoryName(e.target.value)}
+              onKeyDown={handleKeyDown}
               disabled={sameTypeTransfer}
             />
-          ) : (
+
+            {/* Choose existing group or 'Add New Category Group...' */}
             <select
-              data-cy="tx-group-select"
+              data-cy="tx-category-group-select"
               className="w-full p-1 border rounded text-sm"
-              value={selectedGroup}
+              value={
+                newCategoryGroupIsNew
+                  ? "__new_group__"
+                  : selectedGroup || ""
+              }
               onChange={(e) => {
-                if (e.target.value === "__new__") {
-                  setNewGroupMode(true);
+                const value = e.target.value;
+                if (value === "__new_group__") {
+                  setNewCategoryGroupIsNew(true);
                   setSelectedGroup("");
+                  setNewCategoryGroupName("");
                 } else {
-                  setSelectedGroup(e.target.value);
+                  setNewCategoryGroupIsNew(false);
+                  setSelectedGroup(value);
+                  setNewCategoryGroupName("");
                 }
               }}
+              onKeyDown={handleKeyDown}
               disabled={sameTypeTransfer}
             >
-              <option value="Ready to Assign">Ready to Assign</option>
-              <option value="">Select Group</option>
+              <option value="">Select Category Group</option>
+              <option value="__new_group__">➕ Add New Category Group...</option>
               {categoryGroups.map((group) => (
-                <option key={group} value={group}>
-                  {group}
+                <option key={group.name} value={group.name}>
+                  {group.name}
                 </option>
               ))}
-              <option value="__new__">➕ New Group...</option>
             </select>
-          )}
 
-          {newItemMode ? (
-            <input
-              data-cy="tx-new-item-input"
-              type="text"
-              placeholder="New Category Name"
-              className="w-full p-1 border rounded text-sm"
-              value={newItemName}
-              onChange={(e) => setNewItemName(e.target.value)}
-              disabled={sameTypeTransfer}
-            />
-          ) : (
-            <select
-              data-cy="tx-item-select"
-              className="w-full p-1 border rounded text-sm"
-              value={selectedItem}
-              onChange={(e) => {
-                if (e.target.value === "__new__") {
-                  setNewItemMode(true);
-                  setSelectedItem("");
-                } else {
-                  setSelectedItem(e.target.value);
-                }
+            {/* New group name input (only when creating a group) */}
+            {newCategoryGroupIsNew && (
+              <input
+                data-cy="tx-new-category-group-input"
+                ref={newCategoryGroupInputRef}
+                type="text"
+                className="w-full p-1 border rounded text-sm"
+                placeholder="New Category Group Name"
+                value={newCategoryGroupName}
+                onChange={(e) => setNewCategoryGroupName(e.target.value)}
+                onKeyDown={handleKeyDown}
+                disabled={sameTypeTransfer}
+              />
+            )}
+
+            {/* Tiny cancel back to normal dropdown */}
+            <button
+              type="button"
+              className="self-start text-xs text-gray-500 hover:underline"
+              onClick={() => {
+                setNewCategoryMode(false);
+                setNewCategoryName("");
+                setNewCategoryGroupIsNew(false);
+                setNewCategoryGroupName("");
               }}
-              disabled={sameTypeTransfer || selectedGroup === "Ready to Assign"}
             >
-              <option value="">Select Category</option>
-              {(selectedGroup ? getItemsForGroup(selectedGroup) : []).map(
-                (item) => (
-                  <option key={item} value={item}>
-                    {item}
-                  </option>
-                )
-              )}
-              <option value="__new__">➕ New Category...</option>
-            </select>
-          )}
-        </div>
+              Cancel new category
+            </button>
+          </div>
+        ) : (
+          <select
+            data-cy="tx-item-select"
+            className="w-full p-1 border rounded text-sm"
+            value={categorySelectValue}
+            onChange={(e) => {
+              const value = e.target.value;
+
+              if (value === "__new_category__") {
+                // switch to "add new category" form
+                setNewCategoryMode(true);
+                setNewCategoryName("");
+                setNewCategoryGroupIsNew(false);
+                setNewCategoryGroupName("");
+                setSelectedGroup("");
+                setSelectedItem("");
+                return;
+              }
+
+              if (value === "RTA::RTA") {
+                setSelectedGroup("Ready to Assign");
+                setSelectedItem("");
+              } else {
+                const [group, item] = value.split("::");
+                setSelectedGroup(group);
+                setSelectedItem(item);
+              }
+            }}
+            onKeyDown={handleKeyDown}
+            disabled={sameTypeTransfer}
+          >
+            <option value="">Select Category</option>
+            {categoryOptions.map((opt) =>
+              opt.kind === "header" ? (
+                <option
+                  key={opt.key}
+                  value={opt.key}
+                  disabled
+                  className="font-bold bg-gray-50"
+                >
+                  {opt.label}
+                </option>
+              ) : (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              )
+            )}
+          </select>
+        )}
       </td>
+
+
       <td className="border p-2">
         <div className="flex items-center gap-2">
           <button
             data-cy="tx-sign-toggle"
             type="button"
             onClick={() => setIsNegative((prev) => !prev)}
-            className={`rounded px-2 py-1 font-bold ${
-              isNegative ? "text-red-600" : "text-green-600"
-            }`}
+            className={`rounded px-2 py-1 font-bold border ${isNegative
+              ? "text-red-600 border-red-200"
+              : "text-green-600 border-green-200"
+              }`}
           >
             {isNegative ? "−" : "+"}
           </button>
           <input
+            ref={amountInputRef}
             data-cy="tx-amount-input"
             type="number"
-            className="w-full p-1 border rounded text-sm"
+            className="w-full p-1 border rounded text-sm text-right"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
+            onKeyDown={handleKeyDown}
             placeholder="0.00"
           />
           <button
             data-cy="tx-submit"
-            onClick={handleSubmit}
-            className="bg-teal-600 text-white px-2 py-1 rounded text-sm"
+            onClick={() => void handleSubmit()}
+            className="bg-teal-600 hover:bg-teal-500 text-white px-2 py-1 rounded text-sm font-semibold"
           >
-            ✓
+            Submit
           </button>
         </div>
       </td>

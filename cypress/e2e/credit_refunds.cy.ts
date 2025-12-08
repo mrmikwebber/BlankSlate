@@ -42,7 +42,7 @@ describe("Credit card refunds", () => {
   //
   // CREDIT CARD REFUND
   //
-  // YNAB-style expectation:
+  // Expectation:
   // - Purchase on credit card:
   //   - Category ACTIVITY = -amount
   //   - Category AVAILABLE = -amount
@@ -89,11 +89,10 @@ describe("Credit card refunds", () => {
             cy.get("[data-cy=tx-new-payee-input]").type("CC Refund Test Store");
 
             // New group & item
-            cy.get("[data-cy=tx-group-select]").select("__new__");
-            cy.get("[data-cy=tx-new-group-input]").type(groupName);
-
-            cy.get("[data-cy=tx-item-select]").select("__new__");
-            cy.get("[data-cy=tx-new-item-input]").type(itemName);
+            cy.get("[data-cy=tx-item-select]").select("__new_category__");
+            cy.get("[data-cy=tx-category-group-select]").select("__new_group__");
+            cy.get("[data-cy=tx-new-category-group-input]").type(groupName);
+            cy.get("[data-cy=tx-new-category-input]").type(itemName);
 
             // Outflow (negative) on CREDIT account
             cy.get("[data-cy=tx-sign-toggle]").then(($btn) => {
@@ -157,8 +156,7 @@ describe("Credit card refunds", () => {
             cy.get("[data-cy=tx-new-payee-input]").type("CC Refund");
 
             // Select existing group & item
-            cy.get("[data-cy=tx-group-select]").select(groupName);
-            cy.get("[data-cy=tx-item-select]").select(itemName);
+            cy.get("[data-cy=tx-item-select]").select(`${groupName}::${itemName}`);
 
             // Refund is an INFLOW (positive) on the credit card
             cy.get("[data-cy=tx-sign-toggle]").then(($btn) => {

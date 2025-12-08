@@ -1,5 +1,3 @@
-// cypress/e2e/ynab_behaviour.cy.ts
-
 import { BUDGET_URL } from "../support/testConstants";
 
 interface SeededAccount {
@@ -30,7 +28,7 @@ const visitBudget = () => {
   cy.get("[data-cy=budget-table]").should("exist");
 };
 
-describe("YNAB-style behaviour: purchases, payments, transfers", () => {
+describe("purchases, payments, transfers", () => {
   beforeEach(() => {
     // 🔁 Make sure DB is clean each test.
     // Hook this up to your db-reset task or command:
@@ -51,7 +49,7 @@ describe("YNAB-style behaviour: purchases, payments, transfers", () => {
   //
   // 1) CREDIT CARD PURCHASE on the card itself
   //
-  // YNAB expectation:
+  // Expectation:
   // - Done on the CREDIT account
   // - Requires a spending category
   // - Category ACTIVITY = -amount
@@ -71,11 +69,10 @@ describe("YNAB-style behaviour: purchases, payments, transfers", () => {
     cy.get("[data-cy=tx-payee-select]").select("__new__");
     cy.get("[data-cy=tx-new-payee-input]").type("Trader Joe's");
 
-    cy.get("[data-cy=tx-group-select]").select("__new__");
-    cy.get("[data-cy=tx-new-group-input]").type("Food & Dining");
-
-    cy.get("[data-cy=tx-item-select]").select("__new__");
-    cy.get("[data-cy=tx-new-item-input]").type("Restaurants");
+    cy.get("[data-cy=tx-item-select]").select("__new_category__");
+    cy.get("[data-cy=tx-category-group-select]").select("__new_group__");
+    cy.get("[data-cy=tx-new-category-group-input]").type("Food & Dining");
+    cy.get("[data-cy=tx-new-category-input]").type("Restaurants");
 
     // Credit card purchase is an outflow (negative)
     cy.get("[data-cy=tx-sign-toggle]").then(($btn) => {
@@ -92,11 +89,11 @@ describe("YNAB-style behaviour: purchases, payments, transfers", () => {
       .first()
       .within(() => {
         cy.get("td").eq(1).should("contain.text", "Trader Joe");
-        cy.get("td").eq(2).should("contain.text", "Restaurants");
+        cy.get("td").eq(2).should("contain.text", "Food & Dining: Restaurants");
         cy.get("[data-cy=transaction-amount]")
           .invoke("text")
           .then((txt) => {
-            const val = Number(txt);
+            const val = parseCurrency(txt);
             expect(val).to.eq(-amount);
           });
       });
@@ -150,7 +147,7 @@ describe("YNAB-style behaviour: purchases, payments, transfers", () => {
   //
   // 2) CREDIT CARD PAYMENT from checking → credit card
   //
-  // YNAB expectation:
+  // Expectation:
   // - This is a transfer with no category change.
   // - Budget-wise, it shifts money from "cash" to credit card but
   //   does NOT change spending categories or Ready to Assign.
@@ -224,7 +221,7 @@ describe("YNAB-style behaviour: purchases, payments, transfers", () => {
   //
   // 3) SAME-TYPE TRANSFER (checking → savings) with NO category impact
   //
-  // YNAB expectation:
+  // Expectation:
   // - This is just money moving between two on-budget accounts.
   // - No categories should change (no ACTIVITY or AVAILABLE changes).
   // - Ready to Assign should be unchanged.
