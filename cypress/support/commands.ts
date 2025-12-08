@@ -1,7 +1,5 @@
 /// <reference types="cypress" />
 
-import cypress from "cypress";
-
 declare global {
   namespace Cypress {
     interface Chainable {
@@ -47,11 +45,6 @@ declare global {
         payee?: string;
         isExpense?: boolean;
       }): Chainable<any>
-      /**
-       * Waits for the budget table to finish recalculating after account changes.
-       * Uses the data-calculation-version attribute to detect when calculations complete.
-       */
-      waitForBudgetCalculation(): Chainable<any>
     }
   }
 }
@@ -186,10 +179,6 @@ Cypress.Commands.add(
   }
 );
 
-  Cypress.Commands.add('waitForBudgetCalculation', () => {
-    cy.wait(1000);
-  });
-
 
 const COMMAND_DELAY = 500;
 
@@ -209,5 +198,3 @@ const commandsToSlow = ['click', 'type', 'select', 'visit', 'trigger'];
       }
     );
   }
-
-

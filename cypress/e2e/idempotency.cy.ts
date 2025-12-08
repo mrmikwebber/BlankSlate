@@ -35,10 +35,9 @@ function categoryRowSelector(group: string, item: string) {
 }
 
 const visitBudget = () => {
-  cy.waitForBudgetCalculation();
+    cy.wait(1000);
   cy.visit(BUDGET_URL);
   cy.get("[data-cy=budget-table]").should("exist");
-  
 };
 
 describe("Budget month idempotency", () => {

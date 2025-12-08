@@ -77,27 +77,6 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, [user]);
 
   const addTransaction = async (accountId, transaction) => {
-    // Generate temporary ID for optimistic update
-    const tempId = Date.now() * -1; // negative to avoid conflicts
-    const optimisticTransaction = {
-      ...transaction,
-      id: tempId,
-      account_id: accountId,
-      user_id: user?.id,
-    };
-
-    // Optimistically update local state immediately
-    setAccounts((prevAccounts) =>
-      prevAccounts.map((account) => {
-        if (account.id !== accountId) return account;
-        return {
-          ...account,
-          transactions: [...account.transactions, optimisticTransaction],
-        };
-      })
-    );
-
-    // Then sync with database
     const { data, error } = await supabase.from("transactions").insert([
       {
         ...transaction,
@@ -106,40 +85,18 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
       },
     ]).select();
 
+    setRecentTransactions((prev) => [
+      ...prev.slice(-9),
+      {
+        ...data[0],
+        timestamp: new Date().toISOString(),
+      },
+    ]);
+
     if (error) {
       console.error("Add transaction failed:", error);
-      // Rollback optimistic update on error
-      setAccounts((prevAccounts) =>
-        prevAccounts.map((account) => {
-          if (account.id !== accountId) return account;
-          return {
-            ...account,
-            transactions: account.transactions.filter(tx => tx.id !== tempId),
-          };
-        })
-      );
     } else {
-      // Replace temp transaction with real one from database
-      setAccounts((prevAccounts) =>
-        prevAccounts.map((account) => {
-          if (account.id !== accountId) return account;
-          return {
-            ...account,
-            transactions: account.transactions.map(tx => 
-              tx.id === tempId ? data[0] as Transaction : tx
-            ),
-          };
-        })
-      );
-
-      setRecentTransactions((prev) => [
-        ...prev.slice(-9),
-        {
-          ...data[0],
-          timestamp: new Date().toISOString(),
-        },
-      ]);
-
+      await refreshSingleAccount(accountId);
       return data;
     }
   };

@@ -86,14 +86,6 @@ export default function InlineTransactionRow({
 
   const categoryGroups = budgetData[currentMonth].categories;
 
-  // Initialize transferPayee to first target if not editing and not set
-  useEffect(() => {
-    const transferTargets = accounts.filter((a) => a.id !== accountId);
-    if (!isEdit && !transferPayee && transferTargets.length > 0) {
-      setTransferPayee(transferTargets[0].name);
-    }
-  }, [isEdit, transferPayee, accounts, accountId]);
-
   // when editing, initialize category from existing transaction
   useEffect(() => {
     if (mode === "edit" && initialData?.category) {
@@ -400,6 +392,8 @@ export default function InlineTransactionRow({
         });
       }
     }
+
+    await refreshAccounts();
 
     onSave?.();
     setTransferPayee("");

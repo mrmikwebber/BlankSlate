@@ -8,7 +8,6 @@ const parseCurrency = (text: string) => Number(text.replace(/[^0-9.-]/g, ""));
 const visitBudget = () => {
   cy.visit(BUDGET_URL);
   cy.get("[data-cy=budget-table]").should("exist");
-  cy.waitForBudgetCalculation();
 };
 
   const createCategory = (groupName: string, itemName: string) => {
