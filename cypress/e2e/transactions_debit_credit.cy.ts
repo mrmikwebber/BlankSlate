@@ -85,7 +85,7 @@ describe("Debit & credit transactions - UI only", () => {
         cy.get("[data-cy=tx-sign-toggle]").then(($btn) => {
           if ($btn.text().trim() !== "−") {
             cy.wrap($btn).click();
-            cy.wait(100);
+
           }
         });
 
@@ -94,7 +94,7 @@ describe("Debit & credit transactions - UI only", () => {
 
         // Submit
   cy.get("[data-cy=tx-submit]").click();
-  cy.wait(200);
+
 
         // A new transaction row should appear with Chipotle + Food & Dining: Restaurants
         cy.get("[data-cy=transaction-row]")
@@ -127,7 +127,7 @@ describe("Debit & credit transactions - UI only", () => {
   //
   it("creates a same-type transfer between two debit accounts with mirrored transactions", () => {
     visitAccount(DEBIT_ACCOUNT_ID, DEBIT_ACCOUNT_NAME);
-    cy.wait(200);
+
 
     // Capture initial balances of both accounts
     let debitStart = 0;
@@ -141,7 +141,7 @@ describe("Debit & credit transactions - UI only", () => {
 
     // Also visit the second debit account to grab its starting balance
   cy.visit(`/accounts/${SECOND_DEBIT_ACCOUNT_ID}`);
-  cy.wait(200);
+
     cy.get("[data-cy=account-name]").should("contain.text", SECOND_DEBIT_ACCOUNT_NAME);
 
     cy.get("[data-cy=account-balance]")
@@ -152,16 +152,16 @@ describe("Debit & credit transactions - UI only", () => {
 
     // Now create a transfer from DEBIT_ACCOUNT → SECOND_DEBIT_ACCOUNT
   visitAccount(DEBIT_ACCOUNT_ID, DEBIT_ACCOUNT_NAME);
-  cy.wait(200);
+
 
   cy.get("[data-cy=add-transaction-button]").click();
-  cy.wait(150);
+
 
     // Choose the other debit account as payee from the "Payments & Transfers" optgroup.
     // Label will be "To/From: <name>" when amount is zero. We can match by account name.
     cy.get('[data-cy=tx-payee-select]')
       .select(SECOND_DEBIT_ACCOUNT_NAME);
-    cy.wait(150);
+
 
 
 
@@ -173,22 +173,22 @@ describe("Debit & credit transactions - UI only", () => {
     cy.get("[data-cy=tx-sign-toggle]").then(($btn) => {
       if ($btn.text().trim() !== "−") {
         cy.wrap($btn).click();
-        cy.wait(100);
+
       }
     });
 
     // Amount 50
   cy.get("[data-cy=tx-amount-input]").clear().type("50");
-  cy.wait(100);
+
 
     // Submit
   cy.get("[data-cy=tx-submit]").click();
 
-  cy.wait(500); // wait for both sides to process
+
 
     // Check DEBIT_ACCOUNT side:
   visitAccount(DEBIT_ACCOUNT_ID, DEBIT_ACCOUNT_NAME);
-  cy.wait(200);
+
 
     // There should be a recent transaction with "Transfer to SECOND_DEBIT_ACCOUNT_NAME"
     cy.get("[data-cy=transaction-row]")
@@ -214,7 +214,7 @@ describe("Debit & credit transactions - UI only", () => {
 
     // Check mirrored side: SECOND_DEBIT_ACCOUNT
   visitAccount(SECOND_DEBIT_ACCOUNT_ID, SECOND_DEBIT_ACCOUNT_NAME);
-  cy.wait(200);
+
 
     cy.get("[data-cy=transaction-row]")
       .first()
@@ -244,7 +244,7 @@ describe("Debit & credit transactions - UI only", () => {
   //
   it("creates a cross-type transfer debit → credit and auto-targets Credit Card Payments", () => {
     visitAccount(DEBIT_ACCOUNT_ID, DEBIT_ACCOUNT_NAME);
-    cy.wait(200);
+
 
     let debitStart = 0;
     cy.get("[data-cy=account-balance]")
@@ -255,7 +255,7 @@ describe("Debit & credit transactions - UI only", () => {
 
     // Also capture starting balance of the credit account
   cy.visit(`/accounts/${CREDIT_ACCOUNT_ID}`);
-  cy.wait(200);
+
     cy.get("[data-cy=account-name]").should("contain.text", CREDIT_ACCOUNT_NAME);
 
     let creditStart = 0;
@@ -267,14 +267,14 @@ describe("Debit & credit transactions - UI only", () => {
 
     // Now create the cross-type transfer
   visitAccount(DEBIT_ACCOUNT_ID, DEBIT_ACCOUNT_NAME);
-  cy.wait(200);
+
     cy.get("[data-cy=add-transaction-button]").click();
-  cy.wait(150);
+
 
     // Choose the CREDIT_ACCOUNT as target from Payments & Transfers
     cy.get('[data-cy=tx-payee-select]')
       .select(CREDIT_ACCOUNT_NAME);
-    cy.wait(150);
+
 
     // After selecting cross-type account, useEffect should set:
     //   selectedGroup = "Credit Card Payments"
@@ -289,20 +289,20 @@ describe("Debit & credit transactions - UI only", () => {
     cy.get("[data-cy=tx-sign-toggle]").then(($btn) => {
       if ($btn.text().trim() !== "−") {
         cy.wrap($btn).click();
-        cy.wait(100);
+
       }
     });
 
   cy.get("[data-cy=tx-amount-input]").clear().type("100");
-  cy.wait(100);
+
 
   cy.get("[data-cy=tx-submit]").click();
 
-  cy.wait(2000);
+
 
     // On DEBIT side: should see "Payment to CREDIT_ACCOUNT_NAME" with -100
   visitAccount(DEBIT_ACCOUNT_ID, DEBIT_ACCOUNT_NAME);
-  cy.wait(200);
+
 
     cy.get("[data-cy=transaction-row]")
       .first()
@@ -327,7 +327,7 @@ describe("Debit & credit transactions - UI only", () => {
 
     // On CREDIT side: mirrored "Payment from DEBIT_ACCOUNT_NAME" with +100
   visitAccount(CREDIT_ACCOUNT_ID, CREDIT_ACCOUNT_NAME);
-  cy.wait(2000);
+
 
     cy.get("[data-cy=transaction-row]")
       .first()
@@ -356,25 +356,25 @@ describe("Debit & credit transactions - UI only", () => {
   it("deletes a mirrored transfer via context menu on one side and removes the mirror", () => {
     // First, create a small transfer to ensure we have a known mirrored pair.
     visitAccount(DEBIT_ACCOUNT_ID, DEBIT_ACCOUNT_NAME);
-    cy.wait(200);
+
 
   cy.get("[data-cy=add-transaction-button]").click();
-  cy.wait(150);
+
     cy.get('[data-cy=tx-payee-select]')
       .select(SECOND_DEBIT_ACCOUNT_NAME);
-    cy.wait(150);
+
 
     cy.get("[data-cy=tx-sign-toggle]").then(($btn) => {
       if ($btn.text().trim() !== "−") {
         cy.wrap($btn).click();
-        cy.wait(100);
+
       }
     });
 
   cy.get("[data-cy=tx-amount-input]").clear().type("10");
-  cy.wait(100);
+
   cy.get("[data-cy=tx-submit]").click();
-  cy.wait(200);
+
 
     // Grab txid of the new top row (DEBIT side)
     cy.get("[data-cy=transaction-row]")
@@ -387,7 +387,7 @@ describe("Debit & credit transactions - UI only", () => {
         cy.get("[data-cy=transaction-row]")
           .first()
           .rightclick();
-        cy.wait(150);
+
 
         cy.get("[data-cy=tx-context-menu]")
           .should("be.visible")
@@ -398,11 +398,11 @@ describe("Debit & credit transactions - UI only", () => {
         // Row with that txid should be gone
         cy.get(`[data-cy=transaction-row][data-txid="${createdTxId}"]`)
           .should("not.exist");
-            cy.wait(2000); // wait for deletion to process
+
 
         // Mirror should also be gone on the second debit account
   visitAccount(SECOND_DEBIT_ACCOUNT_ID, SECOND_DEBIT_ACCOUNT_NAME);
-  cy.wait(2000);
+
 
         cy.get("[data-cy=transaction-row]").should("not.exist")
       });

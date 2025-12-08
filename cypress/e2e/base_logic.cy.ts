@@ -24,6 +24,7 @@ const visitAccount = (id: string, expectedName: string) => {
 };
 
 const visitBudget = () => {
+  cy.waitForBudgetCalculation();
   cy.visit(BUDGET_URL);
   cy.get("[data-cy=budget-table]").should("exist");
 };
@@ -191,7 +192,7 @@ describe("purchases, payments, transfers", () => {
 
             cy.get("[data-cy=tx-submit]").click();
 
-            cy.wait(1000); // wait for transaction to process
+
             // 3. Back to budget to verify behaviour
             visitBudget();
 

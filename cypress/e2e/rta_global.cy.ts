@@ -8,6 +8,7 @@ const parseCurrency = (text: string): number =>
   Number(text.replace(/[^0-9.-]/g, ""));
 
 const visitBudget = () => {
+  cy.waitForBudgetCalculation();
   cy.visit(BUDGET_URL);
   cy.get("[data-cy=budget-table]").should("exist");
 };

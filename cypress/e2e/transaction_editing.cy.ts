@@ -21,9 +21,10 @@ const parseCurrency = (text: string) =>
   Number(text.replace(/[^0-9.-]/g, ""));
 
 const visitBudget = () => {
-    cy.wait(1000); // ensure any prior operations are complete
+  cy.waitForBudgetCalculation();
   cy.visit(BUDGET_URL);
   cy.get("[data-cy=budget-table]").should("exist");
+  
 };
 
 const visitAccount = (id: string, expectedName: string) => {

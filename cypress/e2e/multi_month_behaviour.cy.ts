@@ -21,7 +21,7 @@ let accounts: SeededAccounts;
 const parseCurrency = (text: string) => Number(text.replace(/[^0-9.-]/g, ""));
 
 const visitBudget = () => {
-  cy.wait(1000);
+  cy.waitForBudgetCalculation();
   cy.visit(BUDGET_URL);
   cy.get("[data-cy=budget-table]").should("exist");
 };

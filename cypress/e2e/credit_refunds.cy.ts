@@ -26,7 +26,7 @@ const visitAccount = (id: string, expectedName: string) => {
 };
 
 const visitBudget = () => {
-  cy.wait(1000);
+  cy.waitForBudgetCalculation();
   cy.visit(BUDGET_URL);
   cy.get("[data-cy=budget-table]").should("exist");
 };

@@ -193,3 +193,53 @@ Use this section for things you want *later* but not blocking MVP:
 ---
 
 Once most of this is checked off, you’re not “perfectly secure forever,” but you’re well past the bar that most indie SaaS ever hit before letting people in.
+
+ Auto-focus new category name input
+
+When user selects ➕ Add New Category... in the category dropdown, automatically focus tx-new-category-input.
+
+ Auto-focus new category group name input
+
+When user selects ➕ Add New Category Group... in the group dropdown, automatically focus tx-new-category-group-input.
+
+ Auto-select group dropdown after typing new category name
+
+When user finishes typing a new category name and presses Enter:
+
+If no group is selected, move focus to tx-category-group-select.
+
+If a group is already selected, treat Enter as “confirm new category” (submit if other fields are valid).
+
+ Enter-to-save from new category inputs
+
+From tx-new-category-input and tx-new-category-group-input:
+
+Enter (when all required fields are valid) → triggers the same flow as clicking the ✓ submit button.
+
+Esc → cancels new-category mode and returns to the normal category dropdown.
+
+ Type-to-search inside category dropdown
+
+Allow typing while tx-item-select is focused to jump/filter by:
+
+category item name (Dining, Water, etc.)
+
+optionally group names as well (Bills, Fun).
+
+(Implementation detail: either native <select> type-ahead, or replace with a custom searchable combo-box later.)
+
+ Auto-suggest category names from transaction history
+
+When opening Add New Category:
+
+Pre-fill tx-new-category-input with the most common category used for this payee (if any), OR
+
+Show a small suggestion list below based on recent txs with the same payee.
+
+ Keyboard shortcut to trigger “New Category”
+
+While the transaction row is active:
+
+e.g. Shift + C → toggles newCategoryMode = true and focuses tx-new-category-input.
+
+Consider showing a small hint like New Category (Shift+C) near the dropdown or in a help tooltip.
