@@ -26,44 +26,46 @@ export default function ActivitySidebar({ page }) {
   }, [recentChanges, recentTransactions]);
 
   return (
-    <div data-cy="activity-sidebar" className="w-64 bg-white border-r p-4 space-y-3 shadow-sm overflow-y-auto h-screen">
+    <div data-cy="activity-sidebar" className="w-64 bg-white border-r border-slate-300 p-4 space-y-4 shadow-sm overflow-y-auto h-screen">
       {page === "account" && (
         <button
           onClick={() => router.push("/dashboard")}
-          className="flex items-center text-sm text-gray-600 hover:text-teal-600 transition font-medium mb-3"
+          className="flex items-center text-sm text-slate-600 hover:text-teal-600 transition font-medium mb-3 group"
         >
-          <span className="mr-1 text-base">←</span> Back to Dashboard
+          <span className="mr-1.5 text-base group-hover:transform group-hover:-translate-x-1 transition-transform">←</span> Back to Dashboard
         </button>
       )}
-      <h2 className="text-lg font-semibold text-gray-800">Recent Activity</h2>
+      <h2 className="text-lg font-semibold text-slate-800">Recent Activity</h2>
       <ul data-cy="recent-activity-list" className="text-sm space-y-2">
         {activity.length === 0 && (
-          <li className="text-gray-400">No recent updates</li>
+          <li className="text-slate-400 text-center py-4">No recent updates</li>
         )}
         {activity.map((item, idx) => (
           <li
             key={idx}
             data-cy="activity-item"
             data-activity-type={item.type}
-            className="border-l-4 pl-3 border-blue-200 bg-slate-50 p-2 rounded-md"
+            className="border-l-4 pl-3 border-teal-400 bg-slate-50 p-2.5 rounded-md hover:bg-slate-100 transition-colors"
           >
             {item.type === "transaction" ? (
               <>
-                <p className="text-gray-700">
-                  💸 <strong>{item.payee}</strong> ({item.category})
+                <p className="text-slate-700 text-xs">
+                  💸 <strong className="text-slate-800">{item.payee}</strong> <span className="text-slate-500">({item.category})</span>
                 </p>
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-slate-500 mt-1">
                   {formatDistanceToNow(new Date(item.timestamp))} ago —{" "}
-                  {item.balance < 0 ? "Spent" : "Received"}{" "}
-                  {Math.abs(item.balance)}
+                  <span className={item.balance < 0 ? "text-red-600" : "text-green-600"}>
+                    {item.balance < 0 ? "Spent" : "Received"}{" "}
+                    ${Math.abs(item.balance).toFixed(2)}
+                  </span>
                 </p>
               </>
             ) : (
               <>
-                <p className="text-gray-700">
-                  📝 <strong>{item.description}</strong>
+                <p className="text-slate-700 text-xs">
+                  📝 <strong className="text-slate-800">{item.description}</strong>
                 </p>
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-slate-500 mt-1">
                   {formatDistanceToNow(new Date(item.timestamp))} ago
                 </p>
               </>

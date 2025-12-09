@@ -1,3 +1,8 @@
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Plus } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 const AddCategoryButton = ({
@@ -39,38 +44,64 @@ const AddCategoryButton = ({
   }, [isOpen]);
 
   return (
-    <div className="relative inline-block">
-      <button
-        data-cy="add-category-group-button"
-        onClick={() => setIsOpen(!isOpen)}
-        className="bg-blue-600 text-white px-4 py-2 rounded-xl shadow hover:bg-teal-600 transition"
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          data-cy="add-category-group-button"
+          variant="outline"
+          size="sm"
+          className="gap-1 border-slate-300 text-slate-800"
+        >
+          <Plus className="h-4 w-4" />
+          Add group
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="end"
+        className="w-64 p-3 space-y-2"
       >
-        Add Category Group
-      </button>
-
-      {isOpen && (
-        <div ref={popupRef} className="absolute left-0 mt-2 w-full max-w-xs bg-white p-4 shadow-lg rounded-lg border z-50">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Category Group Name
-          </label>
-          <input
+        <div className="space-y-2">
+          <Label
+            htmlFor="add-category-group-input"
+            className="text-xs font-medium text-slate-700"
+          >
+            Category group name
+          </Label>
+          <Input
+            id="add-category-group-input"
             data-cy="add-category-group-input"
             type="text"
             value={categoryGroupName}
             onChange={(e) => setCategoryGroupName(e.target.value)}
-            className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400"
-            placeholder="Enter category group name"
+            onKeyDown={(e) => {
+              if (e.key === "Enter") onSubmit();
+            }}
+            className="h-8 text-sm"
+            placeholder="e.g. Monthly Bills"
           />
-          <button
-            data-cy="add-category-group-submit"
-            onClick={onSubmit}
-            className="mt-3 w-full bg-blue-600 text-white py-2 rounded-md hover:bg-teal-600 transition"
-          >
-            Submit
-          </button>
+          <div className="flex justify-end gap-2 pt-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setIsOpen(false);
+                setCategoryGroupName("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              data-cy="add-category-group-submit"
+              size="sm"
+              onClick={onSubmit}
+              disabled={!categoryGroupName.trim()}
+            >
+              Add
+            </Button>
+          </div>
         </div>
-      )}
-    </div>
+      </PopoverContent>
+    </Popover>
   );
 };
 

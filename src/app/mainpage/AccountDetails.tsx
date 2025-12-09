@@ -5,6 +5,15 @@ import { useEffect, useState } from "react";
 import { useAccountContext } from "@/app/context/AccountContext";
 import { parseISO, format } from "date-fns";
 import InlineTransactionRow from "./InlineTransactionRow";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Plus, Edit2, Trash2 } from "lucide-react";
 
 export default function AccountDetails() {
   const { id } = useParams();
@@ -149,12 +158,12 @@ export default function AccountDetails() {
     );
 
   return (
-    <div className="mx-auto p-6 relative">
+    <div className="mx-auto p-8 relative bg-slate-50 min-h-screen">
       {/* Context menu */}
       {contextMenu && (
         <div
           data-cy="tx-context-menu"
-          className="fixed z-50 bg-white border rounded shadow-md text-sm"
+          className="fixed z-50 bg-white border border-slate-300 rounded-lg shadow-xl text-sm overflow-hidden"
           style={{ top: contextMenu.y, left: contextMenu.x }}
           onClick={() => setContextMenu(null)}
         >
@@ -167,7 +176,7 @@ export default function AccountDetails() {
               );
               setContextMenu(null);
             }}
-            className="px-4 py-2 hover:bg-red-100 text-red-600 w-full text-left"
+            className="px-4 py-2.5 hover:bg-red-50 text-red-600 w-full text-left font-medium transition-colors"
           >
             Delete Transaction
           </button>
@@ -182,7 +191,7 @@ export default function AccountDetails() {
               }
               setContextMenu(null);
             }}
-            className="px-4 py-2 hover:bg-blue-100 text-blue-600 w-full text-left"
+            className="px-4 py-2.5 hover:bg-teal-50 text-teal-600 w-full text-left font-medium transition-colors border-t border-slate-200"
           >
             Edit Transaction
           </button>
@@ -190,45 +199,46 @@ export default function AccountDetails() {
       )}
 
       {/* Header / balance */}
-      <div className="flex items-center justify-between gap-4 mb-4">
+      <div className="flex items-center justify-between gap-4 mb-6 pb-4 border-b border-slate-200">
         <div>
           {isEditingAccountName ? (
-            <div className="flex items-center gap-2">
-              <input
-                className="text-2xl font-bold border-b border-gray-400 focus:outline-none bg-transparent"
+            <div className="flex items-center gap-3">
+              <Input
+                className="text-2xl font-bold border-b-2 border-primary focus-visible:ring-0 bg-transparent text-slate-800 h-auto px-0"
                 value={newAccountName ?? ""}
                 onChange={(e) => setNewAccountName(e.target.value)}
               />
-              <button
+              <Button
                 onClick={handleRenameAccount}
-                className="text-green-600 hover:underline text-sm"
+                size="sm"
               >
                 Save
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => {
                   setNewAccountName(account.name);
                   setIsEditingAccountName(false);
                 }}
-                className="text-gray-500 hover:underline text-sm"
+                variant="outline"
+                size="sm"
               >
                 Cancel
-              </button>
+              </Button>
             </div>
           ) : (
             <div>
               <h1
-                className="text-2xl font-bold"
+                className="text-2xl font-bold text-slate-800"
                 data-cy="account-name"
-              >{`${account.name} Overview`}</h1>
+              >{`${account.name}`}</h1>
             </div>
           )}
 
-          <p className="text-lg text-gray-800 mt-1">
+          <p className="text-base text-slate-600 mt-2">
             Balance:{" "}
             <span
               data-cy="account-balance"
-              className={`font-semibold ${accountBalance < 0 ? "text-red-600" : "text-green-600"
+              className={`font-bold font-mono text-lg ${accountBalance < 0 ? "text-red-600" : "text-green-600"
                 }`}
             >
               {accountBalance.toLocaleString("en-US", {
@@ -240,38 +250,41 @@ export default function AccountDetails() {
         </div>
 
         {!isEditingAccountName && (
-          <button
+          <Button
             onClick={() => setIsEditingAccountName(true)}
-            className="text-blue-600 hover:underline text-sm"
+            variant="ghost"
+            size="sm"
           >
-            Edit name
-          </button>
+            <Edit2 className="h-4 w-4 mr-2" />
+            Rename
+          </Button>
         )}
       </div>
 
       {/* Transactions header + add button */}
-      <div className="flex items-center justify-between mt-2">
-        <h2 className="text-xl font-semibold">Transactions</h2>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-lg font-semibold text-slate-800">Transactions</h2>
         {!showForm && !editingTransactionId && (
-          <button
+          <Button
             data-cy="add-transaction-button"
             onClick={() => setShowForm(true)}
-            className="bg-teal-600 hover:bg-teal-500 text-white px-4 py-2 rounded shadow-sm text-sm font-medium"
+            size="sm"
           >
-            + Add Transaction
-          </button>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Transaction
+          </Button>
         )}
       </div>
 
       {/* Transactions table */}
-      <div className="mt-4 rounded-xl border bg-white shadow-sm overflow-x-auto overflow-y-visible">
-        <table className="w-full text-sm font-mono">
+      <div className="rounded-lg border border-slate-300 bg-white shadow-sm overflow-x-auto overflow-y-visible">
+        <table className="w-full text-sm">
           <thead>
-            <tr className="bg-gray-100 text-gray-700 uppercase tracking-wide text-xs">
-              <th className="p-2 border text-left">Date</th>
-              <th className="p-2 border text-left">Payee</th>
-              <th className="p-2 border text-left">Category</th>
-              <th className="p-2 border text-right">Amount</th>
+            <tr className="bg-slate-50 text-slate-600 text-xs font-semibold border-b border-slate-300">
+              <th className="px-4 py-3 text-left border-r border-slate-200">Date</th>
+              <th className="px-4 py-3 text-left border-r border-slate-200">Payee</th>
+              <th className="px-4 py-3 text-left border-r border-slate-200">Category</th>
+              <th className="px-4 py-3 text-right">Amount</th>
             </tr>
           </thead>
           <tbody>
@@ -312,10 +325,10 @@ export default function AccountDetails() {
                   key={tx.id}
                   data-cy="transaction-row"
                   data-txid={tx.id}
-                  className={`transition-colors cursor-default ${idx % 2 === 0 ? "bg-white" : "bg-gray-50"
+                  className={`transition-colors cursor-default border-b border-slate-200 ${idx % 2 === 0 ? "bg-white" : "bg-slate-50/50"
                     } ${selectedTxId === tx.id
-                      ? "ring-2 ring-teal-400 ring-inset bg-teal-50"
-                      : "hover:bg-teal-50"
+                      ? "ring-2 ring-teal-500 ring-inset bg-teal-50"
+                      : "hover:bg-slate-100"
                     }`}
                   onClick={() => setSelectedTxId(tx.id)}
                   onDoubleClick={() => startEdit(tx)}
@@ -330,14 +343,14 @@ export default function AccountDetails() {
                     });
                   }}
                 >
-                  <td className="border p-2 whitespace-nowrap">
+                  <td className="px-4 py-3 whitespace-nowrap border-r border-slate-200 text-slate-700">
                     {tx.date &&
-                      format(parseISO(tx.date), "eee, MMM d yyyy")}
+                      format(parseISO(tx.date), "MMM d, yyyy")}
                   </td>
-                  <td className="border p-2 truncate max-w-xs">
+                  <td className="px-4 py-3 truncate max-w-xs border-r border-slate-200 text-slate-800">
                     {tx.payee}
                   </td>
-                  <td className="border p-2 truncate max-w-xs">
+                  <td className="px-4 py-3 truncate max-w-xs border-r border-slate-200 text-slate-600 text-xs">
                     {tx.payee && (tx.payee.startsWith("Transfer") || tx.payee.startsWith("Payment"))
                       ? tx.payee
                       : tx.category_group && tx.category
@@ -346,7 +359,7 @@ export default function AccountDetails() {
                   </td>
                   <td
                     data-cy="transaction-amount"
-                    className={`border p-2 text-right font-semibold ${tx.balance < 0 ? "text-red-600" : "text-green-600"
+                    className={`px-4 py-3 text-right font-bold font-mono ${tx.balance < 0 ? "text-red-600" : "text-green-600"
                       }`}
                   >
                     {tx.balance.toLocaleString("en-US", {
