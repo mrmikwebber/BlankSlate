@@ -264,7 +264,7 @@ export default function AccountDetails() {
       </div>
 
       {/* Transactions table */}
-      <div className="mt-4 rounded-xl border bg-white shadow-sm overflow-x-auto">
+      <div className="mt-4 rounded-xl border bg-white shadow-sm overflow-x-auto overflow-y-visible">
         <table className="w-full text-sm font-mono">
           <thead>
             <tr className="bg-gray-100 text-gray-700 uppercase tracking-wide text-xs">

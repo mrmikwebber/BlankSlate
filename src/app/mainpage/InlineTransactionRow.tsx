@@ -63,6 +63,19 @@ export default function InlineTransactionRow({
   const [transferPayee, setTransferPayee] = useState(
     isEdit && initialData ? extractPayeeName(initialData.payee) : ""
   );
+  // Payee combobox
+  const [payeeInput, setPayeeInput] = useState(
+    isEdit && initialData ? extractPayeeName(initialData.payee) : ""
+  );
+  const [payeeDropdownOpen, setPayeeDropdownOpen] = useState(false);
+  const [selectedPayeeAccountName, setSelectedPayeeAccountName] = useState<string | null>(null);
+
+  // Category combobox (for normal mode, not "Add New Category")
+  const [categoryInput, setCategoryInput] = useState(
+    isEdit && initialData?.category ? initialData.category : ""
+  );
+  const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
+
 
 
 
@@ -73,6 +86,13 @@ export default function InlineTransactionRow({
   const amountInputRef = useRef<HTMLInputElement | null>(null);
   const newCategoryInputRef = useRef<HTMLInputElement | null>(null);
   const newCategoryGroupInputRef = useRef<HTMLInputElement | null>(null);
+  const payeeTypeaheadRef = useRef({ buffer: "", lastTime: 0 });
+  const categoryTypeaheadRef = useRef({ buffer: "", lastTime: 0 });
+  const payeeInputRef = useRef<HTMLInputElement | null>(null);
+  const categoryInputRef = useRef<HTMLInputElement | null>(null);
+  const [payeeDropdownPos, setPayeeDropdownPos] = useState({ top: 0, left: 0, width: 0 });
+  const [categoryDropdownPos, setCategoryDropdownPos] = useState({ top: 0, left: 0, width: 0 });
+
 
 
 
@@ -85,6 +105,8 @@ export default function InlineTransactionRow({
     thisAccount && otherAccount && thisAccount.type !== otherAccount.type;
 
   const categoryGroups = budgetData[currentMonth].categories;
+
+
 
   // when editing, initialize category from existing transaction
   useEffect(() => {
@@ -170,6 +192,8 @@ export default function InlineTransactionRow({
 
   const transferTargets = accounts.filter((a) => a.id !== accountId);
 
+
+
   const getPreviewLabel = (targetName: string) => {
     if (!thisAccount) return targetName;
     const other = accounts.find((a) => a.name === targetName);
@@ -208,7 +232,7 @@ export default function InlineTransactionRow({
   };
 
   const handleSubmit = async () => {
-    const payeeName = newPayeeMode ? newPayeeName.trim() : transferPayee;
+    const payeeName = selectedPayeeAccountName || transferPayee || payeeInput.trim();
 
     let groupName = selectedGroup;
     let itemName = selectedItem;
@@ -437,6 +461,96 @@ export default function InlineTransactionRow({
     ]),
   ];
 
+  const payeeTypeaheadOptions = [
+    // transfers (accounts)
+    ...transferTargets.map((acc) => ({
+      value: acc.name,
+      label: getPreviewLabel(acc.name),
+    })),
+    // saved payees (string payee names)
+    ...allPayees.map((p) => ({
+      value: p,
+      label: p,
+    })),
+  ];
+
+  const categoryTypeaheadOptions = categoryOptions
+    .filter(
+      (opt) => opt.kind === "option" && opt.value !== "__new_category__"
+    )
+    .map((opt) => ({
+      value: opt.value,
+      label: opt.label,
+    }));
+
+  const handleTypeahead = (
+    e: KeyboardEvent,
+    ref: React.MutableRefObject<{ buffer: string; lastTime: number }>,
+    options: { value: string; label: string }[],
+    onMatch: (value: string) => void
+  ) => {
+    // Let Enter/Escape/etc be handled elsewhere
+    if (e.key.length !== 1 || e.metaKey || e.ctrlKey || e.altKey) return;
+
+    const now = Date.now();
+    const timeoutMs = 600; // reset buffer if you pause typing
+
+    let { buffer, lastTime } = ref.current;
+    if (now - lastTime > timeoutMs) {
+      buffer = e.key;
+    } else {
+      buffer += e.key;
+    }
+
+    ref.current = { buffer, lastTime: now };
+
+    const search = buffer.toLowerCase();
+    const match = options.find((opt) =>
+      opt.label.toLowerCase().includes(search)
+    );
+
+    if (match) {
+      e.preventDefault();
+      onMatch(match.value);
+    }
+  };
+
+  // PAYEE suggestions: accounts (transfers) + saved payees
+  const payeeSuggestions = [
+    ...transferTargets.map((acc) => ({
+      type: "account" as const,
+      accountName: acc.name,
+      label: getPreviewLabel(acc.name), // e.g. "Payment to Amex"
+    })),
+    ...allPayees.map((p) => ({
+      type: "payee" as const,
+      accountName: null,
+      label: p, // normal payee string
+    })),
+  ].filter((s) =>
+    payeeInput
+      ? s.label.toLowerCase().includes(payeeInput.toLowerCase())
+      : true
+  );
+
+  // CATEGORY suggestions: "Group ▸ Item"
+  const categorySuggestions = categoryGroups
+    .flatMap((group) =>
+      group.categoryItems.map((item) => ({
+        groupName: group.name,
+        itemName: item.name,
+        label: `${group.name} ▸ ${item.name}`,
+      }))
+    )
+    .filter((s) =>
+      categoryInput
+        ? s.label.toLowerCase().includes(categoryInput.toLowerCase())
+        : true
+    );
+
+
+
+
   return (
     <tr
       ref={formRef}
@@ -458,54 +572,155 @@ export default function InlineTransactionRow({
         />
       </td>
 
-      <td className="border p-2">
-        {newPayeeMode ? (
+      <td className="border p-2 relative overflow-visible">
+        <div className="relative">
           <input
-            ref={payeeSelectRef as React.RefObject<HTMLInputElement>}
-            data-cy="tx-new-payee-input"
-            type="text"
-            placeholder="New Payee Name"
-            className="w-full p-1 border rounded text-sm"
-            value={newPayeeName}
-            onChange={(e) => setNewPayeeName(e.target.value)}
-            onKeyDown={handleKeyDown}
-          />
-        ) : (
-          <select
-            ref={payeeSelectRef as React.RefObject<HTMLSelectElement>}
+            ref={payeeInputRef}
             data-cy="tx-payee-select"
-            value={transferPayee}
+            type="text"
+            placeholder="Select or type payee..."
+            className="w-full p-1 border rounded text-sm"
+            value={payeeInput}
             onChange={(e) => {
-              if (e.target.value === "__new__") {
-                setNewPayeeMode(true);
-                setTransferPayee("");
-              } else {
-                setTransferPayee(e.target.value);
+              setPayeeInput(e.target.value);
+              if (payeeInputRef.current) {
+                const rect = payeeInputRef.current.getBoundingClientRect();
+                setPayeeDropdownPos({ top: rect.bottom, left: rect.left, width: rect.width });
+              }
+              setPayeeDropdownOpen(true);
+            }}
+            onFocus={() => {
+              if (payeeInputRef.current) {
+                const rect = payeeInputRef.current.getBoundingClientRect();
+                setPayeeDropdownPos({ top: rect.bottom, left: rect.left, width: rect.width });
+              }
+              setPayeeDropdownOpen(true);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                if (payeeSuggestions.length > 0) {
+                  const match = payeeSuggestions[0];
+                  if (match.type === "account") {
+                    setTransferPayee(match.accountName);
+                    setSelectedPayeeAccountName(match.accountName);
+                  } else {
+                    setTransferPayee(match.label);
+                    setSelectedPayeeAccountName(null);
+                  }
+                  setPayeeInput(match.label);
+                  setPayeeDropdownOpen(false);
+                } else {
+                  // Create new payee
+                  setTransferPayee(payeeInput);
+                  setSelectedPayeeAccountName(null);
+                  setPayeeDropdownOpen(false);
+                }
+                void handleSubmit();
+              } else if (e.key === "Escape") {
+                e.preventDefault();
+                setPayeeDropdownOpen(false);
+                onCancel?.();
+              } else if (e.key === "ArrowDown" && payeeDropdownOpen) {
+                e.preventDefault();
+                // Could add keyboard navigation here
               }
             }}
-            onKeyDown={handleKeyDown}
-            className="w-full p-1 border rounded text-sm"
-          >
-            <optgroup label="Payments & Transfers">
-              {transferTargets.map((acc) => (
-                <option key={acc.id} value={acc.name}>
-                  {getPreviewLabel(acc.name)}
-                </option>
-              ))}
-            </optgroup>
-            <optgroup label="Saved Payees">
-              <option value="__new__">➕ New Payee...</option>
-              {allPayees.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </optgroup>
-          </select>
-        )}
+            onBlur={(e) => {
+              // Delay to allow click on dropdown item
+              setTimeout(() => {
+                setPayeeDropdownOpen(false);
+              }, 200);
+            }}
+          />
+          {payeeDropdownOpen && (
+            <div
+              className="fixed z-[9999] bg-white border rounded shadow-lg max-h-60 overflow-y-auto"
+              data-cy="payee-dropdown"
+              style={{
+                top: `${payeeDropdownPos.top}px`,
+                left: `${payeeDropdownPos.left}px`,
+                width: `${payeeDropdownPos.width}px`,
+                marginTop: '4px'
+              }}
+            >
+              {payeeSuggestions.length === 0 ? (
+                <div
+                  className="p-2 hover:bg-teal-50 cursor-pointer text-sm"
+                  onClick={() => {
+                    setTransferPayee(payeeInput);
+                    setSelectedPayeeAccountName(null);
+                    setPayeeDropdownOpen(false);
+                  }}
+                >
+                  ➕ Create: {payeeInput || "New Payee"}
+                </div>
+              ) : (
+                <>
+                  {transferTargets.some(t => 
+                    payeeSuggestions.some(s => s.type === "account" && s.accountName === t.name)
+                  ) && (
+                    <div className="px-2 py-1 text-xs font-semibold text-gray-500 bg-gray-50">
+                      Payments & Transfers
+                    </div>
+                  )}
+                  {payeeSuggestions
+                    .filter((s) => s.type === "account")
+                    .map((suggestion) => (
+                      <div
+                        key={suggestion.accountName}
+                        className="p-2 hover:bg-teal-50 cursor-pointer text-sm"
+                        onClick={() => {
+                          setTransferPayee(suggestion.accountName!);
+                          setSelectedPayeeAccountName(suggestion.accountName!);
+                          setPayeeInput(suggestion.label);
+                          setPayeeDropdownOpen(false);
+                        }}
+                      >
+                        {suggestion.label}
+                      </div>
+                    ))}
+                  {payeeSuggestions.some((s) => s.type === "payee") && (
+                    <div className="px-2 py-1 text-xs font-semibold text-gray-500 bg-gray-50">
+                      Saved Payees
+                    </div>
+                  )}
+                  {payeeSuggestions
+                    .filter((s) => s.type === "payee")
+                    .map((suggestion) => (
+                      <div
+                        key={suggestion.label}
+                        className="p-2 hover:bg-teal-50 cursor-pointer text-sm"
+                        onClick={() => {
+                          setTransferPayee(suggestion.label);
+                          setSelectedPayeeAccountName(null);
+                          setPayeeInput(suggestion.label);
+                          setPayeeDropdownOpen(false);
+                        }}
+                      >
+                        {suggestion.label}
+                      </div>
+                    ))}
+                  {payeeInput && (
+                    <div
+                      className="p-2 hover:bg-teal-50 cursor-pointer text-sm border-t"
+                      onClick={() => {
+                        setTransferPayee(payeeInput);
+                        setSelectedPayeeAccountName(null);
+                        setPayeeDropdownOpen(false);
+                      }}
+                    >
+                      ➕ Create: {payeeInput}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+        </div>
       </td>
 
-      <td className="border p-2">
+      <td className="border p-2 relative overflow-visible">
         {/* Hidden group value for tests / debugging */}
         <input
           type="hidden"
@@ -592,54 +807,141 @@ export default function InlineTransactionRow({
             </button>
           </div>
         ) : (
-          <select
-            data-cy="tx-item-select"
-            className="w-full p-1 border rounded text-sm"
-            value={categorySelectValue}
-            onChange={(e) => {
-              const value = e.target.value;
-
-              if (value === "__new_category__") {
-                // switch to "add new category" form
-                setNewCategoryMode(true);
-                setNewCategoryName("");
-                setNewCategoryGroupIsNew(false);
-                setNewCategoryGroupName("");
-                setSelectedGroup("");
-                setSelectedItem("");
-                return;
-              }
-
-              if (value === "RTA::RTA") {
-                setSelectedGroup("Ready to Assign");
-                setSelectedItem("");
-              } else {
-                const [group, item] = value.split("::");
-                setSelectedGroup(group);
-                setSelectedItem(item);
-              }
-            }}
-            onKeyDown={handleKeyDown}
-            disabled={sameTypeTransfer}
-          >
-            <option value="">Select Category</option>
-            {categoryOptions.map((opt) =>
-              opt.kind === "header" ? (
-                <option
-                  key={opt.key}
-                  value={opt.key}
-                  disabled
-                  className="font-bold bg-gray-50"
-                >
-                  {opt.label}
-                </option>
-              ) : (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              )
+          <div className="relative">
+            <input
+              ref={categoryInputRef}
+              data-cy="tx-item-select"
+              type="text"
+              placeholder="Select or type category..."
+              className="w-full p-1 border rounded text-sm"
+              value={categoryInput}
+              onChange={(e) => {
+                setCategoryInput(e.target.value);
+                if (categoryInputRef.current) {
+                  const rect = categoryInputRef.current.getBoundingClientRect();
+                  setCategoryDropdownPos({ top: rect.bottom, left: rect.left, width: rect.width });
+                }
+                setCategoryDropdownOpen(true);
+              }}
+              onFocus={() => {
+                if (categoryInputRef.current) {
+                  const rect = categoryInputRef.current.getBoundingClientRect();
+                  setCategoryDropdownPos({ top: rect.bottom, left: rect.left, width: rect.width });
+                }
+                setCategoryDropdownOpen(true);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  if (categorySuggestions.length > 0) {
+                    const match = categorySuggestions[0];
+                    setSelectedGroup(match.groupName);
+                    setSelectedItem(match.itemName);
+                    setCategoryInput(match.label);
+                    setCategoryDropdownOpen(false);
+                  } else if (categoryInput.toLowerCase() === "ready to assign") {
+                    setSelectedGroup("Ready to Assign");
+                    setSelectedItem("");
+                    setCategoryInput("Ready to Assign");
+                    setCategoryDropdownOpen(false);
+                  } else {
+                    // Start creating new category
+                    setNewCategoryMode(true);
+                    setNewCategoryName(categoryInput);
+                    setCategoryDropdownOpen(false);
+                  }
+                  void handleSubmit();
+                } else if (e.key === "Escape") {
+                  e.preventDefault();
+                  setCategoryDropdownOpen(false);
+                  onCancel?.();
+                }
+              }}
+              onBlur={() => {
+                setTimeout(() => {
+                  setCategoryDropdownOpen(false);
+                }, 200);
+              }}
+              disabled={sameTypeTransfer}
+            />
+            {categoryDropdownOpen && !sameTypeTransfer && (
+              <div
+                className="fixed z-[9999] bg-white border rounded shadow-lg max-h-60 overflow-y-auto"
+                data-cy="category-dropdown"
+                style={{
+                  top: `${categoryDropdownPos.top}px`,
+                  left: `${categoryDropdownPos.left}px`,
+                  width: `${categoryDropdownPos.width}px`,
+                  marginTop: '4px'
+                }}
+              >
+                {categorySuggestions.length === 0 && !categoryInput.toLowerCase().includes("ready to assign") ? (
+                  <div
+                    className="p-2 hover:bg-teal-50 cursor-pointer text-sm"
+                    onClick={() => {
+                      setNewCategoryMode(true);
+                      setNewCategoryName(categoryInput);
+                      setCategoryDropdownOpen(false);
+                    }}
+                  >
+                    ➕ Create New Category: {categoryInput || "..."}
+                  </div>
+                ) : (
+                  <>
+                    {(categoryInput === "" || "ready to assign".includes(categoryInput.toLowerCase())) && (
+                      <div
+                        className="p-2 hover:bg-teal-50 cursor-pointer text-sm font-semibold"
+                        onClick={() => {
+                          setSelectedGroup("Ready to Assign");
+                          setSelectedItem("");
+                          setCategoryInput("Ready to Assign");
+                          setCategoryDropdownOpen(false);
+                        }}
+                      >
+                        Ready to Assign
+                      </div>
+                    )}
+                    {categorySuggestions.map((suggestion, idx) => {
+                      const prevGroup = idx > 0 ? categorySuggestions[idx - 1].groupName : null;
+                      const showHeader = suggestion.groupName !== prevGroup;
+                      return (
+                        <div key={`${suggestion.groupName}::${suggestion.itemName}`}>
+                          {showHeader && (
+                            <div className="px-2 py-1 text-xs font-semibold text-gray-500 bg-gray-50">
+                              {suggestion.groupName}
+                            </div>
+                          )}
+                          <div
+                            className="p-2 hover:bg-teal-50 cursor-pointer text-sm pl-4"
+                            onClick={() => {
+                              setSelectedGroup(suggestion.groupName);
+                              setSelectedItem(suggestion.itemName);
+                              setCategoryInput(suggestion.label);
+                              setCategoryDropdownOpen(false);
+                            }}
+                          >
+                            {suggestion.itemName}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {categoryInput && (
+                      <div
+                        className="p-2 hover:bg-teal-50 cursor-pointer text-sm border-t"
+                        onClick={() => {
+                          setNewCategoryMode(true);
+                          setNewCategoryName(categoryInput);
+                          setCategoryDropdownOpen(false);
+                        }}
+                      >
+                        ➕ Create New Category: {categoryInput}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
             )}
-          </select>
+          </div>
         )}
       </td>
 
