@@ -92,17 +92,17 @@ export default function MobileTransactionsTab({
   const categoryOptions = useMemo(() => {
     const options: Array<{ label: string; value: string; isAccount?: boolean; accountName?: string }> = [];
     options.push({ label: "Ready to Assign", value: "Ready to Assign" });
-    
+
     const month = budgetData?.[currentMonth];
     month?.categories?.forEach((group: any) => {
       if (group.name === "Credit Card Payments") {
         group.categoryItems?.forEach((item: any) => {
           const acc = accounts.find((a) => a.name === item.name && a.type === "credit");
-          options.push({ 
-            label: item.name, 
-            value: item.name, 
+          options.push({
+            label: item.name,
+            value: item.name,
             isAccount: !!acc,
-            accountName: acc?.name 
+            accountName: acc?.name
           });
         });
       } else {
@@ -113,6 +113,11 @@ export default function MobileTransactionsTab({
     });
     return options;
   }, [budgetData, currentMonth, accounts]);
+
+  const categoryGroupNames = useMemo(() => {
+    const month = budgetData?.[currentMonth];
+    return month?.categories?.map((g: any) => g.name) ?? [];
+  }, [budgetData, currentMonth]);
 
   const displayedTransactions = useMemo(() => {
     const transactions: any[] = [];
@@ -125,6 +130,7 @@ export default function MobileTransactionsTab({
       account.transactions?.forEach((tx) => {
         transactions.push({
           ...tx,
+          accountId: account.id,
           accountName: account.name,
         });
       });
@@ -137,9 +143,37 @@ export default function MobileTransactionsTab({
     });
   }, [accounts, selectedAccount]);
 
+  const resetForm = () => {
+    setShowForm(false);
+    setEditingTxId(null);
+    setPayeeInput("");
+    setSelectedPayeeAccountName(null);
+    setCategoryInput("");
+    setNewCategoryMode(false);
+    setNewCategoryName("");
+    setNewCategoryGroupIsNew(false);
+    setNewCategoryGroupName("");
+    setFormAmount("");
+    setFormType("expense");
+    setFormDate(new Date().toISOString().slice(0, 10));
+  };
+
+  const beginEdit = (tx: any) => {
+    setEditingTxId(tx.id);
+    setFormAccountId(tx.accountId ?? null);
+    setPayeeInput(tx.payee ?? "");
+    setSelectedPayeeAccountName(null);
+    setCategoryInput(tx.category ?? "");
+    setFormAmount(Math.abs(tx.balance ?? 0).toString());
+    setFormType((tx.balance ?? 0) < 0 ? "expense" : "income");
+    setFormDate(tx.date ? tx.date.slice(0, 10) : new Date().toISOString().slice(0, 10));
+    setShowForm(true);
+  };
+
   const handleAddTransaction = async () => {
     const payeeName = selectedPayeeAccountName || payeeInput.trim();
     if (!formAccountId || !payeeName || !formAmount) return;
+
     const amountNum = Number(formAmount);
     if (Number.isNaN(amountNum) || amountNum <= 0) return;
 
@@ -185,7 +219,7 @@ export default function MobileTransactionsTab({
 
     const isReadyToAssign = categoryName.toLowerCase() === "ready to assign";
 
-    const tx = {
+    const txPayload = {
       date: formDate,
       payee: payeeLabel,
       category: isTransfer ? null : isReadyToAssign ? "Ready to Assign" : categoryName || null,
@@ -193,54 +227,52 @@ export default function MobileTransactionsTab({
       balance,
     };
 
-    await addTransaction(formAccountId, tx);
-    if (!isTransfer && upsertPayee) {
-      await upsertPayee(payeeName);
-    }
+    if (editingTxId) {
+      // ✏️ Editing existing transaction
+      await editTransaction(formAccountId, editingTxId, txPayload);
+    } else {
+      // ➕ Creating new transaction
+      await addTransaction(formAccountId, txPayload);
 
-    if (isTransfer && thisAccount && otherAccount) {
-      const isThisCredit = thisAccount.type === "credit";
-      const isOtherCredit = otherAccount.type === "credit";
+      if (!isTransfer && upsertPayee) {
+        await upsertPayee(payeeName);
+      }
 
-      const mirrorPayee = (() => {
-        if (balance < 0) {
-          if (isOtherCredit) {
-            return isThisCredit
-              ? `Transfer from ${thisAccount.name}`
-              : `Payment from ${thisAccount.name}`;
+      if (isTransfer && thisAccount && otherAccount) {
+        const isThisCredit = thisAccount.type === "credit";
+        const isOtherCredit = otherAccount.type === "credit";
+
+        const mirrorPayee = (() => {
+          if (balance < 0) {
+            if (isOtherCredit) {
+              return isThisCredit
+                ? `Transfer from ${thisAccount.name}`
+                : `Payment from ${thisAccount.name}`;
+            }
+            return `Transfer from ${thisAccount.name}`;
           }
-          return `Transfer from ${thisAccount.name}`;
-        }
 
-        if (isOtherCredit) {
-          return `Transfer to ${thisAccount.name}`;
-        }
-        return isThisCredit
-          ? `Payment to ${thisAccount.name}`
-          : `Transfer to ${thisAccount.name}`;
-      })();
+          if (isOtherCredit) {
+            return `Transfer to ${thisAccount.name}`;
+          }
+          return isThisCredit
+            ? `Payment to ${thisAccount.name}`
+            : `Transfer to ${thisAccount.name}`;
+        })();
 
-      await addTransaction(otherAccount.id, {
-        date: formDate,
-        payee: mirrorPayee,
-        category: null,
-        category_group: null,
-        balance: -balance,
-      });
+        await addTransaction(otherAccount.id, {
+          date: formDate,
+          payee: mirrorPayee,
+          category: null,
+          category_group: null,
+          balance: -balance,
+        });
+      }
     }
 
-    setShowForm(false);
-    setPayeeInput("");
-    setSelectedPayeeAccountName(null);
-    setCategoryInput("");
-    setNewCategoryMode(false);
-    setNewCategoryName("");
-    setNewCategoryGroupIsNew(false);
-    setNewCategoryGroupName("");
-    setFormAmount("");
-    setFormType("expense");
-    setFormDate(new Date().toISOString().slice(0, 10));
+    resetForm();
   };
+
 
   const showingLabel = selectedAccount
     ? `Showing: ${selectedAccount.name}`
@@ -303,12 +335,12 @@ export default function MobileTransactionsTab({
                       {payeeSuggestions
                         .filter((s) => s.label.toLowerCase().includes(payeeInput.toLowerCase()))
                         .map((s) => (
-                        <button
+                          <button
                             key={s.label}
-                          type="button"
-                          className="w-full text-left px-3 py-2 text-sm hover:bg-teal-50"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => {
+                            type="button"
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-teal-50"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => {
                               if (s.type === "account") {
                                 setSelectedPayeeAccountName(s.accountName);
                                 setPayeeInput(s.label);
@@ -316,29 +348,29 @@ export default function MobileTransactionsTab({
                                 setSelectedPayeeAccountName(null);
                                 setPayeeInput(s.label);
                               }
-                            setPayeeDropdownOpen(false);
-                          }}
-                        >
+                              setPayeeDropdownOpen(false);
+                            }}
+                          >
                             {s.label}
-                        </button>
+                          </button>
                         ))}
                       {payeeInput &&
                         !payeeSuggestions.some(
                           (s) => s.label.toLowerCase() === payeeInput.toLowerCase()
                         ) && (
-                        <button
-                          type="button"
-                          className="w-full text-left px-3 py-2 text-sm text-teal-700 font-medium border-t border-slate-200 hover:bg-teal-50"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => {
-                            setSelectedPayeeAccountName(null);
-                            setPayeeInput(payeeInput);
-                            setPayeeDropdownOpen(false);
-                          }}
-                        >
-                          ➕ Create "{payeeInput}"
-                        </button>
-                      )}
+                          <button
+                            type="button"
+                            className="w-full text-left px-3 py-2 text-sm text-teal-700 font-medium border-t border-slate-200 hover:bg-teal-50"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => {
+                              setSelectedPayeeAccountName(null);
+                              setPayeeInput(payeeInput);
+                              setPayeeDropdownOpen(false);
+                            }}
+                          >
+                            ➕ Create "{payeeInput}"
+                          </button>
+                        )}
                     </div>
                   )}
                 </div>
@@ -395,6 +427,78 @@ export default function MobileTransactionsTab({
                       )}
                     </div>
                   )}
+                  {newCategoryMode && (
+                    <div className="mt-2 rounded-md border border-dashed border-teal-300 bg-teal-50/40 p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-semibold text-teal-800">
+                          New category details
+                        </span>
+                        <button
+                          type="button"
+                          className="text-xs text-teal-700 underline"
+                          onClick={() => {
+                            setNewCategoryMode(false);
+                            setNewCategoryName("");
+                            setNewCategoryGroupIsNew(false);
+                            setNewCategoryGroupName("");
+                          }}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+
+                      <div className="flex flex-col gap-1">
+                        <label className="text-xs text-slate-600">Category name</label>
+                        <Input
+                          value={newCategoryName}
+                          onChange={(e) => setNewCategoryName(e.target.value)}
+                        />
+                      </div>
+
+                      <div className="flex flex-col gap-1">
+                        <label className="text-xs text-slate-600">Category group</label>
+                        <select
+                          className="text-sm border border-slate-300 rounded px-2 py-2 bg-white"
+                          value={
+                            newCategoryGroupIsNew
+                              ? "__new__"
+                              : newCategoryGroupName || ""
+                          }
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            if (value === "__new__") {
+                              setNewCategoryGroupIsNew(true);
+                              setNewCategoryGroupName("");
+                            } else {
+                              setNewCategoryGroupIsNew(false);
+                              setNewCategoryGroupName(value);
+                            }
+                          }}
+                        >
+                          <option value="" disabled>
+                            Select group
+                          </option>
+                          {categoryGroupNames.map((name) => (
+                            <option key={name} value={name}>
+                              {name}
+                            </option>
+                          ))}
+                          <option value="__new__">➕ New group…</option>
+                        </select>
+                      </div>
+
+                      {newCategoryGroupIsNew && (
+                        <div className="flex flex-col gap-1">
+                          <label className="text-xs text-slate-600">New group name</label>
+                          <Input
+                            value={newCategoryGroupName}
+                            onChange={(e) => setNewCategoryGroupName(e.target.value)}
+                            placeholder="e.g. Utilities"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -422,33 +526,31 @@ export default function MobileTransactionsTab({
                   <button
                     type="button"
                     onClick={() => setFormType("expense")}
-                    className={`px-3 py-1 rounded border ${
-                      formType === "expense"
-                        ? "border-teal-500 text-teal-700 bg-teal-50"
-                        : "border-slate-300 text-slate-600"
-                    }`}
+                    className={`px-3 py-1 rounded border ${formType === "expense"
+                      ? "border-teal-500 text-teal-700 bg-teal-50"
+                      : "border-slate-300 text-slate-600"
+                      }`}
                   >
                     Expense
                   </button>
                   <button
                     type="button"
                     onClick={() => setFormType("income")}
-                    className={`px-3 py-1 rounded border ${
-                      formType === "income"
-                        ? "border-teal-500 text-teal-700 bg-teal-50"
-                        : "border-slate-300 text-slate-600"
-                    }`}
+                    className={`px-3 py-1 rounded border ${formType === "income"
+                      ? "border-teal-500 text-teal-700 bg-teal-50"
+                      : "border-slate-300 text-slate-600"
+                      }`}
                   >
                     Income
                   </button>
                 </div>
               </div>
               <div className="flex justify-end gap-2">
-                <Button variant="ghost" size="sm" onClick={() => setShowForm(false)}>
+                <Button variant="ghost" size="sm" onClick={resetForm}>
                   Cancel
                 </Button>
                 <Button size="sm" onClick={handleAddTransaction}>
-                  Save
+                  {editingTxId ? "Update" : "Save"}
                 </Button>
               </div>
             </CardContent>
@@ -518,12 +620,12 @@ export default function MobileTransactionsTab({
                     {payeeSuggestions
                       .filter((s) => s.label.toLowerCase().includes(payeeInput.toLowerCase()))
                       .map((s) => (
-                      <button
+                        <button
                           key={s.label}
-                        type="button"
-                        className="w-full text-left px-3 py-2 text-sm hover:bg-teal-50"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => {
+                          type="button"
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-teal-50"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
                             if (s.type === "account") {
                               setSelectedPayeeAccountName(s.accountName);
                               setPayeeInput(s.label);
@@ -531,29 +633,29 @@ export default function MobileTransactionsTab({
                               setSelectedPayeeAccountName(null);
                               setPayeeInput(s.label);
                             }
-                          setPayeeDropdownOpen(false);
-                        }}
-                      >
+                            setPayeeDropdownOpen(false);
+                          }}
+                        >
                           {s.label}
-                      </button>
+                        </button>
                       ))}
                     {payeeInput &&
                       !payeeSuggestions.some(
                         (s) => s.label.toLowerCase() === payeeInput.toLowerCase()
                       ) && (
-                      <button
-                        type="button"
-                        className="w-full text-left px-3 py-2 text-sm text-teal-700 font-medium border-t border-slate-200 hover:bg-teal-50"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => {
-                          setSelectedPayeeAccountName(null);
-                          setPayeeInput(payeeInput);
-                          setPayeeDropdownOpen(false);
-                        }}
-                      >
-                        ➕ Create "{payeeInput}"
-                      </button>
-                    )}
+                        <button
+                          type="button"
+                          className="w-full text-left px-3 py-2 text-sm text-teal-700 font-medium border-t border-slate-200 hover:bg-teal-50"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            setSelectedPayeeAccountName(null);
+                            setPayeeInput(payeeInput);
+                            setPayeeDropdownOpen(false);
+                          }}
+                        >
+                          ➕ Create "{payeeInput}"
+                        </button>
+                      )}
                   </div>
                 )}
               </div>
@@ -637,22 +739,20 @@ export default function MobileTransactionsTab({
                 <button
                   type="button"
                   onClick={() => setFormType("expense")}
-                  className={`px-3 py-1 rounded border ${
-                    formType === "expense"
-                      ? "border-teal-500 text-teal-700 bg-teal-50"
-                      : "border-slate-300 text-slate-600"
-                  }`}
+                  className={`px-3 py-1 rounded border ${formType === "expense"
+                    ? "border-teal-500 text-teal-700 bg-teal-50"
+                    : "border-slate-300 text-slate-600"
+                    }`}
                 >
                   Expense
                 </button>
                 <button
                   type="button"
                   onClick={() => setFormType("income")}
-                  className={`px-3 py-1 rounded border ${
-                    formType === "income"
-                      ? "border-teal-500 text-teal-700 bg-teal-50"
-                      : "border-slate-300 text-slate-600"
-                  }`}
+                  className={`px-3 py-1 rounded border ${formType === "income"
+                    ? "border-teal-500 text-teal-700 bg-teal-50"
+                    : "border-slate-300 text-slate-600"
+                    }`}
                 >
                   Income
                 </button>
@@ -674,7 +774,7 @@ export default function MobileTransactionsTab({
         const account = accounts.find((a) => a.transactions?.some((t) => t.id === tx.id));
         const isSwiped = swipedTxId === tx.id;
         const translateX = isSwiped ? swipeX : 0;
-        
+
         return (
           <div key={idx} className="relative overflow-hidden">
             <div
@@ -685,7 +785,7 @@ export default function MobileTransactionsTab({
                 className="h-full flex-1 bg-red-500 text-white font-semibold flex items-center justify-start pl-4"
                 onClick={() => {
                   if (account) {
-                    deleteTransactionWithMirror(account.id, tx.id);
+                    deleteTransactionWithMirror(tx.accountId, tx.id);
                   }
                   setSwipedTxId(null);
                   setSwipeX(0);
@@ -696,7 +796,7 @@ export default function MobileTransactionsTab({
               <button
                 className="h-full flex-1 bg-teal-500 text-white font-semibold flex items-center justify-end pr-4"
                 onClick={() => {
-                  setEditingTxId(tx.id);
+                  beginEdit(tx);
                   setSwipedTxId(null);
                   setSwipeX(0);
                 }}
@@ -731,7 +831,7 @@ export default function MobileTransactionsTab({
                 }
               }}
             >
-              <CardContent className="pt-4">
+              <CardContent className="pt-4" onClick={() => beginEdit(tx)}>
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex-1">
                     <p className="text-sm font-semibold text-slate-900">
@@ -748,9 +848,8 @@ export default function MobileTransactionsTab({
                   </div>
                   <div className="text-right ml-3 flex-shrink-0">
                     <p
-                      className={`text-base font-bold ${
-                        tx.balance < 0 ? "text-red-600" : "text-green-600"
-                      }`}
+                      className={`text-base font-bold ${tx.balance < 0 ? "text-red-600" : "text-green-600"
+                        }`}
                     >
                       {tx.balance < 0 ? "-" : "+"}${Math.abs(tx.balance).toFixed(2)}
                     </p>
