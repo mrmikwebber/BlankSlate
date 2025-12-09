@@ -8,10 +8,20 @@ describe("Credit Card Payments behaviour", () => {
   beforeEach(() => {
     cy.login("thedasherx@gmail.com", "123456");
 
-    // Wait until budget table + credit card group is present
-    cy.get('[data-cy="category-group-row"]').
-      contains('[data-cy="group-name"]', CREDIT_CARD_GROUP_NAME)
-      .should("exist");
+    // Wait for budget table to load
+    cy.get("[data-cy=budget-table]", { timeout: 10000 }).should("exist");
+
+    // Wait until credit card group is present with at least one item
+    cy.get(
+      `[data-cy="category-group-row"][data-category="${CREDIT_CARD_GROUP_NAME}"]`,
+      { timeout: 10000 }
+    ).should("exist");
+
+    // Wait for at least one credit card payment item to be in the DOM
+    cy.get(
+      `[data-cy="category-row"][data-category="${CREDIT_CARD_GROUP_NAME}"]`,
+      { timeout: 10000 }
+    ).should("have.length.at.least", 1);
   });
 
   it("shows Credit Card Payments as the first group and with Payment label", () => {

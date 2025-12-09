@@ -30,7 +30,7 @@ const visitAccount = (id: string, expectedName: string) => {
   cy.get("[data-cy=account-name]").should("contain.text", expectedName);
 };
 
-describe("Overspending & filters – YNAB style", () => {
+describe("Overspending & filters", () => {
   beforeEach(() => {
     // however you reset:
     // cy.dbReset();
@@ -71,11 +71,10 @@ describe("Overspending & filters – YNAB style", () => {
         cy.get("[data-cy=tx-new-payee-input]").type("Cash Overspend Store");
 
         // New group & item
-        cy.get("[data-cy=tx-group-select]").select("__new__");
-        cy.get("[data-cy=tx-new-group-input]").type(groupName);
-
-        cy.get("[data-cy=tx-item-select]").select("__new__");
-        cy.get("[data-cy=tx-new-item-input]").type(itemName);
+        cy.get("[data-cy=tx-item-select]").select("__new_category__");
+        cy.get("[data-cy=tx-category-group-select]").select("__new_group__");
+        cy.get("[data-cy=tx-new-category-group-input]").type(groupName);
+        cy.get("[data-cy=tx-new-category-input]").type(itemName);
 
         // Outflow (negative) on debit account
         cy.get("[data-cy=tx-sign-toggle]").then(($btn) => {
@@ -173,11 +172,10 @@ describe("Overspending & filters – YNAB style", () => {
             );
 
             // New group & item
-            cy.get("[data-cy=tx-group-select]").select("__new__");
-            cy.get("[data-cy=tx-new-group-input]").type(groupName);
-
-            cy.get("[data-cy=tx-item-select]").select("__new__");
-            cy.get("[data-cy=tx-new-item-input]").type(itemName);
+            cy.get("[data-cy=tx-item-select]").select("__new_category__");
+            cy.get("[data-cy=tx-category-group-select]").select("__new_group__");
+            cy.get("[data-cy=tx-new-category-group-input]").type(groupName);
+            cy.get("[data-cy=tx-new-category-input]").type(itemName);
 
             // Outflow (negative) on CREDIT account
             cy.get("[data-cy=tx-sign-toggle]").then(($btn) => {

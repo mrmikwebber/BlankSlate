@@ -355,7 +355,14 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
     return creditCardPayments;
   };
 
-  const getCumulativeAvailable = (passedInData, itemName) => {
+  const categoryKey = (groupName: string, itemName: string) =>
+    `${groupName}::${itemName}`;
+
+  const getCumulativeAvailable = (
+    passedInData,
+    itemName,
+    categoryGroupName?: string
+  ) => {
     const currentDate = parseISO(`${currentMonth}-01`);
 
     const pastMonths = Object.keys(passedInData)
@@ -368,9 +375,19 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
     return pastMonths.reduce((sum, month) => {
       const categories = passedInData[month]?.categories ?? [];
 
-      const matchingItem = categories
-        .flatMap((cat) => cat.categoryItems)
-        .find((item) => item.name === itemName);
+      let matchingItem = null;
+
+      for (const category of categories) {
+        if (categoryGroupName && category.name !== categoryGroupName) continue;
+
+        const found = category.categoryItems.find(
+          (item) => item.name === itemName
+        );
+        if (found) {
+          matchingItem = found;
+          break;
+        }
+      }
 
       if (!matchingItem) return sum;
 
@@ -566,7 +583,8 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
           const updatedItems = allItems.map((item) => {
             const cumulativeAvailable = getCumulativeAvailable(
               budgetData,
-              item.name
+              item.name,
+              category.name
             );
             const itemActivity = calculateCreditCardAccountActivity(
               currentMonth,
@@ -577,7 +595,6 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
             return {
               ...item,
               activity: itemActivity,
-              // For CC payments, allow carryover rules handled elsewhere; keep raw cumulative
               available: availableSum + cumulativeAvailable,
             };
           });
@@ -591,18 +608,19 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
         const updatedItems = category.categoryItems.map((item) => {
           const cumulativeAvailable = getCumulativeAvailable(
             budgetData,
-            item.name
+            item.name,
+            category.name
           );
           const itemActivity = calculateActivityForMonth(
             currentMonth,
-            item.name
+            item.name,
+            category.name
           );
           const availableSum = item.assigned + itemActivity;
 
           return {
             ...item,
             activity: itemActivity,
-            // Clamp past carryover to zero to avoid carrying negative overspending into new month
             available: availableSum + Math.max(cumulativeAvailable, 0),
           };
         });
@@ -613,6 +631,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
         };
       }
     );
+
 
     const totalInflow = accounts
       .filter((acc) => acc.type === "debit")
@@ -775,28 +794,54 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
     }
   ) => {
     setBudgetData((prev) => {
-      const newCategories = prev[currentMonth].categories.map((cat) =>
-        cat.name === categoryName
-          ? { ...cat, categoryItems: [...cat.categoryItems, newItem] }
-          : cat
+      const monthData = prev[currentMonth];
+      if (!monthData) return prev;
+
+      const existingGroup = monthData.categories.find(
+        (cat) => cat.name === categoryName
       );
+
+      let newCategories;
+
+      if (existingGroup) {
+        // If the item already exists, don't add a duplicate
+        const itemExists = existingGroup.categoryItems.some(
+          (i) => i.name === newItem.name
+        );
+        if (itemExists) return prev;
+
+        newCategories = monthData.categories.map((cat) =>
+          cat.name === categoryName
+            ? { ...cat, categoryItems: [...cat.categoryItems, newItem] }
+            : cat
+        );
+      } else {
+        // Group doesn't exist yet – create it with this one item
+        newCategories = [
+          ...monthData.categories,
+          { name: categoryName, categoryItems: [newItem] },
+        ];
+      }
+
       setIsDirty(true);
-      setRecentChanges((prev) => [
-        ...prev.slice(-9),
+      setRecentChanges((prevChanges) => [
+        ...prevChanges.slice(-9),
         {
           description: `Added category '${newItem.name}' to group '${categoryName}'`,
           timestamp: new Date().toISOString(),
         },
       ]);
+
       return {
         ...prev,
         [currentMonth]: {
-          ...prev[currentMonth],
+          ...monthData,
           categories: newCategories,
         },
       };
     });
   };
+
 
   const hasReassignedRef = useRef(false);
 
@@ -1038,45 +1083,62 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
       return sum + (assigned || 0);
     }, 0);
 
-    // 3️⃣ Total cash overspending from ALL *past* months
-    //    (months strictly before the current one)
+    // 3️⃣ Total cash overspending from ALL *past* months (cash accounts only)
     let totalCashOverspending = 0;
 
-    const pastMonths = allMonths.slice(0, currentIndex); // all months < current
+    // Envelope balance per (group, item)
+    const envelope = new Map<string, number>();
+
+    const pastMonths = allMonths.slice(0, currentIndex); // months strictly before current
+
     for (const m of pastMonths) {
       const monthCategories = data[m]?.categories || [];
+
+      // Precompute debit spending per (group,item) for this month
+      const debitSpendingMap = new Map<string, number>();
+
+      for (const acc of accounts.filter((a) => a.type === "debit")) {
+        for (const tx of acc.transactions) {
+          if (!tx.date || tx.balance >= 0) continue;
+
+          const txMonth = format(parseISO(tx.date), "yyyy-MM");
+          const mMonth = format(parseISO(`${m}-01`), "yyyy-MM");
+          if (!isSameMonth(txMonth, mMonth)) continue;
+
+          const groupName = tx.category_group || "";
+          const itemName = tx.category;
+          if (!itemName) continue;
+
+          const key = categoryKey(groupName, itemName);
+          const current = debitSpendingMap.get(key) || 0;
+          debitSpendingMap.set(key, current + Math.abs(tx.balance));
+        }
+      }
 
       for (const category of monthCategories) {
         // Skip credit card payments – they use different rules
         if (category.name === "Credit Card Payments") continue;
 
         for (const item of category.categoryItems) {
-          if (item.available >= 0) continue;
+          // ignore the RTA line itself
+          if (item.name === "Ready to Assign") continue;
 
-          // Find all transactions for this category in this month
-          const categoryTransactions = accounts.flatMap((acc) =>
-            acc.transactions
-              .filter((tx) => {
-                if (!tx.date) return false;
-                const txMonth = format(parseISO(tx.date), "yyyy-MM");
-                return (
-                  tx.category === item.name &&
-                  isSameMonth(txMonth, m) // same month as this m
-                );
-              })
-              .map((tx) => ({
-                ...tx,
-                accountType: acc.type,
-              }))
-          );
+          const key = categoryKey(category.name, item.name);
+          const assigned = item.assigned || 0;
 
-          // Only count overspending caused by **debit** transactions
-          const debitSpending = categoryTransactions.some(
-            (tx) => tx.accountType === "debit" && tx.balance < 0
-          );
+          const prevEnv = envelope.get(key) || 0;
+          const envelopeBefore = prevEnv + assigned;
 
-          if (debitSpending) {
-            totalCashOverspending += Math.abs(item.available);
+          const debitSpending = debitSpendingMap.get(key) || 0;
+
+          if (debitSpending <= envelopeBefore) {
+            // Fully covered by existing envelope + this month's budget
+            envelope.set(key, envelopeBefore - debitSpending);
+          } else {
+            // Cash overspending: debit spending exceeded envelope
+            const cashOverspend = debitSpending - envelopeBefore;
+            totalCashOverspending += cashOverspend;
+            envelope.set(key, 0);
           }
         }
       }
@@ -1084,6 +1146,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
 
     // 4️⃣ Final RTA
     return inflowUpTo - totalAssigned - totalCashOverspending;
+
   };
 
 
@@ -1105,129 +1168,140 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
     accountName,
     data = budgetData
   ) => {
- const monthStr = format(parseISO(`${month}-01`), "yyyy-MM");
-  const account = accounts.find((a) => a.name === accountName);
-  if (!account) return 0;
+    const monthStr = format(parseISO(`${month}-01`), "yyyy-MM");
+    const account = accounts.find((a) => a.name === accountName);
+    if (!account) return 0;
 
-  // 1) Build map of how much was assigned to each category this month
-  const assignedMap = new Map<string, number>();
-  for (const category of data[month]?.categories || []) {
-    for (const item of category.categoryItems) {
-      if (item.assigned > 0) {
-        assignedMap.set(
-          item.name,
-          (assignedMap.get(item.name) || 0) + item.assigned
-        );
+    // 1) Build map of how much was assigned to each category this month
+    const assignedMap = new Map<string, number>();
+    for (const category of data[month]?.categories || []) {
+      for (const item of category.categoryItems) {
+        if (item.assigned > 0) {
+          assignedMap.set(
+            item.name,
+            (assignedMap.get(item.name) || 0) + item.assigned
+          );
+        }
       }
     }
-  }
 
-  // 2) First pass: collect spending/refunds per category (no netActivity yet)
-  type Activity = {
-    spending: number;    // sum of |negative| transactions
-    refunds: number;     // sum of positive transactions
-    netActivity: number; // to fill in later
+    // 2) First pass: collect spending/refunds per category (no netActivity yet)
+    type Activity = {
+      spending: number;    // sum of |negative| transactions
+      refunds: number;     // sum of positive transactions
+      netActivity: number; // to fill in later
+    };
+
+    const categoryActivity = new Map<string, Activity>();
+
+    for (const tx of account.transactions) {
+      const txMonth = format(parseISO(tx.date), "yyyy-MM");
+      if (txMonth !== monthStr) continue;
+
+      const { category, balance } = tx;
+
+      // Ignore direct payments + RTA here — we handle those separately
+      if (category === "Ready to Assign" || category === accountName) continue;
+
+      if (!categoryActivity.has(category)) {
+        categoryActivity.set(category, {
+          spending: 0,
+          refunds: 0,
+          netActivity: 0,
+        });
+      }
+
+      const activity = categoryActivity.get(category)!;
+
+      if (balance < 0) {
+        // spending
+        activity.spending += Math.abs(balance);
+      } else if (balance > 0) {
+        // refund
+        activity.refunds += balance;
+      }
+
+      categoryActivity.set(category, activity);
+    }
+
+    // 3) Second pass: compute netActivity using budget + netSpending
+    for (const [category, activity] of categoryActivity.entries()) {
+      const netSpending = activity.spending - activity.refunds;
+
+      if (assignedMap.has(category)) {
+        const available = assignedMap.get(category) ?? 0;
+
+        if (netSpending > 0) {
+          // Normal case: more spending than refunds this month
+          const used = Math.min(netSpending, available);
+          activity.netActivity = used;
+          assignedMap.set(category, Math.max(0, available - used));
+        } else if (netSpending < 0) {
+          // More refunds than spending:
+          // treat this as reducing how much we need to pay the card
+          activity.netActivity = netSpending; // negative number
+        } else {
+          activity.netActivity = 0;
+        }
+      } else {
+        // No current-month budget:
+        // - Positive netSpending: unbudgeted spending → we can decide to ignore or treat as 0
+        // - Negative netSpending: refunds > spending → still reduces payment
+        if (netSpending < 0) {
+          activity.netActivity = netSpending;
+        } else {
+          activity.netActivity = 0;
+        }
+      }
+
+      categoryActivity.set(category, activity);
+    }
+
+    // 4) Sum up total activity from all categories
+    let totalActivity = 0;
+    for (const activity of categoryActivity.values()) {
+      totalActivity += activity.netActivity;
+    }
+
+    // 5) Handle direct payments to the credit card account itself
+    for (const tx of account.transactions) {
+      const txMonth = format(parseISO(tx.date), "yyyy-MM");
+      if (txMonth !== monthStr) continue;
+
+      if (tx.category === accountName && tx.balance > 0) {
+        // A positive transaction with category = card name is a payment
+        totalActivity -= tx.balance;
+      }
+    }
+
+    return totalActivity;
   };
 
-  const categoryActivity = new Map<string, Activity>();
 
-  for (const tx of account.transactions) {
-    const txMonth = format(parseISO(tx.date), "yyyy-MM");
-    if (txMonth !== monthStr) continue;
-
-    const { category, balance } = tx;
-
-    // Ignore direct payments + RTA here — we handle those separately
-    if (category === "Ready to Assign" || category === accountName) continue;
-
-    if (!categoryActivity.has(category)) {
-      categoryActivity.set(category, {
-        spending: 0,
-        refunds: 0,
-        netActivity: 0,
-      });
-    }
-
-    const activity = categoryActivity.get(category)!;
-
-    if (balance < 0) {
-      // spending
-      activity.spending += Math.abs(balance);
-    } else if (balance > 0) {
-      // refund
-      activity.refunds += balance;
-    }
-
-    categoryActivity.set(category, activity);
-  }
-
-  // 3) Second pass: compute netActivity using budget + netSpending
-  for (const [category, activity] of categoryActivity.entries()) {
-    const netSpending = activity.spending - activity.refunds;
-
-    if (assignedMap.has(category)) {
-      const available = assignedMap.get(category) ?? 0;
-
-      if (netSpending > 0) {
-        // Normal case: more spending than refunds this month
-        const used = Math.min(netSpending, available);
-        activity.netActivity = used;
-        assignedMap.set(category, Math.max(0, available - used));
-      } else if (netSpending < 0) {
-        // More refunds than spending:
-        // treat this as reducing how much we need to pay the card
-        activity.netActivity = netSpending; // negative number
-      } else {
-        activity.netActivity = 0;
-      }
-    } else {
-      // No current-month budget:
-      // - Positive netSpending: unbudgeted spending → we can decide to ignore or treat as 0
-      // - Negative netSpending: refunds > spending → still reduces payment
-      if (netSpending < 0) {
-        activity.netActivity = netSpending;
-      } else {
-        activity.netActivity = 0;
-      }
-    }
-
-    categoryActivity.set(category, activity);
-  }
-
-  // 4) Sum up total activity from all categories
-  let totalActivity = 0;
-  for (const activity of categoryActivity.values()) {
-    totalActivity += activity.netActivity;
-  }
-
-  // 5) Handle direct payments to the credit card account itself
-  for (const tx of account.transactions) {
-    const txMonth = format(parseISO(tx.date), "yyyy-MM");
-    if (txMonth !== monthStr) continue;
-
-    if (tx.category === accountName && tx.balance > 0) {
-      // A positive transaction with category = card name is a payment
-      totalActivity -= tx.balance;
-    }
-  }
-
-  return totalActivity;
-  };
-
-
-  const calculateActivityForMonth = (month, categoryName) => {
+  const calculateActivityForMonth = (
+    month,
+    categoryName,
+    categoryGroupName?: string
+  ) => {
     const filteredAccounts = accounts
       .flatMap((account) => account.transactions)
       .filter((tx) => {
         if (!tx.date) return false;
-        const date = format(parseISO(tx.date), "yyyy-MM");
+        const txMonth = format(parseISO(tx.date), "yyyy-MM");
         const convertedMonth = format(parseISO(month), "yyyy-MM");
-        return (
-          isSameMonth(date, convertedMonth) && tx.category === categoryName
-        );
+
+        const sameMonth = isSameMonth(txMonth, convertedMonth);
+        const categoryMatch = tx.category === categoryName;
+        const groupMatch = !categoryGroupName
+          ? true
+          : tx.category_group === categoryGroupName;
+
+        return sameMonth && categoryMatch && groupMatch;
       });
+
     return filteredAccounts.reduce((sum, tx) => sum + tx.balance, 0);
   };
+
 
   const isBeforeMonth = (monthA: string, monthB: string): boolean => {
     return new Date(monthA) < new Date(monthB);
@@ -1254,12 +1328,13 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
       pastMonths.forEach((month) => {
         prev[month]?.categories.forEach((category) => {
           category.categoryItems.forEach((item) => {
-            if (!cumulativeAssigned.has(item.name)) {
-              cumulativeAssigned.set(item.name, 0);
+            const key = categoryKey(category.name, item.name);
+            if (!cumulativeAssigned.has(key)) {
+              cumulativeAssigned.set(key, 0);
             }
             cumulativeAssigned.set(
-              item.name,
-              cumulativeAssigned.get(item.name) + item.assigned
+              key,
+              cumulativeAssigned.get(key) + item.assigned
             );
           });
         });
@@ -1269,16 +1344,18 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
       pastMonths.forEach((month) => {
         prev[month]?.categories.forEach((category) => {
           category.categoryItems.forEach((item) => {
-            if (!cumulativeActivity.has(item.name)) {
-              cumulativeActivity.set(item.name, 0);
+            const key = categoryKey(category.name, item.name);
+            if (!cumulativeActivity.has(key)) {
+              cumulativeActivity.set(key, 0);
             }
             cumulativeActivity.set(
-              item.name,
-              cumulativeActivity.get(item.name) + item.activity
+              key,
+              cumulativeActivity.get(key) + item.activity
             );
           });
         });
       });
+
 
       if (prev[newMonth]) {
         const allGroupNames = new Set(
@@ -1347,8 +1424,9 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
               return {
                 ...category,
                 categoryItems: patchedCategoryItems.map((item) => {
-                  const pastAssigned = cumulativeAssigned.get(item.name) || 0;
-                  const pastActivity = cumulativeActivity.get(item.name) || 0;
+                  const key = categoryKey(category.name, item.name);
+                  const pastAssigned = cumulativeAssigned.get(key) || 0;
+                  const pastActivity = cumulativeActivity.get(key) || 0;
                   const isCreditCardPayment =
                     category.name === "Credit Card Payments";
 
@@ -1452,7 +1530,8 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
                   } else {
                     itemActivity = calculateActivityForMonth(
                       newMonth,
-                      item.name
+                      item.name,
+                      category.name
                     );
 
                     // If previous month had debit overspending for this category, reset available to 0 for the new month
@@ -1509,8 +1588,9 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
         ? prevCategories.map((category) => ({
           ...category,
           categoryItems: category.categoryItems.map((item) => {
-            const pastAssigned = cumulativeAssigned.get(item.name) || 0;
-            const pastActivity = cumulativeActivity.get(item.name) || 0;
+            const key = categoryKey(category.name, item.name);
+            const pastAssigned = cumulativeAssigned.get(key) || 0;
+            const pastActivity = cumulativeActivity.get(key) || 0;
             const isCreditCardPayment =
               category.name === "Credit Card Payments";
             const pastAvailable = isCreditCardPayment
@@ -1595,7 +1675,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
                 item.name
               );
             } else {
-              itemActivity = calculateActivityForMonth(newMonth, item.name);
+              itemActivity = calculateActivityForMonth(newMonth, item.name, category.name);
             }
 
             // For non-credit card categories, if there was debit overspending,

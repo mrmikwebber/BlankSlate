@@ -9,7 +9,7 @@ const visitBudget = () => {
   cy.get("[data-cy=budget-table]").should("exist");
 };
 
-describe("Budget base logic – YNAB style", () => {
+describe("Budget base logic", () => {
   beforeEach(() => {
     cy.login("thedasherx@gmail.com", "123456");
     visitBudget();

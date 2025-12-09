@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import type { KeyboardEvent } from "react";
 import { useBudgetContext } from "@/app/context/BudgetContext";
 import { useAccountContext, Transaction } from "@/app/context/AccountContext";
 import { format } from "date-fns";
@@ -10,29 +11,30 @@ export default function InlineTransactionRow({
   initialData,
   onCancel,
   onSave,
+  autoFocus = false,
 }: {
   accountId: number;
   mode?: "add" | "edit";
   initialData?: Transaction;
   onCancel?: () => void;
   onSave?: () => void;
+  autoFocus?: boolean;
 }) {
   const isEdit = mode === "edit";
   const {
     budgetData,
     currentMonth,
-    setBudgetData,
     refreshAccounts,
+    addCategoryGroup,
+    addItemToCategory,
   } = useBudgetContext();
-  const { addTransaction, editTransaction, accounts, deleteTransaction } =
+
+  const { addTransaction, editTransaction, accounts, deleteTransaction, savedPayees, upsertPayee } =
     useAccountContext();
 
   const today = format(new Date(), "yyyy-MM-dd");
   const [date, setDate] = useState(
     isEdit && initialData ? initialData.date : today
-  );
-  const [payee, setPayee] = useState(
-    isEdit && initialData ? initialData.payee : ""
   );
   const [amount, setAmount] = useState(
     isEdit && initialData ? Math.abs(initialData.balance).toString() : ""
@@ -40,120 +42,253 @@ export default function InlineTransactionRow({
   const [isNegative, setIsNegative] = useState(
     isEdit && initialData ? initialData.balance < 0 : true
   );
+
+  // category group + item (backing state)
   const [selectedGroup, setSelectedGroup] = useState("");
   const [selectedItem, setSelectedItem] = useState("");
-  const [newGroupMode, setNewGroupMode] = useState(false);
-  const [newItemMode, setNewItemMode] = useState(false);
-  const [newPayeeMode, setNewPayeeMode] = useState(false);
-  const [newGroupName, setNewGroupName] = useState("");
-  const [newItemName, setNewItemName] = useState("");
-  const [newPayeeName, setNewPayeeName] = useState("");
 
-  // Extract raw payee name from transfer labels like "Transfer to X" or "Payment from Y"
+  // "add new category" flow
+  const [newCategoryMode, setNewCategoryMode] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [newCategoryGroupIsNew, setNewCategoryGroupIsNew] = useState(false);
+  const [newCategoryGroupName, setNewCategoryGroupName] = useState("");
+
+  // payee / transfer
   const extractPayeeName = (payeeLabel: string): string => {
     const matches = payeeLabel.match(/(?:Transfer|Payment) (?:to|from) (.+)/);
     return matches ? matches[1] : payeeLabel;
   };
-
+  const [newPayeeMode, setNewPayeeMode] = useState(false);
+  const [newPayeeName, setNewPayeeName] = useState("");
   const [transferPayee, setTransferPayee] = useState(
     isEdit && initialData ? extractPayeeName(initialData.payee) : ""
   );
+  // Payee combobox
+  const [payeeInput, setPayeeInput] = useState(
+    isEdit && initialData ? extractPayeeName(initialData.payee) : ""
+  );
+  const [payeeDropdownOpen, setPayeeDropdownOpen] = useState(false);
+  const [selectedPayeeAccountName, setSelectedPayeeAccountName] = useState<string | null>(null);
+
+  // Category combobox (for normal mode, not "Add New Category")
+  const [categoryInput, setCategoryInput] = useState(
+    isEdit && initialData?.category ? initialData.category : ""
+  );
+  const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
+
+
+
 
   const formRef = useRef<HTMLTableRowElement>(null);
+  const dateRef = useRef<HTMLInputElement | null>(null);
+  const payeeSelectRef =
+    useRef<HTMLSelectElement | HTMLInputElement | null>(null);
+  const amountInputRef = useRef<HTMLInputElement | null>(null);
+  const newCategoryInputRef = useRef<HTMLInputElement | null>(null);
+  const newCategoryGroupInputRef = useRef<HTMLInputElement | null>(null);
+  const payeeTypeaheadRef = useRef({ buffer: "", lastTime: 0 });
+  const categoryTypeaheadRef = useRef({ buffer: "", lastTime: 0 });
+  const payeeInputRef = useRef<HTMLInputElement | null>(null);
+  const categoryInputRef = useRef<HTMLInputElement | null>(null);
+  const [payeeDropdownPos, setPayeeDropdownPos] = useState({ top: 0, left: 0, width: 0 });
+  const [categoryDropdownPos, setCategoryDropdownPos] = useState({ top: 0, left: 0, width: 0 });
+
+
+
 
   const thisAccount = accounts.find((a) => a.id === accountId);
   const otherAccount = accounts.find((a) => a.name === transferPayee);
+
   const sameTypeTransfer =
     thisAccount && otherAccount && thisAccount.type === otherAccount.type;
   const crossTypeTransfer =
     thisAccount && otherAccount && thisAccount.type !== otherAccount.type;
 
-  const categoryGroups = budgetData[currentMonth].categories.map(
-    (cat) => cat.name
-  );
-  const getItemsForGroup = (groupName: string) =>
-    budgetData[currentMonth].categories
-      .find((cat) => cat.name === groupName)
-      ?.categoryItems.map((item) => item.name) || [];
+  const categoryGroups = budgetData[currentMonth].categories;
 
+
+
+  // when editing, initialize category from existing transaction
   useEffect(() => {
-    if (crossTypeTransfer) {
-      const creditAccount =
-        thisAccount?.type === "credit" ? thisAccount : otherAccount;
-      setSelectedGroup("Credit Card Payments");
-      setSelectedItem(creditAccount?.name || "");
-      setNewGroupMode(false);
-      setNewItemMode(false);
+    if (mode === "edit" && initialData?.category) {
+      const group = categoryGroups.find((catGroup) =>
+        catGroup.categoryItems.some(
+          (item) => item.name === initialData.category
+        )
+      );
+
+      if (group) {
+        setSelectedGroup(group.name);
+        setSelectedItem(initialData.category);
+      } else {
+        setSelectedGroup("");
+        setSelectedItem("");
+      }
     }
-  }, [transferPayee, isNegative, amount]);
+  }, [mode, initialData, categoryGroups]);
+
+  // cross-type transfer → default to "Credit Card Payments / <Card>"
+  useEffect(() => {
+    if (crossTypeTransfer && thisAccount && otherAccount) {
+      const creditAccount =
+        thisAccount.type === "credit" ? thisAccount : otherAccount;
+      setSelectedGroup("Credit Card Payments");
+      setSelectedItem(creditAccount.name);
+    }
+  }, [crossTypeTransfer, thisAccount, otherAccount]);
+
+  // Autofocus for “excely” feel
+  useEffect(() => {
+    if (!autoFocus) return;
+
+    if (newPayeeMode && payeeSelectRef.current instanceof HTMLInputElement) {
+      payeeSelectRef.current.focus();
+      return;
+    }
+    if (payeeSelectRef.current instanceof HTMLSelectElement) {
+      payeeSelectRef.current.focus();
+      return;
+    }
+    if (dateRef.current) {
+      dateRef.current.focus();
+    }
+  }, [autoFocus, newPayeeMode]);
+
+  // Close on click outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (formRef.current && !formRef.current.contains(e.target as Node)) {
+        onCancel?.();
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [onCancel]);
+
+  // Autofocus when starting "Add New Category"
+  useEffect(() => {
+    if (newCategoryMode && newCategoryInputRef.current) {
+      // Small timeout ensures element has rendered
+      setTimeout(() => newCategoryInputRef.current?.focus(), 10);
+    }
+  }, [newCategoryMode]);
+
+  // Autofocus when "Add New Category Group" is selected
+  useEffect(() => {
+    if (newCategoryGroupIsNew && newCategoryGroupInputRef.current) {
+      setTimeout(() => newCategoryGroupInputRef.current?.focus(), 10);
+    }
+  }, [newCategoryGroupIsNew]);
+
+
+  // Get payees from saved payees table
+  const allPayees = savedPayees.map((p) => p.name);
+
+  const transferTargets = accounts.filter((a) => a.id !== accountId);
+
+
+
+  const getPreviewLabel = (targetName: string) => {
+    if (!thisAccount) return targetName;
+    const other = accounts.find((a) => a.name === targetName);
+    if (!other) return targetName;
+
+    const isThisCredit = thisAccount.type === "credit";
+    const isOtherCredit = other.type === "credit";
+    const amt = parseFloat(amount || "0");
+    const isNeg = isNegative;
+
+    if (!amt || Number.isNaN(amt)) return `To/From: ${targetName}`;
+
+    if (isNeg) {
+      if (isThisCredit) return `Transfer to ${targetName}`;
+      return isOtherCredit
+        ? `Payment to ${targetName}`
+        : `Transfer to ${targetName}`;
+    } else {
+      if (isThisCredit)
+        return isOtherCredit
+          ? `Transfer from ${targetName}`
+          : `Payment from ${targetName}`;
+      return `Transfer from ${targetName}`;
+    }
+  };
+
+  const handleKeyDown = (e: KeyboardEvent) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      void handleSubmit();
+    }
+    if (e.key === "Escape") {
+      e.preventDefault();
+      onCancel?.();
+    }
+  };
 
   const handleSubmit = async () => {
-    const groupName = newGroupMode ? newGroupName.trim() : selectedGroup;
-    const itemName = newItemMode ? newItemName.trim() : selectedItem;
-    const payeeName = newPayeeMode ? newPayeeName.trim() : transferPayee;
+    const payeeName = selectedPayeeAccountName || transferPayee || payeeInput.trim();
+
+    let groupName = selectedGroup;
+    let itemName = selectedItem;
+
+    // If we're creating a new category, override from the "new" fields
+    if (newCategoryMode) {
+      const catName = newCategoryName.trim();
+      const newGroup = newCategoryGroupName.trim();
+
+      if (!catName) {
+        return; // need a category name
+      }
+
+      if (newCategoryGroupIsNew) {
+        if (!newGroup) return; // need a group name
+        groupName = newGroup;
+      } else {
+        // must have chosen an existing group
+        if (!groupName && newGroup) {
+          groupName = newGroup;
+        }
+        if (!groupName) return;
+      }
+
+      itemName = catName;
+    }
+
 
     const thisAccount = accounts.find((a) => a.id === accountId);
     const otherAccount = accounts.find((a) => a.name === payeeName);
     const isSameType =
       thisAccount && otherAccount && thisAccount.type === otherAccount.type;
 
+    const isTransfer = Boolean(otherAccount);
+    if (isTransfer) {
+      groupName = "";
+      itemName = "";
+    }
+
+    // Basic validation
     if (
       !amount ||
       !payeeName ||
-      (!isSameType &&
+      (!isTransfer &&
+        !isSameType &&
         groupName !== "Ready to Assign" &&
         (!itemName || !groupName))
-    )
+    ) {
       return;
-
-    const updatedCategories = [...budgetData[currentMonth].categories];
-    const groupIndex = updatedCategories.findIndex((g) => g.name === groupName);
-
-    if (groupName !== "Ready to Assign") {
-      if (groupName && itemName && groupIndex === -1) {
-        updatedCategories.push({
-          name: groupName,
-          categoryItems: [
-            { name: itemName, assigned: 0, activity: 0, available: 0 },
-          ],
-        });
-      } else if (groupName && itemName && groupIndex >= 0) {
-        const itemExists = updatedCategories[groupIndex].categoryItems.some(
-          (i) => i.name === itemName
-        );
-        if (!itemExists) {
-          updatedCategories[groupIndex].categoryItems.push({
-            name: itemName,
-            assigned: 0,
-            activity: 0,
-            available: 0,
-          });
-        }
-      }
     }
 
-    const existingRow = await supabase
-      .from("budget_data")
-      .select("id")
-      .eq("month", currentMonth)
-      .single();
-
-    if (existingRow.data?.id) {
-      await supabase
-        .from("budget_data")
-        .update({
-          data: { ...budgetData[currentMonth], categories: updatedCategories },
-        })
-        .eq("id", existingRow.data.id);
+    if (groupName && groupName !== "Ready to Assign" && itemName) {
+      addItemToCategory(groupName, {
+        name: itemName,
+        assigned: 0,
+        activity: 0,
+        available: 0,
+      });
     }
 
-    setBudgetData((prev) => ({
-      ...prev,
-      [currentMonth]: {
-        ...prev[currentMonth],
-        categories: updatedCategories,
-      },
-    }));
+
 
     const balance = (isNegative ? -1 : 1) * Number(amount);
 
@@ -177,13 +312,21 @@ export default function InlineTransactionRow({
       }
     })();
 
+    const isReadyToAssign = groupName === "Ready to Assign";
+
     const transactionData = {
       date,
       payee: payeeLabel,
-      category: groupName === "Ready to Assign" ? groupName : itemName || null,
-      category_group: groupName === "Credit Card Payments" ? groupName : null,
+      category: isTransfer ? null : isReadyToAssign ? groupName : itemName || null,
+      // for anything that's not "Ready to Assign", store the group
+      category_group: isTransfer ? null : isReadyToAssign ? null : groupName || null,
       balance,
     };
+
+    // Save payee to database if it's not a transfer
+    if (!isTransfer) {
+      await upsertPayee(payeeName);
+    }
 
     if (isEdit && initialData) {
       await editTransaction(accountId, initialData.id, transactionData);
@@ -214,10 +357,9 @@ export default function InlineTransactionRow({
       if (otherAccount) {
         const isThisCredit = thisAccount.type === "credit";
         const isOtherCredit = otherAccount.type === "credit";
-        
+
         const mirrorPayee = (() => {
           if (balance < 0) {
-            // Original is outflow, mirror is inflow
             if (isOtherCredit) {
               return isThisCredit
                 ? `Transfer from ${thisAccount.name}`
@@ -225,7 +367,6 @@ export default function InlineTransactionRow({
             }
             return `Transfer from ${thisAccount.name}`;
           } else {
-            // Original is inflow, mirror is outflow
             if (isOtherCredit) {
               return `Transfer to ${thisAccount.name}`;
             }
@@ -243,15 +384,15 @@ export default function InlineTransactionRow({
         });
       }
     } else {
-      await addTransaction(accountId, transactionData);
+      // Immediately call onSave for optimistic UI update, don't wait for DB
+      addTransaction(accountId, transactionData);
 
       if (otherAccount) {
         const isThisCredit = thisAccount.type === "credit";
         const isOtherCredit = otherAccount.type === "credit";
-        
+
         const mirrorPayee = (() => {
           if (balance < 0) {
-            // Original is outflow, mirror is inflow
             if (isOtherCredit) {
               return isThisCredit
                 ? `Transfer from ${thisAccount.name}`
@@ -259,7 +400,6 @@ export default function InlineTransactionRow({
             }
             return `Transfer from ${thisAccount.name}`;
           } else {
-            // Original is inflow, mirror is outflow
             if (isOtherCredit) {
               return `Transfer to ${thisAccount.name}`;
             }
@@ -269,7 +409,7 @@ export default function InlineTransactionRow({
           }
         })();
 
-        await addTransaction(otherAccount.id, {
+        addTransaction(otherAccount.id, {
           date,
           payee: mirrorPayee,
           category: itemName || null,
@@ -277,240 +417,567 @@ export default function InlineTransactionRow({
         });
       }
     }
-    await refreshAccounts();
 
     onSave?.();
     setTransferPayee("");
+    setPayeeInput("");
+    setSelectedPayeeAccountName(null);
     setSelectedGroup("");
     setSelectedItem("");
+    setCategoryInput("");
     setAmount("");
+
+    setNewCategoryMode(false);
+    setNewCategoryName("");
+    setNewCategoryGroupIsNew(false);
+    setNewCategoryGroupName("");
+
   };
 
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (formRef.current && !formRef.current.contains(e.target as Node)) {
-        onCancel?.();
-      }
-    };
+  // Build one dropdown: bold group headers, selectable items
+  const categorySelectValue =
+    selectedGroup === "Ready to Assign"
+      ? "RTA::RTA"
+      : selectedGroup && selectedItem
+        ? `${selectedGroup}::${selectedItem}`
+        : "";
 
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [onCancel]);
+  const categoryOptions = [
+    { kind: "option" as const, value: "RTA::RTA", label: "Ready to Assign" },
+    // NEW: add new category entry at the top
+    {
+      kind: "option" as const,
+      value: "__new_category__",
+      label: "➕ Add New Category...",
+    },
+    ...categoryGroups.flatMap((group) => [
+      {
+        kind: "header" as const,
+        key: `header-${group.name}`,
+        label: group.name,
+      },
+      ...group.categoryItems.map((item) => ({
+        kind: "option" as const,
+        value: `${group.name}::${item.name}`,
+        label: item.name,
+      })),
+    ]),
+  ];
 
-  useEffect(() => {
-    if (mode === "edit" && initialData?.category) {
-      const group = budgetData[currentMonth].categories.find((catGroup) =>
-        catGroup.categoryItems.some(
-          (item) => item.name === initialData.category
-        )
-      );
+  const payeeTypeaheadOptions = [
+    // transfers (accounts)
+    ...transferTargets.map((acc) => ({
+      value: acc.name,
+      label: getPreviewLabel(acc.name),
+    })),
+    // saved payees (string payee names)
+    ...allPayees.map((p) => ({
+      value: p,
+      label: p,
+    })),
+  ];
 
-      if (group) {
-        setSelectedGroup(group.name);
-        setSelectedItem(initialData.category);
-      } else {
-        setSelectedGroup("");
-        setSelectedItem("");
-      }
-    }
-  }, [mode, initialData, budgetData, currentMonth]);
-
-  const allPayees = Array.from(
-    new Set(
-      accounts
-        .flatMap((acc) => acc.transactions.map((t) => t.payee))
-        .filter(Boolean)
+  const categoryTypeaheadOptions = categoryOptions
+    .filter(
+      (opt) => opt.kind === "option" && opt.value !== "__new_category__"
     )
+    .map((opt) => ({
+      value: opt.value,
+      label: opt.label,
+    }));
+
+  const handleTypeahead = (
+    e: KeyboardEvent,
+    ref: React.MutableRefObject<{ buffer: string; lastTime: number }>,
+    options: { value: string; label: string }[],
+    onMatch: (value: string) => void
+  ) => {
+    // Let Enter/Escape/etc be handled elsewhere
+    if (e.key.length !== 1 || e.metaKey || e.ctrlKey || e.altKey) return;
+
+    const now = Date.now();
+    const timeoutMs = 600; // reset buffer if you pause typing
+
+    let { buffer, lastTime } = ref.current;
+    if (now - lastTime > timeoutMs) {
+      buffer = e.key;
+    } else {
+      buffer += e.key;
+    }
+
+    ref.current = { buffer, lastTime: now };
+
+    const search = buffer.toLowerCase();
+    const match = options.find((opt) =>
+      opt.label.toLowerCase().includes(search)
+    );
+
+    if (match) {
+      e.preventDefault();
+      onMatch(match.value);
+    }
+  };
+
+  // PAYEE suggestions: accounts (transfers) + saved payees
+  const payeeSuggestions = [
+    ...transferTargets.map((acc) => ({
+      type: "account" as const,
+      accountName: acc.name,
+      label: getPreviewLabel(acc.name), // e.g. "Payment to Amex"
+    })),
+    ...allPayees.map((p) => ({
+      type: "payee" as const,
+      accountName: null,
+      label: p, // normal payee string
+    })),
+  ].filter((s) =>
+    payeeInput
+      ? s.label.toLowerCase().includes(payeeInput.toLowerCase())
+      : true
   );
 
-  const transferTargets = accounts.filter((a) => a.id !== accountId);
+  // CATEGORY suggestions: "Group ▸ Item"
+  const categorySuggestions = categoryGroups
+    .flatMap((group) =>
+      group.categoryItems.map((item) => ({
+        groupName: group.name,
+        itemName: item.name,
+        label: `${group.name} ▸ ${item.name}`,
+      }))
+    )
+    .filter((s) =>
+      categoryInput
+        ? s.label.toLowerCase().includes(categoryInput.toLowerCase())
+        : true
+    );
 
-  const getPreviewLabel = (targetName: string) => {
-    const thisAccount = accounts.find((a) => a.id === accountId);
-    const otherAccount = accounts.find((a) => a.name === targetName);
-    if (!thisAccount || !otherAccount) return targetName;
 
-    const isThisCredit = thisAccount.type === "credit";
-    const isOtherCredit = otherAccount.type === "credit";
-    const amt = parseFloat(amount || "0");
-    const isNeg = isNegative;
 
-    if (amt === 0 || isNaN(amt)) return `To/From: ${targetName}`;
-
-    if (isNeg) {
-      if (isThisCredit) return `Transfer to ${targetName}`;
-      return isOtherCredit
-        ? `Payment to ${targetName}`
-        : `Transfer to ${targetName}`;
-    } else {
-      if (isThisCredit)
-        return isOtherCredit
-          ? `Transfer from ${targetName}`
-          : `Payment from ${targetName}`;
-      return `Transfer from ${targetName}`;
-    }
-  };
 
   return (
     <tr
       ref={formRef}
-      data-cy={isEdit ? "transaction-form-row-edit" : "transaction-form-row-add"}
+      data-cy={
+        isEdit ? "transaction-form-row-edit" : "transaction-form-row-add"
+      }
       data-mode={isEdit ? "edit" : "add"}
-      className="bg-gray-50 transition-opacity duration-300 opacity-100"
+      className="bg-teal-50 transition-colors duration-150"
     >
       <td className="border p-2">
         <input
+          ref={dateRef}
           data-cy="tx-date-input"
           type="date"
           value={date}
           onChange={(e) => setDate(e.target.value)}
+          onKeyDown={handleKeyDown}
           className="w-full p-1 border rounded text-sm"
         />
       </td>
-      <td className="border p-2">
-        {newPayeeMode ? (
+
+      <td className="border p-2 relative overflow-visible">
+        <div className="relative">
           <input
-            data-cy="tx-new-payee-input"
-            type="text"
-            placeholder="New Payee Name"
-            className="w-full p-1 border rounded text-sm"
-            value={newPayeeName}
-            onChange={(e) => setNewPayeeName(e.target.value)}
-          />
-        ) : (
-          <select
+            ref={payeeInputRef}
             data-cy="tx-payee-select"
-            value={transferPayee}
+            type="text"
+            placeholder="Select or type payee..."
+            className="w-full p-1 border rounded text-sm"
+            value={payeeInput}
             onChange={(e) => {
-              if (e.target.value === "__new__") {
-                setNewPayeeMode(true);
-                setTransferPayee("");
-              } else {
-                setTransferPayee(e.target.value);
+              setPayeeInput(e.target.value);
+              if (payeeInputRef.current) {
+                const rect = payeeInputRef.current.getBoundingClientRect();
+                setPayeeDropdownPos({ top: rect.bottom, left: rect.left, width: rect.width });
+              }
+              setPayeeDropdownOpen(true);
+            }}
+            onFocus={() => {
+              if (payeeInputRef.current) {
+                const rect = payeeInputRef.current.getBoundingClientRect();
+                setPayeeDropdownPos({ top: rect.bottom, left: rect.left, width: rect.width });
+              }
+              setPayeeDropdownOpen(true);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                if (payeeSuggestions.length > 0) {
+                  const match = payeeSuggestions[0];
+                  if (match.type === "account") {
+                    setTransferPayee(match.accountName);
+                    setSelectedPayeeAccountName(match.accountName);
+                  } else {
+                    setTransferPayee(match.label);
+                    setSelectedPayeeAccountName(null);
+                  }
+                  setPayeeInput(match.label);
+                  setPayeeDropdownOpen(false);
+                } else {
+                  // Create new payee
+                  setTransferPayee(payeeInput);
+                  setSelectedPayeeAccountName(null);
+                  setPayeeDropdownOpen(false);
+                }
+                void handleSubmit();
+              } else if (e.key === "Escape") {
+                e.preventDefault();
+                setPayeeDropdownOpen(false);
+                onCancel?.();
+              } else if (e.key === "ArrowDown" && payeeDropdownOpen) {
+                e.preventDefault();
+                // Could add keyboard navigation here
               }
             }}
-            className="w-full p-1 border rounded text-sm"
-          >
-            <optgroup label="Payments & Transfers">
-              {transferTargets.map((acc) => (
-                <option key={acc.id} value={acc.name}>
-                  {getPreviewLabel(acc.name)}
-                </option>
-              ))}
-            </optgroup>
-            <optgroup label="Saved Payees">
-              <option value="__new__">➕ New Payee...</option>
-              {allPayees.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </optgroup>
-          </select>
-        )}
-      </td>
-      <td className="border p-2">
-        <div className="flex flex-col gap-1">
-          {newGroupMode ? (
-            <input
-              data-cy="tx-new-group-input"
-              type="text"
-              placeholder="New Group Name"
-              className="w-full p-1 border rounded text-sm"
-              value={newGroupName}
-              onChange={(e) => setNewGroupName(e.target.value)}
-              disabled={sameTypeTransfer}
-            />
-          ) : (
-            <select
-              data-cy="tx-group-select"
-              className="w-full p-1 border rounded text-sm"
-              value={selectedGroup}
-              onChange={(e) => {
-                if (e.target.value === "__new__") {
-                  setNewGroupMode(true);
-                  setSelectedGroup("");
-                } else {
-                  setSelectedGroup(e.target.value);
-                }
+            onBlur={(e) => {
+              // Delay to allow click on dropdown item
+              setTimeout(() => {
+                setPayeeDropdownOpen(false);
+              }, 200);
+            }}
+          />
+          {payeeDropdownOpen && (
+            <div
+              className="fixed z-[9999] bg-white border rounded shadow-lg max-h-60 overflow-y-auto"
+              data-cy="payee-dropdown"
+              style={{
+                top: `${payeeDropdownPos.top}px`,
+                left: `${payeeDropdownPos.left}px`,
+                width: `${payeeDropdownPos.width}px`,
+                marginTop: '4px'
               }}
-              disabled={sameTypeTransfer}
             >
-              <option value="Ready to Assign">Ready to Assign</option>
-              <option value="">Select Group</option>
-              {categoryGroups.map((group) => (
-                <option key={group} value={group}>
-                  {group}
-                </option>
-              ))}
-              <option value="__new__">➕ New Group...</option>
-            </select>
-          )}
-
-          {newItemMode ? (
-            <input
-              data-cy="tx-new-item-input"
-              type="text"
-              placeholder="New Category Name"
-              className="w-full p-1 border rounded text-sm"
-              value={newItemName}
-              onChange={(e) => setNewItemName(e.target.value)}
-              disabled={sameTypeTransfer}
-            />
-          ) : (
-            <select
-              data-cy="tx-item-select"
-              className="w-full p-1 border rounded text-sm"
-              value={selectedItem}
-              onChange={(e) => {
-                if (e.target.value === "__new__") {
-                  setNewItemMode(true);
-                  setSelectedItem("");
-                } else {
-                  setSelectedItem(e.target.value);
-                }
-              }}
-              disabled={sameTypeTransfer || selectedGroup === "Ready to Assign"}
-            >
-              <option value="">Select Category</option>
-              {(selectedGroup ? getItemsForGroup(selectedGroup) : []).map(
-                (item) => (
-                  <option key={item} value={item}>
-                    {item}
-                  </option>
-                )
+              {payeeSuggestions.length === 0 ? (
+                <div
+                  className="p-2 hover:bg-teal-50 cursor-pointer text-sm"
+                  onClick={() => {
+                    setTransferPayee(payeeInput);
+                    setSelectedPayeeAccountName(null);
+                    setPayeeDropdownOpen(false);
+                  }}
+                >
+                  ➕ Create: {payeeInput || "New Payee"}
+                </div>
+              ) : (
+                <>
+                  {transferTargets.some(t => 
+                    payeeSuggestions.some(s => s.type === "account" && s.accountName === t.name)
+                  ) && (
+                    <div className="px-2 py-1 text-xs font-semibold text-gray-500 bg-gray-50">
+                      Payments & Transfers
+                    </div>
+                  )}
+                  {payeeSuggestions
+                    .filter((s) => s.type === "account")
+                    .map((suggestion) => (
+                      <div
+                        key={suggestion.accountName}
+                        className="p-2 hover:bg-teal-50 cursor-pointer text-sm"
+                        onClick={() => {
+                          setTransferPayee(suggestion.accountName!);
+                          setSelectedPayeeAccountName(suggestion.accountName!);
+                          setPayeeInput(suggestion.label);
+                          setPayeeDropdownOpen(false);
+                        }}
+                      >
+                        {suggestion.label}
+                      </div>
+                    ))}
+                  {payeeSuggestions.some((s) => s.type === "payee") && (
+                    <div className="px-2 py-1 text-xs font-semibold text-gray-500 bg-gray-50">
+                      Saved Payees
+                    </div>
+                  )}
+                  {payeeSuggestions
+                    .filter((s) => s.type === "payee")
+                    .map((suggestion) => (
+                      <div
+                        key={suggestion.label}
+                        className="p-2 hover:bg-teal-50 cursor-pointer text-sm"
+                        onClick={() => {
+                          setTransferPayee(suggestion.label);
+                          setSelectedPayeeAccountName(null);
+                          setPayeeInput(suggestion.label);
+                          setPayeeDropdownOpen(false);
+                        }}
+                      >
+                        {suggestion.label}
+                      </div>
+                    ))}
+                  {payeeInput && (
+                    <div
+                      className="p-2 hover:bg-teal-50 cursor-pointer text-sm border-t"
+                      onClick={() => {
+                        setTransferPayee(payeeInput);
+                        setSelectedPayeeAccountName(null);
+                        setPayeeDropdownOpen(false);
+                      }}
+                    >
+                      ➕ Create: {payeeInput}
+                    </div>
+                  )}
+                </>
               )}
-              <option value="__new__">➕ New Category...</option>
-            </select>
+            </div>
           )}
         </div>
       </td>
+
+      <td className="border p-2 relative overflow-visible">
+        {/* Hidden group value for tests / debugging */}
+        <input
+          type="hidden"
+          data-cy="tx-group-select"
+          value={selectedGroup}
+          readOnly
+        />
+
+        {newCategoryMode ? (
+          <div className="flex flex-col gap-2">
+            {/* New category name */}
+            <input
+              data-cy="tx-new-category-input"
+              ref={newCategoryInputRef}
+              type="text"
+              className="w-full p-1 border rounded text-sm"
+              placeholder="New Category Name"
+              value={newCategoryName}
+              onChange={(e) => setNewCategoryName(e.target.value)}
+              onKeyDown={handleKeyDown}
+              disabled={sameTypeTransfer}
+            />
+
+            {/* Choose existing group or 'Add New Category Group...' */}
+            <select
+              data-cy="tx-category-group-select"
+              className="w-full p-1 border rounded text-sm"
+              value={
+                newCategoryGroupIsNew
+                  ? "__new_group__"
+                  : selectedGroup || ""
+              }
+              onChange={(e) => {
+                const value = e.target.value;
+                if (value === "__new_group__") {
+                  setNewCategoryGroupIsNew(true);
+                  setSelectedGroup("");
+                  setNewCategoryGroupName("");
+                } else {
+                  setNewCategoryGroupIsNew(false);
+                  setSelectedGroup(value);
+                  setNewCategoryGroupName("");
+                }
+              }}
+              onKeyDown={handleKeyDown}
+              disabled={sameTypeTransfer}
+            >
+              <option value="">Select Category Group</option>
+              <option value="__new_group__">➕ Add New Category Group...</option>
+              {categoryGroups.map((group) => (
+                <option key={group.name} value={group.name}>
+                  {group.name}
+                </option>
+              ))}
+            </select>
+
+            {/* New group name input (only when creating a group) */}
+            {newCategoryGroupIsNew && (
+              <input
+                data-cy="tx-new-category-group-input"
+                ref={newCategoryGroupInputRef}
+                type="text"
+                className="w-full p-1 border rounded text-sm"
+                placeholder="New Category Group Name"
+                value={newCategoryGroupName}
+                onChange={(e) => setNewCategoryGroupName(e.target.value)}
+                onKeyDown={handleKeyDown}
+                disabled={sameTypeTransfer}
+              />
+            )}
+
+            {/* Tiny cancel back to normal dropdown */}
+            <button
+              type="button"
+              className="self-start text-xs text-gray-500 hover:underline"
+              onClick={() => {
+                setNewCategoryMode(false);
+                setNewCategoryName("");
+                setNewCategoryGroupIsNew(false);
+                setNewCategoryGroupName("");
+              }}
+            >
+              Cancel new category
+            </button>
+          </div>
+        ) : (
+          <div className="relative">
+            <input
+              ref={categoryInputRef}
+              data-cy="tx-item-select"
+              type="text"
+              placeholder="Select or type category..."
+              className="w-full p-1 border rounded text-sm"
+              value={categoryInput}
+              onChange={(e) => {
+                setCategoryInput(e.target.value);
+                if (categoryInputRef.current) {
+                  const rect = categoryInputRef.current.getBoundingClientRect();
+                  setCategoryDropdownPos({ top: rect.bottom, left: rect.left, width: rect.width });
+                }
+                setCategoryDropdownOpen(true);
+              }}
+              onFocus={() => {
+                if (categoryInputRef.current) {
+                  const rect = categoryInputRef.current.getBoundingClientRect();
+                  setCategoryDropdownPos({ top: rect.bottom, left: rect.left, width: rect.width });
+                }
+                setCategoryDropdownOpen(true);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  if (categorySuggestions.length > 0) {
+                    const match = categorySuggestions[0];
+                    setSelectedGroup(match.groupName);
+                    setSelectedItem(match.itemName);
+                    setCategoryInput(match.label);
+                    setCategoryDropdownOpen(false);
+                  } else if (categoryInput.toLowerCase() === "ready to assign") {
+                    setSelectedGroup("Ready to Assign");
+                    setSelectedItem("");
+                    setCategoryInput("Ready to Assign");
+                    setCategoryDropdownOpen(false);
+                  } else {
+                    // Start creating new category
+                    setNewCategoryMode(true);
+                    setNewCategoryName(categoryInput);
+                    setCategoryDropdownOpen(false);
+                  }
+                  void handleSubmit();
+                } else if (e.key === "Escape") {
+                  e.preventDefault();
+                  setCategoryDropdownOpen(false);
+                  onCancel?.();
+                }
+              }}
+              onBlur={() => {
+                setTimeout(() => {
+                  setCategoryDropdownOpen(false);
+                }, 200);
+              }}
+              disabled={sameTypeTransfer}
+            />
+            {categoryDropdownOpen && !sameTypeTransfer && (
+              <div
+                className="fixed z-[9999] bg-white border rounded shadow-lg max-h-60 overflow-y-auto"
+                data-cy="category-dropdown"
+                style={{
+                  top: `${categoryDropdownPos.top}px`,
+                  left: `${categoryDropdownPos.left}px`,
+                  width: `${categoryDropdownPos.width}px`,
+                  marginTop: '4px'
+                }}
+              >
+                {categorySuggestions.length === 0 && !categoryInput.toLowerCase().includes("ready to assign") ? (
+                  <div
+                    className="p-2 hover:bg-teal-50 cursor-pointer text-sm"
+                    onClick={() => {
+                      setNewCategoryMode(true);
+                      setNewCategoryName(categoryInput);
+                      setCategoryDropdownOpen(false);
+                    }}
+                  >
+                    ➕ Create New Category: {categoryInput || "..."}
+                  </div>
+                ) : (
+                  <>
+                    {(categoryInput === "" || "ready to assign".includes(categoryInput.toLowerCase())) && (
+                      <div
+                        className="p-2 hover:bg-teal-50 cursor-pointer text-sm font-semibold"
+                        onClick={() => {
+                          setSelectedGroup("Ready to Assign");
+                          setSelectedItem("");
+                          setCategoryInput("Ready to Assign");
+                          setCategoryDropdownOpen(false);
+                        }}
+                      >
+                        Ready to Assign
+                      </div>
+                    )}
+                    {categorySuggestions.map((suggestion, idx) => {
+                      const prevGroup = idx > 0 ? categorySuggestions[idx - 1].groupName : null;
+                      const showHeader = suggestion.groupName !== prevGroup;
+                      return (
+                        <div key={`${suggestion.groupName}::${suggestion.itemName}`}>
+                          {showHeader && (
+                            <div className="px-2 py-1 text-xs font-semibold text-gray-500 bg-gray-50">
+                              {suggestion.groupName}
+                            </div>
+                          )}
+                          <div
+                            className="p-2 hover:bg-teal-50 cursor-pointer text-sm pl-4"
+                            onClick={() => {
+                              setSelectedGroup(suggestion.groupName);
+                              setSelectedItem(suggestion.itemName);
+                              setCategoryInput(suggestion.label);
+                              setCategoryDropdownOpen(false);
+                            }}
+                          >
+                            {suggestion.itemName}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {categoryInput && (
+                      <div
+                        className="p-2 hover:bg-teal-50 cursor-pointer text-sm border-t"
+                        onClick={() => {
+                          setNewCategoryMode(true);
+                          setNewCategoryName(categoryInput);
+                          setCategoryDropdownOpen(false);
+                        }}
+                      >
+                        ➕ Create New Category: {categoryInput}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </td>
+
+
       <td className="border p-2">
         <div className="flex items-center gap-2">
           <button
             data-cy="tx-sign-toggle"
             type="button"
             onClick={() => setIsNegative((prev) => !prev)}
-            className={`rounded px-2 py-1 font-bold ${
-              isNegative ? "text-red-600" : "text-green-600"
-            }`}
+            className={`rounded px-2 py-1 font-bold border ${isNegative
+              ? "text-red-600 border-red-200"
+              : "text-green-600 border-green-200"
+              }`}
           >
             {isNegative ? "−" : "+"}
           </button>
           <input
+            ref={amountInputRef}
             data-cy="tx-amount-input"
             type="number"
-            className="w-full p-1 border rounded text-sm"
+            className="w-full p-1 border rounded text-sm text-right"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
+            onKeyDown={handleKeyDown}
             placeholder="0.00"
           />
           <button
             data-cy="tx-submit"
-            onClick={handleSubmit}
-            className="bg-teal-600 text-white px-2 py-1 rounded text-sm"
+            onClick={() => void handleSubmit()}
+            className="bg-teal-600 hover:bg-teal-500 text-white px-2 py-1 rounded text-sm font-semibold"
           >
-            ✓
+            Submit
           </button>
         </div>
       </td>

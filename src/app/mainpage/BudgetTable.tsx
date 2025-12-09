@@ -182,13 +182,17 @@ export default function BudgetTable() {
       const updatedCategories = updated[currentMonth]?.categories.map(
         (category) => {
           const updatedItems = category.categoryItems.map((item) => {
-            if (item.name !== itemName) return item;
+            // Only touch the one in the chosen group *and* with the chosen name
+            if (category.name !== categoryName || item.name !== itemName) {
+              return item;
+            }
 
             const itemActivity = calculateActivityForMonth(
               currentMonth,
-              item.name
+              item.name,
+              categoryName
             );
-            const cumulative = getCumulativeAvailable(updated, item.name);
+            const cumulative = getCumulativeAvailable(updated, item.name, categoryName);
             const available = value + itemActivity + Math.max(cumulative, 0);
 
             return {
@@ -222,7 +226,7 @@ export default function BudgetTable() {
             item.name,
             updated
           );
-          const cumulative = getCumulativeAvailable(updated, item.name);
+          const cumulative = getCumulativeAvailable(updated, item.name, category.name);
           const available = item.assigned + activity + Math.max(cumulative, 0);
 
           return {
@@ -335,7 +339,7 @@ export default function BudgetTable() {
               </h2>
 
               {categoryDeleteContext.assigned !== 0 ||
-              categoryDeleteContext.activity !== 0 ? (
+                categoryDeleteContext.activity !== 0 ? (
                 <>
                   <p className="mb-2 text-sm text-gray-600">
                     This category has existing funds or activity. Where should
@@ -486,11 +490,10 @@ export default function BudgetTable() {
               <button
                 key={filter}
                 data-cy={`filter-${filter.toLowerCase().replace(' ', '-')}`}
-                className={`px-4 py-2 rounded-md ${
-                  selectedFilter === filter
-                    ? "bg-blue-600 text-white"
-                    : "bg-gray-200 text-gray-700"
-                }`}
+                className={`px-4 py-2 rounded-md ${selectedFilter === filter
+                  ? "bg-blue-600 text-white"
+                  : "bg-gray-200 text-gray-700"
+                  }`}
                 onClick={() => setSelectedFilter(filter)}
               >
                 {filter}
@@ -586,7 +589,7 @@ export default function BudgetTable() {
                         </div>
                       </div>
                     </td>
-                    <td 
+                    <td
                       className="p-2 border"
                       data-cy="available-display"
                       data-category={group.name}
@@ -609,28 +612,27 @@ export default function BudgetTable() {
                     <td className="p-2 border">
                       {group.name === "Credit Card Payments"
                         ? "Payment - " +
-                          formatToUSD(
-                            group.categoryItems.reduce(
-                              (sum, item) => sum + item.available,
-                              0
-                            ) || 0
-                          )
+                        formatToUSD(
+                          group.categoryItems.reduce(
+                            (sum, item) => sum + item.available,
+                            0
+                          ) || 0
+                        )
                         : formatToUSD(
-                            group.categoryItems.reduce(
-                              (sum, item) => sum + item.available,
-                              0
-                            )
-                          )}
+                          group.categoryItems.reduce(
+                            (sum, item) => sum + item.available,
+                            0
+                          )
+                        )}
                     </td>
                   </tr>
                   <tr>
                     <td colSpan={4} className="relative p-0">
-                          {activeCategory === group.name && (
+                      {activeCategory === group.name && (
                         <div
                           ref={addItemRef}
-                          className={`${
-                            dropUp ? "bottom-full mb-2" : "top-full mt-2"
-                          } absolute left-0 mt-2 w-64 bg-white p-4 shadow-lg rounded-lg border z-50`}
+                          className={`${dropUp ? "bottom-full mb-2" : "top-full mt-2"
+                            } absolute left-0 mt-2 w-64 bg-white p-4 shadow-lg rounded-lg border z-50`}
                         >
                           <input
                             data-cy="add-item-input"
@@ -658,7 +660,7 @@ export default function BudgetTable() {
                     group.categoryItems.map((item, itemIndex) => (
                       <Fragment>
                         <tr
-                          key={itemIndex}
+                          key={`${group.name}::${item.name}`}
                           data-cy="category-row"
                           data-category={group.name}
                           data-item={item.name}
@@ -700,7 +702,7 @@ export default function BudgetTable() {
                             }}
                           >
                             {editingItem?.category === group.name &&
-                            editingItem?.item === item.name ? (
+                              editingItem?.item === item.name ? (
                               <input
                                 value={newCategoryName}
                                 onChange={(e) =>
@@ -736,7 +738,7 @@ export default function BudgetTable() {
                                       width: `${Math.min(
                                         (item.assigned /
                                           item.target.amountNeeded) *
-                                          100,
+                                        100,
                                         100
                                       )}%`,
                                     }}
@@ -748,9 +750,8 @@ export default function BudgetTable() {
                                   </span>
                                   {getTargetStatus(item).message && (
                                     <span
-                                      className={`text-xs ml-2 ${
-                                        getTargetStatus(item).color
-                                      }`}
+                                      className={`text-xs ml-2 ${getTargetStatus(item).color
+                                        }`}
                                     >
                                       {getTargetStatus(item).message}
                                     </span>
