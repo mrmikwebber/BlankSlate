@@ -360,7 +360,8 @@ export default function InlineTransactionRow({
         });
       }
     } else {
-      await addTransaction(accountId, transactionData);
+      // Immediately call onSave for optimistic UI update, don't wait for DB
+      addTransaction(accountId, transactionData);
 
       if (otherAccount) {
         const isThisCredit = thisAccount.type === "credit";
@@ -384,7 +385,7 @@ export default function InlineTransactionRow({
           }
         })();
 
-        await addTransaction(otherAccount.id, {
+        addTransaction(otherAccount.id, {
           date,
           payee: mirrorPayee,
           category: itemName || null,
@@ -392,8 +393,6 @@ export default function InlineTransactionRow({
         });
       }
     }
-
-    await refreshAccounts();
 
     onSave?.();
     setTransferPayee("");
