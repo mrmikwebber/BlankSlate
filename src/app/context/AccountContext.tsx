@@ -21,6 +21,18 @@ export interface Account {
   type: "credit" | "debit";
 }
 
+export interface SavedPayee {
+  id: number;
+  name: string;
+  last_used_at: string;
+}
+
+interface AccountContextType {
+  // ...existing stuff
+  savedPayees: SavedPayee[];
+  upsertPayee: (name: string) => Promise<void>;
+}
+
 interface AccountContextType {
   accounts: Account[];
   recentTransactions: Transaction[];
@@ -53,6 +65,7 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const { user } = useAuth() || { user: null };
 
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [savedPayees, setSavedPayees] = useState<SavedPayee[]>([]);
   const [recentTransactions, setRecentTransactions] = useState([]);
   useEffect(() => {
     if (!user) return;
@@ -75,6 +88,62 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     fetchAccounts();
   }, [user]);
+
+  useEffect(() => {
+  if (!user) {
+    setSavedPayees([]);
+    return;
+  }
+
+  const fetchPayees = async () => {
+    const { data, error } = await supabase
+      .from("transaction_payees")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("last_used_at", { ascending: false })
+      .limit(15);
+
+    if (error) {
+      console.error("[AccountContext] Error fetching payees", error);
+      return;
+    }
+
+    setSavedPayees(data as SavedPayee[]);
+  };
+
+  fetchPayees();
+}, [user]);
+
+const upsertPayee = async (name: string) => {
+  const trimmed = name.trim();
+  if (!trimmed) return;
+
+  const { data, error } = await supabase
+    .from("transaction_payees")
+    .upsert(
+      {
+        user_id: user?.id,
+        name: trimmed,
+        last_used_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id,name" } // use the unique constraint
+    )
+    .select()
+    .single();
+
+  if (error) {
+    console.error("[AccountContext] Error upserting payee", error);
+    return;
+  }
+
+  setSavedPayees((prev) => {
+    const without = prev.filter((p) => p.name !== trimmed);
+    const updated = [data as SavedPayee, ...without];
+    return updated.slice(0, 15); // enforce cap
+  });
+};
+
+
 
   const addTransaction = async (accountId, transaction) => {
     const { data, error } = await supabase.from("transactions").insert([
@@ -290,7 +359,8 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   return (
-    <AccountContext.Provider value={{ accounts, addTransaction, addAccount, deleteAccount, setAccounts, deleteTransaction, deleteTransactionWithMirror, editTransaction, editAccountName, recentTransactions }}>
+    <AccountContext.Provider value={{ accounts, addTransaction, addAccount, deleteAccount, setAccounts, deleteTransaction, deleteTransactionWithMirror, editTransaction, editAccountName, recentTransactions, savedPayees,
+    upsertPayee }}>
       {children}
     </AccountContext.Provider>
   );

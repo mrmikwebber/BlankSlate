@@ -29,7 +29,7 @@ export default function InlineTransactionRow({
     addItemToCategory,
   } = useBudgetContext();
 
-  const { addTransaction, editTransaction, accounts, deleteTransaction } =
+  const { addTransaction, editTransaction, accounts, deleteTransaction, savedPayees, upsertPayee } =
     useAccountContext();
 
   const today = format(new Date(), "yyyy-MM-dd");
@@ -182,13 +182,8 @@ export default function InlineTransactionRow({
   }, [newCategoryGroupIsNew]);
 
 
-  const allPayees = Array.from(
-    new Set(
-      accounts
-        .flatMap((acc) => acc.transactions.map((t) => t.payee))
-        .filter(Boolean)
-    )
-  );
+  // Get payees from saved payees table
+  const allPayees = savedPayees.map((p) => p.name);
 
   const transferTargets = accounts.filter((a) => a.id !== accountId);
 
@@ -328,6 +323,11 @@ export default function InlineTransactionRow({
       balance,
     };
 
+    // Save payee to database if it's not a transfer
+    if (!isTransfer) {
+      await upsertPayee(payeeName);
+    }
+
     if (isEdit && initialData) {
       await editTransaction(accountId, initialData.id, transactionData);
 
@@ -420,8 +420,11 @@ export default function InlineTransactionRow({
 
     onSave?.();
     setTransferPayee("");
+    setPayeeInput("");
+    setSelectedPayeeAccountName(null);
     setSelectedGroup("");
     setSelectedItem("");
+    setCategoryInput("");
     setAmount("");
 
     setNewCategoryMode(false);
