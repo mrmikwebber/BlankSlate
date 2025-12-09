@@ -4,6 +4,9 @@ import { useBudgetContext } from "@/app/context/BudgetContext";
 import { useAccountContext, Transaction } from "@/app/context/AccountContext";
 import { format } from "date-fns";
 import { supabase } from "@/utils/supabaseClient";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Plus, Minus } from "lucide-react";
 
 export default function InlineTransactionRow({
   accountId,
@@ -561,28 +564,28 @@ export default function InlineTransactionRow({
         isEdit ? "transaction-form-row-edit" : "transaction-form-row-add"
       }
       data-mode={isEdit ? "edit" : "add"}
-      className="bg-teal-50 transition-colors duration-150"
+      className="bg-teal-50/30 hover:bg-teal-50/50 transition-colors duration-150 border-b border-slate-200"
     >
-      <td className="border p-2">
-        <input
+      <td className="px-4 py-2 border-r border-slate-200">
+        <Input
           ref={dateRef}
           data-cy="tx-date-input"
           type="date"
           value={date}
           onChange={(e) => setDate(e.target.value)}
           onKeyDown={handleKeyDown}
-          className="w-full p-1 border rounded text-sm"
+          className="h-9"
         />
       </td>
 
-      <td className="border p-2 relative overflow-visible">
+      <td className="px-4 py-2 border-r border-slate-200 relative overflow-visible">
         <div className="relative">
-          <input
+          <Input
             ref={payeeInputRef}
             data-cy="tx-payee-select"
             type="text"
             placeholder="Select or type payee..."
-            className="w-full p-1 border rounded text-sm"
+            className="h-9"
             value={payeeInput}
             onChange={(e) => {
               setPayeeInput(e.target.value);
@@ -638,7 +641,7 @@ export default function InlineTransactionRow({
           />
           {payeeDropdownOpen && (
             <div
-              className="fixed z-[9999] bg-white border rounded shadow-lg max-h-60 overflow-y-auto"
+              className="fixed z-[9999] bg-white border border-slate-300 rounded-lg shadow-xl max-h-60 overflow-y-auto"
               data-cy="payee-dropdown"
               style={{
                 top: `${payeeDropdownPos.top}px`,
@@ -649,7 +652,7 @@ export default function InlineTransactionRow({
             >
               {payeeSuggestions.length === 0 ? (
                 <div
-                  className="p-2 hover:bg-teal-50 cursor-pointer text-sm"
+                  className="px-3 py-2 hover:bg-teal-50 cursor-pointer text-sm text-slate-700"
                   onClick={() => {
                     setTransferPayee(payeeInput);
                     setSelectedPayeeAccountName(null);
@@ -663,7 +666,7 @@ export default function InlineTransactionRow({
                   {transferTargets.some(t => 
                     payeeSuggestions.some(s => s.type === "account" && s.accountName === t.name)
                   ) && (
-                    <div className="px-2 py-1 text-xs font-semibold text-gray-500 bg-gray-50">
+                    <div className="px-3 py-1.5 text-xs font-semibold text-slate-600 bg-slate-50 border-b border-slate-200">
                       Payments & Transfers
                     </div>
                   )}
@@ -672,7 +675,7 @@ export default function InlineTransactionRow({
                     .map((suggestion) => (
                       <div
                         key={suggestion.accountName}
-                        className="p-2 hover:bg-teal-50 cursor-pointer text-sm"
+                        className="px-3 py-2 hover:bg-teal-50 cursor-pointer text-sm text-slate-700"
                         onClick={() => {
                           setTransferPayee(suggestion.accountName!);
                           setSelectedPayeeAccountName(suggestion.accountName!);
@@ -684,7 +687,7 @@ export default function InlineTransactionRow({
                       </div>
                     ))}
                   {payeeSuggestions.some((s) => s.type === "payee") && (
-                    <div className="px-2 py-1 text-xs font-semibold text-gray-500 bg-gray-50">
+                    <div className="px-3 py-1.5 text-xs font-semibold text-slate-600 bg-slate-50 border-b border-slate-200">
                       Saved Payees
                     </div>
                   )}
@@ -693,7 +696,7 @@ export default function InlineTransactionRow({
                     .map((suggestion) => (
                       <div
                         key={suggestion.label}
-                        className="p-2 hover:bg-teal-50 cursor-pointer text-sm"
+                        className="px-3 py-2 hover:bg-teal-50 cursor-pointer text-sm text-slate-700"
                         onClick={() => {
                           setTransferPayee(suggestion.label);
                           setSelectedPayeeAccountName(null);
@@ -706,7 +709,7 @@ export default function InlineTransactionRow({
                     ))}
                   {payeeInput && (
                     <div
-                      className="p-2 hover:bg-teal-50 cursor-pointer text-sm border-t"
+                      className="px-3 py-2 hover:bg-teal-50 cursor-pointer text-sm border-t border-slate-200 text-teal-600 font-medium"
                       onClick={() => {
                         setTransferPayee(payeeInput);
                         setSelectedPayeeAccountName(null);
@@ -723,7 +726,7 @@ export default function InlineTransactionRow({
         </div>
       </td>
 
-      <td className="border p-2 relative overflow-visible">
+      <td className="px-4 py-2 border-r border-slate-200 relative overflow-visible">
         {/* Hidden group value for tests / debugging */}
         <input
           type="hidden"
@@ -735,11 +738,11 @@ export default function InlineTransactionRow({
         {newCategoryMode ? (
           <div className="flex flex-col gap-2">
             {/* New category name */}
-            <input
+            <Input
               data-cy="tx-new-category-input"
               ref={newCategoryInputRef}
               type="text"
-              className="w-full p-1 border rounded text-sm"
+              className="h-9"
               placeholder="New Category Name"
               value={newCategoryName}
               onChange={(e) => setNewCategoryName(e.target.value)}
@@ -750,7 +753,7 @@ export default function InlineTransactionRow({
             {/* Choose existing group or 'Add New Category Group...' */}
             <select
               data-cy="tx-category-group-select"
-              className="w-full p-1 border rounded text-sm"
+              className="w-full px-2 py-1.5 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent bg-white"
               value={
                 newCategoryGroupIsNew
                   ? "__new_group__"
@@ -782,11 +785,11 @@ export default function InlineTransactionRow({
 
             {/* New group name input (only when creating a group) */}
             {newCategoryGroupIsNew && (
-              <input
+              <Input
                 data-cy="tx-new-category-group-input"
                 ref={newCategoryGroupInputRef}
                 type="text"
-                className="w-full p-1 border rounded text-sm"
+                className="h-9"
                 placeholder="New Category Group Name"
                 value={newCategoryGroupName}
                 onChange={(e) => setNewCategoryGroupName(e.target.value)}
@@ -798,7 +801,7 @@ export default function InlineTransactionRow({
             {/* Tiny cancel back to normal dropdown */}
             <button
               type="button"
-              className="self-start text-xs text-gray-500 hover:underline"
+              className="self-start text-xs text-slate-500 hover:text-teal-600 transition-colors"
               onClick={() => {
                 setNewCategoryMode(false);
                 setNewCategoryName("");
@@ -811,12 +814,12 @@ export default function InlineTransactionRow({
           </div>
         ) : (
           <div className="relative">
-            <input
+            <Input
               ref={categoryInputRef}
               data-cy="tx-item-select"
               type="text"
               placeholder="Select or type category..."
-              className="w-full p-1 border rounded text-sm"
+              className="h-9"
               value={categoryInput}
               onChange={(e) => {
                 setCategoryInput(e.target.value);
@@ -869,7 +872,7 @@ export default function InlineTransactionRow({
             />
             {categoryDropdownOpen && !sameTypeTransfer && (
               <div
-                className="fixed z-[9999] bg-white border rounded shadow-lg max-h-60 overflow-y-auto"
+                className="fixed z-[9999] bg-white border border-slate-300 rounded-lg shadow-xl max-h-60 overflow-y-auto"
                 data-cy="category-dropdown"
                 style={{
                   top: `${categoryDropdownPos.top}px`,
@@ -880,7 +883,7 @@ export default function InlineTransactionRow({
               >
                 {categorySuggestions.length === 0 && !categoryInput.toLowerCase().includes("ready to assign") ? (
                   <div
-                    className="p-2 hover:bg-teal-50 cursor-pointer text-sm"
+                    className="px-3 py-2 hover:bg-teal-50 cursor-pointer text-sm text-teal-600 font-medium"
                     onClick={() => {
                       setNewCategoryMode(true);
                       setNewCategoryName(categoryInput);
@@ -893,7 +896,7 @@ export default function InlineTransactionRow({
                   <>
                     {(categoryInput === "" || "ready to assign".includes(categoryInput.toLowerCase())) && (
                       <div
-                        className="p-2 hover:bg-teal-50 cursor-pointer text-sm font-semibold"
+                        className="px-3 py-2 hover:bg-teal-50 cursor-pointer text-sm font-semibold text-slate-700"
                         onClick={() => {
                           setSelectedGroup("Ready to Assign");
                           setSelectedItem("");
@@ -910,12 +913,12 @@ export default function InlineTransactionRow({
                       return (
                         <div key={`${suggestion.groupName}::${suggestion.itemName}`}>
                           {showHeader && (
-                            <div className="px-2 py-1 text-xs font-semibold text-gray-500 bg-gray-50">
+                            <div className="px-3 py-1.5 text-xs font-semibold text-slate-600 bg-slate-50 border-b border-slate-200">
                               {suggestion.groupName}
                             </div>
                           )}
                           <div
-                            className="p-2 hover:bg-teal-50 cursor-pointer text-sm pl-4"
+                            className="px-3 py-2 hover:bg-teal-50 cursor-pointer text-sm pl-6 text-slate-700"
                             onClick={() => {
                               setSelectedGroup(suggestion.groupName);
                               setSelectedItem(suggestion.itemName);
@@ -930,7 +933,7 @@ export default function InlineTransactionRow({
                     })}
                     {categoryInput && (
                       <div
-                        className="p-2 hover:bg-teal-50 cursor-pointer text-sm border-t"
+                        className="px-3 py-2 hover:bg-teal-50 cursor-pointer text-sm border-t border-slate-200 text-teal-600 font-medium"
                         onClick={() => {
                           setNewCategoryMode(true);
                           setNewCategoryName(categoryInput);
@@ -949,36 +952,39 @@ export default function InlineTransactionRow({
       </td>
 
 
-      <td className="border p-2">
+      <td className="px-4 py-2">
         <div className="flex items-center gap-2">
-          <button
+          <Button
             data-cy="tx-sign-toggle"
             type="button"
+            variant="outline"
+            size="icon"
             onClick={() => setIsNegative((prev) => !prev)}
-            className={`rounded px-2 py-1 font-bold border ${isNegative
-              ? "text-red-600 border-red-200"
-              : "text-green-600 border-green-200"
+            className={`h-9 w-9 ${isNegative
+              ? "text-red-600 border-red-300 hover:bg-red-50 hover:text-red-700"
+              : "text-green-600 border-green-300 hover:bg-green-50 hover:text-green-700"
               }`}
           >
-            {isNegative ? "−" : "+"}
-          </button>
-          <input
+            {isNegative ? <Minus className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+          </Button>
+          <Input
             ref={amountInputRef}
             data-cy="tx-amount-input"
             type="number"
-            className="w-full p-1 border rounded text-sm text-right"
+            className="h-9 text-right font-mono"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="0.00"
           />
-          <button
+          <Button
             data-cy="tx-submit"
             onClick={() => void handleSubmit()}
-            className="bg-teal-600 hover:bg-teal-500 text-white px-2 py-1 rounded text-sm font-semibold"
+            size="sm"
+            className="h-9"
           >
-            Submit
-          </button>
+            Save
+          </Button>
         </div>
       </td>
     </tr>

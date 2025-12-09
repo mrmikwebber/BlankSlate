@@ -9,6 +9,26 @@ import { getTargetStatus } from "../utils/getTargetStatus";
 import { createPortal } from "react-dom";
 import InlineTargetEditor from "./TargetInlineEditor";
 import { useAccountContext } from "../context/AccountContext";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardContent,
+} from "@/components/ui/card";
+import { ChevronDown, ChevronRight, Plus } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Separator } from "@/components/ui/separator";
 
 export default function BudgetTable() {
   const {
@@ -88,11 +108,11 @@ export default function BudgetTable() {
     available: number;
   } | null>(null);
 
-  const addItemRef = useRef(null);
+  const addItemRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (addItemRef.current && !addItemRef.current.contains(e.target)) {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (addItemRef.current && !addItemRef.current.contains(e.target as Node)) {
         setActiveCategory(null);
       }
     };
@@ -182,7 +202,6 @@ export default function BudgetTable() {
       const updatedCategories = updated[currentMonth]?.categories.map(
         (category) => {
           const updatedItems = category.categoryItems.map((item) => {
-            // Only touch the one in the chosen group *and* with the chosen name
             if (category.name !== categoryName || item.name !== itemName) {
               return item;
             }
@@ -192,7 +211,11 @@ export default function BudgetTable() {
               item.name,
               categoryName
             );
-            const cumulative = getCumulativeAvailable(updated, item.name, categoryName);
+            const cumulative = getCumulativeAvailable(
+              updated,
+              item.name,
+              categoryName
+            );
             const available = value + itemActivity + Math.max(cumulative, 0);
 
             return {
@@ -215,6 +238,8 @@ export default function BudgetTable() {
       const creditCardAccounts = accounts.filter(
         (acc) => acc.type === "credit"
       );
+      void creditCardAccounts; // currently unused
+
       const updatedCategoriesWithCreditCards = updated[
         currentMonth
       ].categories.map((category) => {
@@ -226,7 +251,11 @@ export default function BudgetTable() {
             item.name,
             updated
           );
-          const cumulative = getCumulativeAvailable(updated, item.name, category.name);
+          const cumulative = getCumulativeAvailable(
+            updated,
+            item.name,
+            category.name
+          );
           const available = item.assigned + activity + Math.max(cumulative, 0);
 
           return {
@@ -287,11 +316,12 @@ export default function BudgetTable() {
 
   return (
     <>
+      {/* Group context menu */}
       {groupContext &&
         createPortal(
           <div
             data-cy="group-context-menu"
-            className="fixed z-50 w-[160px] bg-white border shadow rounded text-sm"
+            className="fixed z-50 w-40 bg-white border border-slate-200 shadow-md rounded-md text-xs"
             style={{ top: groupContext.y, left: groupContext.x }}
             onClick={() => setGroupContext(null)}
           >
@@ -303,52 +333,51 @@ export default function BudgetTable() {
                 setNewGroupName(groupContext.categoryName);
                 setGroupContext(null);
               }}
-              className="px-4 py-2 hover:bg-blue-100 text-blue-600 w-full text-left"
+              className="px-3 py-2 hover:bg-slate-50 text-slate-700 w-full text-left"
             >
-              Rename Group
+              Rename group
             </button>
             {groupContext.itemCount === 0 ? (
-              <>
-                <button
-                  data-cy="group-delete"
-                  data-category={groupContext.categoryName}
-                  onClick={() => {
-                    deleteCategoryGroup(groupContext.categoryName);
-                    setGroupContext(null);
-                  }}
-                  className="px-4 py-2 hover:bg-red-100 text-red-600 w-full text-left"
-                >
-                  Delete Group
-                </button>
-              </>
+              <button
+                data-cy="group-delete"
+                data-category={groupContext.categoryName}
+                onClick={() => {
+                  deleteCategoryGroup(groupContext.categoryName);
+                  setGroupContext(null);
+                }}
+                className="px-3 py-2 hover:bg-red-50 text-red-600 w-full text-left"
+              >
+                Delete group
+              </button>
             ) : (
-              <div className="px-4 py-2 text-gray-500">
-                Cannot delete: Group not empty
+              <div className="px-3 py-2 text-[11px] text-muted-foreground">
+                Cannot delete: group not empty
               </div>
             )}
           </div>,
           document.body
         )}
 
+      {/* Category delete / reassign modal */}
       {categoryDeleteContext &&
         createPortal(
-          <div className="fixed inset-0 bg-black bg-opacity-30 z-50 flex items-center justify-center">
-            <div className="bg-white p-6 rounded shadow-lg w-96">
-              <h2 className="text-lg font-bold mb-4">
+          <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center">
+            <div className="bg-white p-5 rounded-lg shadow-lg w-full max-w-md space-y-4">
+              <h2 className="text-base font-semibold">
                 Delete “{categoryDeleteContext.itemName}”?
               </h2>
 
               {categoryDeleteContext.assigned !== 0 ||
                 categoryDeleteContext.activity !== 0 ? (
                 <>
-                  <p className="mb-2 text-sm text-gray-600">
+                  <p className="text-sm text-muted-foreground">
                     This category has existing funds or activity. Where should
                     they be moved?
                   </p>
 
                   <select
                     data-cy="reassign-target-select"
-                    className="w-full border p-2 mb-4 rounded"
+                    className="w-full border border-slate-300 rounded-md px-2 py-1 text-sm"
                     value={selectedTargetCategory}
                     onChange={(e) => setSelectedTargetCategory(e.target.value)}
                   >
@@ -368,51 +397,55 @@ export default function BudgetTable() {
                       ))}
                   </select>
 
-                  <div className="flex justify-end gap-2">
-                    <button
+                  <div className="flex justify-end gap-2 pt-2">
+                    <Button
                       data-cy="reassign-cancel"
+                      variant="ghost"
+                      size="sm"
                       onClick={() => setCategoryDeleteContext(null)}
-                      className="px-4 py-2 text-gray-600 hover:underline"
                     >
                       Cancel
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       data-cy="reassign-confirm"
+                      size="sm"
+                      variant="destructive"
                       onClick={() => {
                         handleReassignDelete();
                         setCategoryDeleteContext(null);
                       }}
-                      className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-500"
                       disabled={!selectedTargetCategory}
                     >
-                      Confirm & Reassign
-                    </button>
+                      Confirm &amp; reassign
+                    </Button>
                   </div>
                 </>
               ) : (
                 <>
-                  <p className="mb-4 text-sm text-gray-600">
+                  <p className="text-sm text-muted-foreground">
                     This category has no funds or activity. Are you sure you
                     want to delete it?
                   </p>
-                  <div className="flex justify-end gap-2">
-                    <button
+                  <div className="flex justify-end gap-2 pt-2">
+                    <Button
                       data-cy="delete-cancel"
+                      variant="ghost"
+                      size="sm"
                       onClick={() => setCategoryDeleteContext(null)}
-                      className="px-4 py-2 text-gray-600 hover:underline"
                     >
                       Cancel
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       data-cy="delete-confirm"
+                      size="sm"
+                      variant="destructive"
                       onClick={() => {
                         deleteCategoryItem(categoryDeleteContext);
                         setCategoryDeleteContext(null);
                       }}
-                      className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-500"
                     >
-                      Confirm Delete
-                    </button>
+                      Confirm delete
+                    </Button>
                   </div>
                 </>
               )}
@@ -421,11 +454,12 @@ export default function BudgetTable() {
           document.body
         )}
 
+      {/* Category context menu */}
       {categoryContext &&
         createPortal(
           <div
             data-cy="category-context-menu"
-            className="fixed z-50 bg-white border rounded shadow-md text-sm"
+            className="fixed z-50 bg-white border border-slate-200 rounded-md shadow-md text-xs"
             style={{ top: categoryContext.y, left: categoryContext.x }}
             onClick={() => setCategoryContext(null)}
           >
@@ -441,12 +475,11 @@ export default function BudgetTable() {
                 setNewCategoryName(categoryContext.itemName);
                 setCategoryContext(null);
               }}
-              className="px-4 py-2 hover:bg-blue-100 text-blue-600 w-full text-left"
+              className="px-3 py-2 hover:bg-slate-50 text-slate-700 w-full text-left"
             >
-              Rename Category
+              Rename category
             </button>
 
-            {/* Optional: Hide delete if it's a special group or has assigned value */}
             {categoryContext.groupName !== "Credit Card Payments" ? (
               <button
                 data-cy="category-delete"
@@ -462,232 +495,270 @@ export default function BudgetTable() {
                   });
                   setCategoryContext(null);
                 }}
-                className="px-4 py-2 hover:bg-red-100 text-red-600 w-full text-left"
+                className="px-3 py-2 hover:bg-red-50 text-red-600 w-full text-left"
               >
-                Delete Category
+                Delete category
               </button>
             ) : (
-              <div className="px-4 py-2 text-gray-400">
-                Cannot delete (Credit Credit Category)
+              <div className="px-3 py-2 text-[11px] text-muted-foreground">
+                Cannot delete (credit card category)
               </div>
             )}
           </div>,
           document.body
         )}
 
-      <div className="flex flex-col h-full rounded-2xl bg-white border shadow p-3 space-y-2 overflow-hidden">
-        <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
-          <div data-cy="ready-to-assign" className="text-lg font-semibold">
-            Ready to Assign: {formatToUSD(budgetData[currentMonth]?.ready_to_assign || 0)}
-          </div>
-          <div className="w-full">
-            <MonthNav />
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center justify-between gap-2 mb-4 border-t pt-4">
-          <div className="flex flex-wrap gap-2">
-            {FILTERS.map((filter) => (
-              <button
-                key={filter}
-                data-cy={`filter-${filter.toLowerCase().replace(' ', '-')}`}
-                className={`px-4 py-2 rounded-md ${selectedFilter === filter
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-200 text-gray-700"
-                  }`}
-                onClick={() => setSelectedFilter(filter)}
+      {/* Main card */}
+      <Card className="flex flex-col h-full overflow-hidden">
+        <CardHeader className="pb-3 border-b border-slate-200">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div data-cy="ready-to-assign" className="flex items-center gap-2">
+              <span className="text-sm font-medium text-slate-600">
+                Ready to Assign
+              </span>
+              <Badge
+                variant="outline"
+                className="text-base font-bold font-mono px-3 py-1 bg-teal-500 text-white border-teal-500"
               >
-                {filter}
-              </button>
-            ))}
+                {formatToUSD(budgetData[currentMonth]?.ready_to_assign || 0)}
+              </Badge>
+            </div>
+            <div className="ml-auto">
+              <MonthNav />
+            </div>
           </div>
 
-          <div className="ml-auto">
-            <AddCategoryButton handleSubmit={addCategoryGroup} />
+          {/* filters row */}
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap gap-2">
+              {FILTERS.map((filter) => (
+                <Button
+                  key={filter}
+                  data-cy={`filter-${filter.toLowerCase().replace(" ", "-")}`}
+                  variant={selectedFilter === filter ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setSelectedFilter(filter)}
+                >
+                  {filter}
+                </Button>
+              ))}
+            </div>
+            <div className="ml-auto">
+              <AddCategoryButton handleSubmit={addCategoryGroup} />
+            </div>
           </div>
-        </div>
-        <div className="overflow-y-auto flex-1 min-h-0">
-          <table data-cy="budget-table" className="w-full border border-gray-300 rounded-md bg-white shadow-sm min-w-full table-auto">
-            <thead>
-              <tr className="bg-gray-100 text-xs text-gray-700 uppercase">
-                <th className="p-2 border">Category</th>
-                <th className="p-2 border">Assigned</th>
-                <th className="p-2 border">Activity</th>
-                <th className="p-2 border">Available</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredCategories.map((group) => (
-                <Fragment key={group.name}>
-                  <tr
-                    data-cy="category-group-row"
-                    data-category={group.name}
-                    className="bg-slate-100 text-sm font-semibold text-gray-800 border-b border-gray-200"
-                    onMouseEnter={() => setHoveredCategory(group.name)}
-                    onMouseLeave={() => setHoveredCategory(null)}
-                  >
-                    <td
-                      colSpan={0}
-                      className="p-3 w-full border-y"
-                      onContextMenu={(e) => {
-                        e.preventDefault();
-                        setGroupContext({
-                          x: Math.min(e.clientX, window.innerWidth - 160),
-                          y: Math.min(e.clientY, window.innerHeight - 50),
-                          categoryName: group.name,
-                          itemCount: group.categoryItems.length,
-                        });
-                      }}
+        </CardHeader>
+
+        <Separator />
+
+        <CardContent className="p-0 flex-1 flex flex-col min-h-0">
+          <div className="flex-1 overflow-y-auto">
+            <Table data-cy="budget-table" className="w-full">
+              <TableHeader>
+                <TableRow className="bg-slate-200 text-slate-800 border-b border-slate-300">
+                  <TableHead className="text-left px-3 py-2 text-sm font-semibold">
+                    Category
+                  </TableHead>
+                  <TableHead className="text-right px-3 py-2 text-sm font-semibold">
+                    Assigned
+                  </TableHead>
+                  <TableHead className="text-right px-3 py-2 text-sm font-semibold">
+                    Activity
+                  </TableHead>
+                  <TableHead className="text-right px-3 py-2 text-sm font-semibold">
+                    Available
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredCategories.map((group) => (
+                  <Fragment key={group.name}>
+                    {/* Group row */}
+                    <TableRow
+                      data-cy="category-group-row"
+                      data-category={group.name}
+                      className="bg-[#e9edf2] hover:bg-[#e9edf2] text-sm font-semibold text-slate-900 border-b border-slate-300"
+                      onMouseEnter={() => setHoveredCategory(group.name)}
+                      onMouseLeave={() => setHoveredCategory(null)}
                     >
-                      <div className="flex items-center">
-                        <button
-                          data-cy="group-toggle"
-                          data-category={group.name}
-                          onClick={() => toggleCategory(group.name)}
-                          className="mr-2"
-                        >
-                          {openCategories[group.name] ? "▼" : "▶"}
-                        </button>
-                        {editingGroup === group.name ? (
-                          <input
-                            value={newGroupName}
-                            onChange={(e) => setNewGroupName(e.target.value)}
-                            onBlur={async () => {
-                              await renameCategoryGroup(
-                                editingGroup,
-                                newGroupName
-                              );
-                              setEditingGroup(null);
-                            }}
-                            onKeyDown={async (e) => {
-                              if (e.key === "Enter") {
+                      <TableCell
+                        className="p-2 align-middle"
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          setGroupContext({
+                            x: Math.min(
+                              e.clientX,
+                              window.innerWidth - 160
+                            ),
+                            y: Math.min(
+                              e.clientY,
+                              window.innerHeight - 50
+                            ),
+                            categoryName: group.name,
+                            itemCount: group.categoryItems.length,
+                          });
+                        }}
+                      >
+                        <div className="flex items-center gap-1">
+                          <Button
+                            data-cy="group-toggle"
+                            data-category={group.name}
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => toggleCategory(group.name)}
+                            className="mr-1 h-6 w-6"
+                          >
+                            {openCategories[group.name] ? (
+                              <ChevronDown className="h-4 w-4" />
+                            ) : (
+                              <ChevronRight className="h-4 w-4" />
+                            )}
+                          </Button>
+                          {editingGroup === group.name ? (
+                            <Input
+                              value={newGroupName}
+                              onChange={(e) =>
+                                setNewGroupName(e.target.value)
+                              }
+                              onBlur={async () => {
                                 await renameCategoryGroup(
                                   editingGroup,
                                   newGroupName
                                 );
                                 setEditingGroup(null);
-                              }
-                            }}
-                            className="text-black font-bold w-full"
-                            autoFocus
-                          />
-                        ) : (
-                          <span data-cy="group-name" data-category={group.name} className="text-sm font-semibold leading-tight">
-                            {group.name}
-                          </span>
-                        )}
-                        <div className="ms-2 w-6 h-6 flex items-center justify-center">
-                          {hoveredCategory === group.name && (
-                            <button
-                              data-cy="group-add-item-button"
+                              }}
+                              onKeyDown={async (e) => {
+                                if (e.key === "Enter") {
+                                  await renameCategoryGroup(
+                                    editingGroup,
+                                    newGroupName
+                                  );
+                                  setEditingGroup(null);
+                                }
+                              }}
+                              className="h-7 text-sm font-semibold"
+                              autoFocus
+                            />
+                          ) : (
+                            <span
+                              data-cy="group-name"
                               data-category={group.name}
-                              onClick={() => setActiveCategory(group.name)}
-                              className="text-sm bg-blue-500 text-white px-2 py-1 rounded-full hover:bg-teal-500 transition"
+                              className="text-sm font-semibold leading-tight truncate"
                             >
-                              +
-                            </button>
+                              {group.name}
+                            </span>
                           )}
+                          <div className="ms-1 w-6 h-6 flex items-center justify-center">
+                            {hoveredCategory === group.name && (
+                              <Button
+                                data-cy="group-add-item-button"
+                                data-category={group.name}
+                                size="icon"
+                                variant="outline"
+                                onClick={() => setActiveCategory(group.name)}
+                                className="h-6 w-6"
+                              >
+                                <Plus className="h-3 w-3" />
+                              </Button>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    </td>
-                    <td
-                      className="p-2 border"
-                      data-cy="available-display"
-                      data-category={group.name}
-                    >
-                      {formatToUSD(
-                        group.categoryItems.reduce(
-                          (sum, item) => sum + item.available,
-                          0
-                        )
-                      )}
-                    </td>
-                    <td className="p-2 border">
-                      {formatToUSD(
-                        group.categoryItems.reduce(
-                          (sum, item) => sum + item.activity,
-                          0
-                        )
-                      )}
-                    </td>
-                    <td className="p-2 border">
-                      {group.name === "Credit Card Payments"
-                        ? "Payment - " +
-                        formatToUSD(
+                      </TableCell>
+                      <TableCell
+                        className="p-2 text-right text-sm"
+                        data-cy="available-display"
+                        data-category={group.name}
+                      >
+                        {formatToUSD(
                           group.categoryItems.reduce(
-                            (sum, item) => sum + item.available,
-                            0
-                          ) || 0
-                        )
-                        : formatToUSD(
-                          group.categoryItems.reduce(
-                            (sum, item) => sum + item.available,
+                            (sum, item) => sum + item.assigned,
                             0
                           )
                         )}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td colSpan={4} className="relative p-0">
-                      {activeCategory === group.name && (
-                        <div
-                          ref={addItemRef}
-                          className={`${dropUp ? "bottom-full mb-2" : "top-full mt-2"
-                            } absolute left-0 mt-2 w-64 bg-white p-4 shadow-lg rounded-lg border z-50`}
-                        >
-                          <input
-                            data-cy="add-item-input"
-                            type="text"
-                            placeholder="Item Name"
-                            value={newItem.name}
-                            onChange={(e) =>
-                              setNewItem({ ...newItem, name: e.target.value })
-                            }
-                            className="w-full border rounded px-2 py-1"
-                          />
-                          <button
-                            data-cy="add-item-submit"
-                            data-category={group.name}
-                            onClick={() => handleAddItem(group.name)}
-                            className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-500 transition"
+                      </TableCell>
+                      <TableCell className="p-2 text-right text-sm">
+                        {formatToUSD(
+                          group.categoryItems.reduce(
+                            (sum, item) => sum + item.activity,
+                            0
+                          )
+                        )}
+                      </TableCell>
+                      <TableCell className="p-2 text-right text-sm">
+                        {group.name === "Credit Card Payments"
+                          ? "Payment - " +
+                          formatToUSD(
+                            group.categoryItems.reduce(
+                              (sum, item) => sum + item.available,
+                              0
+                            ) || 0
+                          )
+                          : formatToUSD(
+                            group.categoryItems.reduce(
+                              (sum, item) => sum + item.available,
+                              0
+                            )
+                          )}
+                      </TableCell>
+                    </TableRow>
+
+                    {/* Add item popover row */}
+                    <TableRow className="hover:bg-transparent">
+                      <TableCell colSpan={4} className="relative p-0">
+                        {activeCategory === group.name && (
+                          <div
+                            ref={addItemRef}
+                            className={`${dropUp
+                              ? "bottom-full mb-2"
+                              : "top-full mt-2"
+                              } absolute left-0 w-72 bg-white p-3 shadow-lg rounded-md border border-slate-200 z-50 space-y-2`}
                           >
-                            Submit
-                          </button>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                  {openCategories[group.name] &&
-                    group.categoryItems.map((item, itemIndex) => (
-                      <Fragment>
-                        <tr
-                          key={`${group.name}::${item.name}`}
-                          data-cy="category-row"
-                          data-category={group.name}
-                          data-item={item.name}
-                          className="hover:bg-slate-50 border-b transition"
-                          onContextMenu={(e) => {
-                            e.preventDefault();
-                            setCategoryContext({
-                              x: e.clientX,
-                              y: e.clientY,
-                              groupName: group.name,
-                              itemName: item.name,
-                              assigned: item.assigned,
-                              activity: item.activity,
-                              available: item.available,
-                            });
-                          }}
+                            <Input
+                              data-cy="add-item-input"
+                              type="text"
+                              placeholder="New category name"
+                              value={newItem.name}
+                              onChange={(e) =>
+                                setNewItem({
+                                  ...newItem,
+                                  name: e.target.value,
+                                })
+                              }
+                              className="h-8 text-sm"
+                            />
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setActiveCategory(null)}
+                              >
+                                Cancel
+                              </Button>
+                              <Button
+                                data-cy="add-item-submit"
+                                data-category={group.name}
+                                size="sm"
+                                onClick={() => handleAddItem(group.name)}
+                              >
+                                Add category
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </TableCell>
+                    </TableRow>
+
+                    {/* Item rows */}
+                    {openCategories[group.name] &&
+                      group.categoryItems.map((item) => (
+                        <Fragment
+                          key={`${group.name}::${item.name}-fragment`}
                         >
-                          <td
-                            data-cy="category-item-name"
+                          <TableRow
+                            data-cy="category-row"
                             data-category={group.name}
                             data-item={item.name}
-                            className="p-2 border relative"
-                            onClick={() => {
-                              setInlineEditorCategory((prev) =>
-                                prev === item.name ? null : item.name
-                              );
-                            }}
+                            className="odd:bg-white even:bg-slate-100 hover:bg-slate-200"
                             onContextMenu={(e) => {
                               e.preventDefault();
                               setCategoryContext({
@@ -701,92 +772,136 @@ export default function BudgetTable() {
                               });
                             }}
                           >
-                            {editingItem?.category === group.name &&
-                              editingItem?.item === item.name ? (
-                              <input
-                                value={newCategoryName}
-                                onChange={(e) =>
-                                  setNewCategoryName(e.target.value)
-                                }
-                                onBlur={async () => {
-                                  await renameCategory(
-                                    group.name,
-                                    editingItem.item,
-                                    newCategoryName
-                                  );
-                                  setEditingItem(null);
-                                }}
-                                onKeyDown={async (e) => {
-                                  if (e.key === "Enter") {
+                            <TableCell
+                              data-cy="category-item-name"
+                              data-category={group.name}
+                              data-item={item.name}
+                              className="p-2 align-middle"
+                              onClick={() => {
+                                setInlineEditorCategory((prev) =>
+                                  prev === item.name ? null : item.name
+                                );
+                              }}
+                              onContextMenu={(e) => {
+                                e.preventDefault();
+                                setCategoryContext({
+                                  x: e.clientX,
+                                  y: e.clientY,
+                                  groupName: group.name,
+                                  itemName: item.name,
+                                  assigned: item.assigned,
+                                  activity: item.activity,
+                                  available: item.available,
+                                });
+                              }}
+                            >
+                              {editingItem?.category === group.name &&
+                                editingItem.item === item.name ? (
+                                <Input
+                                  value={newCategoryName}
+                                  onChange={(e) =>
+                                    setNewCategoryName(e.target.value)
+                                  }
+                                  onBlur={async () => {
                                     await renameCategory(
                                       group.name,
                                       editingItem.item,
                                       newCategoryName
                                     );
                                     setEditingItem(null);
-                                  }
-                                }}
-                                className="w-full"
-                                autoFocus
-                              />
-                            ) : (
-                              <div className="relative h-6 rounded overflow-hidden bg-gray-50">
-                                {item.target && (
-                                  <div
-                                    className="absolute top-0 left-0 h-full bg-gradient-to-r from-teal-500 to-teal-400 transition-all duration-300 rounded"
-                                    style={{
-                                      width: `${Math.min(
-                                        (item.assigned /
-                                          item.target.amountNeeded) *
-                                        100,
-                                        100
-                                      )}%`,
-                                    }}
-                                  />
-                                )}
-                                <div className="relative z-10 px-2 text-sm flex justify-between items-center h-full">
-                                  <span className="font-medium truncate">
-                                    {item.name}
-                                  </span>
-                                  {getTargetStatus(item).message && (
-                                    <span
-                                      className={`text-xs ml-2 ${getTargetStatus(item).color
-                                        }`}
-                                    >
-                                      {getTargetStatus(item).message}
-                                    </span>
+                                  }}
+                                  onKeyDown={async (e) => {
+                                    if (e.key === "Enter") {
+                                      await renameCategory(
+                                        group.name,
+                                        editingItem.item,
+                                        newCategoryName
+                                      );
+                                      setEditingItem(null);
+                                    }
+                                  }}
+                                  className="h-7 text-sm font-medium"
+                                  autoFocus
+                                />
+                              ) : (
+                                <div className="relative h-6 rounded-md px-1">
+                                  {item.target && (
+                                    <div
+                                      className="absolute top-0 left-0 h-full bg-gradient-to-r from-teal-500 to-teal-400 transition-all duration-300"
+                                      style={{
+                                        width: `${Math.min(
+                                          (item.assigned /
+                                            item.target.amountNeeded) *
+                                          100,
+                                          100
+                                        )}%`,
+                                      }}
+                                    />
                                   )}
+                                  <div className="relative z-10 px-2 flex justify-between items-center h-full">
+                                    <span className="font-medium truncate text-slate-800 text-sm">
+                                      {item.name}
+                                    </span>
+                                    {getTargetStatus(item).message && (
+                                      <span
+                                        className={`text-[11px] ml-2 ${getTargetStatus(item).color
+                                          }`}
+                                      >
+                                        {getTargetStatus(item).message}
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
-                              </div>
-                            )}
-                          </td>
-                          <EditableAssigned
-                            categoryName={group.name}
-                            itemName={item.name}
-                            item={item}
-                            handleInputChange={handleInputChange}
-                          />
-                          <td data-cy="item-activity" data-item={item.name} className="p-2 border">
-                            {formatToUSD(item.activity || 0)}
-                          </td>
-                          <td data-cy="item-available" data-item={item.name} className="p-2 border">
-                            {formatToUSD(item.available || 0)}
-                          </td>
-                        </tr>
-                        {inlineEditorCategory === item.name && (
-                          <InlineTargetEditor
-                            itemName={item.name}
-                            onClose={() => setInlineEditorCategory(null)}
-                          />
-                        )}
-                      </Fragment>
-                    ))}
-                </Fragment>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                              )}
+                            </TableCell>
+
+                            <EditableAssigned
+                              categoryName={group.name}
+                              itemName={item.name}
+                              item={item}
+                              handleInputChange={handleInputChange}
+                            />
+
+                            <TableCell
+                              data-cy="item-activity"
+                              data-item={item.name}
+                              className="p-2 text-right align-middle"
+                            >
+                              {formatToUSD(item.activity || 0)}
+                            </TableCell>
+                            <TableCell
+                              data-cy="item-available"
+                              data-item={item.name}
+                              className={cn(
+                                "p-2 text-right align-middle font-mono text-sm font-medium",
+                                item.available > 0
+                                  ? "text-emerald-600"
+                                  : item.available < 0
+                                    ? "text-red-600"
+                                    : "text-slate-700"
+                              )}
+                            >
+                              {formatToUSD(item.available || 0)}
+                            </TableCell>
+                          </TableRow>
+
+                          {inlineEditorCategory === item.name && (
+                            <InlineTargetEditor
+                              itemName={item.name}
+                              onClose={() =>
+                                setInlineEditorCategory(null)
+                              }
+                            />
+                          )}
+                        </Fragment>
+                      ))}
+                  </Fragment>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
     </>
   );
 }

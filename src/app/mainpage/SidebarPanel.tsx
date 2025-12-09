@@ -1,13 +1,27 @@
 import { useEffect, useMemo, useState } from "react";
-import { PieChart, Pie, Cell, Tooltip } from "recharts";
+import { PieChart, Pie, Cell, Tooltip as RechartsTooltip } from "recharts";
+import { isSameMonth, parseISO } from "date-fns";
+import { createPortal } from "react-dom";
+
 import { formatToUSD } from "@/app/utils/formatToUSD";
 import { useAccountContext } from "@/app/context/AccountContext";
+import { useBudgetContext } from "../context/BudgetContext";
+
 import AccountCardCompact from "./AccountCardCompact";
 import ItemsToAddress from "./ItemsToAddress";
-import { isSameMonth, parseISO } from "date-fns";
-import { useBudgetContext } from "../context/BudgetContext";
 import AddAccountModal from "./AddAccountModal";
-import { createPortal } from "react-dom";
+
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
+
+import { Plus } from "lucide-react";
 
 export default function SidebarPanel() {
   const [showModal, setShowModal] = useState(false);
@@ -16,6 +30,7 @@ export default function SidebarPanel() {
     y: number;
     accountId: string;
   } | null>(null);
+
   const { accounts, addAccount, deleteAccount } = useAccountContext();
   const { currentMonth, budgetData } = useBudgetContext();
 
@@ -45,7 +60,7 @@ export default function SidebarPanel() {
   }, [accounts, currentMonth]);
 
   const spendingData = useMemo(() => {
-    const categoryTotals = {};
+    const categoryTotals: Record<string, number> = {};
     const accountNames = new Set(accounts.map((a) => a.name));
 
     accounts.forEach((account) => {
@@ -76,9 +91,7 @@ export default function SidebarPanel() {
         : 0,
       color: COLORS[index % COLORS.length],
     }));
-  }, [accounts, currentMonth]);
-
-  console.log(spendingData);
+  }, [accounts, currentMonth, totalInflow]);
 
   const creditCardsThatNeedPayment = (
     budgetData[currentMonth]?.categories.find(
@@ -97,8 +110,8 @@ export default function SidebarPanel() {
     addAccount(newAccount);
   };
 
-  const handleDeleteAccount = (accountId) => {
-    deleteAccount(accountId);
+  const handleDeleteAccount = (accountId: string) => {
+    deleteAccount(Number(accountId));
   };
 
   useEffect(() => {
@@ -108,151 +121,185 @@ export default function SidebarPanel() {
   }, []);
 
   return (
-    <div className="bg-white rounded-xl shadow-sm p-4 space-y-6 overflow-y-auto max-h-[calc(100vh-160px)] w-full text-sm relative">
-      {/* Header Row */}
-      <div className="flex justify-between items-center">
-        <h2 className="text-lg font-semibold">Accounts</h2>
-        <button
-          onClick={() => setShowModal(true)}
-          className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm"
-        >
-          Add
-        </button>
-        {showModal && (
-          <AddAccountModal
-            onAddAccount={handleAddAccount}
-            onClose={() => setShowModal(false)}
+    <aside className="space-y-4 max-h-[calc(100vh-160px)] overflow-y-auto w-full text-sm">
+      {/* Accounts card */}
+      <Card className="shadow-sm">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+          <div>
+            <CardTitle className="text-sm font-semibold">Accounts</CardTitle>
+            <CardDescription className="text-xs">
+              Cash and credit balances at a glance.
+            </CardDescription>
+          </div>
+          <Button
+            size="sm"
+            onClick={() => setShowModal(true)}
+            className="gap-1"
+          >
+            <Plus className="h-4 w-4" />
+            Add
+          </Button>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {accounts.length === 0 ? (
+            <p className="text-muted-foreground text-center">
+              No accounts added yet.
+            </p>
+          ) : (
+            <>
+              <div>
+                <p className="text-[11px] font-semibold text-muted-foreground tracking-wide uppercase mb-1">
+                  Cash
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {accounts
+                    .filter((a) => a.type === "debit").map(acc => (
+                      <AccountCardCompact
+                        key={acc.id}
+                        account={acc}
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          setContextMenu({
+                            x: e.clientX,
+                            y: e.clientY,
+                            accountId: String(acc.id),
+                          });
+                        }}
+                      />
+                    ))}
+                </div>
+              </div>
+
+              <Separator className="my-1" />
+
+              <div>
+                <p className="text-[11px] font-semibold text-muted-foreground tracking-wide uppercase mb-1">
+                  Credit
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {accounts
+                    .filter((a) => a.type === "credit").map(acc => (
+                      <AccountCardCompact
+                        key={acc.id}
+                        account={acc}
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          setContextMenu({
+                            x: e.clientX,
+                            y: e.clientY,
+                            accountId: String(acc.id),
+                          });
+                        }}
+                      />
+                    ))}
+                </div>
+              </div>
+            </>
+          )}
+
+          {showModal && (
+            <AddAccountModal
+              onAddAccount={handleAddAccount}
+              onClose={() => setShowModal(false)}
+            />
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Spending card */}
+      <Card className="shadow-sm">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-semibold">
+            Spending This Month
+          </CardTitle>
+          <CardDescription className="text-xs">
+            Income {formatToUSD(totalInflow)} · Spending{" "}
+            {formatToUSD(totalOutflow)}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex justify-center mb-3">
+            <PieChart width={200} height={200}>
+              <Pie
+                data={spendingData}
+                cx="50%"
+                cy="50%"
+                outerRadius={80}
+                dataKey="value"
+                labelLine={false}
+              >
+                {spendingData.map((entry, idx) => (
+                  <Cell key={idx} fill={entry.color} />
+                ))}
+              </Pie>
+              <RechartsTooltip formatter={(value) => formatToUSD(value as number)} />
+            </PieChart>
+          </div>
+
+          <ul className="mt-1 space-y-1 max-h-40 overflow-y-auto pr-1">
+            {spendingData.map((cat, i) => (
+              <li key={i} className="flex items-center justify-between gap-2">
+                <span className="flex items-center min-w-0">
+                  <span
+                    className="inline-block w-2 h-2 rounded-full mr-2 flex-shrink-0"
+                    style={{ backgroundColor: cat.color }}
+                  />
+                  <span className="truncate text-xs text-slate-700">
+                    {cat.name}
+                  </span>
+                </span>
+                <span className="text-xs text-slate-700">
+                  {formatToUSD(cat.value)}{" "}
+                  <span className="text-[11px] text-muted-foreground">
+                    ({cat.percentage}%)
+                  </span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </CardContent>
+      </Card>
+
+      {/* Items to address card */}
+      <Card className="shadow-sm">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-semibold">
+            Items to Address
+          </CardTitle>
+          <CardDescription className="text-xs">
+            Categories and credit cards that may need attention.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <ItemsToAddress
+            categories={budgetData[currentMonth]?.categories || []}
+            unassignedAmount={budgetData[currentMonth]?.ready_to_assign || 0}
+            creditCardsNeedingPayment={creditCardsThatNeedPayment}
           />
+        </CardContent>
+      </Card>
+
+      {/* Right-click context menu for delete account (kept, but visually softened) */}
+      {contextMenu &&
+        createPortal(
+          <div
+            className="absolute bg-white border border-slate-200 rounded-md shadow-md z-50 text-xs"
+            style={{
+              top: contextMenu.y - document.documentElement.scrollTop,
+              left: contextMenu.x,
+            }}
+            onClick={() => {
+              handleDeleteAccount(contextMenu.accountId);
+              setContextMenu(null);
+            }}
+            onContextMenu={(e) => e.preventDefault()}
+          >
+            <button className="px-3 py-2 w-full text-left hover:bg-red-50 text-red-600">
+              Delete account
+            </button>
+          </div>,
+          document.body
         )}
-      </div>
-
-      {/* Account Cards */}
-      {accounts.length === 0 ? (
-        <p className="text-gray-600 text-center">No accounts added yet</p>
-      ) : (
-        <>
-          <div>
-            <h3 className="text-xs text-gray-500 uppercase mb-1">Cash</h3>
-            <div className="flex flex-wrap gap-2">
-              {accounts
-                .filter((a) => a.type === "debit")
-                .map((acc) => (
-                  <AccountCardCompact
-                    key={acc.id}
-                    account={acc}
-                    onContextMenu={(e) => {
-                      e.preventDefault();
-                      setContextMenu({
-                        x: e.clientX,
-                        y: e.clientY,
-                        accountId: String(acc.id),
-                      });
-                    }}
-                  />
-                ))}
-            </div>
-          </div>
-          <div>
-            <h3 className="text-xs text-gray-500 uppercase mt-3 mb-1">
-              Credit
-            </h3>
-            <div className="flex flex-wrap gap-2">
-              {accounts
-                .filter((a) => a.type === "credit")
-                .map((acc) => (
-                  <AccountCardCompact
-                    key={acc.id}
-                    account={acc}
-                    onContextMenu={(e) => {
-                      e.preventDefault();
-                      setContextMenu({
-                        x: e.clientX,
-                        y: e.clientY,
-                        accountId: String(acc.id),
-                      });
-                    }}
-                  />
-                ))}
-            </div>
-          </div>
-        </>
-      )}
-
-      <hr className="border-gray-200" />
-
-      {/* Spending Summary */}
-      <div>
-        <h3 className="text-sm font-semibold mb-1">Spending This Month</h3>
-        <p>
-          <strong>Income:</strong> {formatToUSD(totalInflow)}
-        </p>
-        <p className="mb-2">
-          <strong>Spending:</strong> {formatToUSD(totalOutflow)}
-        </p>
-
-        <div className="flex justify-center">
-          <PieChart width={200} height={200}>
-            <Pie
-              data={spendingData}
-              cx="50%"
-              cy="50%"
-              outerRadius={80}
-              dataKey="value"
-              labelLine={false}
-            >
-              {spendingData.map((entry, idx) => (
-                <Cell key={idx} fill={entry.color} />
-              ))}
-            </Pie>
-            <Tooltip formatter={(value) => formatToUSD(value)} />
-          </PieChart>
-        </div>
-
-        <ul className="mt-2 space-y-1">
-          {spendingData.map((cat, i) => (
-            <li key={i} className="flex justify-between">
-              <span className="truncate">
-                <span
-                  className="inline-block w-2 h-2 rounded-full mr-2"
-                  style={{ backgroundColor: cat.color }}
-                ></span>
-                {cat.name}
-              </span>
-              <span>
-                {formatToUSD(cat.value)} ({cat.percentage}%)
-              </span>
-            </li>
-          ))}
-        </ul>
-      </div>
-
-      <hr className="border-gray-200" />
-
-      <ItemsToAddress
-        categories={budgetData[currentMonth]?.categories || []}
-        unassignedAmount={budgetData[currentMonth]?.ready_to_assign || 0}
-        creditCardsNeedingPayment={creditCardsThatNeedPayment}
-      />
-
-      {contextMenu && createPortal(
-        <div
-          className="absolute bg-white border rounded shadow-md z-50 text-sm"
-          style={{
-            top: contextMenu.y - document.documentElement.scrollTop,
-            left: contextMenu.x,
-          }}
-          onClick={() => {
-            handleDeleteAccount(contextMenu.accountId);
-            setContextMenu(null);
-          }}
-          onContextMenu={(e) => e.preventDefault()}
-        >
-          <button className="px-4 py-2 w-full text-left hover:bg-red-100 text-red-600">
-            Delete Account
-          </button>
-        </div>,
-        document.body
-      )}
-    </div>
+    </aside>
   );
 }
