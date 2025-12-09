@@ -61,17 +61,17 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
         .from("accounts")
         .select("*, transactions(*)")
         .eq("user_id", user.id);
-    
+
       if (error) {
         console.error("Error fetching accounts:", error);
         return;
       }
-    
+
       if (!error && data) {
         setAccounts(data as unknown as Account[]);
       }
     };
-    
+
 
     fetchAccounts();
   }, [user]);
@@ -101,6 +101,20 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   };
 
+  const normalizeAccount = (raw: any): Account => {
+    const txs = raw.transactions ?? [];
+    const computedBalance = txs.reduce(
+      (sum: number, tx: any) => sum + (tx.balance ?? 0),
+      0
+    );
+
+    return {
+      ...raw,
+      balance: computedBalance,
+      transactions: txs,
+    } as Account;
+  };
+
   const editTransaction = async (
     accountId: number,
     transactionId: number,
@@ -118,26 +132,26 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
       .eq("id", transactionId)
       .eq("account_id", accountId);
 
-      setRecentTransactions((prev) => {
-        const updated = prev.map((t) =>
-          t.id === updatedTransaction.id ? { ...updatedTransaction, timestamp: new Date().toISOString() } : t
-        );
-        return [...updated.slice(-10)];
-      });
-  
+    setRecentTransactions((prev) => {
+      const updated = prev.map((t) =>
+        t.id === updatedTransaction.id ? { ...updatedTransaction, timestamp: new Date().toISOString() } : t
+      );
+      return [...updated.slice(-10)];
+    });
+
     if (error) {
       console.error("Failed to update transaction:", error.message);
       return;
     }
-  
+
     setAccounts((prevAccounts) =>
       prevAccounts.map((account) => {
         if (account.id !== accountId) return account;
-  
+
         const updatedTransactions = account.transactions.map((tx) =>
           tx.id === transactionId ? { ...tx, ...updatedTransaction } : tx
         );
-  
+
         return { ...account, transactions: updatedTransactions };
       })
     );
@@ -148,19 +162,19 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
       .from("accounts")
       .update({ name: newName })
       .eq("id", accountId);
-  
+
     if (error) {
       console.error("Failed to update account name:", error.message);
       return;
     }
-  
+
     setAccounts((prev) =>
       prev.map((acc) =>
         acc.id === accountId ? { ...acc, name: newName } : acc
       )
     );
   };
-  
+
 
   const defaultTransaction = {
     date: new Date().toISOString(),
@@ -176,18 +190,19 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
       .select("*, transactions(*)")
       .eq("id", accountId)
       .single();
-  
-      if (!error && data) {
-        const isValidAccount = typeof data.id === 'string' && typeof data.name === 'string';
-        if (isValidAccount) {
-          setAccounts((prev) =>
-            prev.map((acc) => (acc.id === accountId ? data as unknown as Account : acc))
-          );
-        } else {
-          console.warn('Skipping update: data is not a valid Account', data);
-        }
-      }
+
+    if (error || !data) {
+      console.error("Error refreshing account:", error);
+      return;
+    }
+
+    const updated = normalizeAccount(data);
+
+    setAccounts((prev) =>
+      prev.map((acc) => (acc.id === accountId ? updated : acc))
+    );
   };
+
 
   const addAccount = async (account) => {
     const { data, error } = await supabase.from("accounts").insert([
@@ -204,7 +219,7 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
         balance: account.balance,
       }
       const generatedTransaction = await addTransaction(data[0].id, newTransaction);
-      setAccounts((prev) => [...prev, { ...account, id: data[0].id, transactions: generatedTransaction}]);
+      setAccounts((prev) => [...prev, { ...account, id: data[0].id, transactions: generatedTransaction }]);
     }
   };
 
@@ -213,7 +228,7 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
       .from("accounts")
       .delete()
       .eq("id", accountId);
-  
+
     if (error) {
       console.error("Failed to delete account:", error);
     } else {
@@ -227,10 +242,10 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
       .delete()
       .eq("id", transactionId);
 
-      setRecentTransactions((prev) =>
-        prev.filter((t) => t.id !== transactionId)
-      );
-  
+    setRecentTransactions((prev) =>
+      prev.filter((t) => t.id !== transactionId)
+    );
+
     if (error) {
       console.error("Failed to delete transaction:", error);
     } else {
@@ -245,10 +260,10 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const account = accounts.find((a) => a.id === accountId);
     const transaction = account?.transactions.find((t) => t.id === transactionId);
     if (!transaction || !account) return;
-  
+
     // Delete the main transaction
     await deleteTransaction(accountId, transactionId);
-  
+
     // Try to find and delete the mirrored transaction
     const mirrorAccount = accounts.find((a) =>
       a.transactions.some(
@@ -259,7 +274,7 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
           t.payee?.includes(account.name)
       )
     );
-  
+
     if (mirrorAccount) {
       const mirror = mirrorAccount.transactions.find(
         (t) =>

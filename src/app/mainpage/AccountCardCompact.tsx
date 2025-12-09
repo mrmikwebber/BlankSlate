@@ -14,6 +14,11 @@ export default function AccountCardCompact({ account, onClick, onContextMenu }: 
     redirect(`/accounts/${account?.id}`);
   };
 
+  const computedBalance =
+  account.transactions?.reduce((sum, tx) => sum + tx.balance, 0) ??
+  account.balance ??
+  0;
+
   return (
     <div
       onClick={openAccount}
@@ -32,10 +37,10 @@ export default function AccountCardCompact({ account, onClick, onContextMenu }: 
       <div
         className={clsx(
           "text-xs font-medium",
-          account.balance < 0 ? "text-red-500" : "text-gray-700"
+          computedBalance < 0 ? "text-red-500" : "text-gray-700"
         )}
       >
-        {formatToUSD(account.balance)}
+        {formatToUSD(computedBalance)}
       </div>
     </div>
   );
