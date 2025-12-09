@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ChevronDown, ChevronRight, Plus } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 
 export default function MobileBudgetTab() {
@@ -24,7 +24,26 @@ export default function MobileBudgetTab() {
     getCumulativeAvailable,
   } = useBudgetContext();
 
+  const budgetMonth = budgetData[currentMonth];
+
+  // Sort groups with Credit Card Payments first, then the rest alphabetically
+  const sortedGroups = useMemo(() => {
+    if (!budgetMonth) return [] as typeof budgetMonth.categories;
+    const groups = [...budgetMonth.categories];
+    return groups.sort((a, b) => {
+      if (a.name === "Credit Card Payments") return -1;
+      if (b.name === "Credit Card Payments") return 1;
+      return a.name.localeCompare(b.name);
+    });
+  }, [budgetMonth]);
+
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+
+  // Default all groups to expanded when data loads
+  useEffect(() => {
+    if (!sortedGroups.length) return;
+    setExpandedGroups(new Set(sortedGroups.map((g) => g.name)));
+  }, [sortedGroups]);
 
   const toggleGroup = (groupName: string) => {
     const newExpanded = new Set(expandedGroups);
@@ -36,7 +55,6 @@ export default function MobileBudgetTab() {
     setExpandedGroups(newExpanded);
   };
 
-  const budgetMonth = budgetData[currentMonth];
   if (!budgetMonth) {
     return (
       <div className="text-center py-8 text-slate-400">
@@ -60,17 +78,17 @@ export default function MobileBudgetTab() {
       <MonthNav />
 
       {/* Ready to Assign */}
-      <Card className="shadow-none border-0 bg-gradient-to-r from-teal-500 to-teal-600 text-white">
-        <CardContent className="pt-4">
-          <p className="text-sm font-medium text-teal-100 mb-2">Ready to Assign</p>
-          <p className="text-3xl font-bold">
+      <Card className="shadow-none border border-teal-100 bg-teal-50 text-teal-800">
+        <CardContent className="py-3">
+          <p className="text-xs font-medium text-teal-700 mb-1">Ready to Assign</p>
+          <p className="text-2xl font-bold">
             {formatToUSD(cumulativeAvailable)}
           </p>
         </CardContent>
       </Card>
 
       {/* Category Groups */}
-      {budgetMonth.categories.map((group) => (
+      {sortedGroups.map((group) => (
         <div key={group.name} className="space-y-2">
           {/* Group Header */}
           <button

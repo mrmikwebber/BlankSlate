@@ -6,7 +6,12 @@ import AccountCardCompact from "./AccountCardCompact";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-export default function AccountCarousel() {
+interface Props {
+  selectedAccountId?: number | null;
+  onSelect?: (accountId: number) => void;
+}
+
+export default function AccountCarousel({ selectedAccountId, onSelect }: Props) {
   const { accounts } = useAccountContext();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -70,9 +75,22 @@ export default function AccountCarousel() {
         {accounts.map((account) => (
           <div
             key={account.id}
-            className="flex-shrink-0 w-72 snap-start"
+            className={`flex-shrink-0 w-72 snap-start transition ring-offset-2 ${
+              selectedAccountId === account.id
+                ? "ring-2 ring-teal-500 shadow-md"
+                : "hover:ring-1 hover:ring-slate-200"
+            }`}
+            role="button"
+            tabIndex={0}
+            onClick={() => onSelect?.(account.id)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onSelect?.(account.id);
+              }
+            }}
           >
-            <AccountCardCompact account={account} />
+            <AccountCardCompact account={account} disableNavigate />
           </div>
         ))}
       </div>

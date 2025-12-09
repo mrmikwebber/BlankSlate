@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useAccountContext } from "../context/AccountContext";
 import AccountCarousel from "./AccountCarousel";
 import MobileTabBar from "./MobileTabBar";
 import MobileOverviewTab from "./tabs/MobileOverviewTab";
@@ -12,6 +13,15 @@ export type TabType = "overview" | "budget" | "activity" | "transactions";
 
 export default function MobileDashboardShell() {
   const [activeTab, setActiveTab] = useState<TabType>("overview");
+  const { accounts } = useAccountContext();
+  const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
+
+  // Default to first account when available
+  useEffect(() => {
+    if (selectedAccountId == null && accounts.length > 0) {
+      setSelectedAccountId(accounts[0].id);
+    }
+  }, [accounts, selectedAccountId]);
 
   const renderTabContent = () => {
     switch (activeTab) {
@@ -22,7 +32,12 @@ export default function MobileDashboardShell() {
       case "activity":
         return <MobileActivityTab />;
       case "transactions":
-        return <MobileTransactionsTab />;
+        return (
+          <MobileTransactionsTab
+            selectedAccountId={selectedAccountId}
+            onSelectAccount={setSelectedAccountId}
+          />
+        );
       default:
         return <MobileOverviewTab />;
     }
@@ -32,7 +47,10 @@ export default function MobileDashboardShell() {
     <div className="flex flex-col h-full bg-slate-50">
       {/* Top Account Carousel - Fixed Height */}
       <div className="flex-shrink-0 p-4 pb-0 bg-slate-50">
-        <AccountCarousel />
+        <AccountCarousel
+          selectedAccountId={selectedAccountId}
+          onSelect={setSelectedAccountId}
+        />
       </div>
 
       {/* Scrollable Tab Content - Flexible */}

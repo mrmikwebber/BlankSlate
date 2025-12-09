@@ -11,6 +11,7 @@ interface Props {
   account: Account;
   onClick?: (id: string) => void;
   onContextMenu?: (e: React.MouseEvent<HTMLDivElement>) => void;
+  disableNavigate?: boolean;
 }
 
 // Normalize issuer values from DB into nice labels
@@ -35,13 +36,17 @@ export default function AccountCardCompact({
   account,
   onClick,
   onContextMenu,
+  disableNavigate,
 }: Props) {
   const handleNavigate = () => {
     if (onClick) {
       onClick(String(account.id));
-    } else {
-      redirect(`/accounts/${account?.id}`);
+      return;
     }
+
+    if (disableNavigate) return;
+
+    redirect(`/accounts/${account?.id}`);
   };
 
   const computedBalance =
