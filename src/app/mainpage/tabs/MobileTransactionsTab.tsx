@@ -37,6 +37,8 @@ export default function MobileTransactionsTab({
   const [editingTxId, setEditingTxId] = useState<number | null>(null);
   const [swipedTxId, setSwipedTxId] = useState<number | null>(null);
   const [swipeX, setSwipeX] = useState(0);
+  const [isTypingPayee, setIsTypingPayee] = useState(false);
+  const [isTypingCategory, setIsTypingCategory] = useState(false);
 
   // Keep form account in sync with selection
   useEffect(() => {
@@ -56,6 +58,20 @@ export default function MobileTransactionsTab({
     () => accounts.find((a) => a.id === formAccountId) || null,
     [accounts, formAccountId]
   );
+
+  // Disable category when transferring between two checking (debit) accounts
+  const isCheckingTransfer = useMemo(() => {
+    if (!thisAccount || !selectedPayeeAccountName) return false;
+    const other = accounts.find((a) => a.name === selectedPayeeAccountName);
+    return thisAccount.type === "debit" && other?.type === "debit";
+  }, [accounts, thisAccount, selectedPayeeAccountName]);
+
+  useEffect(() => {
+    if (isCheckingTransfer) {
+      setCategoryDropdownOpen(false);
+      setNewCategoryMode(false);
+    }
+  }, [isCheckingTransfer]);
 
   const getPreviewLabel = (targetName: string) => {
     if (!thisAccount) return targetName;
@@ -84,7 +100,9 @@ export default function MobileTransactionsTab({
       ...accounts
         .filter((a) => a.id !== formAccountId)
         .map((acc) => ({ type: "account" as const, accountName: acc.name, label: getPreviewLabel(acc.name) })),
-      ...savedPayees.map((p: any) => ({ type: "payee" as const, accountName: null, label: p.name })),
+      ...savedPayees
+        .filter((p: any) => typeof p?.name === "string" && p.name.trim() !== "")
+        .map((p: any) => ({ type: "payee" as const, accountName: null, label: p.name })),
     ],
     [accounts, formAccountId, getPreviewLabel, savedPayees]
   );
@@ -95,19 +113,25 @@ export default function MobileTransactionsTab({
 
     const month = budgetData?.[currentMonth];
     month?.categories?.forEach((group: any) => {
-      if (group.name === "Credit Card Payments") {
-        group.categoryItems?.forEach((item: any) => {
-          const acc = accounts.find((a) => a.name === item.name && a.type === "credit");
-          options.push({
-            label: item.name,
-            value: item.name,
-            isAccount: !!acc,
-            accountName: acc?.name
-          });
+      if (group?.name === "Credit Card Payments") {
+        group?.categoryItems?.forEach((item: any) => {
+          const name = item?.name;
+          if (typeof name === "string" && name.trim() !== "") {
+            const acc = accounts.find((a) => a.name === name && a.type === "credit");
+            options.push({
+              label: name,
+              value: name,
+              isAccount: !!acc,
+              accountName: acc?.name,
+            });
+          }
         });
       } else {
-        group.categoryItems?.forEach((item: any) => {
-          options.push({ label: item.name, value: item.name });
+        group?.categoryItems?.forEach((item: any) => {
+          const name = item?.name;
+          if (typeof name === "string" && name.trim() !== "") {
+            options.push({ label: name, value: name });
+          }
         });
       }
     });
@@ -217,13 +241,20 @@ export default function MobileTransactionsTab({
       }
     }
 
+    // If transfer to a credit card, force category to card payment
+    const isCreditPayment = isTransfer && otherAccount?.type === "credit";
+    if (!newCategoryMode && isCreditPayment) {
+      groupName = "Credit Card Payments";
+      categoryName = otherAccount!.name;
+    }
+
     const isReadyToAssign = categoryName.toLowerCase() === "ready to assign";
 
     const txPayload = {
       date: formDate,
       payee: payeeLabel,
-      category: isTransfer ? null : isReadyToAssign ? "Ready to Assign" : categoryName || null,
-      category_group: null,
+      category: isTransfer && !isCreditPayment ? null : isReadyToAssign ? "Ready to Assign" : categoryName || null,
+      category_group: isTransfer && !isCreditPayment ? null : isReadyToAssign ? null : groupName || null,
       balance,
     };
 
@@ -263,8 +294,8 @@ export default function MobileTransactionsTab({
         await addTransaction(otherAccount.id, {
           date: formDate,
           payee: mirrorPayee,
-          category: null,
-          category_group: null,
+          category: isOtherCredit ? otherAccount.name : null,
+          category_group: isOtherCredit ? "Credit Card Payments" : null,
           balance: -balance,
         });
       }
@@ -325,6 +356,7 @@ export default function MobileTransactionsTab({
                     onChange={(e) => {
                       setPayeeInput(e.target.value);
                       setPayeeDropdownOpen(true);
+                      setIsTypingPayee(true);
                     }}
                     onFocus={() => setPayeeDropdownOpen(true)}
                     onBlur={() => setTimeout(() => setPayeeDropdownOpen(false), 120)}
@@ -333,7 +365,7 @@ export default function MobileTransactionsTab({
                   {payeeDropdownOpen && (
                     <div className="absolute z-20 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-52 overflow-y-auto">
                       {payeeSuggestions
-                        .filter((s) => s.label.toLowerCase().includes(payeeInput.toLowerCase()))
+                        .filter((s) => isTypingPayee && payeeInput ? (s?.label || "").toLowerCase().includes(payeeInput.toLowerCase()) : true)
                         .map((s) => (
                           <button
                             key={s.label}
@@ -341,12 +373,22 @@ export default function MobileTransactionsTab({
                             className="w-full text-left px-3 py-2 text-sm hover:bg-teal-50"
                             onMouseDown={(e) => e.preventDefault()}
                             onClick={() => {
+                              setIsTypingPayee(false);
                               if (s.type === "account") {
                                 setSelectedPayeeAccountName(s.accountName);
-                                setPayeeInput(s.label);
+                                const acc = accounts.find((a) => a.name === s.accountName);
+                                const label = getPreviewLabel(s.accountName);
+                                setPayeeInput(label);
+                                if (acc?.type === "credit") {
+                                  setCategoryInput(acc.name);
+                                  setIsTypingCategory(false);
+                                } else {
+                                  setCategoryInput("");
+                                }
                               } else {
                                 setSelectedPayeeAccountName(null);
                                 setPayeeInput(s.label);
+                                setCategoryInput("");
                               }
                               setPayeeDropdownOpen(false);
                             }}
@@ -356,7 +398,7 @@ export default function MobileTransactionsTab({
                         ))}
                       {payeeInput &&
                         !payeeSuggestions.some(
-                          (s) => s.label.toLowerCase() === payeeInput.toLowerCase()
+                          (s) => (s?.label || "").toLowerCase() === payeeInput.toLowerCase()
                         ) && (
                           <button
                             type="button"
@@ -376,34 +418,53 @@ export default function MobileTransactionsTab({
                 </div>
               </div>
               <div className="flex flex-col gap-2">
-                <label className="text-xs text-slate-600">Category (optional)</label>
+                <label className="text-xs text-slate-600">Category</label>
                 <div className="relative">
                   <Input
                     value={categoryInput}
                     onChange={(e) => {
                       setCategoryInput(e.target.value);
                       setCategoryDropdownOpen(true);
+                      setIsTypingCategory(true);
+                      // Only clear payee if it was a credit card payment and category changed
+                      if (isTypingCategory && selectedPayeeAccountName) {
+                        const acc = accounts.find((a) => a.name === selectedPayeeAccountName);
+                        if (acc?.type === "credit") {
+                          setPayeeInput("");
+                          setSelectedPayeeAccountName(null);
+                        }
+                      }
                     }}
                     onFocus={() => setCategoryDropdownOpen(true)}
                     onBlur={() => setTimeout(() => setCategoryDropdownOpen(false), 120)}
                     placeholder="Type or select category"
+                    disabled={isCheckingTransfer}
                   />
                   {categoryDropdownOpen && (
                     <div className="absolute z-20 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-52 overflow-y-auto">
-                      {categoryOptions.filter((opt) =>
-                        opt.label.toLowerCase().includes(categoryInput.toLowerCase())
-                      ).map((opt) => (
+                      {categoryOptions
+                        .filter((opt) => isTypingCategory && categoryInput ? (opt?.label || "").toLowerCase().includes(categoryInput.toLowerCase()) : true)
+                        .map((opt) => (
                         <button
                           key={opt.value}
                           type="button"
                           className="w-full text-left px-3 py-2 text-sm hover:bg-teal-50"
                           onMouseDown={(e) => e.preventDefault()}
                           onClick={() => {
+                            setIsTypingCategory(false);
                             setCategoryInput(opt.label);
                             if (opt.isAccount && opt.accountName && thisAccount) {
                               const label = getPreviewLabel(opt.accountName);
                               setPayeeInput(label);
                               setSelectedPayeeAccountName(opt.accountName);
+                              setIsTypingPayee(false);
+                            } else if (selectedPayeeAccountName) {
+                              // Check if current payee is a credit card - if so, clear it since category doesn't match
+                              const acc = accounts.find((a) => a.name === selectedPayeeAccountName);
+                              if (acc?.type === "credit") {
+                                setPayeeInput("");
+                                setSelectedPayeeAccountName(null);
+                              }
                             }
                             setCategoryDropdownOpen(false);
                           }}
@@ -411,7 +472,7 @@ export default function MobileTransactionsTab({
                           {opt.label}
                         </button>
                       ))}
-                      {categoryInput && !categoryOptions.some((opt) => opt.label.toLowerCase() === categoryInput.toLowerCase()) && (
+                      {categoryInput && !categoryOptions.some((opt) => (opt?.label || "").toLowerCase() === categoryInput.toLowerCase()) && (
                         <button
                           type="button"
                           className="w-full text-left px-3 py-2 text-sm text-teal-700 font-medium border-t border-slate-200 hover:bg-teal-50"
@@ -610,15 +671,16 @@ export default function MobileTransactionsTab({
                   onChange={(e) => {
                     setPayeeInput(e.target.value);
                     setPayeeDropdownOpen(true);
+                    setIsTypingPayee(true);
                   }}
                   onFocus={() => setPayeeDropdownOpen(true)}
                   onBlur={() => setTimeout(() => setPayeeDropdownOpen(false), 120)}
                   placeholder="Type or select payee"
                 />
-                {payeeDropdownOpen && (
+                  {payeeDropdownOpen && (
                   <div className="absolute z-20 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-52 overflow-y-auto">
                     {payeeSuggestions
-                      .filter((s) => s.label.toLowerCase().includes(payeeInput.toLowerCase()))
+                      .filter((s) => isTypingPayee && payeeInput ? (s?.label || "").toLowerCase().includes(payeeInput.toLowerCase()) : true)
                       .map((s) => (
                         <button
                           key={s.label}
@@ -626,12 +688,22 @@ export default function MobileTransactionsTab({
                           className="w-full text-left px-3 py-2 text-sm hover:bg-teal-50"
                           onMouseDown={(e) => e.preventDefault()}
                           onClick={() => {
+                            setIsTypingPayee(false);
                             if (s.type === "account") {
                               setSelectedPayeeAccountName(s.accountName);
-                              setPayeeInput(s.label);
+                              const acc = accounts.find((a) => a.name === s.accountName);
+                              const label = getPreviewLabel(s.accountName);
+                              setPayeeInput(label);
+                              if (acc?.type === "credit") {
+                                setCategoryInput(acc.name);
+                                setIsTypingCategory(false);
+                              } else {
+                                setCategoryInput("");
+                              }
                             } else {
                               setSelectedPayeeAccountName(null);
                               setPayeeInput(s.label);
+                              setCategoryInput("");
                             }
                             setPayeeDropdownOpen(false);
                           }}
@@ -641,7 +713,7 @@ export default function MobileTransactionsTab({
                       ))}
                     {payeeInput &&
                       !payeeSuggestions.some(
-                        (s) => s.label.toLowerCase() === payeeInput.toLowerCase()
+                        (s) => (s?.label || "").toLowerCase() === payeeInput.toLowerCase()
                       ) && (
                         <button
                           type="button"
@@ -661,34 +733,53 @@ export default function MobileTransactionsTab({
               </div>
             </div>
             <div className="flex flex-col gap-2">
-              <label className="text-xs text-slate-600">Category (optional)</label>
+              <label className="text-xs text-slate-600">Category</label>
               <div className="relative">
                 <Input
                   value={categoryInput}
                   onChange={(e) => {
                     setCategoryInput(e.target.value);
                     setCategoryDropdownOpen(true);
+                    setIsTypingCategory(true);
+                    // Only clear payee if it was a credit card payment and category changed
+                    if (isTypingCategory && selectedPayeeAccountName) {
+                      const acc = accounts.find((a) => a.name === selectedPayeeAccountName);
+                      if (acc?.type === "credit") {
+                        setPayeeInput("");
+                        setSelectedPayeeAccountName(null);
+                      }
+                    }
                   }}
                   onFocus={() => setCategoryDropdownOpen(true)}
                   onBlur={() => setTimeout(() => setCategoryDropdownOpen(false), 120)}
                   placeholder="Type or select category"
+                  disabled={isCheckingTransfer}
                 />
                 {categoryDropdownOpen && (
                   <div className="absolute z-20 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-52 overflow-y-auto">
-                    {categoryOptions.filter((opt) =>
-                      opt.label.toLowerCase().includes(categoryInput.toLowerCase())
-                    ).map((opt) => (
+                    {categoryOptions
+                      .filter((opt) => isTypingCategory && categoryInput ? (opt?.label || "").toLowerCase().includes(categoryInput.toLowerCase()) : true)
+                      .map((opt) => (
                       <button
                         key={opt.value}
                         type="button"
                         className="w-full text-left px-3 py-2 text-sm hover:bg-teal-50"
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={() => {
+                          setIsTypingCategory(false);
                           setCategoryInput(opt.label);
                           if (opt.isAccount && opt.accountName && thisAccount) {
                             const label = getPreviewLabel(opt.accountName);
                             setPayeeInput(label);
                             setSelectedPayeeAccountName(opt.accountName);
+                            setIsTypingPayee(false);
+                          } else if (selectedPayeeAccountName) {
+                            // Check if current payee is a credit card - if so, clear it since category doesn't match
+                            const acc = accounts.find((a) => a.name === selectedPayeeAccountName);
+                            if (acc?.type === "credit") {
+                              setPayeeInput("");
+                              setSelectedPayeeAccountName(null);
+                            }
                           }
                           setCategoryDropdownOpen(false);
                         }}
@@ -696,7 +787,7 @@ export default function MobileTransactionsTab({
                         {opt.label}
                       </button>
                     ))}
-                    {categoryInput && !categoryOptions.some((opt) => opt.label.toLowerCase() === categoryInput.toLowerCase()) && (
+                    {categoryInput && !categoryOptions.some((opt) => (opt?.label || "").toLowerCase() === categoryInput.toLowerCase()) && (
                       <button
                         type="button"
                         className="w-full text-left px-3 py-2 text-sm text-teal-700 font-medium border-t border-slate-200 hover:bg-teal-50"
@@ -720,7 +811,14 @@ export default function MobileTransactionsTab({
                 <Input
                   type="number"
                   value={formAmount}
-                  onChange={(e) => setFormAmount(e.target.value)}
+                  onChange={(e) => {
+                    setFormAmount(e.target.value);
+                    // Update payee label when amount changes (for transfer preview)
+                    if (selectedPayeeAccountName && thisAccount) {
+                      const label = getPreviewLabel(selectedPayeeAccountName);
+                      setPayeeInput(label);
+                    }
+                  }}
                   placeholder="0.00"
                 />
               </div>
