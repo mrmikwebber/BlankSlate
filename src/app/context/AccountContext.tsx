@@ -1,5 +1,5 @@
 "use client"
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState, useMemo } from "react";
 import { useAuth } from "./AuthContext";
 import { supabase } from "@/utils/supabaseClient";
 export interface Transaction {
@@ -358,9 +358,26 @@ const upsertPayee = async (name: string) => {
     }
   };
 
+  const contextValue = useMemo(
+    () => ({
+      accounts,
+      addTransaction,
+      addAccount,
+      deleteAccount,
+      setAccounts,
+      deleteTransaction,
+      deleteTransactionWithMirror,
+      editTransaction,
+      editAccountName,
+      recentTransactions,
+      savedPayees,
+      upsertPayee,
+    }),
+    [accounts, recentTransactions, savedPayees]
+  );
+
   return (
-    <AccountContext.Provider value={{ accounts, addTransaction, addAccount, deleteAccount, setAccounts, deleteTransaction, deleteTransactionWithMirror, editTransaction, editAccountName, recentTransactions, savedPayees,
-    upsertPayee }}>
+    <AccountContext.Provider value={contextValue}>
       {children}
     </AccountContext.Provider>
   );
