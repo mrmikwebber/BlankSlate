@@ -1,6 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useBudgetContext } from "../context/BudgetContext";
-import { useAccountContext } from "../context/AccountContext";
 import { formatToUSD } from "../utils/formatToUSD";
 import { getMonth, parseISO } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -17,18 +16,19 @@ export default function InlineTargetEditor({
   onClose,
 }: InlineTargetEditorProps) {
   const { currentMonth, budgetData, setCategoryTarget } = useBudgetContext();
-  void useAccountContext; // imported earlier, still unused in this file
-
   const [targetAmount, setTargetAmount] = useState("");
   const [targetType, setTargetType] = useState("monthly");
   const [customTargetDate, setCustomTargetDate] = useState("");
 
-  const categoryItem =
-    budgetData[currentMonth]?.categories
-      .flatMap((cat) =>
-        cat.categoryItems.map((item) => ({ ...item, categoryName: cat.name }))
-      )
-      .find((item) => item.name === itemName) || null;
+  const categoryItem = useMemo(() => {
+    const month = budgetData[currentMonth];
+    if (!month) return null;
+    for (const cat of month.categories) {
+      const found = cat.categoryItems.find((item) => item.name === itemName);
+      if (found) return { ...found, categoryName: cat.name };
+    }
+    return null;
+  }, [budgetData, currentMonth, itemName]);
 
   useEffect(() => {
     if (!categoryItem) return;
