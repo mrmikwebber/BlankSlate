@@ -997,33 +997,45 @@ export default function BudgetTable() {
                                   autoFocus
                                 />
                               ) : (
-                                <div className="relative h-6 rounded-md px-1">
-                                  {item.target && (
-                                    <div
-                                      className="absolute top-0 left-0 h-full bg-gradient-to-r from-teal-500 to-teal-400 dark:from-teal-500 dark:to-teal-300 transition-all duration-300 opacity-90 dark:opacity-100"
-                                      style={{
-                                        width: `${Math.min(
-                                          (item.assigned /
-                                            item.target.amountNeeded) *
-                                          100,
-                                          100
-                                        )}%`,
-                                      }}
-                                    />
-                                  )}
-                                  <div className="relative z-10 px-2 flex justify-between items-center h-full">
-                                    <span className="font-medium truncate text-slate-800 dark:text-slate-200 text-sm">
-                                      {item.name}
-                                    </span>
-                                    {getTargetStatus(item).message && (
-                                      <span
-                                        className={`text-[11px] ml-2 ${getTargetStatus(item).color
-                                          }`}
-                                      >
-                                        {getTargetStatus(item).message}
-                                      </span>
+                                <div className="flex items-center gap-2">
+                                  <div className="relative h-6 rounded-md px-1 flex-1">
+                                    {item.target && (
+                                      <div
+                                        className="absolute top-0 left-0 h-full bg-gradient-to-r from-teal-500 to-teal-400 dark:from-teal-500 dark:to-teal-300 transition-all duration-300 opacity-90 dark:opacity-100 rounded-md"
+                                        style={{
+                                          width: `${Math.min(
+                                            (item.assigned /
+                                              item.target.amountNeeded) *
+                                            100,
+                                            100
+                                          )}%`,
+                                        }}
+                                      />
                                     )}
+                                    <div className="relative z-10 px-2 flex items-center h-full">
+                                      <span className="font-medium truncate text-slate-800 dark:text-slate-200 text-sm">
+                                        {item.name}
+                                      </span>
+                                    </div>
                                   </div>
+                                  {item.target && getTargetStatus(item).message && (
+                                    <div className={`px-2 py-0.5 rounded text-[10px] font-semibold whitespace-nowrap ${
+                                      getTargetStatus(item).type === "overspent" 
+                                        ? "bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-200"
+                                        : getTargetStatus(item).type === "funded"
+                                        ? "bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-200"
+                                        : getTargetStatus(item).type === "overfunded"
+                                        ? "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-200"
+                                        : getTargetStatus(item).type === "underfunded"
+                                        ? "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-200"
+                                        : "bg-slate-100 dark:bg-slate-800/40 text-slate-600 dark:text-slate-300"
+                                    }`}>
+                                      {getTargetStatus(item).type === "funded" && "✓ Funded"}
+                                      {getTargetStatus(item).type === "overfunded" && "↑ Overfunded"}
+                                      {getTargetStatus(item).type === "underfunded" && "↓ " + (item.target.amountNeeded - item.assigned > 0 ? formatToUSD(item.target.amountNeeded - item.assigned) + " left" : "")}
+                                      {getTargetStatus(item).type === "overspent" && "⚠ Overspent"}
+                                    </div>
+                                  )}
                                 </div>
                               )}
                             </TableCell>
