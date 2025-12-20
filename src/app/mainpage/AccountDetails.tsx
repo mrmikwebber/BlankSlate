@@ -7,6 +7,7 @@ import { useUndoRedo } from "@/app/context/UndoRedoContext";
 import { supabase } from "@/utils/supabaseClient";
 import { parseISO, format } from "date-fns";
 import InlineTransactionRow from "./InlineTransactionRow";
+import KeyboardShortcuts from "./KeyboardShortcuts";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -386,16 +387,30 @@ export default function AccountDetails() {
             </span>
           )}
         </div>
-        {!showForm && !editingTransactionId && (
-          <Button
-            data-cy="add-transaction-button"
-            onClick={() => setShowForm(true)}
-            size="sm"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Transaction
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          <KeyboardShortcuts
+            page="accounts"
+            shortcuts={[
+              { key: "Ctrl+Z / Cmd+Z", description: "Undo last action" },
+              { key: "Ctrl+Y / Cmd+Shift+Z", description: "Redo last action" },
+              { key: "N", description: "Add new transaction" },
+              { key: "E", description: "Edit selected transaction" },
+              { key: "Delete / Backspace", description: "Delete selected transaction" },
+              { key: "↑ / ↓", description: "Navigate between transactions" },
+              { key: "Escape", description: "Cancel/close forms" },
+            ]}
+          />
+          {!showForm && !editingTransactionId && (
+            <Button
+              data-cy="add-transaction-button"
+              onClick={() => setShowForm(true)}
+              size="sm"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Transaction
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Transactions table */}

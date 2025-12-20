@@ -4,6 +4,7 @@ import { formatToUSD } from "../utils/formatToUSD";
 import AddCategoryButton from "./AddCategoryButton";
 import EditableAssigned from "./EditableAssigned";
 import MonthNav from "./MonthNav";
+import KeyboardShortcuts from "./KeyboardShortcuts";
 import { useBudgetContext } from "../context/BudgetContext";
 import { getTargetStatus } from "../utils/getTargetStatus";
 import { createPortal } from "react-dom";
@@ -703,7 +704,14 @@ export default function BudgetTable() {
                 </Button>
               ))}
             </div>
-            <div className="ml-auto">
+            <div className="flex items-center gap-2 ml-auto">
+              <KeyboardShortcuts
+                page="budget"
+                shortcuts={[
+                  { key: "Ctrl+Z / Cmd+Z", description: "Undo last action" },
+                  { key: "Ctrl+Y / Cmd+Shift+Z", description: "Redo last action" },
+                ]}
+              />
               <AddCategoryButton handleSubmit={addCategoryGroup} />
             </div>
           </div>
