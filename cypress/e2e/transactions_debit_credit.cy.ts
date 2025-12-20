@@ -64,26 +64,24 @@ describe("Debit & credit transactions - UI only", () => {
   cy.wait(150);
 
         // New payee mode
-  cy.get("[data-cy=tx-payee-select]").select("__new__");
+  cy.selectPayee("Chipotle");
   cy.wait(150);
-        cy.get("[data-cy=tx-new-payee-input]")
-          .type("Chipotle");
 
-        // New group and category mode
-  cy.get("[data-cy=tx-item-select]").select("__new_category__");
-  cy.wait(150);
+          // New group and category mode
+        cy.startCategoryCreation("Restaurants");
+        cy.wait(150);
   cy.get("[data-cy=tx-category-group-select]").select("__new_group__");
   cy.wait(150);
         cy.get("[data-cy=tx-new-category-group-input]")
           .type("Food & Dining");
 
         // New category item under that group
-  cy.get("[data-cy=tx-new-category-input]")
-          .type("Restaurants");
+        // Item name is prefilled from combobox entry
 
         // Ensure it's an outflow
         cy.get("[data-cy=tx-sign-toggle]").then(($btn) => {
-          if ($btn.text().trim() !== "−") {
+          const isNegative = $btn.attr("data-state") === "negative";
+          if (!isNegative) {
             cy.wrap($btn).click();
             cy.wait(100);
           }
@@ -159,8 +157,7 @@ describe("Debit & credit transactions - UI only", () => {
 
     // Choose the other debit account as payee from the "Payments & Transfers" optgroup.
     // Label will be "To/From: <name>" when amount is zero. We can match by account name.
-    cy.get('[data-cy=tx-payee-select]')
-      .select(SECOND_DEBIT_ACCOUNT_NAME);
+    cy.selectPayee(SECOND_DEBIT_ACCOUNT_NAME);
     cy.wait(150);
 
 
@@ -171,7 +168,8 @@ describe("Debit & credit transactions - UI only", () => {
 
     // Make it an outflow
     cy.get("[data-cy=tx-sign-toggle]").then(($btn) => {
-      if ($btn.text().trim() !== "−") {
+      const isNegative = $btn.attr("data-state") === "negative";
+      if (!isNegative) {
         cy.wrap($btn).click();
         cy.wait(100);
       }
@@ -272,8 +270,7 @@ describe("Debit & credit transactions - UI only", () => {
   cy.wait(150);
 
     // Choose the CREDIT_ACCOUNT as target from Payments & Transfers
-    cy.get('[data-cy=tx-payee-select]')
-      .select(CREDIT_ACCOUNT_NAME);
+    cy.selectPayee(CREDIT_ACCOUNT_NAME);
     cy.wait(150);
 
     // After selecting cross-type account, useEffect should set:
@@ -283,11 +280,12 @@ describe("Debit & credit transactions - UI only", () => {
       .should("have.value", "Credit Card Payments");
 
     cy.get("[data-cy=tx-item-select]")
-      .should("have.value", `Credit Card Payments::${CREDIT_ACCOUNT_NAME}`);
+      .should("have.value", `Credit Card Payments ▸ ${CREDIT_ACCOUNT_NAME}`);
 
     // Outflow of 100 (payment from DEBIT to CREDIT)
     cy.get("[data-cy=tx-sign-toggle]").then(($btn) => {
-      if ($btn.text().trim() !== "−") {
+      const isNegative = $btn.attr("data-state") === "negative";
+      if (!isNegative) {
         cy.wrap($btn).click();
         cy.wait(100);
       }
@@ -360,12 +358,12 @@ describe("Debit & credit transactions - UI only", () => {
 
   cy.get("[data-cy=add-transaction-button]").click();
   cy.wait(150);
-    cy.get('[data-cy=tx-payee-select]')
-      .select(SECOND_DEBIT_ACCOUNT_NAME);
+    cy.selectPayee(SECOND_DEBIT_ACCOUNT_NAME);
     cy.wait(150);
 
     cy.get("[data-cy=tx-sign-toggle]").then(($btn) => {
-      if ($btn.text().trim() !== "−") {
+      const isNegative = $btn.attr("data-state") === "negative";
+      if (!isNegative) {
         cy.wrap($btn).click();
         cy.wait(100);
       }

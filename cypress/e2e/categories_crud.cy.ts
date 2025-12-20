@@ -56,7 +56,9 @@ describe('Categories and Groups CRUD', () => {
     // Open the group's context menu (the app renders a portal with
     // data-cy="group-rename"). Then find the inline input that appears
     // in the group header (the input doesn't have a data-cy in the app).
-    cy.get(`tr[data-cy="category-group-row"][data-category="${original}"]`).first().rightclick();
+    cy.get(`[data-cy="group-name"][data-category="${original}"]`).then(($name) => {
+      cy.wrap($name).rightclick();
+    });
     cy.get('[data-cy="group-rename"]').first().click();
 
     // The inline input replaces the span with the group name. Locate the
@@ -245,7 +247,9 @@ describe('Categories and Groups CRUD', () => {
     cy.get(`[data-cy="group-name"][data-category="${emptyGroup}"]`).should('exist');
 
     // Delete empty group via context menu (app shows portal button data-cy="group-delete")
-    cy.get(`tr[data-cy="category-group-row"][data-category="${emptyGroup}"]`).first().rightclick();
+    cy.get(`[data-cy="group-name"][data-category="${emptyGroup}"]`).then(($name) => {
+      cy.wrap($name).rightclick();
+    });
     cy.get('[data-cy="group-delete"]').first().click();
 
     cy.get(`[data-cy="group-name"][data-category="${emptyGroup}"]`).should('not.exist');
@@ -272,7 +276,9 @@ describe('Categories and Groups CRUD', () => {
     // either a delete action (for empty groups) or a message that the
     // group cannot be deleted when it's non-empty. Assert the expected
     // behavior and that the group remains when deletion is blocked.
-    cy.get(`tr[data-cy="category-group-row"][data-category="${nonEmptyGroup}"]`).first().rightclick();
+    cy.get(`[data-cy="group-name"][data-category="${nonEmptyGroup}"]`).then(($name) => {
+      cy.wrap($name).rightclick();
+    });
 
     cy.get('body').then(($b) => {
       if ($b.find('[data-cy="group-delete"]').length) {
@@ -289,7 +295,7 @@ describe('Categories and Groups CRUD', () => {
           }
         });
       } else if ($b.find('[data-cy="group-context-menu"]').length &&
-                 $b.find('[data-cy="group-context-menu"]').text().includes('Cannot delete: Group not empty')) {
+        $b.find('[data-cy="group-context-menu"]').text().includes('Cannot delete: Group not empty')) {
         // Expected blocked-delete path
         cy.get('[data-cy="group-context-menu"]').should('contain.text', 'Cannot delete: Group not empty');
         cy.get(`[data-cy="group-name"][data-category="${nonEmptyGroup}"]`).should('exist');

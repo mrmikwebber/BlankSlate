@@ -53,16 +53,16 @@ describe("Transaction editing / mutation", () => {
 
     cy.get("[data-cy=add-transaction-button]").click();
 
-    cy.get("[data-cy=tx-payee-select]").select("__new__");
-    cy.get("[data-cy=tx-new-payee-input]").type("Edit Test Store");
+    cy.selectPayee("Edit Test Store");
 
-    cy.get("[data-cy=tx-item-select]").select("__new_category__");
+    cy.startCategoryCreation(itemName);
     cy.get("[data-cy=tx-category-group-select]").select("__new_group__");
     cy.get("[data-cy=tx-new-category-group-input]").type(groupName);
-    cy.get("[data-cy=tx-new-category-input]").type(itemName);
+    // Item name prefilled from combobox entry
 
     cy.get("[data-cy=tx-sign-toggle]").then(($btn) => {
-      if ($btn.text().trim() !== "−") {
+      const isNegative = $btn.attr("data-state") === "negative";
+      if (!isNegative) {
         cy.wrap($btn).click();
       }
     });
@@ -161,7 +161,7 @@ describe("Transaction editing / mutation", () => {
         // If your UI has separate group & item selects, adjust this accordingly.
         cy.get("@editForm")
           .find("[data-cy=tx-item-select]")
-          .select(`${groupB}::${itemB}`);
+          .selectCategory(`${groupB}::${itemB}`);
 
         cy.get("@editForm").find("[data-cy=tx-submit]").click();
         
@@ -354,7 +354,7 @@ describe("Transaction editing / mutation", () => {
     // Change payee to savings account (transfer)
     cy.get("@editForm")
       .find("[data-cy=tx-payee-select]")
-      .select(accounts.savings.name);
+      .selectPayee(accounts.savings.name);
 
     // Optionally, clear category in edit UI if needed
     // cy.get("@editForm").find("[data-cy=tx-group-select]").select("(none)");
@@ -413,10 +413,11 @@ describe("Transaction editing / mutation", () => {
 
     cy.get("[data-cy=add-transaction-button]").click();
 
-    cy.get("[data-cy=tx-payee-select]").select(accounts.savings.name);
+    cy.selectPayee(accounts.savings.name);
 
     cy.get("[data-cy=tx-sign-toggle]").then(($btn) => {
-      if ($btn.text().trim() !== "−") {
+      const isNegative = $btn.attr("data-state") === "negative";
+      if (!isNegative) {
         cy.wrap($btn).click();
       }
     });
@@ -432,7 +433,7 @@ describe("Transaction editing / mutation", () => {
   cy.get('[data-cy=transaction-form-row-edit]').as('editForm');
     cy.get("@editForm")
       .find("[data-cy=tx-payee-select]")
-      .select(accounts.amex.name);
+      .selectPayee(accounts.amex.name);
 
     cy.get("@editForm").find("[data-cy=tx-submit]").click();
 
@@ -639,11 +640,11 @@ describe("Transaction editing / mutation", () => {
   visitAccount(accounts.checking.id, accounts.checking.name);
 
   cy.get("[data-cy=add-transaction-button]").click();
-  cy.get("[data-cy=tx-payee-select]").select("__new__");
-  cy.get("[data-cy=tx-new-payee-input]").type("CrossCat Store");
-  cy.get("[data-cy=tx-item-select]").select(`${groupName}::${itemA}`);
+  cy.selectPayee("CrossCat Store");
+  cy.selectCategory(`${groupName}::${itemA}`);
   cy.get("[data-cy=tx-sign-toggle]").then(($btn) => {
-    if ($btn.text().trim() !== "−") cy.wrap($btn).click();
+    const isNegative = $btn.attr("data-state") === "negative";
+    if (!isNegative) cy.wrap($btn).click();
   });
   cy.get("[data-cy=tx-amount-input]").clear().type(String(amount));
   cy.get("[data-cy=tx-submit]").click();
@@ -701,7 +702,7 @@ describe("Transaction editing / mutation", () => {
   cy.get("[data-cy=context-edit-transaction]").click();
   cy.get("[data-cy=transaction-form-row-edit]").as("editForm");
 
-  cy.get("@editForm").find("[data-cy=tx-item-select]").select(`${groupName}::${itemB}`);
+  cy.get("@editForm").find("[data-cy=tx-item-select]").selectCategory(`${groupName}::${itemB}`);
   // keep same amount; only category moves
   cy.get("@editForm").find("[data-cy=tx-submit]").click();
 

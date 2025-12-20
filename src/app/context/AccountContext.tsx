@@ -1,5 +1,5 @@
 "use client"
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState, useMemo } from "react";
 import { useAuth } from "./AuthContext";
 import { supabase } from "@/utils/supabaseClient";
 export interface Transaction {
@@ -170,10 +170,10 @@ const upsertPayee = async (name: string) => {
     }
   };
 
-  const normalizeAccount = (raw: any): Account => {
+  const normalizeAccount = (raw: { transactions?: Array<{ balance?: number }> } & Partial<Account>): Account => {
     const txs = raw.transactions ?? [];
     const computedBalance = txs.reduce(
-      (sum: number, tx: any) => sum + (tx.balance ?? 0),
+      (sum: number, tx) => sum + (tx.balance ?? 0),
       0
     );
 
@@ -358,9 +358,26 @@ const upsertPayee = async (name: string) => {
     }
   };
 
+  const contextValue = useMemo(
+    () => ({
+      accounts,
+      addTransaction,
+      addAccount,
+      deleteAccount,
+      setAccounts,
+      deleteTransaction,
+      deleteTransactionWithMirror,
+      editTransaction,
+      editAccountName,
+      recentTransactions,
+      savedPayees,
+      upsertPayee,
+    }),
+    [accounts, recentTransactions, savedPayees]
+  );
+
   return (
-    <AccountContext.Provider value={{ accounts, addTransaction, addAccount, deleteAccount, setAccounts, deleteTransaction, deleteTransactionWithMirror, editTransaction, editAccountName, recentTransactions, savedPayees,
-    upsertPayee }}>
+    <AccountContext.Provider value={contextValue}>
       {children}
     </AccountContext.Provider>
   );

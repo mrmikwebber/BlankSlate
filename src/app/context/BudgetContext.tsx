@@ -18,7 +18,7 @@ import {
 } from "date-fns";
 import { useAuth } from "./AuthContext";
 import { supabase } from "@/utils/supabaseClient";
-import { Account, useAccountContext } from "./AccountContext";
+import { useAccountContext } from "./AccountContext";
 
 const getPreviousMonth = (month: string) => {
   return format(subMonths(parseISO(`${month}-01`), 1), "yyyy-MM");
@@ -157,7 +157,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
           } = entryRaw as {
             month: string;
             data: { categories: Category[] };
-            [key: string]: any;
+            [key: string]: unknown;
           };
 
           formatted[month] = {
@@ -558,10 +558,11 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
   }, [budgetData, currentMonth]);
 
   useEffect(() => {
-    if (!budgetData[currentMonth]) return;
+    if (!budgetData[currentMonth] || !accounts.length) return;
 
     const creditCardAccounts = accounts.filter((acc) => acc.type === "credit");
     const creditCardAccountNames = creditCardAccounts.map((acc) => acc.name);
+    const creditCardAccountNamesSet = new Set(creditCardAccountNames);
 
     const updatedCategories = budgetData[currentMonth]?.categories?.map(
       (category) => {
@@ -569,6 +570,12 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
           const existingItemNames = category.categoryItems.map(
             (item) => item.name
           );
+          
+          // Filter out removed credit cards and add missing ones
+          const filteredItems = category.categoryItems.filter((item) =>
+            creditCardAccountNamesSet.has(item.name)
+          );
+          
           const missingItems = creditCardAccountNames
             .filter((name) => !existingItemNames.includes(name))
             .map((name) => ({
@@ -578,7 +585,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
               available: 0,
             }));
 
-          const allItems = [...category.categoryItems, ...missingItems];
+          const allItems = [...filteredItems, ...missingItems];
 
           const updatedItems = allItems.map((item) => {
             const cumulativeAvailable = getCumulativeAvailable(
@@ -666,45 +673,6 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
       return updated;
     });
     setIsDirty(true);
-  }, [accounts, currentMonth]);
-  useEffect(() => {
-    if (!accounts.length || !budgetData) return;
-
-    const creditCardAccountNames = new Set(
-      accounts.filter((acc) => acc.type === "credit").map((acc) => acc.name)
-    );
-    setBudgetData((prev) => {
-      const updated = { ...prev };
-      let modified = false;
-
-      for (const month in updated) {
-        updated[month].categories = updated[month].categories.map(
-          (category) => {
-            if (category.name !== "Credit Card Payments") return category;
-
-            const filteredItems = category.categoryItems.filter((item) =>
-              creditCardAccountNames.has(item.name)
-            );
-
-            if (filteredItems.length !== category.categoryItems.length) {
-              modified = true;
-            }
-
-            return { ...category, categoryItems: filteredItems };
-          }
-        );
-
-        if (modified) {
-          dirtyMonths.current?.add(month);
-        }
-      }
-
-      return updated;
-    });
-
-    if (dirtyMonths.current?.size) {
-      setIsDirty(true);
-    }
   }, [accounts, currentMonth]);
 
   const getLatestMonth = (budgetData) => {
@@ -1163,7 +1131,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
     setIsDirty(true);
   };
 
-  const calculateCreditCardAccountActivity = (
+  const calculateCreditCardAccountActivity = useCallback((
     month,
     accountName,
     data = budgetData
@@ -1275,10 +1243,10 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
     }
 
     return totalActivity;
-  };
+  }, [budgetData, accounts]);
 
 
-  const calculateActivityForMonth = (
+  const calculateActivityForMonth = useCallback((
     month,
     categoryName,
     categoryGroupName?: string
@@ -1300,7 +1268,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
       });
 
     return filteredAccounts.reduce((sum, tx) => sum + tx.balance, 0);
-  };
+  }, [accounts]);
 
 
   const isBeforeMonth = (monthA: string, monthB: string): boolean => {

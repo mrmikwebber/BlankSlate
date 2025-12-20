@@ -100,7 +100,7 @@ describe("Credit Card Payments behaviour", () => {
         // Context menu should appear and show the "Cannot delete" message instead of a Delete button
         cy.get('[data-cy="category-context-menu"]')
           .should("exist")
-          .and("contain.text", "Cannot delete (Credit Credit Category)");
+          .and("contain.text", "Cannot delete (credit card category)");
 
         // There should NOT be a delete button for CC categories
         cy.get('[data-cy="category-delete"]').should("not.exist");

@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useMemo, Fragment, useRef } from "react";
+import { useState, useEffect, useMemo, Fragment, useRef, useCallback } from "react";
 import { formatToUSD } from "../utils/formatToUSD";
 import AddCategoryButton from "./AddCategoryButton";
 import EditableAssigned from "./EditableAssigned";
@@ -195,35 +195,64 @@ export default function BudgetTable() {
     setOpenCategories((prev) => ({ ...prev, [category]: !prev[category] }));
   };
 
-  const handleInputChange = (categoryName, itemName, value) => {
+  const handleInputChange = useCallback((categoryName, itemName, value) => {
     setBudgetData((prev) => {
       const updated = { ...prev };
 
+      // Only update the specific category that changed
       const updatedCategories = updated[currentMonth]?.categories.map(
         (category) => {
+          if (category.name !== categoryName && category.name !== "Credit Card Payments") {
+            return category; // Skip unchanged categories
+          }
+
           const updatedItems = category.categoryItems.map((item) => {
-            if (category.name !== categoryName || item.name !== itemName) {
-              return item;
+            // For the target category, update only the specific item
+            if (category.name === categoryName) {
+              if (item.name !== itemName) return item;
+
+              const itemActivity = calculateActivityForMonth(
+                currentMonth,
+                item.name,
+                categoryName
+              );
+              const cumulative = getCumulativeAvailable(
+                updated,
+                item.name,
+                categoryName
+              );
+              const available = value + itemActivity + Math.max(cumulative, 0);
+
+              return {
+                ...item,
+                assigned: value,
+                activity: itemActivity,
+                available,
+              };
             }
 
-            const itemActivity = calculateActivityForMonth(
-              currentMonth,
-              item.name,
-              categoryName
-            );
-            const cumulative = getCumulativeAvailable(
-              updated,
-              item.name,
-              categoryName
-            );
-            const available = value + itemActivity + Math.max(cumulative, 0);
+            // For Credit Card Payments, recalculate activity
+            if (category.name === "Credit Card Payments") {
+              const activity = calculateCreditCardAccountActivity(
+                currentMonth,
+                item.name,
+                updated
+              );
+              const cumulative = getCumulativeAvailable(
+                updated,
+                item.name,
+                category.name
+              );
+              const available = item.assigned + activity + Math.max(cumulative, 0);
 
-            return {
-              ...item,
-              assigned: value,
-              activity: itemActivity,
-              available,
-            };
+              return {
+                ...item,
+                activity,
+                available,
+              };
+            }
+
+            return item;
           });
 
           return { ...category, categoryItems: updatedItems };
@@ -234,41 +263,6 @@ export default function BudgetTable() {
         ...updated[currentMonth],
         categories: updatedCategories,
       };
-
-      const creditCardAccounts = accounts.filter(
-        (acc) => acc.type === "credit"
-      );
-      void creditCardAccounts; // currently unused
-
-      const updatedCategoriesWithCreditCards = updated[
-        currentMonth
-      ].categories.map((category) => {
-        if (category.name !== "Credit Card Payments") return category;
-
-        const updatedItems = category.categoryItems.map((item) => {
-          const activity = calculateCreditCardAccountActivity(
-            currentMonth,
-            item.name,
-            updated
-          );
-          const cumulative = getCumulativeAvailable(
-            updated,
-            item.name,
-            category.name
-          );
-          const available = item.assigned + activity + Math.max(cumulative, 0);
-
-          return {
-            ...item,
-            activity,
-            available,
-          };
-        });
-
-        return { ...category, categoryItems: updatedItems };
-      });
-
-      updated[currentMonth].categories = updatedCategoriesWithCreditCards;
 
       refreshAllReadyToAssign(updated);
       return updated;
@@ -282,7 +276,7 @@ export default function BudgetTable() {
         timestamp: new Date().toISOString(),
       },
     ]);
-  };
+  }, [currentMonth, setBudgetData, setIsDirty, setRecentChanges, calculateActivityForMonth, getCumulativeAvailable, calculateCreditCardAccountActivity, refreshAllReadyToAssign]);
 
   const handleAddItem = (category: string) => {
     if (newItem.name.trim() !== "") {
@@ -495,12 +489,12 @@ export default function BudgetTable() {
                   });
                   setCategoryContext(null);
                 }}
-                className="px-3 py-2 hover:bg-red-50 text-red-600 w-full text-left"
+                className="px-3 py-2 hover:bg-red-50 text-red-600 w-full text-left border-t border-slate-200"
               >
                 Delete category
               </button>
             ) : (
-              <div className="px-3 py-2 text-[11px] text-muted-foreground">
+              <div className="px-3 py-2 text-[11px] text-muted-foreground border-t border-slate-200">
                 Cannot delete (credit card category)
               </div>
             )}
@@ -865,7 +859,12 @@ export default function BudgetTable() {
                             <TableCell
                               data-cy="item-activity"
                               data-item={item.name}
-                              className="p-2 text-right align-middle"
+                              className="p-2 text-right align-middle cursor-pointer"
+                              onClick={() => {
+                                setInlineEditorCategory((prev) =>
+                                  prev === item.name ? null : item.name
+                                );
+                              }}
                             >
                               {formatToUSD(item.activity || 0)}
                             </TableCell>
@@ -873,13 +872,18 @@ export default function BudgetTable() {
                               data-cy="item-available"
                               data-item={item.name}
                               className={cn(
-                                "p-2 text-right align-middle font-mono text-sm font-medium",
+                                "p-2 text-right align-middle font-mono text-sm font-medium cursor-pointer",
                                 item.available > 0
                                   ? "text-emerald-600"
                                   : item.available < 0
                                     ? "text-red-600"
                                     : "text-slate-700"
                               )}
+                              onClick={() => {
+                                setInlineEditorCategory((prev) =>
+                                  prev === item.name ? null : item.name
+                                );
+                              }}
                             >
                               {formatToUSD(item.available || 0)}
                             </TableCell>

@@ -78,6 +78,8 @@ export default function InlineTransactionRow({
     isEdit && initialData?.category ? initialData.category : ""
   );
   const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
+  const [isTypingPayee, setIsTypingPayee] = useState(false);
+  const [isTypingCategory, setIsTypingCategory] = useState(false);
 
 
 
@@ -137,6 +139,8 @@ export default function InlineTransactionRow({
         thisAccount.type === "credit" ? thisAccount : otherAccount;
       setSelectedGroup("Credit Card Payments");
       setSelectedItem(creditAccount.name);
+      // Also update categoryInput to show the full label
+      setCategoryInput(`Credit Card Payments ▸ ${creditAccount.name}`);
     }
   }, [crossTypeTransfer, thisAccount, otherAccount]);
 
@@ -186,7 +190,7 @@ export default function InlineTransactionRow({
 
 
   // Get payees from saved payees table
-  const allPayees = savedPayees.map((p) => p.name);
+  const allPayees = savedPayees.map((p) => p.name).filter((n) => typeof n === "string" && n.trim() !== "");
 
   const transferTargets = accounts.filter((a) => a.id !== accountId);
 
@@ -315,14 +319,19 @@ export default function InlineTransactionRow({
       }
     })();
 
-    const isReadyToAssign = groupName === "Ready to Assign";
+    // If transfer to a credit card, force category to card payment
+    const isCreditPayment = isTransfer && otherAccount?.type === "credit";
+    const effectiveGroup = isCreditPayment ? "Credit Card Payments" : groupName;
+    const effectiveItem = isCreditPayment ? otherAccount!.name : itemName;
+
+    const isReadyToAssign = effectiveGroup === "Ready to Assign";
 
     const transactionData = {
       date,
       payee: payeeLabel,
-      category: isTransfer ? null : isReadyToAssign ? groupName : itemName || null,
+      category: isTransfer && !isCreditPayment ? null : isReadyToAssign ? effectiveGroup : effectiveItem || null,
       // for anything that's not "Ready to Assign", store the group
-      category_group: isTransfer ? null : isReadyToAssign ? null : groupName || null,
+      category_group: isTransfer && !isCreditPayment ? null : isReadyToAssign ? null : effectiveGroup || null,
       balance,
     };
 
@@ -382,7 +391,8 @@ export default function InlineTransactionRow({
         await addTransaction(otherAccount.id, {
           date,
           payee: mirrorPayee,
-          category: itemName || null,
+          category: isOtherCredit ? otherAccount.name : effectiveItem || null,
+          category_group: isOtherCredit ? "Credit Card Payments" : (effectiveItem ? effectiveGroup : null),
           balance: -balance,
         });
       }
@@ -415,7 +425,8 @@ export default function InlineTransactionRow({
         addTransaction(otherAccount.id, {
           date,
           payee: mirrorPayee,
-          category: itemName || null,
+          category: isOtherCredit ? otherAccount.name : effectiveItem || null,
+          category_group: isOtherCredit ? "Credit Card Payments" : (effectiveItem ? effectiveGroup : null),
           balance: -balance,
         });
       }
@@ -534,7 +545,7 @@ export default function InlineTransactionRow({
       label: p, // normal payee string
     })),
   ].filter((s) =>
-    payeeInput
+    isTypingPayee && payeeInput
       ? s.label.toLowerCase().includes(payeeInput.toLowerCase())
       : true
   );
@@ -549,7 +560,7 @@ export default function InlineTransactionRow({
       }))
     )
     .filter((s) =>
-      categoryInput
+      isTypingCategory && categoryInput
         ? s.label.toLowerCase().includes(categoryInput.toLowerCase())
         : true
     );
@@ -589,6 +600,7 @@ export default function InlineTransactionRow({
             value={payeeInput}
             onChange={(e) => {
               setPayeeInput(e.target.value);
+              setIsTypingPayee(true);
               if (payeeInputRef.current) {
                 const rect = payeeInputRef.current.getBoundingClientRect();
                 setPayeeDropdownPos({ top: rect.bottom, left: rect.left, width: rect.width });
@@ -607,12 +619,27 @@ export default function InlineTransactionRow({
                 e.preventDefault();
                 if (payeeSuggestions.length > 0) {
                   const match = payeeSuggestions[0];
+                  setIsTypingPayee(false);
                   if (match.type === "account") {
                     setTransferPayee(match.accountName);
                     setSelectedPayeeAccountName(match.accountName);
+                    const acc = accounts.find((a) => a.name === match.accountName);
+                    if (acc?.type === "credit") {
+                      setSelectedGroup("Credit Card Payments");
+                      setSelectedItem(acc.name);
+                      setCategoryInput(acc.name);
+                      setIsTypingCategory(false);
+                    } else {
+                      setSelectedGroup("");
+                      setSelectedItem("");
+                      setCategoryInput("");
+                    }
                   } else {
                     setTransferPayee(match.label);
                     setSelectedPayeeAccountName(null);
+                    setSelectedGroup("");
+                    setSelectedItem("");
+                    setCategoryInput("");
                   }
                   setPayeeInput(match.label);
                   setPayeeDropdownOpen(false);
@@ -677,8 +704,20 @@ export default function InlineTransactionRow({
                         key={suggestion.accountName}
                         className="px-3 py-2 hover:bg-teal-50 cursor-pointer text-sm text-slate-700"
                         onClick={() => {
+                          setIsTypingPayee(false);
                           setTransferPayee(suggestion.accountName!);
                           setSelectedPayeeAccountName(suggestion.accountName!);
+                          const acc = accounts.find((a) => a.name === suggestion.accountName);
+                          if (acc?.type === "credit") {
+                            setSelectedGroup("Credit Card Payments");
+                            setSelectedItem(acc.name);
+                            setCategoryInput(acc.name);
+                            setIsTypingCategory(false);
+                          } else {
+                            setSelectedGroup("");
+                            setSelectedItem("");
+                            setCategoryInput("");
+                          }
                           setPayeeInput(suggestion.label);
                           setPayeeDropdownOpen(false);
                         }}
@@ -698,8 +737,12 @@ export default function InlineTransactionRow({
                         key={suggestion.label}
                         className="px-3 py-2 hover:bg-teal-50 cursor-pointer text-sm text-slate-700"
                         onClick={() => {
+                          setIsTypingPayee(false);
                           setTransferPayee(suggestion.label);
                           setSelectedPayeeAccountName(null);
+                          setSelectedGroup("");
+                          setSelectedItem("");
+                          setCategoryInput("");
                           setPayeeInput(suggestion.label);
                           setPayeeDropdownOpen(false);
                         }}
@@ -823,6 +866,16 @@ export default function InlineTransactionRow({
               value={categoryInput}
               onChange={(e) => {
                 setCategoryInput(e.target.value);
+                setIsTypingCategory(true);
+                // Only clear payee if it was a credit card payment and category changed
+                if (isTypingCategory && selectedPayeeAccountName) {
+                  const acc = accounts.find((a) => a.name === selectedPayeeAccountName);
+                  if (acc?.type === "credit") {
+                    setPayeeInput("");
+                    setTransferPayee("");
+                    setSelectedPayeeAccountName(null);
+                  }
+                }
                 if (categoryInputRef.current) {
                   const rect = categoryInputRef.current.getBoundingClientRect();
                   setCategoryDropdownPos({ top: rect.bottom, left: rect.left, width: rect.width });
@@ -841,9 +894,27 @@ export default function InlineTransactionRow({
                   e.preventDefault();
                   if (categorySuggestions.length > 0) {
                     const match = categorySuggestions[0];
+                    setIsTypingCategory(false);
                     setSelectedGroup(match.groupName);
                     setSelectedItem(match.itemName);
                     setCategoryInput(match.label);
+                    if (match.groupName === "Credit Card Payments") {
+                      const acc = accounts.find((a) => a.name === match.itemName && a.type === "credit");
+                      if (acc) {
+                        setTransferPayee(acc.name);
+                        setSelectedPayeeAccountName(acc.name);
+                        setPayeeInput(getPreviewLabel(acc.name));
+                        setIsTypingPayee(false);
+                      }
+                    } else if (selectedPayeeAccountName) {
+                      // Check if current payee is a credit card - if so, clear it since category doesn't match
+                      const acc = accounts.find((a) => a.name === selectedPayeeAccountName);
+                      if (acc?.type === "credit") {
+                        setTransferPayee("");
+                        setSelectedPayeeAccountName(null);
+                        setPayeeInput("");
+                      }
+                    }
                     setCategoryDropdownOpen(false);
                   } else if (categoryInput.toLowerCase() === "ready to assign") {
                     setSelectedGroup("Ready to Assign");
@@ -920,9 +991,27 @@ export default function InlineTransactionRow({
                           <div
                             className="px-3 py-2 hover:bg-teal-50 cursor-pointer text-sm pl-6 text-slate-700"
                             onClick={() => {
+                              setIsTypingCategory(false);
                               setSelectedGroup(suggestion.groupName);
                               setSelectedItem(suggestion.itemName);
                               setCategoryInput(suggestion.label);
+                              if (suggestion.groupName === "Credit Card Payments") {
+                                const acc = accounts.find((a) => a.name === suggestion.itemName && a.type === "credit");
+                                if (acc) {
+                                  setTransferPayee(acc.name);
+                                  setSelectedPayeeAccountName(acc.name);
+                                  setPayeeInput(getPreviewLabel(acc.name));
+                                  setIsTypingPayee(false);
+                                }
+                              } else if (selectedPayeeAccountName) {
+                                // Check if current payee is a credit card - if so, clear it since category doesn't match
+                                const acc = accounts.find((a) => a.name === selectedPayeeAccountName);
+                                if (acc?.type === "credit") {
+                                  setTransferPayee("");
+                                  setSelectedPayeeAccountName(null);
+                                  setPayeeInput("");
+                                }
+                              }
                               setCategoryDropdownOpen(false);
                             }}
                           >
@@ -956,6 +1045,7 @@ export default function InlineTransactionRow({
         <div className="flex items-center gap-2">
           <Button
             data-cy="tx-sign-toggle"
+            data-state={isNegative ? "negative" : "positive"}
             type="button"
             variant="outline"
             size="icon"
@@ -964,8 +1054,11 @@ export default function InlineTransactionRow({
               ? "text-red-600 border-red-300 hover:bg-red-50 hover:text-red-700"
               : "text-green-600 border-green-300 hover:bg-green-50 hover:text-green-700"
               }`}
+            aria-pressed={isNegative}
+            aria-label={isNegative ? "Outflow" : "Inflow"}
           >
             {isNegative ? <Minus className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+            <span className="sr-only">{isNegative ? "Outflow" : "Inflow"}</span>
           </Button>
           <Input
             ref={amountInputRef}

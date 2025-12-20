@@ -15,6 +15,16 @@ import { Badge } from "@/components/ui/badge";
 import { ChevronDown, ChevronRight, Plus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import InlineTargetEditor from "../TargetInlineEditor";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+
+type SelectedItem = { groupName: string; itemName: string };
 
 export default function MobileBudgetTab() {
   const {
@@ -22,7 +32,86 @@ export default function MobileBudgetTab() {
     budgetData,
     addItemToCategory,
     getCumulativeAvailable,
+    setBudgetData,
+    calculateActivityForMonth,
+    calculateCreditCardAccountActivity,
+    refreshAllReadyToAssign,
+    setIsDirty,
+    setRecentChanges,
   } = useBudgetContext();
+
+  const [selectedItem, setSelectedItem] = useState<SelectedItem | null>(null);
+  const [editAssigned, setEditAssigned] = useState<string>("");
+  const [addToGroup, setAddToGroup] = useState<string | null>(null);
+  const [newItemName, setNewItemName] = useState<string>("");
+
+  const openItemSheet = (groupName: string, itemName: string, assigned: number) => {
+    setSelectedItem({ groupName, itemName });
+    setEditAssigned(String(assigned ?? 0));
+  };
+
+  const closeItemSheet = () => {
+    setSelectedItem(null);
+    setEditAssigned("");
+  };
+
+  const handleAssignedSave = () => {
+    if (!selectedItem) return;
+    const nextAssigned = Number(editAssigned);
+    if (Number.isNaN(nextAssigned)) return;
+
+    const { groupName, itemName } = selectedItem;
+
+    // Same math as BudgetTable.handleInputChange
+    setBudgetData((prev: any) => {
+      const updated = { ...prev };
+
+      const updatedCategories = updated[currentMonth]?.categories.map((category: any) => {
+        const updatedItems = category.categoryItems.map((item: any) => {
+          if (category.name !== groupName || item.name !== itemName) return item;
+
+          const itemActivity = calculateActivityForMonth(currentMonth, item.name, groupName);
+          const cumulative = getCumulativeAvailable(updated, item.name, groupName);
+          const available = nextAssigned + itemActivity + Math.max(cumulative, 0);
+
+          return { ...item, assigned: nextAssigned, activity: itemActivity, available };
+        });
+
+        return { ...category, categoryItems: updatedItems };
+      });
+
+      updated[currentMonth] = { ...updated[currentMonth], categories: updatedCategories };
+
+      // Recalc CC payments like BudgetTable
+      const updatedCategoriesWithCreditCards = updated[currentMonth].categories.map((category: any) => {
+        if (category.name !== "Credit Card Payments") return category;
+
+        const updatedItems = category.categoryItems.map((item: any) => {
+          const activity = calculateCreditCardAccountActivity(currentMonth, item.name, updated);
+          const cumulative = getCumulativeAvailable(updated, item.name, category.name);
+          const available = item.assigned + activity + Math.max(cumulative, 0);
+          return { ...item, activity, available };
+        });
+
+        return { ...category, categoryItems: updatedItems };
+      });
+
+      updated[currentMonth].categories = updatedCategoriesWithCreditCards;
+      refreshAllReadyToAssign(updated);
+      return updated;
+    });
+
+    setIsDirty?.(true);
+    setRecentChanges?.((prev: any[]) => [
+      ...(prev || []).slice(-9),
+      {
+        description: `Assigned $${nextAssigned} to '${itemName}' in '${groupName}'`,
+        timestamp: new Date().toISOString(),
+      },
+    ]);
+
+    closeItemSheet();
+  };
 
   const budgetMonth = budgetData[currentMonth];
 
@@ -116,7 +205,7 @@ export default function MobileBudgetTab() {
               {group.categoryItems.map((item) => {
                 const status = getTargetStatus(item);
                 return (
-                  <Card key={item.name} className="shadow-none border-slate-200">
+                  <Card key={item.name} className="shadow-none border-slate-200" onClick={() => openItemSheet(group.name, item.name, item.assigned)}>
                     <CardContent className="pt-3">
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex-1">
@@ -124,8 +213,8 @@ export default function MobileBudgetTab() {
                             {item.name}
                           </p>
                           {status && status.type && (
-                            <Badge 
-                              variant={getStatusColor(status.type)} 
+                            <Badge
+                              variant={getStatusColor(status.type)}
                               className="mt-2 text-xs"
                             >
                               {status.message}
@@ -134,9 +223,8 @@ export default function MobileBudgetTab() {
                         </div>
                         <div className="text-right ml-3">
                           <p className="text-xs text-slate-500 mb-1 font-medium">Available</p>
-                          <p className={`text-base font-bold ${
-                            item.available > 0 ? 'text-teal-600' : 'text-red-600'
-                          }`}>
+                          <p className={`text-base font-bold ${item.available > 0 ? 'text-teal-600' : 'text-red-600'
+                            }`}>
                             {formatToUSD(item.available)}
                           </p>
                         </div>
@@ -150,9 +238,8 @@ export default function MobileBudgetTab() {
                         </div>
                         <div className="w-full bg-slate-300 rounded-full h-2 overflow-hidden">
                           <div
-                            className={`h-full rounded-full transition-all ${
-                              item.available < 0 ? 'bg-red-500' : 'bg-teal-500'
-                            }`}
+                            className={`h-full rounded-full transition-all ${item.available < 0 ? 'bg-red-500' : 'bg-teal-500'
+                              }`}
                             style={{
                               width: `${Math.min(
                                 (Math.abs(item.activity) / (item.assigned || 1)) * 100,
@@ -172,15 +259,122 @@ export default function MobileBudgetTab() {
                 variant="outline"
                 size="sm"
                 className="w-full gap-1.5 border-slate-300 text-slate-800 hover:bg-slate-50"
-                onClick={() => addItemToCategory(group.name, "")}
+                onClick={() => {
+                  setAddToGroup(group.name);
+                  setNewItemName("");
+                }}
               >
                 <Plus className="h-4 w-4" />
                 Add to {group.name}
               </Button>
+
             </div>
           )}
         </div>
       ))}
+      <Dialog open={Boolean(selectedItem)} onOpenChange={(o) => !o && closeItemSheet()}>
+        <DialogContent className="p-0 overflow-hidden max-w-none w-[96vw] sm:max-w-md rounded-2xl">
+          <div className="p-4 border-b bg-white">
+            <DialogHeader>
+              <DialogTitle className="text-base">{selectedItem?.itemName}</DialogTitle>
+              <p className="text-xs text-slate-500">{selectedItem?.groupName}</p>
+            </DialogHeader>
+          </div>
+
+          {selectedItem && (() => {
+            const group = budgetData[currentMonth]?.categories?.find((g: any) => g.name === selectedItem.groupName);
+            const item = group?.categoryItems?.find((i: any) => i.name === selectedItem.itemName);
+            const status = item ? getTargetStatus(item) : null;
+
+            return (
+              <div className="p-4 space-y-4 bg-white">
+                <div className="space-y-2">
+                  <div className="flex items-end justify-between">
+                    <div>
+                      <p className="text-xs font-medium text-slate-500">Assigned</p>
+                      <p className="text-lg font-semibold text-slate-900">{formatToUSD(item?.assigned ?? 0)}</p>
+                    </div>
+                    <Button size="sm" variant="outline" onClick={handleAssignedSave}>
+                      Done
+                    </Button>
+                  </div>
+
+                  <Input
+                    inputMode="decimal"
+                    value={editAssigned}
+                    onChange={(e) => setEditAssigned(e.target.value)}
+                    className="h-11"
+                  />
+
+                  <div className="flex justify-between text-xs text-slate-600">
+                    <span>Activity: {formatToUSD(item?.activity ?? 0)}</span>
+                    <span>Available: {formatToUSD(item?.available ?? 0)}</span>
+                  </div>
+                </div>
+
+                {item && (
+                  <div className="rounded-lg border border-slate-200 p-3">
+                    <p className="text-xs font-medium text-slate-500 mb-2">Target</p>
+                    <table className="w-full">
+                      <tbody>
+                        <InlineTargetEditor
+                          itemName={selectedItem.itemName}
+                          onClose={closeItemSheet}
+                        />
+                      </tbody>
+                    </table>
+                    {status?.type && (
+                      <div className="mt-2">
+                        <Badge variant={getStatusColor(status.type)} className="text-xs">
+                          {status.message}
+                        </Badge>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
+      <Dialog open={Boolean(addToGroup)} onOpenChange={(o) => !o && setAddToGroup(null)}>
+        <DialogContent className="max-w-none w-[96vw] sm:max-w-md rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-base">Add category to {addToGroup}</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <Input
+              value={newItemName}
+              onChange={(e) => setNewItemName(e.target.value)}
+              placeholder="Category name"
+              className="h-11"
+              autoFocus
+            />
+
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setAddToGroup(null)}>
+                Cancel
+              </Button>
+              <Button
+                className="flex-1"
+                onClick={() => {
+                  if (!addToGroup) return;
+                  const name = newItemName.trim();
+                  if (!name) return;
+
+                  addItemToCategory(addToGroup, { name, assigned: 0, activity: 0, available: 0 });
+                  setAddToGroup(null);
+                  setNewItemName("");
+                }}
+              >
+                Add
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 }

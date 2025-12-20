@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, memo, useCallback } from "react";
 import { evaluate } from "mathjs";
 import { formatToUSD } from "../utils/formatToUSD";
 import { TableCell } from "@/components/ui/table";
@@ -11,7 +11,7 @@ interface EditableAssignedProps {
   handleInputChange: (categoryName: string, itemName: string, value: number) => void;
 }
 
-const EditableAssigned = ({
+const EditableAssigned = memo(({
   categoryName,
   itemName,
   item,
@@ -20,7 +20,7 @@ const EditableAssigned = ({
   const [isEditing, setIsEditing] = useState(false);
   const [inputValue, setInputValue] = useState((item.assigned ?? 0).toString());
 
-  const handleSave = () => {
+  const handleSave = useCallback(() => {
     try {
       const evaluatedValue = evaluate(inputValue);
       const parsedValue = parseFloat(evaluatedValue as string);
@@ -37,7 +37,7 @@ const EditableAssigned = ({
       setIsEditing(false);
       console.error(error);
     }
-  };
+  }, [categoryName, itemName, inputValue, handleInputChange]);
 
   useEffect(() => {
     if (!isEditing) {
@@ -68,7 +68,10 @@ const EditableAssigned = ({
           data-cy="assigned-display"
           data-category={categoryName}
           data-item={itemName}
-          onClick={() => setIsEditing(true)}
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsEditing(true);
+          }}
           className="block cursor-pointer px-2 py-0.5 text-right font-mono text-sm rounded hover:bg-slate-100 transition-colors"
         >
           {formatToUSD(item.assigned)}
@@ -76,6 +79,8 @@ const EditableAssigned = ({
       )}
     </td>
   );
-};
+});
+
+EditableAssigned.displayName = 'EditableAssigned';
 
 export default EditableAssigned;

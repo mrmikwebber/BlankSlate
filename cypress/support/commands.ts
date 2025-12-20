@@ -16,6 +16,20 @@ declare global {
        */
       getSeededAccounts(): Chainable<any>
       /**
+       * Select a payee from the combobox dropdown.
+       * Use '__new__' to create a new payee.
+       */
+      selectPayee(payeeName: string): Chainable<any>
+      /**
+       * Select a category from the combobox dropdown.
+       * Accepts "Group::Item" or a raw label like "Ready to Assign".
+       */
+      selectCategory(categoryLabel: string): Chainable<any>
+      /**
+       * Start the new-category flow by typing the name and clicking "Create".
+       */
+      startCategoryCreation(categoryName: string): Chainable<any>
+      /**
        * Add a transaction with an existing category.
        * @param options - Transaction options
        *   category: "Group::Item" format
@@ -65,6 +79,66 @@ Cypress.Commands.add('getSeededAccounts', () => {
   return cy.wrap(accounts);
 });
 
+Cypress.Commands.add('selectPayee', (payeeName: string) => {
+  const input = cy.get('[data-cy=tx-payee-select]');
+  
+  // Clear and type the payee name
+  input.clear().type(payeeName);
+  
+  // Wait for dropdown to appear
+  cy.get('[data-cy=payee-dropdown]').should('be.visible');
+  
+  // Check if the payee already exists in the dropdown
+  cy.get('[data-cy=payee-dropdown]').then(($dropdown) => {
+    if ($dropdown.text().includes(payeeName)) {
+      // Payee exists, click on it
+      cy.get('[data-cy=payee-dropdown]').contains(payeeName).click();
+    } else if ($dropdown.text().includes('Create')) {
+      // Payee doesn't exist, click Create option
+      cy.get('[data-cy=payee-dropdown]').contains('Create').click();
+    }
+  });
+});
+
+Cypress.Commands.add(
+  'selectCategory',
+  { prevSubject: 'optional' },
+  (subject: JQuery<HTMLElement> | undefined, categoryLabel: string) => {
+    // Extract just the item name (part after ::)
+    const itemName = categoryLabel.includes('::')
+      ? categoryLabel.split('::')[1]
+      : categoryLabel;
+
+    const input = subject ? cy.wrap(subject) : cy.get('[data-cy=tx-item-select]');
+    input.clear().type(itemName);
+
+    cy.get('[data-cy=category-dropdown]').should('be.visible');
+    
+    // Check if the category already exists in the dropdown
+    cy.get('[data-cy=category-dropdown]').then(($dropdown) => {
+      if ($dropdown.text().includes(itemName)) {
+        // Category exists, click on it
+        cy.get('[data-cy=category-dropdown]').contains(itemName).click();
+      } else if ($dropdown.text().includes('Create')) {
+        // Category doesn't exist, click Create option
+        cy.get('[data-cy=category-dropdown]').contains('Create').click();
+      }
+    });
+  }
+);
+
+Cypress.Commands.add(
+  'startCategoryCreation',
+  { prevSubject: 'optional' },
+  (subject: JQuery<HTMLElement> | undefined, categoryName: string) => {
+    const input = subject ? cy.wrap(subject) : cy.get('[data-cy=tx-item-select]');
+    input.clear().type(categoryName);
+
+    cy.get('[data-cy=category-dropdown]').should('be.visible');
+    cy.get('[data-cy=category-dropdown]').contains('Create New Category').click();
+  }
+);
+
 /**
  * Add a transaction with an existing category.
  * Expects "Group::Item" format for the category parameter.
@@ -83,21 +157,15 @@ Cypress.Commands.add(
     cy.get('[data-cy=add-transaction-button]').click();
 
     // Set payee
-    if (payee === 'Test Payee') {
-      cy.get('[data-cy=tx-payee-select]').select('__new__');
-      cy.get('[data-cy=tx-new-payee-input]').type(payee);
-    } else {
-      cy.get('[data-cy=tx-payee-select]').select(payee);
-    }
+    cy.selectPayee(payee);
 
-    // Set category using the new unified selector
-    cy.get('[data-cy=tx-item-select]').select(`${groupName}::${itemName}`);
+    // Set category using the combobox
+    cy.selectCategory(`${groupName}::${itemName}`);
 
     // Set sign (expense vs income)
     cy.get('[data-cy=tx-sign-toggle]').then(($btn) => {
       const isNegative = isExpense;
-      const currentSign = $btn.text().trim();
-      const shouldBeNegative = currentSign === '−';
+      const shouldBeNegative = $btn.attr('data-state') === 'negative';
 
       if (isNegative !== shouldBeNegative) {
         cy.wrap($btn).click();
@@ -135,15 +203,13 @@ Cypress.Commands.add(
     cy.get('[data-cy=add-transaction-button]').click();
 
     // Set payee
-    if (payee === 'Test Payee') {
-      cy.get('[data-cy=tx-payee-select]').select('__new__');
-      cy.get('[data-cy=tx-new-payee-input]').type(payee);
-    } else {
-      cy.get('[data-cy=tx-payee-select]').select(payee);
-    }
+    cy.selectPayee(payee);
 
-    // Select new category
-    cy.get('[data-cy=tx-item-select]').select('__new_category__');
+    // Extract item name from category
+    const [, itemName] = category.split('::');
+
+    // Begin new category creation
+    cy.startCategoryCreation(itemName);
 
     // If groupInput is provided or is "__new_group__", handle group creation
     if (groupInput) {
@@ -158,14 +224,12 @@ Cypress.Commands.add(
     }
 
     // Type the category name
-    const [, itemName] = category.split('::');
     cy.get('[data-cy=tx-new-category-input]').type(itemName);
 
     // Set sign
     cy.get('[data-cy=tx-sign-toggle]').then(($btn) => {
       const isNegative = isExpense;
-      const currentSign = $btn.text().trim();
-      const shouldBeNegative = currentSign === '−';
+      const shouldBeNegative = $btn.attr('data-state') === 'negative';
 
       if (isNegative !== shouldBeNegative) {
         cy.wrap($btn).click();

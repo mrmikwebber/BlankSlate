@@ -66,17 +66,17 @@ describe("purchases, payments, transfers", () => {
     cy.get("[data-cy=add-transaction-button]").click();
 
     // Use a brand new payee + brand new group/item to avoid seed coupling
-    cy.get("[data-cy=tx-payee-select]").select("__new__");
-    cy.get("[data-cy=tx-new-payee-input]").type("Trader Joe's");
+    cy.selectPayee("Trader Joe's");
 
-    cy.get("[data-cy=tx-item-select]").select("__new_category__");
+    cy.startCategoryCreation("Restaurants");
     cy.get("[data-cy=tx-category-group-select]").select("__new_group__");
     cy.get("[data-cy=tx-new-category-group-input]").type("Food & Dining");
-    cy.get("[data-cy=tx-new-category-input]").type("Restaurants");
+    // Name is prefilled from combobox entry
 
     // Credit card purchase is an outflow (negative)
     cy.get("[data-cy=tx-sign-toggle]").then(($btn) => {
-      if ($btn.text().trim() !== "−") {
+      const isNegative = $btn.attr("data-state") === "negative";
+      if (!isNegative) {
         cy.wrap($btn).click();
       }
     });
@@ -176,11 +176,12 @@ describe("purchases, payments, transfers", () => {
             // 2. Make the payment from checking → credit account
             visitAccount(accounts.checking.id, accounts.checking.name);
             cy.get("[data-cy=add-transaction-button]").click();
-            cy.get("[data-cy=tx-payee-select]").select(accounts.amex.name);
+            cy.selectPayee(accounts.amex.name);
 
             // Outflow 100 (payment)
             cy.get("[data-cy=tx-sign-toggle]").then(($btn) => {
-              if ($btn.text().trim() !== "−") {
+              const isNegative = $btn.attr("data-state") === "negative";
+              if (!isNegative) {
                 cy.wrap($btn).click();
               }
             });
@@ -265,11 +266,12 @@ describe("purchases, payments, transfers", () => {
         visitAccount(accounts.checking.id, accounts.checking.name);
 
         cy.get("[data-cy=add-transaction-button]").click();
-        cy.get("[data-cy=tx-payee-select]").select(accounts.savings.name);
+        cy.selectPayee(accounts.savings.name);
 
         // Outflow from checking
         cy.get("[data-cy=tx-sign-toggle]").then(($btn) => {
-          if ($btn.text().trim() !== "−") {
+          const isNegative = $btn.attr("data-state") === "negative";
+          if (!isNegative) {
             cy.wrap($btn).click();
           }
         });
