@@ -73,6 +73,20 @@ export default function MobileTransactionsTab({
     }
   }, [isCheckingTransfer]);
 
+  // Auto-fill category for cross-type transfer (debit → credit card)
+  useEffect(() => {
+    if (!thisAccount || !selectedPayeeAccountName) return;
+    const otherAccount = accounts.find((a) => a.name === selectedPayeeAccountName);
+    if (!otherAccount) return;
+
+    const isCrossType = thisAccount.type !== otherAccount.type;
+    const isCreditPayment = isCrossType && otherAccount.type === "credit";
+
+    if (isCreditPayment) {
+      setCategoryInput(`Credit Card Payments ▸ ${otherAccount.name}`);
+    }
+  }, [thisAccount, selectedPayeeAccountName, accounts]);
+
   const getPreviewLabel = (targetName: string) => {
     if (!thisAccount) return targetName;
     const other = accounts.find((a) => a.name === targetName);

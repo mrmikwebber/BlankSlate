@@ -489,12 +489,12 @@ export default function BudgetTable() {
                   });
                   setCategoryContext(null);
                 }}
-                className="px-3 py-2 hover:bg-red-50 text-red-600 w-full text-left"
+                className="px-3 py-2 hover:bg-red-50 text-red-600 w-full text-left border-t border-slate-200"
               >
                 Delete category
               </button>
             ) : (
-              <div className="px-3 py-2 text-[11px] text-muted-foreground">
+              <div className="px-3 py-2 text-[11px] text-muted-foreground border-t border-slate-200">
                 Cannot delete (credit card category)
               </div>
             )}
@@ -859,7 +859,12 @@ export default function BudgetTable() {
                             <TableCell
                               data-cy="item-activity"
                               data-item={item.name}
-                              className="p-2 text-right align-middle"
+                              className="p-2 text-right align-middle cursor-pointer"
+                              onClick={() => {
+                                setInlineEditorCategory((prev) =>
+                                  prev === item.name ? null : item.name
+                                );
+                              }}
                             >
                               {formatToUSD(item.activity || 0)}
                             </TableCell>
@@ -867,13 +872,18 @@ export default function BudgetTable() {
                               data-cy="item-available"
                               data-item={item.name}
                               className={cn(
-                                "p-2 text-right align-middle font-mono text-sm font-medium",
+                                "p-2 text-right align-middle font-mono text-sm font-medium cursor-pointer",
                                 item.available > 0
                                   ? "text-emerald-600"
                                   : item.available < 0
                                     ? "text-red-600"
                                     : "text-slate-700"
                               )}
+                              onClick={() => {
+                                setInlineEditorCategory((prev) =>
+                                  prev === item.name ? null : item.name
+                                );
+                              }}
                             >
                               {formatToUSD(item.available || 0)}
                             </TableCell>

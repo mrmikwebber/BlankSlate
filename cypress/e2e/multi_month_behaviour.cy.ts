@@ -126,11 +126,11 @@ describe("Multi-month behaviour – carryover, overspending, edits", () => {
     // Make overspending transaction in month N
     visitAccount(accounts.checking.id, accounts.checking.name);
     cy.get("[data-cy=add-transaction-button]").click();
-    cy.get("[data-cy=tx-payee-select]").select("__new__");
-    cy.get("[data-cy=tx-new-payee-input]").type("Overspend Store");
-    cy.get("[data-cy=tx-item-select]").select(`${groupName}::${itemName}`);
+    cy.selectPayee("Overspend Store");
+    cy.selectCategory(`${groupName}::${itemName}`);
     cy.get("[data-cy=tx-sign-toggle]").then(($btn) => {
-      if ($btn.text().trim() !== "−") cy.wrap($btn).click();
+      const isNegative = $btn.attr("data-state") === "negative";
+      if (!isNegative) cy.wrap($btn).click();
     });
     cy.get("[data-cy=tx-amount-input]").clear().type(String(amount));
     cy.get("[data-cy=tx-submit]").click();
@@ -176,11 +176,11 @@ describe("Multi-month behaviour – carryover, overspending, edits", () => {
     // Purchase in month N (simple debit expense, overspending this category)
     visitAccount(accounts.checking.id, accounts.checking.name);
     cy.get("[data-cy=add-transaction-button]").click();
-    cy.get("[data-cy=tx-payee-select]").select("__new__");
-    cy.get("[data-cy=tx-new-payee-input]").type("Scoped Store");
-    cy.get("[data-cy=tx-item-select]").select(`${groupName}::${itemName}`);
+    cy.selectPayee("Scoped Store");
+    cy.selectCategory(`${groupName}::${itemName}`);
     cy.get("[data-cy=tx-sign-toggle]").then(($btn) => {
-      if ($btn.text().trim() !== "−") cy.wrap($btn).click();
+      const isNegative = $btn.attr("data-state") === "negative";
+      if (!isNegative) cy.wrap($btn).click();
     });
     cy.get("[data-cy=tx-amount-input]").clear().type(String(initialAmount));
     cy.get("[data-cy=tx-submit]").click();
@@ -621,11 +621,11 @@ describe("Multi-month behaviour – carryover, overspending, edits", () => {
     visitAccount(accounts.checking.id, accounts.checking.name);
 
     cy.get("[data-cy=add-transaction-button]").click();
-    cy.get("[data-cy=tx-payee-select]").select("__new__");
-    cy.get("[data-cy=tx-new-payee-input]").type("Deep History Store");
-    cy.get("[data-cy=tx-item-select]").select(`${groupName}::${oldItem}`);
+    cy.selectPayee("Deep History Store");
+    cy.selectCategory(`${groupName}::${oldItem}`);
     cy.get("[data-cy=tx-sign-toggle]").then(($btn) => {
-      if ($btn.text().trim() !== "−") cy.wrap($btn).click();
+      const isNegative = $btn.attr("data-state") === "negative";
+      if (!isNegative) cy.wrap($btn).click();
     });
     cy.get("[data-cy=tx-amount-input]").clear().type(String(amount));
     cy.get("[data-cy=tx-submit]").click();
@@ -653,7 +653,7 @@ describe("Multi-month behaviour – carryover, overspending, edits", () => {
     cy.get("[data-cy=context-edit-transaction]").click();
     cy.get("[data-cy=transaction-form-row-edit]").as("editForm");
 
-    cy.get("@editForm").find("[data-cy=tx-item-select]").select(`${groupName}::${newItem}`);
+    cy.get("@editForm").find("[data-cy=tx-item-select]").selectCategory(`${groupName}::${newItem}`);
     // keep same amount; only category changes
     cy.get("@editForm").find("[data-cy=tx-submit]").click();
 

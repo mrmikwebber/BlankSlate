@@ -139,6 +139,8 @@ export default function InlineTransactionRow({
         thisAccount.type === "credit" ? thisAccount : otherAccount;
       setSelectedGroup("Credit Card Payments");
       setSelectedItem(creditAccount.name);
+      // Also update categoryInput to show the full label
+      setCategoryInput(`Credit Card Payments ▸ ${creditAccount.name}`);
     }
   }, [crossTypeTransfer, thisAccount, otherAccount]);
 
@@ -1043,6 +1045,7 @@ export default function InlineTransactionRow({
         <div className="flex items-center gap-2">
           <Button
             data-cy="tx-sign-toggle"
+            data-state={isNegative ? "negative" : "positive"}
             type="button"
             variant="outline"
             size="icon"
@@ -1051,8 +1054,11 @@ export default function InlineTransactionRow({
               ? "text-red-600 border-red-300 hover:bg-red-50 hover:text-red-700"
               : "text-green-600 border-green-300 hover:bg-green-50 hover:text-green-700"
               }`}
+            aria-pressed={isNegative}
+            aria-label={isNegative ? "Outflow" : "Inflow"}
           >
             {isNegative ? <Minus className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+            <span className="sr-only">{isNegative ? "Outflow" : "Inflow"}</span>
           </Button>
           <Input
             ref={amountInputRef}

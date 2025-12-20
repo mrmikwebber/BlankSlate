@@ -23,6 +23,10 @@ export async function resetDatabase(supabaseUrl: string, serviceRoleKey: string,
     if (errTx) throw errTx;
   console.log('Deleted transactions:', Array.isArray(delTx as any) ? (delTx as any).length : 0);
 
+  const { data: delPayees, error: errPayees } = await supabase.from('transaction_payees').delete().eq('user_id', userId);
+    if (errPayees) throw errPayees;
+  console.log('Deleted transaction_payees:', Array.isArray(delPayees as any) ? (delPayees as any).length : 0);
+
   const { data: delBudget, error: errBudget } = await supabase.from('budget_data').delete().eq('user_id', userId);
     if (errBudget) throw errBudget;
   console.log('Deleted budget_data rows:', Array.isArray(delBudget as any) ? (delBudget as any).length : 0);

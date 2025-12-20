@@ -67,18 +67,18 @@ describe("Overspending & filters", () => {
         cy.get("[data-cy=add-transaction-button]").click();
 
         // New payee
-        cy.get("[data-cy=tx-payee-select]").select("__new__");
-        cy.get("[data-cy=tx-new-payee-input]").type("Cash Overspend Store");
+        cy.selectPayee("Cash Overspend Store");
 
         // New group & item
-        cy.get("[data-cy=tx-item-select]").select("__new_category__");
+        cy.startCategoryCreation(itemName);
         cy.get("[data-cy=tx-category-group-select]").select("__new_group__");
         cy.get("[data-cy=tx-new-category-group-input]").type(groupName);
-        cy.get("[data-cy=tx-new-category-input]").type(itemName);
+        // Item name prefilled from combobox entry
 
         // Outflow (negative) on debit account
         cy.get("[data-cy=tx-sign-toggle]").then(($btn) => {
-          if ($btn.text().trim() !== "−") {
+          const isNegative = $btn.attr("data-state") === "negative";
+          if (!isNegative) {
             cy.wrap($btn).click();
           }
         });
@@ -166,20 +166,18 @@ describe("Overspending & filters", () => {
             cy.get("[data-cy=add-transaction-button]").click();
 
             // New payee
-            cy.get("[data-cy=tx-payee-select]").select("__new__");
-            cy.get("[data-cy=tx-new-payee-input]").type(
-              "Credit Overspend Store"
-            );
+            cy.selectPayee("Credit Overspend Store");
 
             // New group & item
-            cy.get("[data-cy=tx-item-select]").select("__new_category__");
+            cy.startCategoryCreation(itemName);
             cy.get("[data-cy=tx-category-group-select]").select("__new_group__");
             cy.get("[data-cy=tx-new-category-group-input]").type(groupName);
-            cy.get("[data-cy=tx-new-category-input]").type(itemName);
+            // Item name prefilled from combobox entry
 
             // Outflow (negative) on CREDIT account
             cy.get("[data-cy=tx-sign-toggle]").then(($btn) => {
-              if ($btn.text().trim() !== "−") {
+              const isNegative = $btn.attr("data-state") === "negative";
+              if (!isNegative) {
                 cy.wrap($btn).click();
               }
             });
@@ -277,8 +275,8 @@ describe("Overspending & filters", () => {
 
     const categorySelector = `[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"]`;
 
-    // Open InlineTargetEditor by clicking the category row (per your CollapsibleTable)
-    cy.get(categorySelector).click();
+    // Open InlineTargetEditor by clicking the category name cell (not the assigned cell)
+    cy.get(categorySelector).find('[data-cy="category-item-name"]').click();
 
     // Inside inline target editor: set a simple "amount needed" target.
     // Adjust these selectors to match your InlineTargetEditor.

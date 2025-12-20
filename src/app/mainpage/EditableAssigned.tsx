@@ -68,7 +68,10 @@ const EditableAssigned = memo(({
           data-cy="assigned-display"
           data-category={categoryName}
           data-item={itemName}
-          onClick={() => setIsEditing(true)}
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsEditing(true);
+          }}
           className="block cursor-pointer px-2 py-0.5 text-right font-mono text-sm rounded hover:bg-slate-100 transition-colors"
         >
           {formatToUSD(item.assigned)}

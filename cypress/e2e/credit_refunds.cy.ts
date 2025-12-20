@@ -85,18 +85,18 @@ describe("Credit card refunds", () => {
             cy.get("[data-cy=add-transaction-button]").click();
 
             // New payee
-            cy.get("[data-cy=tx-payee-select]").select("__new__");
-            cy.get("[data-cy=tx-new-payee-input]").type("CC Refund Test Store");
+            cy.selectPayee("CC Refund Test Store");
 
             // New group & item
-            cy.get("[data-cy=tx-item-select]").select("__new_category__");
+            cy.startCategoryCreation(itemName);
             cy.get("[data-cy=tx-category-group-select]").select("__new_group__");
             cy.get("[data-cy=tx-new-category-group-input]").type(groupName);
-            cy.get("[data-cy=tx-new-category-input]").type(itemName);
+            // Item name prefilled from combobox entry
 
             // Outflow (negative) on CREDIT account
             cy.get("[data-cy=tx-sign-toggle]").then(($btn) => {
-              if ($btn.text().trim() !== "−") {
+              const isNegative = $btn.attr("data-state") === "negative";
+              if (!isNegative) {
                 cy.wrap($btn).click();
               }
             });
@@ -152,15 +152,15 @@ describe("Credit card refunds", () => {
             cy.get("[data-cy=add-transaction-button]").click();
 
             // Payee can be anything; category is what matters
-            cy.get("[data-cy=tx-payee-select]").select("__new__");
-            cy.get("[data-cy=tx-new-payee-input]").type("CC Refund");
+            cy.selectPayee("CC Refund");
 
             // Select existing group & item
-            cy.get("[data-cy=tx-item-select]").select(`${groupName}::${itemName}`);
+            cy.selectCategory(`${groupName}::${itemName}`);
 
             // Refund is an INFLOW (positive) on the credit card
             cy.get("[data-cy=tx-sign-toggle]").then(($btn) => {
-              if ($btn.text().trim() !== "+") {
+              const isNegative = $btn.attr("data-state") === "negative";
+              if (isNegative) {
                 cy.wrap($btn).click();
               }
             });
