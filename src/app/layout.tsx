@@ -6,6 +6,7 @@ import Navbar from "./navigation/navbar";
 import { AccountProvider } from "./context/AccountContext";
 import { BudgetProvider } from "./context/BudgetContext";
 import { AuthProvider } from "./context/AuthContext";
+import { UndoRedoProvider } from "./context/UndoRedoContext";
 import AuthListener from "./auth/AuthListener";
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -32,10 +33,12 @@ export default function RootLayout({
         <AuthListener />
         <SpeedInsights />
         <AuthProvider>
-          <Navbar />
+          <UndoRedoProvider>
+            <Navbar />
             <AccountProvider>
               <BudgetProvider>{children}</BudgetProvider>
             </AccountProvider>
+          </UndoRedoProvider>
         </AuthProvider>
       </body>
     </html>

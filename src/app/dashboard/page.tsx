@@ -2,6 +2,7 @@
 import { useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useRouter } from "next/navigation";
+import { useUndoRedoShortcuts } from "../hooks/useUndoRedoShortcuts";
 import BudgetTable from "../mainpage/BudgetTable";
 import ActivitySidebar from "../mainpage/ActivitySidebar";
 import SidebarPanel from "../mainpage/SidebarPanel";
@@ -10,6 +11,9 @@ import MobileDashboardShell from "../mainpage/MobileDashboardShell";
 export default function Home() {
   const { session, loading } = useAuth();
   const router = useRouter();
+  
+  // Enable undo/redo shortcuts
+  useUndoRedoShortcuts();
 
   useEffect(() => {
     if (!loading && !session) {

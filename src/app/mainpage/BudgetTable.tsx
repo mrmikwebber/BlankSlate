@@ -9,6 +9,7 @@ import { getTargetStatus } from "../utils/getTargetStatus";
 import { createPortal } from "react-dom";
 import InlineTargetEditor from "./TargetInlineEditor";
 import { useAccountContext } from "../context/AccountContext";
+import { useUndoRedo } from "../context/UndoRedoContext";
 import {
   Table,
   TableBody,
@@ -51,6 +52,7 @@ export default function BudgetTable() {
   } = useBudgetContext();
 
   const { accounts } = useAccountContext();
+  const { registerAction } = useUndoRedo();
 
   const FILTERS = [
     "All",
@@ -208,6 +210,12 @@ export default function BudgetTable() {
   };
 
   const handleInputChange = useCallback((categoryName, itemName, value) => {
+    // Capture previous state for undo
+    const previousState = budgetData[currentMonth];
+    const oldValue = previousState?.categories
+      .flatMap((c) => c.categoryItems)
+      .find((item) => item.name === itemName)?.assigned ?? 0;
+
     setBudgetData((prev) => {
       const updated = { ...prev };
 
@@ -280,6 +288,146 @@ export default function BudgetTable() {
       return updated;
     });
 
+    // Register undo/redo action
+    registerAction({
+      description: `Assigned $${value} to '${itemName}' in '${categoryName}'`,
+      execute: async () => {
+        // Re-apply the assignment for redo
+        setBudgetData((prev) => {
+          const updated = { ...prev };
+          const updatedCategories = updated[currentMonth]?.categories.map(
+            (category) => {
+              if (category.name !== categoryName && category.name !== "Credit Card Payments") {
+                return category;
+              }
+
+              const updatedItems = category.categoryItems.map((item) => {
+                if (category.name === categoryName && item.name === itemName) {
+                  const itemActivity = calculateActivityForMonth(
+                    currentMonth,
+                    item.name,
+                    categoryName
+                  );
+                  const cumulative = getCumulativeAvailable(
+                    updated,
+                    item.name,
+                    categoryName
+                  );
+                  const available = value + itemActivity + Math.max(cumulative, 0);
+
+                  return {
+                    ...item,
+                    assigned: value,
+                    activity: itemActivity,
+                    available,
+                  };
+                }
+
+                if (category.name === "Credit Card Payments") {
+                  const activity = calculateCreditCardAccountActivity(
+                    currentMonth,
+                    item.name,
+                    updated
+                  );
+                  const cumulative = getCumulativeAvailable(
+                    updated,
+                    item.name,
+                    category.name
+                  );
+                  const available = item.assigned + activity + Math.max(cumulative, 0);
+
+                  return {
+                    ...item,
+                    activity,
+                    available,
+                  };
+                }
+
+                return item;
+              });
+
+              return { ...category, categoryItems: updatedItems };
+            }
+          );
+
+          updated[currentMonth] = {
+            ...updated[currentMonth],
+            categories: updatedCategories,
+          };
+
+          refreshAllReadyToAssign(updated);
+          return updated;
+        });
+      },
+      undo: async () => {
+        setBudgetData((prev) => {
+          const updated = { ...prev };
+          const updatedCategories = updated[currentMonth]?.categories.map(
+            (category) => {
+              if (category.name !== categoryName && category.name !== "Credit Card Payments") {
+                return category;
+              }
+
+              const updatedItems = category.categoryItems.map((item) => {
+                if (category.name === categoryName && item.name === itemName) {
+                  const itemActivity = calculateActivityForMonth(
+                    currentMonth,
+                    item.name,
+                    categoryName
+                  );
+                  const cumulative = getCumulativeAvailable(
+                    updated,
+                    item.name,
+                    categoryName
+                  );
+                  const available = oldValue + itemActivity + Math.max(cumulative, 0);
+
+                  return {
+                    ...item,
+                    assigned: oldValue,
+                    activity: itemActivity,
+                    available,
+                  };
+                }
+
+                if (category.name === "Credit Card Payments") {
+                  const activity = calculateCreditCardAccountActivity(
+                    currentMonth,
+                    item.name,
+                    updated
+                  );
+                  const cumulative = getCumulativeAvailable(
+                    updated,
+                    item.name,
+                    category.name
+                  );
+                  const available = item.assigned + activity + Math.max(cumulative, 0);
+
+                  return {
+                    ...item,
+                    activity,
+                    available,
+                  };
+                }
+
+                return item;
+              });
+
+              return { ...category, categoryItems: updatedItems };
+            }
+          );
+
+          updated[currentMonth] = {
+            ...updated[currentMonth],
+            categories: updatedCategories,
+          };
+
+          refreshAllReadyToAssign(updated);
+          return updated;
+        });
+      },
+    });
+
     setIsDirty(true);
     setRecentChanges((prev) => [
       ...prev.slice(-9),
@@ -288,7 +436,7 @@ export default function BudgetTable() {
         timestamp: new Date().toISOString(),
       },
     ]);
-  }, [currentMonth, setBudgetData, setIsDirty, setRecentChanges, calculateActivityForMonth, getCumulativeAvailable, calculateCreditCardAccountActivity, refreshAllReadyToAssign]);
+  }, [currentMonth, setBudgetData, setIsDirty, setRecentChanges, registerAction, calculateActivityForMonth, getCumulativeAvailable, calculateCreditCardAccountActivity, refreshAllReadyToAssign]);
 
   const handleAddItem = (category: string) => {
     if (newItem.name.trim() !== "") {

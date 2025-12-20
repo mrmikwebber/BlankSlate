@@ -3,6 +3,8 @@
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAccountContext } from "@/app/context/AccountContext";
+import { useUndoRedo } from "@/app/context/UndoRedoContext";
+import { supabase } from "@/utils/supabaseClient";
 import { parseISO, format } from "date-fns";
 import InlineTransactionRow from "./InlineTransactionRow";
 import { Button } from "@/components/ui/button";
@@ -17,8 +19,9 @@ import { Plus, Edit2, Trash2 } from "lucide-react";
 
 export default function AccountDetails() {
   const { id } = useParams();
-  const { accounts, deleteTransactionWithMirror, editAccountName } =
+  const { accounts, deleteTransactionWithMirror, editAccountName, refreshSingleAccount } =
     useAccountContext();
+  const { registerAction } = useUndoRedo();
 
   const [showForm, setShowForm] = useState(false);
   const [contextMenu, setContextMenu] = useState<{
@@ -86,10 +89,61 @@ export default function AccountDetails() {
   const handleBulkDelete = async () => {
     if (!account || selectedTxIds.size === 0) return;
     
-    // Delete all selected transactions
+    // Capture deleted transactions for undo
+    const deletedTransactions = account.transactions.filter((tx) =>
+      selectedTxIds.has(tx.id)
+    );
+    
+    // Delete all selected transactions directly (without individual undo actions)
     for (const txId of selectedTxIds) {
-      await deleteTransactionWithMirror(account.id, txId);
+      const { error } = await supabase
+        .from("transactions")
+        .delete()
+        .eq("id", txId);
+
+      if (error) {
+        console.error("Error deleting transaction:", error);
+      }
     }
+
+    // Refresh account to show all deletions at once
+    await refreshSingleAccount(account.id);
+
+    // Register undo/redo action for bulk delete
+    let currentDeletedTxIds = Array.from(selectedTxIds);
+    
+    registerAction({
+      description: `Deleted ${selectedTxIds.size} transaction(s)`,
+      execute: async () => {
+        // Re-delete all transactions
+        for (const txId of currentDeletedTxIds) {
+          await supabase
+            .from("transactions")
+            .delete()
+            .eq("id", txId);
+        }
+        await refreshSingleAccount(account.id);
+      },
+      undo: async () => {
+        // Re-insert all deleted transactions
+        for (const tx of deletedTransactions) {
+          const { id, ...txData } = tx;
+          const { data: restoredData, error } = await supabase.from("transactions").insert([
+            {
+              ...txData,
+              account_id: account.id,
+            },
+          ]).select();
+
+          if (!error && restoredData) {
+            currentDeletedTxIds = currentDeletedTxIds.map(txId => txId === tx.id ? restoredData[0].id : txId);
+          } else {
+            console.error("Error restoring transaction:", error);
+          }
+        }
+        await refreshSingleAccount(account.id);
+      },
+    });
     
     // Clear selection
     setSelectedTxIds(new Set());

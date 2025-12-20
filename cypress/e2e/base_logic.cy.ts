@@ -88,8 +88,9 @@ describe("purchases, payments, transfers", () => {
     cy.get("[data-cy=transaction-row]")
       .first()
       .within(() => {
-        cy.get("td").eq(1).should("contain.text", "Trader Joe");
-        cy.get("td").eq(2).should("contain.text", "Food & Dining: Restaurants");
+        // Columns: [0]=checkbox, [1]=date, [2]=payee, [3]=category, [4]=amount
+        cy.get("td").eq(2).should("contain.text", "Trader Joe");
+        cy.get("td").eq(3).should("contain.text", "Food & Dining: Restaurants");
         cy.get("[data-cy=transaction-amount]")
           .invoke("text")
           .then((txt) => {

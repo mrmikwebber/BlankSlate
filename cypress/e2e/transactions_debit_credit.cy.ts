@@ -98,8 +98,9 @@ describe("Debit & credit transactions - UI only", () => {
         cy.get("[data-cy=transaction-row]")
           .first()
           .within(() => {
-            cy.get("td").eq(1).should("contain.text", "Chipotle");    // payee
-            cy.get("td").eq(2).should("contain.text", "Food & Dining: Restaurants"); // category in Group: Item format
+            // Columns: [0]=checkbox, [1]=date, [2]=payee, [3]=category, [4]=amount
+            cy.get("td").eq(2).should("contain.text", "Chipotle");    // payee
+            cy.get("td").eq(3).should("contain.text", "Food & Dining: Restaurants"); // category in Group: Item format
             cy.get("[data-cy=transaction-amount]")
               .should("have.class", "text-red-600")
               .invoke("text")
@@ -192,8 +193,8 @@ describe("Debit & credit transactions - UI only", () => {
     cy.get("[data-cy=transaction-row]")
       .first()
       .within(() => {
-        cy.get("td").eq(1).should("contain.text", "Transfer to");
-        cy.get("td").eq(1).should("contain.text", SECOND_DEBIT_ACCOUNT_NAME);
+        cy.get("td").eq(2).should("contain.text", "Transfer to");
+        cy.get("td").eq(2).should("contain.text", SECOND_DEBIT_ACCOUNT_NAME);
         cy.get("[data-cy=transaction-amount]")
           .invoke("text")
           .then((txt) => {
@@ -217,8 +218,8 @@ describe("Debit & credit transactions - UI only", () => {
     cy.get("[data-cy=transaction-row]")
       .first()
       .within(() => {
-        cy.get("td").eq(1).should("contain.text", "Transfer from");
-        cy.get("td").eq(1).should("contain.text", DEBIT_ACCOUNT_NAME);
+        cy.get("td").eq(2).should("contain.text", "Transfer from");
+        cy.get("td").eq(2).should("contain.text", DEBIT_ACCOUNT_NAME);
         cy.get("[data-cy=transaction-amount]")
           .invoke("text")
           .then((txt) => {
@@ -305,9 +306,9 @@ describe("Debit & credit transactions - UI only", () => {
     cy.get("[data-cy=transaction-row]")
       .first()
       .within(() => {
-        cy.get("td").eq(1).should("contain.text", "Payment to");
-        cy.get("td").eq(1).should("contain.text", CREDIT_ACCOUNT_NAME);
-        cy.get("td").eq(2).should("contain.text", CREDIT_ACCOUNT_NAME); // category = itemName
+        cy.get("td").eq(2).should("contain.text", "Payment to");
+        cy.get("td").eq(2).should("contain.text", CREDIT_ACCOUNT_NAME);
+        cy.get("td").eq(3).should("contain.text", CREDIT_ACCOUNT_NAME); // category = itemName
         cy.get("[data-cy=transaction-amount]")
           .invoke("text")
           .then((txt) => {
@@ -330,8 +331,8 @@ describe("Debit & credit transactions - UI only", () => {
     cy.get("[data-cy=transaction-row]")
       .first()
       .within(() => {
-        cy.get("td").eq(1).should("contain.text", "Payment from");
-        cy.get("td").eq(1).should("contain.text", DEBIT_ACCOUNT_NAME);
+        cy.get("td").eq(2).should("contain.text", "Payment from");
+        cy.get("td").eq(2).should("contain.text", DEBIT_ACCOUNT_NAME);
         cy.get("[data-cy=transaction-amount]")
           .invoke("text")
           .then((txt) => {

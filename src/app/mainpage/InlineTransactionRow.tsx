@@ -32,7 +32,7 @@ export default function InlineTransactionRow({
     addItemToCategory,
   } = useBudgetContext();
 
-  const { addTransaction, editTransaction, accounts, deleteTransaction, savedPayees, upsertPayee } =
+  const { addTransaction, addTransactionWithMirror, editTransaction, accounts, deleteTransaction, savedPayees, upsertPayee } =
     useAccountContext();
 
   const today = format(new Date(), "yyyy-MM-dd");
@@ -223,6 +223,7 @@ export default function InlineTransactionRow({
   };
 
   const handleKeyDown = (e: KeyboardEvent) => {
+    if (e.repeat) return;
     if (e.key === "Enter") {
       e.preventDefault();
       void handleSubmit();
@@ -405,9 +406,7 @@ export default function InlineTransactionRow({
         });
       }
     } else {
-      // Immediately call onSave for optimistic UI update, don't wait for DB
-      addTransaction(accountId, transactionData);
-
+      // Add mode - use addTransactionWithMirror for transfers
       if (otherAccount) {
         const isThisCredit = thisAccount.type === "credit";
         const isOtherCredit = otherAccount.type === "credit";
@@ -430,13 +429,18 @@ export default function InlineTransactionRow({
           }
         })();
 
-        addTransaction(otherAccount.id, {
+        const mirrorTransactionData = {
           date,
           payee: mirrorPayee,
           category: isOtherCredit ? otherAccount.name : effectiveItem || null,
           category_group: isOtherCredit ? "Credit Card Payments" : (effectiveItem ? effectiveGroup : null),
           balance: -balance,
-        });
+        };
+
+        await addTransactionWithMirror(accountId, transactionData, otherAccount.id, mirrorTransactionData);
+      } else {
+        // Normal single transaction
+        addTransaction(accountId, transactionData);
       }
     }
 
