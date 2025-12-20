@@ -577,6 +577,8 @@ export default function InlineTransactionRow({
       data-mode={isEdit ? "edit" : "add"}
       className="bg-teal-50/30 hover:bg-teal-50/50 transition-colors duration-150 border-b border-slate-200"
     >
+      {/* Empty checkbox cell to match the checkbox column */}
+      <td className="px-2 py-2 border-r border-slate-200"></td>
       <td className="px-4 py-2 border-r border-slate-200">
         <Input
           ref={dateRef}
