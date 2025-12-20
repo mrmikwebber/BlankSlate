@@ -19,6 +19,7 @@ import {
 import { useAuth } from "./AuthContext";
 import { supabase } from "@/utils/supabaseClient";
 import { useAccountContext } from "./AccountContext";
+import { useUndoRedo } from "./UndoRedoContext";
 
 const getPreviousMonth = (month: string) => {
   return format(subMonths(parseISO(`${month}-01`), 1), "yyyy-MM");
@@ -67,6 +68,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
   const [recentChanges, setRecentChanges] = useState([]);
   const dirtyMonths = useRef<Set<string>>(new Set());
   const { user } = useAuth() || { user: null };
+  const { registerAction } = useUndoRedo();
   const [currentMonth, setCurrentMonth] = useState(
     format(new Date(), "yyyy-MM")
   );
@@ -715,6 +717,43 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
       };
     });
 
+    registerAction({
+      description: `Added group '${groupName}'`,
+      execute: async () => {
+        // Re-add the group for redo
+        setBudgetData((prev) => {
+          const monthData = prev[currentMonth];
+          const groupExists = monthData.categories.some(
+            (cat) => cat.name === groupName
+          );
+
+          if (groupExists) return prev;
+
+          const updatedMonth = {
+            ...monthData,
+            categories: [
+              ...monthData.categories,
+              { name: groupName, categoryItems: [] },
+            ],
+          };
+
+          return {
+            ...prev,
+            [currentMonth]: updatedMonth,
+          };
+        });
+      },
+      undo: async () => {
+        setBudgetData((prev) => {
+          const updated = { ...prev };
+          updated[currentMonth].categories = updated[currentMonth].categories.filter(
+            (cat) => cat.name !== groupName
+          );
+          return updated;
+        });
+      },
+    });
+
     setIsDirty(true);
     setRecentChanges((prev) => [
       ...prev.slice(-9),
@@ -726,20 +765,55 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const deleteCategoryGroup = (groupName: string) => {
-    setBudgetData((prev) => {
-      const updated = { ...prev };
+    console.log("🗑️ DELETE GROUP: Deleting group", groupName);
+    
+    // Capture previous state for undo BEFORE any changes
+    const previousData = JSON.parse(JSON.stringify(budgetData));
+    console.log("📸 Previous data captured:", previousData);
+    
+    // Create the new state (don't rely on setBudgetData callback)
+    const updatedData = { ...budgetData };
+    for (const month in updatedData) {
+      const before = updatedData[month].categories;
+      const after = before.filter((cat) => cat.name !== groupName);
 
-      for (const month in updated) {
-        const before = updated[month].categories;
-        const after = before.filter((cat) => cat.name !== groupName);
-
-        if (before.length !== after.length) {
-          updated[month].categories = after;
-          dirtyMonths.current.add(month);
-        }
+      if (before.length !== after.length) {
+        updatedData[month].categories = after;
+        dirtyMonths.current.add(month);
       }
+    }
 
-      return updated;
+    // Update state with the new data
+    setBudgetData(updatedData);
+    console.log("✅ DELETE GROUP: State updated");
+
+    registerAction({
+      description: `Deleted group '${groupName}'`,
+      execute: async () => {
+        console.log("🔄 REDO DELETE GROUP:", groupName);
+        // Re-delete the group for redo
+        setBudgetData((prev) => {
+          const updated = { ...prev };
+
+          for (const month in updated) {
+            const before = updated[month].categories;
+            const after = before.filter((cat) => cat.name !== groupName);
+
+            if (before.length !== after.length) {
+              updated[month].categories = after;
+              dirtyMonths.current.add(month);
+            }
+          }
+
+          return updated;
+        });
+      },
+      undo: async () => {
+        console.log("⏪ UNDO DELETE GROUP:", groupName);
+        console.log("Restoring to:", previousData);
+        // Restore the previous state
+        setBudgetData(previousData);
+      },
     });
 
     setIsDirty(true);
@@ -761,53 +835,110 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
       available: number;
     }
   ) => {
-    setBudgetData((prev) => {
-      const monthData = prev[currentMonth];
-      if (!monthData) return prev;
+    const monthData = budgetData[currentMonth];
+    if (!monthData) return;
 
-      const existingGroup = monthData.categories.find(
-        (cat) => cat.name === categoryName
+    const existingGroup = monthData.categories.find(
+      (cat) => cat.name === categoryName
+    );
+
+    let newCategories;
+
+    if (existingGroup) {
+      // If the item already exists, don't add a duplicate
+      const itemExists = existingGroup.categoryItems.some(
+        (i) => i.name === newItem.name
       );
+      if (itemExists) return;
 
-      let newCategories;
+      newCategories = monthData.categories.map((cat) =>
+        cat.name === categoryName
+          ? { ...cat, categoryItems: [...cat.categoryItems, newItem] }
+          : cat
+      );
+    } else {
+      // Group doesn't exist yet – create it with this one item
+      newCategories = [
+        ...monthData.categories,
+        { name: categoryName, categoryItems: [newItem] },
+      ];
+    }
 
-      if (existingGroup) {
-        // If the item already exists, don't add a duplicate
-        const itemExists = existingGroup.categoryItems.some(
-          (i) => i.name === newItem.name
-        );
-        if (itemExists) return prev;
+    // Update state FIRST
+    setBudgetData((prev) => ({
+      ...prev,
+      [currentMonth]: {
+        ...monthData,
+        categories: newCategories,
+      },
+    }));
 
-        newCategories = monthData.categories.map((cat) =>
-          cat.name === categoryName
-            ? { ...cat, categoryItems: [...cat.categoryItems, newItem] }
-            : cat
-        );
-      } else {
-        // Group doesn't exist yet – create it with this one item
-        newCategories = [
-          ...monthData.categories,
-          { name: categoryName, categoryItems: [newItem] },
-        ];
-      }
+    // THEN register action (outside setState callback)
+    registerAction({
+      description: `Added category '${newItem.name}' to group '${categoryName}'`,
+      execute: async () => {
+        // Re-add the item for redo
+        setBudgetData((prev) => {
+          const monthData = prev[currentMonth];
+          if (!monthData) return prev;
 
-      setIsDirty(true);
-      setRecentChanges((prevChanges) => [
-        ...prevChanges.slice(-9),
-        {
-          description: `Added category '${newItem.name}' to group '${categoryName}'`,
-          timestamp: new Date().toISOString(),
-        },
-      ]);
+          const existingGroup = monthData.categories.find(
+            (cat) => cat.name === categoryName
+          );
 
-      return {
-        ...prev,
-        [currentMonth]: {
-          ...monthData,
-          categories: newCategories,
-        },
-      };
+          const itemExists = existingGroup?.categoryItems.some(
+            (i) => i.name === newItem.name
+          );
+          if (itemExists) return prev;
+
+          const newCategories = monthData.categories.map((cat) =>
+            cat.name === categoryName
+              ? { ...cat, categoryItems: [...cat.categoryItems, newItem] }
+              : cat
+          );
+
+          return {
+            ...prev,
+            [currentMonth]: {
+              ...monthData,
+              categories: newCategories,
+            },
+          };
+        });
+      },
+      undo: async () => {
+        setBudgetData((undoPrev) => {
+          const undoMonthData = undoPrev[currentMonth];
+          const undoCategories = undoMonthData.categories.map((cat) =>
+            cat.name === categoryName
+              ? {
+                  ...cat,
+                  categoryItems: cat.categoryItems.filter(
+                    (i) => i.name !== newItem.name
+                  ),
+                }
+              : cat
+          );
+
+          return {
+            ...undoPrev,
+            [currentMonth]: {
+              ...undoMonthData,
+              categories: undoCategories,
+            },
+          };
+        });
+      },
     });
+
+    setIsDirty(true);
+    setRecentChanges((prevChanges) => [
+      ...prevChanges.slice(-9),
+      {
+        description: `Added category '${newItem.name}' to group '${categoryName}'`,
+        timestamp: new Date().toISOString(),
+      },
+    ]);
   };
 
 
@@ -929,6 +1060,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
 
   const deleteCategoryItem = (context) => {
     const { itemName } = context;
+    const previousData = JSON.parse(JSON.stringify(budgetData));
 
     setBudgetData((prev) => {
       const updated = { ...prev };
@@ -952,6 +1084,31 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
       return updated;
     });
 
+    registerAction({
+      description: `Deleted category '${itemName}'`,
+      execute: async () => {
+        // Re-delete the item for redo
+        setBudgetData((prev) => {
+          const updated = { ...prev };
+
+          for (const month in updated) {
+            updated[month].categories = updated[month].categories.map((cat) => ({
+              ...cat,
+              categoryItems: cat.categoryItems.filter(
+                (item) => item.name !== itemName
+              ),
+            }));
+            dirtyMonths.current.add(month);
+          }
+
+          return updated;
+        });
+      },
+      undo: async () => {
+        setBudgetData(previousData);
+      },
+    });
+
     setIsDirty(true);
     setRecentChanges((prev) => [
       ...prev.slice(-9),
@@ -963,6 +1120,11 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const setCategoryTarget = (categoryItemName, target) => {
+    // Capture old target for undo
+    const oldTarget = budgetData[currentMonth]?.categories
+      .flatMap((c) => c.categoryItems)
+      .find((item) => item.name === categoryItemName)?.target;
+
     setBudgetData((prev) => {
       const updated = { ...prev };
 
@@ -989,6 +1151,69 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
       }
 
       return updated;
+    });
+
+    registerAction({
+      description: `Set target for '${categoryItemName}' to ${target?.amount ?? 0}`,
+      execute: async () => {
+        // Re-set the target for redo
+        setBudgetData((prev) => {
+          const updated = { ...prev };
+          const current = parseISO(`${currentMonth}-01`);
+
+          for (const monthKey of Object.keys(prev)) {
+            const monthDate = parseISO(`${monthKey}-01`);
+
+            if (isAfter(monthDate, current) || isSameMonth(monthDate, current)) {
+              const updatedCategories = prev[monthKey].categories.map(
+                (category) => ({
+                  ...category,
+                  categoryItems: category.categoryItems.map((item) =>
+                    item.name === categoryItemName ? { ...item, target } : item
+                  ),
+                })
+              );
+
+              updated[monthKey] = {
+                ...prev[monthKey],
+                categories: updatedCategories,
+              };
+            }
+          }
+
+          return updated;
+        });
+      },
+      undo: async () => {
+        setBudgetData((prev) => {
+          const updated = { ...prev };
+          const current = parseISO(`${currentMonth}-01`);
+
+          for (const monthKey of Object.keys(prev)) {
+            const monthDate = parseISO(`${monthKey}-01`);
+
+            if (isAfter(monthDate, current) || isSameMonth(monthDate, current)) {
+              const undoCategories = prev[monthKey].categories.map(
+                (category) => ({
+                  ...category,
+                  categoryItems: category.categoryItems.map((item) =>
+                    item.name === categoryItemName
+                      ? { ...item, target: oldTarget }
+                      : item
+                  ),
+                })
+              );
+
+              updated[monthKey] = {
+                ...prev[monthKey],
+                categories: undoCategories,
+              };
+            }
+          }
+
+          return updated;
+        });
+      },
     });
 
     setIsDirty(true);

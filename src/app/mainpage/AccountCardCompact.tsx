@@ -98,8 +98,8 @@ export default function AccountCardCompact({
       onContextMenu={onContextMenu}
       className={cn(
         "group w-full cursor-pointer rounded-lg border transition-all overflow-hidden relative",
-        "bg-white hover:shadow-md hover:border-slate-300",
-        isNegative && "border-red-200 bg-red-50/40 hover:border-red-300"
+        "bg-white dark:bg-slate-900 hover:shadow-md dark:hover:shadow-lg hover:border-slate-300 dark:hover:border-slate-700",
+        isNegative && "border-red-200 dark:border-red-900/50 bg-red-50/40 dark:bg-red-950/20 hover:border-red-300 dark:hover:border-red-800"
       )}
     >
       {/* Colored stripe */}
@@ -108,10 +108,10 @@ export default function AccountCardCompact({
       {/* Top row – condensed */}
       <div className="flex items-center justify-between px-3 py-2 relative">
         <div className="flex flex-col min-w-0 gap-0.5">
-          <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wide">
+          <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">
             {issuerLabel ?? accountKindLabel}
           </span>
-          <h3 className="font-medium text-sm truncate text-slate-900">
+          <h3 className="font-medium text-sm truncate text-slate-900 dark:text-slate-100">
             {account.name}
           </h3>
         </div>
@@ -120,7 +120,7 @@ export default function AccountCardCompact({
           <p
             className={cn(
               "text-base font-semibold font-mono leading-none",
-              isNegative ? "text-red-600" : "text-emerald-600"
+              isNegative ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"
             )}
           >
             {formatToUSD(computedBalance)}
@@ -130,7 +130,7 @@ export default function AccountCardCompact({
 
       {/* Hover details – still envelope-y, but compact */}
       <div className="px-3 pb-2 mb-1 overflow-hidden max-h-0 opacity-0 group-hover:max-h-20 group-hover:opacity-100 transition-all duration-150 ease-out">
-        <div className="border-t border-slate-200 pt-2 mt-1 flex flex-col gap-1 text-[11px] text-slate-600">
+        <div className="border-t border-slate-200 dark:border-slate-700 pt-2 mt-1 flex flex-col gap-1 text-[11px] text-slate-600 dark:text-slate-400">
           <div className="flex justify-between">
             <span className="font-medium">Transactions</span>
             <span>{transactionCount}</span>
@@ -139,7 +139,7 @@ export default function AccountCardCompact({
             <span className="font-medium">Last activity</span>
             <span>{lastDate ?? "No activity yet"}</span>
           </div>
-          <p className="text-[11px] text-slate-500 pb-1">
+          <p className="text-[11px] text-slate-500 dark:text-slate-500 pb-1">
             This month: {formatToUSD(monthActivity)}
           </p>
         </div>

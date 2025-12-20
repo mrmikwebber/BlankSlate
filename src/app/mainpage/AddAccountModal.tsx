@@ -1,21 +1,27 @@
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
-const AddAccountModal = ({ onAddAccount, onClose }) => {
+const AddAccountModal = ({ onAddAccount, onClose, isOpen = true }) => {
   const [name, setName] = useState("");
   const [type, setType] = useState("debit");
   const [issuer, setIssuer] = useState("visa");
   const [balance, setBalance] = useState("");
-
-  useEffect(() => {
-    const handleEscape = (e) => {
-      if (e.key === "Escape") {
-        onClose();
-      }
-    };
-    window.addEventListener("keydown", handleEscape);
-    return () => window.removeEventListener("keydown", handleEscape);
-  }, [onClose]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -32,68 +38,103 @@ const AddAccountModal = ({ onAddAccount, onClose }) => {
     onClose(); 
   };
 
-  return createPortal(
-    <div 
-      className="fixed inset-0 z-50 bg-black bg-opacity-30 backdrop-blur-sm flex items-center justify-center p-4"
-      onClick={onClose}
-    >
-      <div 
-        className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h2 className="text-xl font-semibold text-gray-800">Add New Account</h2>
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <input
-            type="text"
-            placeholder="Account Name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="border border-gray-300 rounded-md px-3 py-2 w-full text-sm"
-          />
-          <select
-            value={type}
-            onChange={(e) => setType(e.target.value)}
-            className="border border-gray-300 rounded-md px-3 py-2 w-full text-sm"
-          >
-            <option value="debit">Debit</option>
-            <option value="credit">Credit</option>
-          </select>
-          <select
-            value={issuer}
-            onChange={(e) => setIssuer(e.target.value)}
-            className="border border-gray-300 rounded-md px-3 py-2 w-full text-sm"
-          >
-            <option value="visa">Visa</option>
-            <option value="amex">American Express</option>
-            <option value="discover">Discover</option>
-            <option value="mastercard">Mastercard</option>
-          </select>
-          <input
-            type="number"
-            placeholder="Initial Balance"
-            value={balance}
-            onChange={(e) => setBalance(e.target.value)}
-            className="border border-gray-300 rounded-md px-3 py-2 w-full text-sm"
-          />
-          <div className="flex justify-end gap-2 pt-2">
-            <button
+  const handleOpenChange = (open) => {
+    if (!open) {
+      onClose();
+    }
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="dark:text-slate-100">Add New Account</DialogTitle>
+          <DialogDescription className="dark:text-slate-400">
+            Create a new debit or credit account to track your finances.
+          </DialogDescription>
+        </DialogHeader>
+        
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <label htmlFor="account-name" className="text-sm font-medium text-slate-700 dark:text-slate-300">
+              Account Name
+            </label>
+            <Input
+              id="account-name"
+              type="text"
+              placeholder="e.g., Checking, Savings, Amex"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full"
+              autoFocus
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label htmlFor="account-type" className="text-sm font-medium text-slate-700 dark:text-slate-300">
+              Account Type
+            </label>
+            <Select value={type} onValueChange={setType}>
+              <SelectTrigger id="account-type">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="debit">Debit</SelectItem>
+                <SelectItem value="credit">Credit</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <label htmlFor="account-issuer" className="text-sm font-medium text-slate-700 dark:text-slate-300">
+              Card Issuer
+            </label>
+            <Select value={issuer} onValueChange={setIssuer}>
+              <SelectTrigger id="account-issuer">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="visa">Visa</SelectItem>
+                <SelectItem value="amex">American Express</SelectItem>
+                <SelectItem value="discover">Discover</SelectItem>
+                <SelectItem value="mastercard">Mastercard</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <label htmlFor="initial-balance" className="text-sm font-medium text-slate-700 dark:text-slate-300">
+              Initial Balance
+            </label>
+            <Input
+              id="initial-balance"
+              type="number"
+              placeholder="0.00"
+              value={balance}
+              onChange={(e) => setBalance(e.target.value)}
+              step="0.01"
+              className="w-full"
+            />
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4">
+            <Button
               type="button"
+              variant="outline"
               onClick={onClose}
-              className="px-4 py-2 text-sm rounded-md border border-gray-300 text-gray-600 hover:bg-gray-100"
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               type="submit"
-              className="px-4 py-2 text-sm rounded-md bg-blue-600 text-white hover:bg-teal-600 transition"
+              className="bg-teal-600 hover:bg-teal-700"
             >
               Add Account
-            </button>
+            </Button>
           </div>
         </form>
-      </div>
-    </div>,
-    document.body
+      </DialogContent>
+    </Dialog>
   );
 };
 

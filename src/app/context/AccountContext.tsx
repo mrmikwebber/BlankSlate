@@ -2,6 +2,7 @@
 import { createContext, useContext, useEffect, useState, useMemo } from "react";
 import { useAuth } from "./AuthContext";
 import { supabase } from "@/utils/supabaseClient";
+import { useUndoRedo } from "./UndoRedoContext";
 export interface Transaction {
   id: number;
   date: string;
@@ -37,6 +38,7 @@ interface AccountContextType {
   accounts: Account[];
   recentTransactions: Transaction[];
   addTransaction: (accountId, transaction) => void;
+  addTransactionWithMirror: (accountId: number, transaction: any, mirrorAccountId: number, mirrorTransaction: any) => Promise<void>;
   addAccount: (newAccount) => void;
   setAccounts: (accounts) => void;
   deleteAccount: (accountId: number) => void;
@@ -48,6 +50,7 @@ interface AccountContextType {
     updatedTransaction: Partial<Transaction>
   ) => void;
   editAccountName: (accountId: number, newName: string) => void;
+  refreshSingleAccount: (accountId: number) => void;
 }
 
 const AccountContext = createContext<AccountContextType | undefined>(undefined);
@@ -63,6 +66,7 @@ export const useAccountContext = () => {
 export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   const { user } = useAuth() || { user: null };
+  const { registerAction } = useUndoRedo();
 
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [savedPayees, setSavedPayees] = useState<SavedPayee[]>([]);
@@ -145,7 +149,7 @@ const upsertPayee = async (name: string) => {
 
 
 
-  const addTransaction = async (accountId, transaction) => {
+  const addTransaction = async (accountId, transaction, skipUndo = false) => {
     const { data, error } = await supabase.from("transactions").insert([
       {
         ...transaction,
@@ -154,20 +158,150 @@ const upsertPayee = async (name: string) => {
       },
     ]).select();
 
-    setRecentTransactions((prev) => [
-      ...prev.slice(-9),
-      {
-        ...data[0],
-        timestamp: new Date().toISOString(),
-      },
-    ]);
-
     if (error) {
       console.error("Add transaction failed:", error);
-    } else {
-      await refreshSingleAccount(accountId);
+      return;
+    }
+
+    let currentTransactionId = data[0].id;
+    const transactionData = { ...transaction };
+
+    await refreshSingleAccount(accountId);
+
+    if (skipUndo) {
       return data;
     }
+
+    registerAction({
+      description: `Added transaction ${transaction.payee} ($${transaction.balance})`,
+      execute: async () => {
+        console.log('🔄 REDO: About to insert transaction', transactionData);
+        // Re-insert the transaction for redo
+        const { data: redoData, error: insertError } = await supabase.from("transactions").insert([
+          {
+            ...transactionData,
+            user_id: user?.id,
+            account_id: accountId,
+          },
+        ]).select();
+
+        if (!insertError && redoData) {
+          console.log('✅ REDO: Inserted transaction with ID', redoData[0].id);
+          currentTransactionId = redoData[0].id;
+          console.log('🔄 REDO: About to refresh account', accountId);
+          await refreshSingleAccount(accountId);
+          console.log('✅ REDO: Account refreshed');
+        } else {
+          console.error('❌ REDO: Insert failed', insertError);
+        }
+      },
+      undo: async () => {
+        const { error: deleteError } = await supabase
+          .from("transactions")
+          .delete()
+          .eq("id", currentTransactionId);
+
+        if (!deleteError) {
+          await refreshSingleAccount(accountId);
+        }
+      },
+    });
+
+    return data;
+  };
+
+  const addTransactionWithMirror = async (
+    accountId: number,
+    transaction: any,
+    mirrorAccountId: number,
+    mirrorTransaction: any
+  ) => {
+    // Insert both transactions
+    const { data: data1, error: error1 } = await supabase.from("transactions").insert([
+      {
+        ...transaction,
+        user_id: user?.id,
+        account_id: accountId,
+      },
+    ]).select();
+
+    if (error1) {
+      console.error("Add transaction failed:", error1);
+      return;
+    }
+
+    const { data: data2, error: error2 } = await supabase.from("transactions").insert([
+      {
+        ...mirrorTransaction,
+        user_id: user?.id,
+        account_id: mirrorAccountId,
+      },
+    ]).select();
+
+    if (error2) {
+      console.error("Add mirror transaction failed:", error2);
+      // Clean up first transaction
+      await supabase.from("transactions").delete().eq("id", data1[0].id);
+      return;
+    }
+
+    let currentTxId1 = data1[0].id;
+    let currentTxId2 = data2[0].id;
+    const tx1Data = { ...transaction };
+    const tx2Data = { ...mirrorTransaction };
+
+    await refreshSingleAccount(accountId);
+    await refreshSingleAccount(mirrorAccountId);
+
+    registerAction({
+      description: `Added transfer ${transaction.payee} ($${transaction.balance})`,
+      execute: async () => {
+        // Re-insert both transactions for redo
+        const { data: redoData1, error: insertError1 } = await supabase.from("transactions").insert([
+          {
+            ...tx1Data,
+            user_id: user?.id,
+            account_id: accountId,
+          },
+        ]).select();
+
+        const { data: redoData2, error: insertError2 } = await supabase.from("transactions").insert([
+          {
+            ...tx2Data,
+            user_id: user?.id,
+            account_id: mirrorAccountId,
+          },
+        ]).select();
+
+        if (!insertError1 && redoData1) {
+          currentTxId1 = redoData1[0].id;
+          await refreshSingleAccount(accountId);
+        }
+        if (!insertError2 && redoData2) {
+          currentTxId2 = redoData2[0].id;
+          await refreshSingleAccount(mirrorAccountId);
+        }
+      },
+      undo: async () => {
+        // Delete both transactions
+        const { error: deleteError1 } = await supabase
+          .from("transactions")
+          .delete()
+          .eq("id", currentTxId1);
+
+        const { error: deleteError2 } = await supabase
+          .from("transactions")
+          .delete()
+          .eq("id", currentTxId2);
+
+        if (!deleteError1) {
+          await refreshSingleAccount(accountId);
+        }
+        if (!deleteError2) {
+          await refreshSingleAccount(mirrorAccountId);
+        }
+      },
+    });
   };
 
   const normalizeAccount = (raw: { transactions?: Array<{ balance?: number }> } & Partial<Account>): Account => {
@@ -254,6 +388,7 @@ const upsertPayee = async (name: string) => {
   }
 
   const refreshSingleAccount = async (accountId) => {
+    console.log('🔍 refreshSingleAccount: Starting for account', accountId);
     const { data, error } = await supabase
       .from("accounts")
       .select("*, transactions(*)")
@@ -261,15 +396,18 @@ const upsertPayee = async (name: string) => {
       .single();
 
     if (error || !data) {
-      console.error("Error refreshing account:", error);
+      console.error("❌ Error refreshing account:", error);
       return;
     }
 
+    console.log('📊 refreshSingleAccount: Got data with', data.transactions?.length, 'transactions');
     const updated = normalizeAccount(data);
+    console.log('📊 refreshSingleAccount: Normalized account has', updated.transactions?.length, 'transactions');
 
-    setAccounts((prev) =>
-      prev.map((acc) => (acc.id === accountId ? updated : acc))
-    );
+    setAccounts((prev) => {
+      console.log('🔄 setAccounts: Updating account', accountId);
+      return prev.map((acc) => (acc.id === accountId ? updated : acc));
+    });
   };
 
 
@@ -282,17 +420,25 @@ const upsertPayee = async (name: string) => {
     ]).select();
     if (error) {
       console.error("Add account failed:", error);
-    } else {
-      const newTransaction = {
-        ...defaultTransaction,
-        balance: account.balance,
-      }
-      const generatedTransaction = await addTransaction(data[0].id, newTransaction);
-      setAccounts((prev) => [...prev, { ...account, id: data[0].id, transactions: generatedTransaction }]);
+      return;
     }
+
+    const currentAccountId = data[0].id;
+    const newTransaction = {
+      ...defaultTransaction,
+      balance: account.balance,
+    }
+    const generatedTransaction = await addTransaction(currentAccountId, newTransaction, true);
+    
+    setAccounts((prev) => [...prev, { ...account, id: currentAccountId, transactions: generatedTransaction }]);
   };
 
-  const deleteAccount = async (accountId: number) => {
+  const deleteAccount = async (accountId: number | string) => {
+    if (!accountId || accountId === 'NaN' || accountId.toString() === 'NaN') {
+      console.error("❌ Invalid account ID:", accountId);
+      return;
+    }
+
     const { error } = await supabase
       .from("accounts")
       .delete()
@@ -305,7 +451,13 @@ const upsertPayee = async (name: string) => {
     }
   };
 
-  const deleteTransaction = async (accountId: number, transactionId: number) => {
+  const deleteTransaction = async (accountId: number, transactionId: number, skipUndo = false) => {
+    // Capture the transaction data for undo
+    const account = accounts.find((a) => a.id === accountId);
+    const deletedTransaction = account?.transactions.find((t) => t.id === transactionId);
+
+    console.log("🗑️ DELETE: Deleting transaction", transactionId, deletedTransaction?.payee);
+
     const { error } = await supabase
       .from("transactions")
       .delete()
@@ -318,7 +470,62 @@ const upsertPayee = async (name: string) => {
     if (error) {
       console.error("Failed to delete transaction:", error);
     } else {
+      console.log("✅ DELETE: Successfully deleted transaction", transactionId);
       await refreshSingleAccount(accountId);
+
+      if (skipUndo) {
+        console.log("⚠️ DELETE: skipUndo is true, not registering action");
+        return;
+      }
+
+      console.log("📝 DELETE: About to register undo action");
+      let currentTransactionId = transactionId;
+
+      registerAction({
+        description: `Deleted transaction ${deletedTransaction?.payee} ($${deletedTransaction?.balance})`,
+        execute: async () => {
+          console.log("🔄 REDO DELETE: About to delete transaction", currentTransactionId);
+          // Re-delete the transaction for redo
+          const { error: deleteError } = await supabase
+            .from("transactions")
+            .delete()
+            .eq("id", currentTransactionId);
+
+          if (!deleteError) {
+            console.log("✅ REDO DELETE: Successfully deleted", currentTransactionId);
+            await refreshSingleAccount(accountId);
+          } else {
+            console.error("❌ REDO DELETE: Failed", deleteError);
+          }
+        },
+        undo: async () => {
+          console.log("⏪ UNDO DELETE: About to restore transaction", deletedTransaction?.payee, "old ID:", currentTransactionId);
+          if (deletedTransaction) {
+            // Omit database-generated fields
+            const { id, created_at, updated_at, ...transactionData } = deletedTransaction as any;
+            console.log("Transaction data to restore:", transactionData);
+            const { data: restoreData, error: insertError } = await supabase.from("transactions").insert([
+              {
+                date: deletedTransaction.date,
+                payee: deletedTransaction.payee,
+                category: deletedTransaction.category,
+                category_group: deletedTransaction.category_group,
+                balance: deletedTransaction.balance,
+                user_id: user?.id,
+                account_id: accountId,
+              },
+            ]).select();
+
+            if (!insertError && restoreData) {
+              currentTransactionId = restoreData[0].id;
+              console.log("✅ UNDO DELETE: Restored with new ID", currentTransactionId);
+              await refreshSingleAccount(accountId);
+            } else {
+              console.error("❌ UNDO DELETE: Failed", insertError);
+            }
+          }
+        },
+      });
     }
   };
 
@@ -330,10 +537,7 @@ const upsertPayee = async (name: string) => {
     const transaction = account?.transactions.find((t) => t.id === transactionId);
     if (!transaction || !account) return;
 
-    // Delete the main transaction
-    await deleteTransaction(accountId, transactionId);
-
-    // Try to find and delete the mirrored transaction
+    // Try to find the mirrored transaction BEFORE deleting
     const mirrorAccount = accounts.find((a) =>
       a.transactions.some(
         (t) =>
@@ -344,6 +548,7 @@ const upsertPayee = async (name: string) => {
       )
     );
 
+    let mirrorTransaction: Transaction | null = null;
     if (mirrorAccount) {
       const mirror = mirrorAccount.transactions.find(
         (t) =>
@@ -353,15 +558,80 @@ const upsertPayee = async (name: string) => {
           t.payee?.includes(account.name)
       );
       if (mirror) {
-        await deleteTransaction(mirrorAccount.id, mirror.id);
+        mirrorTransaction = mirror;
       }
     }
+
+    // Delete the main transaction (skipUndo since we'll register a combined action)
+    await deleteTransaction(accountId, transactionId, true);
+
+    // Delete mirror transaction if found
+    if (mirrorTransaction && mirrorAccount) {
+      await deleteTransaction(mirrorAccount.id, mirrorTransaction.id, true);
+    }
+
+    // Register combined undo action for both deletions
+    let currentTransactionId = transactionId;
+    let currentMirrorId = mirrorTransaction?.id || null;
+
+    registerAction({
+      description: `Deleted transfer ${transaction.payee} ($${transaction.balance})`,
+      execute: async () => {
+        // Re-delete both transactions
+        await supabase.from("transactions").delete().eq("id", currentTransactionId);
+        await refreshSingleAccount(accountId);
+
+        if (currentMirrorId && mirrorAccount) {
+          await supabase.from("transactions").delete().eq("id", currentMirrorId);
+          await refreshSingleAccount(mirrorAccount.id);
+        }
+      },
+      undo: async () => {
+        // Restore both transactions
+        const { data: restoredData, error: insertError1 } = await supabase.from("transactions").insert([
+          {
+            date: transaction.date,
+            payee: transaction.payee,
+            category: transaction.category,
+            category_group: transaction.category_group,
+            balance: transaction.balance,
+            user_id: user?.id,
+            account_id: accountId,
+          },
+        ]).select();
+
+        if (!insertError1 && restoredData) {
+          currentTransactionId = restoredData[0].id;
+          await refreshSingleAccount(accountId);
+        }
+
+        if (mirrorTransaction && mirrorAccount) {
+          const { data: restoredMirror, error: insertError2 } = await supabase.from("transactions").insert([
+            {
+              date: mirrorTransaction.date,
+              payee: mirrorTransaction.payee,
+              category: mirrorTransaction.category,
+              category_group: mirrorTransaction.category_group,
+              balance: mirrorTransaction.balance,
+              user_id: user?.id,
+              account_id: mirrorAccount.id,
+            },
+          ]).select();
+
+          if (!insertError2 && restoredMirror) {
+            currentMirrorId = restoredMirror[0].id;
+            await refreshSingleAccount(mirrorAccount.id);
+          }
+        }
+      },
+    });
   };
 
   const contextValue = useMemo(
     () => ({
       accounts,
       addTransaction,
+      addTransactionWithMirror,
       addAccount,
       deleteAccount,
       setAccounts,
@@ -372,6 +642,7 @@ const upsertPayee = async (name: string) => {
       recentTransactions,
       savedPayees,
       upsertPayee,
+      refreshSingleAccount
     }),
     [accounts, recentTransactions, savedPayees]
   );

@@ -61,7 +61,7 @@ const EditableAssigned = memo(({
             if (e.key === "Enter") handleSave();
             if (e.key === "Escape") setIsEditing(false);
           }}
-          className="w-full h-7 px-2 text-right font-mono text-sm border border-slate-300 rounded"
+          className="w-full h-7 px-2 text-right font-mono text-sm border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
         />
       ) : (
         <span
@@ -72,7 +72,7 @@ const EditableAssigned = memo(({
             e.stopPropagation();
             setIsEditing(true);
           }}
-          className="block cursor-pointer px-2 py-0.5 text-right font-mono text-sm rounded hover:bg-slate-100 transition-colors"
+          className="block cursor-pointer px-2 py-0.5 text-right font-mono text-sm rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-900 dark:text-slate-100 transition-colors"
         >
           {formatToUSD(item.assigned)}
         </span>
