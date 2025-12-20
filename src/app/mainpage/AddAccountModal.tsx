@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 
 const AddAccountModal = ({ onAddAccount, onClose }) => {
@@ -6,6 +6,16 @@ const AddAccountModal = ({ onAddAccount, onClose }) => {
   const [type, setType] = useState("debit");
   const [issuer, setIssuer] = useState("visa");
   const [balance, setBalance] = useState("");
+
+  useEffect(() => {
+    const handleEscape = (e) => {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [onClose]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -23,8 +33,14 @@ const AddAccountModal = ({ onAddAccount, onClose }) => {
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-50 bg-black bg-opacity-30 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4">
+    <div 
+      className="fixed inset-0 z-50 bg-black bg-opacity-30 backdrop-blur-sm flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div 
+        className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4"
+        onClick={(e) => e.stopPropagation()}
+      >
         <h2 className="text-xl font-semibold text-gray-800">Add New Account</h2>
         <form onSubmit={handleSubmit} className="space-y-3">
           <input

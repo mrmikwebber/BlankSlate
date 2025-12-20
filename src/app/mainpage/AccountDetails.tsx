@@ -51,14 +51,24 @@ export default function AccountDetails() {
     }
   }, [account, newAccountName]);
 
-  // Close context menu on click
+  // Close context menu on click and Escape key
   useEffect(() => {
     const handleClick = () => {
       setContextMenu(null);
       setBulkContextMenu(null);
     };
+    const handleEscape = (e) => {
+      if (e.key === "Escape") {
+        setContextMenu(null);
+        setBulkContextMenu(null);
+      }
+    };
     window.addEventListener("click", handleClick);
-    return () => window.removeEventListener("click", handleClick);
+    window.addEventListener("keydown", handleEscape);
+    return () => {
+      window.removeEventListener("click", handleClick);
+      window.removeEventListener("keydown", handleEscape);
+    };
   }, []);
 
   const startEdit = (tx: any) => {

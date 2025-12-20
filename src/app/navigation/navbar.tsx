@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { supabase } from "../../utils/supabaseClient";
 import { createPortal } from "react-dom";
@@ -9,6 +9,16 @@ export default function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
+  
+  useEffect(() => {
+    const handleEscape = (e) => {
+      if (e.key === "Escape" && showResetModal) {
+        setShowResetModal(false);
+      }
+    };
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [showResetModal]);
   
   const toggleMobileMenu = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen);
@@ -130,8 +140,14 @@ export default function Navbar() {
 
       {/* Reset Account Confirmation Modal */}
       {showResetModal && createPortal(
-        <div className="fixed inset-0 bg-black/30 z-[10000] flex items-center justify-center">
-          <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-md space-y-4">
+        <div 
+          className="fixed inset-0 bg-black/30 z-[10000] flex items-center justify-center"
+          onClick={() => setShowResetModal(false)}
+        >
+          <div 
+            className="bg-white p-6 rounded-lg shadow-lg w-full max-w-md space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
             <h2 className="text-xl font-semibold text-red-600">
               Reset Your Account?
             </h2>

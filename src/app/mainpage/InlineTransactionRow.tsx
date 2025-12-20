@@ -229,7 +229,15 @@ export default function InlineTransactionRow({
     }
     if (e.key === "Escape") {
       e.preventDefault();
-      onCancel?.();
+      // Close new category mode if it's open, otherwise cancel the form
+      if (newCategoryMode) {
+        setNewCategoryMode(false);
+        setNewCategoryName("");
+        setNewCategoryGroupIsNew(false);
+        setNewCategoryGroupName("");
+      } else {
+        onCancel?.();
+      }
     }
   };
 
