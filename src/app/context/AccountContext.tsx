@@ -50,6 +50,7 @@ interface AccountContextType {
     updatedTransaction: Partial<Transaction>
   ) => void;
   editAccountName: (accountId: number, newName: string) => void;
+  refreshSingleAccount: (accountId: number) => void;
 }
 
 const AccountContext = createContext<AccountContextType | undefined>(undefined);

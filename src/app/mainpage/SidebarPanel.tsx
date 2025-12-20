@@ -111,7 +111,7 @@ export default function SidebarPanel() {
   };
 
   const handleDeleteAccount = (accountId: string) => {
-    deleteAccount(accountId);
+    deleteAccount(Number(accountId));
   };
 
   useEffect(() => {
