@@ -50,7 +50,7 @@ const AddCategoryButton = ({
           data-cy="add-category-group-button"
           variant="outline"
           size="sm"
-          className="gap-1 border-slate-300 text-slate-800"
+          className="gap-1 border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
         >
           <Plus className="h-4 w-4" />
           Add group
@@ -58,12 +58,12 @@ const AddCategoryButton = ({
       </PopoverTrigger>
       <PopoverContent
         align="end"
-        className="w-64 p-3 space-y-2"
+        className="w-64 p-3 space-y-2 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 shadow-md dark:shadow-lg"
       >
         <div className="space-y-2">
           <Label
             htmlFor="add-category-group-input"
-            className="text-xs font-medium text-slate-700"
+            className="text-xs font-medium text-slate-700 dark:text-slate-300"
           >
             Category group name
           </Label>

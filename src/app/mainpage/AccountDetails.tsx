@@ -274,12 +274,12 @@ export default function AccountDetails() {
     );
 
   return (
-    <div className="mx-auto p-8 relative bg-slate-50 min-h-screen">
+    <div className="mx-auto p-8 relative bg-slate-50 dark:bg-slate-950 min-h-screen">
       {/* Context menu */}
       {contextMenu && (
         <div
           data-cy="tx-context-menu"
-          className="fixed z-50 bg-white border border-slate-300 rounded-lg shadow-xl text-sm overflow-hidden"
+          className="fixed z-50 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg shadow-xl dark:shadow-2xl text-sm overflow-hidden"
           style={{ top: contextMenu.y, left: contextMenu.x }}
           onClick={() => setContextMenu(null)}
         >
@@ -292,7 +292,7 @@ export default function AccountDetails() {
               );
               setContextMenu(null);
             }}
-            className="px-4 py-2.5 hover:bg-red-50 text-red-600 w-full text-left font-medium transition-colors"
+            className="px-4 py-2.5 hover:bg-red-50 dark:hover:bg-red-950 text-red-600 dark:text-red-400 w-full text-left font-medium transition-colors"
           >
             Delete Transaction
           </button>
@@ -307,7 +307,7 @@ export default function AccountDetails() {
               }
               setContextMenu(null);
             }}
-            className="px-4 py-2.5 hover:bg-teal-50 text-teal-600 w-full text-left font-medium transition-colors border-t border-slate-200"
+            className="px-4 py-2.5 hover:bg-teal-50 dark:hover:bg-teal-950 text-teal-600 dark:text-teal-400 w-full text-left font-medium transition-colors border-t border-slate-200 dark:border-slate-700"
           >
             Edit Transaction
           </button>
@@ -315,7 +315,7 @@ export default function AccountDetails() {
       )}
 
       {/* Header / balance */}
-      <div className="flex items-center justify-between gap-4 mb-6 pb-4 border-b border-slate-200">
+      <div className="flex items-center justify-between gap-4 mb-6 pb-4 border-b border-slate-200 dark:border-slate-700">
         <div>
           {isEditingAccountName ? (
             <div className="flex items-center gap-3">
@@ -344,17 +344,17 @@ export default function AccountDetails() {
           ) : (
             <div>
               <h1
-                className="text-2xl font-bold text-slate-800"
+                className="text-2xl font-bold text-slate-800 dark:text-slate-100"
                 data-cy="account-name"
               >{`${account.name}`}</h1>
             </div>
           )}
 
-          <p className="text-base text-slate-600 mt-2">
+          <p className="text-base text-slate-600 dark:text-slate-400 mt-2">
             Balance:{" "}
             <span
               data-cy="account-balance"
-              className={`font-bold font-mono text-lg ${accountBalance < 0 ? "text-red-600" : "text-green-600"
+              className={`font-bold font-mono text-lg ${accountBalance < 0 ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"
                 }`}
             >
               {accountBalance.toLocaleString("en-US", {
@@ -380,7 +380,7 @@ export default function AccountDetails() {
       {/* Transactions header + add button */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-4">
-          <h2 className="text-lg font-semibold text-slate-800">Transactions</h2>
+          <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Transactions</h2>
           {selectedTxIds.size > 0 && (
             <span className="text-sm text-blue-600 font-medium">
               {selectedTxIds.size} selected
@@ -405,6 +405,7 @@ export default function AccountDetails() {
               data-cy="add-transaction-button"
               onClick={() => setShowForm(true)}
               size="sm"
+              className="bg-teal-600 hover:bg-teal-700 text-white dark:bg-teal-700 dark:hover:bg-teal-600"
             >
               <Plus className="h-4 w-4 mr-2" />
               Add Transaction
@@ -414,11 +415,11 @@ export default function AccountDetails() {
       </div>
 
       {/* Transactions table */}
-      <div className="rounded-lg border border-slate-300 bg-white shadow-sm overflow-x-auto overflow-y-visible">
+      <div className="rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm dark:shadow-md overflow-x-auto overflow-y-visible">
         <table className="w-full text-sm">
           <thead>
-            <tr className="bg-slate-50 text-slate-600 text-xs font-semibold border-b border-slate-300">
-              <th className="px-2 py-3 text-center border-r border-slate-200 w-10">
+            <tr className="bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-xs font-semibold border-b border-slate-300 dark:border-slate-700">
+              <th className="px-2 py-3 text-center border-r border-slate-200 dark:border-slate-700 w-10">
                 <input
                   type="checkbox"
                   checked={account.transactions.length > 0 && selectedTxIds.size === account.transactions.length}
@@ -426,9 +427,9 @@ export default function AccountDetails() {
                   className="cursor-pointer"
                 />
               </th>
-              <th className="px-4 py-3 text-left border-r border-slate-200">Date</th>
-              <th className="px-4 py-3 text-left border-r border-slate-200">Payee</th>
-              <th className="px-4 py-3 text-left border-r border-slate-200">Category</th>
+              <th className="px-4 py-3 text-left border-r border-slate-200 dark:border-slate-700">Date</th>
+              <th className="px-4 py-3 text-left border-r border-slate-200 dark:border-slate-700">Payee</th>
+              <th className="px-4 py-3 text-left border-r border-slate-200 dark:border-slate-700">Category</th>
               <th className="px-4 py-3 text-right">Amount</th>
             </tr>
           </thead>
@@ -470,11 +471,11 @@ export default function AccountDetails() {
                   key={tx.id}
                   data-cy="transaction-row"
                   data-txid={tx.id}
-                  className={`transition-colors cursor-default border-b border-slate-200 ${idx % 2 === 0 ? "bg-white" : "bg-slate-50/50"
+                  className={`transition-colors cursor-default border-b border-slate-200 dark:border-slate-700 ${idx % 2 === 0 ? "bg-white dark:bg-slate-900" : "bg-slate-50/50 dark:bg-slate-950"
                     } ${selectedTxId === tx.id
-                      ? "ring-2 ring-teal-500 ring-inset bg-teal-50"
-                      : "hover:bg-slate-100"
-                    } ${selectedTxIds.has(tx.id) ? "bg-blue-50" : ""}`}
+                      ? "ring-2 ring-teal-500 ring-inset bg-teal-50 dark:ring-teal-400 dark:bg-teal-950"
+                      : "hover:bg-slate-100 dark:hover:bg-slate-800"
+                    } ${selectedTxIds.has(tx.id) ? "bg-blue-50 dark:bg-blue-950" : ""}`}
                   onClick={() => setSelectedTxId(tx.id)}
                   onDoubleClick={() => startEdit(tx)}
                   onContextMenu={(e) => {
@@ -498,7 +499,7 @@ export default function AccountDetails() {
                   }}
                 >
                   <td 
-                    className="px-2 py-3 text-center border-r border-slate-200"
+                    className="px-2 py-3 text-center border-r border-slate-200 dark:border-slate-700"
                     onClick={(e) => {
                       e.stopPropagation();
                       toggleTransactionSelection(tx.id);
@@ -512,14 +513,14 @@ export default function AccountDetails() {
                       onClick={(e) => e.stopPropagation()}
                     />
                   </td>
-                  <td className="px-4 py-3 whitespace-nowrap border-r border-slate-200 text-slate-700">
+                  <td className="px-4 py-3 whitespace-nowrap border-r border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300">
                     {tx.date &&
                       format(parseISO(tx.date), "MMM d, yyyy")}
                   </td>
-                  <td className="px-4 py-3 truncate max-w-xs border-r border-slate-200 text-slate-800">
+                  <td className="px-4 py-3 truncate max-w-xs border-r border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200">
                     {tx.payee}
                   </td>
-                  <td className="px-4 py-3 truncate max-w-xs border-r border-slate-200 text-slate-600 text-xs">
+                  <td className="px-4 py-3 truncate max-w-xs border-r border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 text-xs">
                     {tx.payee && (tx.payee.startsWith("Transfer") || tx.payee.startsWith("Payment"))
                       ? tx.payee
                       : tx.category_group && tx.category
@@ -528,7 +529,7 @@ export default function AccountDetails() {
                   </td>
                   <td
                     data-cy="transaction-amount"
-                    className={`px-4 py-3 text-right font-bold font-mono ${tx.balance < 0 ? "text-red-600" : "text-green-600"
+                    className={`px-4 py-3 text-right font-bold font-mono ${tx.balance < 0 ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"
                       }`}
                   >
                     {tx.balance.toLocaleString("en-US", {

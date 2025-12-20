@@ -48,15 +48,15 @@ const AddAccountModal = ({ onAddAccount, onClose, isOpen = true }) => {
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Add New Account</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="dark:text-slate-100">Add New Account</DialogTitle>
+          <DialogDescription className="dark:text-slate-400">
             Create a new debit or credit account to track your finances.
           </DialogDescription>
         </DialogHeader>
         
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <label htmlFor="account-name" className="text-sm font-medium text-slate-700">
+            <label htmlFor="account-name" className="text-sm font-medium text-slate-700 dark:text-slate-300">
               Account Name
             </label>
             <Input
@@ -71,7 +71,7 @@ const AddAccountModal = ({ onAddAccount, onClose, isOpen = true }) => {
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="account-type" className="text-sm font-medium text-slate-700">
+            <label htmlFor="account-type" className="text-sm font-medium text-slate-700 dark:text-slate-300">
               Account Type
             </label>
             <Select value={type} onValueChange={setType}>
@@ -86,7 +86,7 @@ const AddAccountModal = ({ onAddAccount, onClose, isOpen = true }) => {
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="account-issuer" className="text-sm font-medium text-slate-700">
+            <label htmlFor="account-issuer" className="text-sm font-medium text-slate-700 dark:text-slate-300">
               Card Issuer
             </label>
             <Select value={issuer} onValueChange={setIssuer}>
@@ -103,7 +103,7 @@ const AddAccountModal = ({ onAddAccount, onClose, isOpen = true }) => {
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="initial-balance" className="text-sm font-medium text-slate-700">
+            <label htmlFor="initial-balance" className="text-sm font-medium text-slate-700 dark:text-slate-300">
               Initial Balance
             </label>
             <Input

@@ -670,70 +670,75 @@ export default function BudgetTable() {
         )}
 
       {/* Main card */}
-      <Card className="flex flex-col h-full overflow-hidden">
-        <CardHeader className="pb-3 border-b border-slate-200">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div data-cy="ready-to-assign" className="flex items-center gap-2">
-              <span className="text-sm font-medium text-slate-600">
-                Ready to Assign
-              </span>
-              <Badge
-                variant="outline"
-                className="text-base font-bold font-mono px-3 py-1 bg-teal-500 text-white border-teal-500"
-              >
-                {formatToUSD(budgetData[currentMonth]?.ready_to_assign || 0)}
-              </Badge>
-            </div>
-            <div className="ml-auto">
-              <MonthNav />
-            </div>
-          </div>
-
-          {/* filters row */}
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-            <div className="flex flex-wrap gap-2">
-              {FILTERS.map((filter) => (
-                <Button
-                  key={filter}
-                  data-cy={`filter-${filter.toLowerCase().replace(" ", "-")}`}
-                  variant={selectedFilter === filter ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setSelectedFilter(filter)}
+      <Card className="flex flex-col h-full overflow-hidden border border-slate-200 dark:border-slate-700 shadow-md dark:shadow-lg rounded-xl bg-white dark:bg-slate-950">
+        <CardHeader className="pb-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
+          <div className="flex flex-col gap-4">
+            {/* Top row: RTA + Month */}
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div data-cy="ready-to-assign" className="flex items-center gap-2">
+                <span className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                  Ready to Assign
+                </span>
+                <Badge
+                  variant="outline"
+                  className="text-base font-bold font-mono px-3 py-1 bg-teal-500 dark:bg-teal-600 text-white border-teal-500 dark:border-teal-600"
                 >
-                  {filter}
-                </Button>
-              ))}
+                  {formatToUSD(budgetData[currentMonth]?.ready_to_assign || 0)}
+                </Badge>
+              </div>
+              <div>
+                <MonthNav />
+              </div>
             </div>
-            <div className="flex items-center gap-2 ml-auto">
-              <KeyboardShortcuts
-                page="budget"
-                shortcuts={[
-                  { key: "Ctrl+Z / Cmd+Z", description: "Undo last action" },
-                  { key: "Ctrl+Y / Cmd+Shift+Z", description: "Redo last action" },
-                ]}
-              />
-              <AddCategoryButton handleSubmit={addCategoryGroup} />
+
+            {/* Toolbar: Filters + Add Group */}
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap gap-2">
+                {FILTERS.map((filter) => (
+                  <Button
+                    key={filter}
+                    data-cy={`filter-${filter.toLowerCase().replace(" ", "-")}`}
+                    variant={selectedFilter === filter ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setSelectedFilter(filter)}
+                    className={cn(
+                      "text-xs",
+                      selectedFilter === filter && "dark:bg-teal-700 dark:text-white dark:hover:bg-teal-600"
+                    )}
+                  >
+                    {filter}
+                  </Button>
+                ))}
+              </div>
+              <div className="flex items-center gap-2">
+                <KeyboardShortcuts
+                  page="budget"
+                  shortcuts={[
+                    { key: "Ctrl+Z / Cmd+Z", description: "Undo last action" },
+                    { key: "Ctrl+Y / Cmd+Shift+Z", description: "Redo last action" },
+                  ]}
+                />
+                <AddCategoryButton handleSubmit={addCategoryGroup} />
+              </div>
             </div>
           </div>
         </CardHeader>
-
-        <Separator />
 
         <CardContent className="p-0 flex-1 flex flex-col min-h-0">
           <div className="flex-1 overflow-y-auto">
             <Table data-cy="budget-table" className="w-full">
               <TableHeader>
-                <TableRow className="bg-slate-200 text-slate-800 border-b border-slate-300">
-                  <TableHead className="text-left px-3 py-2 text-sm font-semibold">
+                <TableRow className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800">
+                  <TableHead className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">
                     Category
                   </TableHead>
-                  <TableHead className="text-right px-3 py-2 text-sm font-semibold">
+                  <TableHead className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">
                     Assigned
                   </TableHead>
-                  <TableHead className="text-right px-3 py-2 text-sm font-semibold">
+                  <TableHead className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">
                     Activity
                   </TableHead>
-                  <TableHead className="text-right px-3 py-2 text-sm font-semibold">
+                  <TableHead className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">
                     Available
                   </TableHead>
                 </TableRow>
@@ -745,12 +750,12 @@ export default function BudgetTable() {
                     <TableRow
                       data-cy="category-group-row"
                       data-category={group.name}
-                      className="bg-[#e9edf2] hover:bg-[#e9edf2] text-sm font-semibold text-slate-900 border-b border-slate-300"
+                      className="bg-slate-100 dark:bg-slate-800 hover:bg-slate-150 dark:hover:bg-slate-700 text-sm font-semibold text-slate-900 dark:text-slate-100 border-b border-slate-200 dark:border-slate-700 transition-colors"
                       onMouseEnter={() => setHoveredCategory(group.name)}
                       onMouseLeave={() => setHoveredCategory(null)}
                     >
                       <TableCell
-                        className="p-2 align-middle"
+                        className="p-4 align-middle"
                         onContextMenu={(e) => {
                           e.preventDefault();
                           setGroupContext({
@@ -833,7 +838,7 @@ export default function BudgetTable() {
                         </div>
                       </TableCell>
                       <TableCell
-                        className="p-2 text-right text-sm"
+                        className="p-4 text-right text-sm font-medium"
                         data-cy="available-display"
                         data-category={group.name}
                       >
@@ -844,7 +849,7 @@ export default function BudgetTable() {
                           )
                         )}
                       </TableCell>
-                      <TableCell className="p-2 text-right text-sm">
+                      <TableCell className="p-4 text-right text-sm font-medium">
                         {formatToUSD(
                           group.categoryItems.reduce(
                             (sum, item) => sum + item.activity,
@@ -852,7 +857,7 @@ export default function BudgetTable() {
                           )
                         )}
                       </TableCell>
-                      <TableCell className="p-2 text-right text-sm">
+                      <TableCell className="p-4 text-right text-sm font-medium">
                         {group.name === "Credit Card Payments"
                           ? "Payment - " +
                           formatToUSD(
@@ -926,7 +931,7 @@ export default function BudgetTable() {
                             data-cy="category-row"
                             data-category={group.name}
                             data-item={item.name}
-                            className="odd:bg-white even:bg-slate-100 hover:bg-slate-200"
+                            className="odd:bg-white dark:odd:bg-slate-950 even:bg-slate-50/60 dark:even:bg-slate-900/40 hover:bg-teal-50 dark:hover:bg-slate-800 border-b border-slate-100 dark:border-slate-700 transition-colors"
                             onContextMenu={(e) => {
                               e.preventDefault();
                               setCategoryContext({
@@ -944,7 +949,7 @@ export default function BudgetTable() {
                               data-cy="category-item-name"
                               data-category={group.name}
                               data-item={item.name}
-                              className="p-2 align-middle"
+                              className="p-4 align-middle"
                               onClick={() => {
                                 setInlineEditorCategory((prev) =>
                                   prev === item.name ? null : item.name
@@ -995,7 +1000,7 @@ export default function BudgetTable() {
                                 <div className="relative h-6 rounded-md px-1">
                                   {item.target && (
                                     <div
-                                      className="absolute top-0 left-0 h-full bg-gradient-to-r from-teal-500 to-teal-400 transition-all duration-300"
+                                      className="absolute top-0 left-0 h-full bg-gradient-to-r from-teal-500 to-teal-400 dark:from-teal-500 dark:to-teal-300 transition-all duration-300 opacity-90 dark:opacity-100"
                                       style={{
                                         width: `${Math.min(
                                           (item.assigned /
@@ -1007,7 +1012,7 @@ export default function BudgetTable() {
                                     />
                                   )}
                                   <div className="relative z-10 px-2 flex justify-between items-center h-full">
-                                    <span className="font-medium truncate text-slate-800 text-sm">
+                                    <span className="font-medium truncate text-slate-800 dark:text-slate-200 text-sm">
                                       {item.name}
                                     </span>
                                     {getTargetStatus(item).message && (
@@ -1033,7 +1038,7 @@ export default function BudgetTable() {
                             <TableCell
                               data-cy="item-activity"
                               data-item={item.name}
-                              className="p-2 text-right align-middle cursor-pointer"
+                              className="p-4 text-right align-middle cursor-pointer font-mono font-medium"
                               onClick={() => {
                                 setInlineEditorCategory((prev) =>
                                   prev === item.name ? null : item.name
@@ -1046,7 +1051,7 @@ export default function BudgetTable() {
                               data-cy="item-available"
                               data-item={item.name}
                               className={cn(
-                                "p-2 text-right align-middle font-mono text-sm font-medium cursor-pointer",
+                                "p-4 text-right align-middle font-mono text-sm font-semibold cursor-pointer",
                                 item.available > 0
                                   ? "text-emerald-600"
                                   : item.available < 0

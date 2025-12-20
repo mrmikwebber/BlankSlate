@@ -41,20 +41,20 @@ export default function KeyboardShortcuts({
           <span className="hidden sm:inline">Shortcuts</span>
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
         <DialogHeader>
-          <DialogTitle>Keyboard Shortcuts</DialogTitle>
+          <DialogTitle className="text-slate-900 dark:text-slate-100">Keyboard Shortcuts</DialogTitle>
         </DialogHeader>
         <div className="space-y-3 mt-4">
           {shortcuts.map((shortcut, idx) => (
             <div
               key={idx}
-              className="flex items-start gap-3 pb-2 border-b border-slate-200 last:border-b-0"
+              className="flex items-start gap-3 pb-2 border-b border-slate-200 dark:border-slate-700 last:border-b-0"
             >
-              <kbd className="bg-slate-200 text-slate-800 px-2 py-1 rounded text-sm font-semibold whitespace-nowrap">
+              <kbd className="bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-100 px-2 py-1 rounded text-sm font-semibold whitespace-nowrap">
                 {shortcut.key}
               </kbd>
-              <span className="text-sm text-slate-600">{shortcut.description}</span>
+              <span className="text-sm text-slate-600 dark:text-slate-300">{shortcut.description}</span>
             </div>
           ))}
         </div>

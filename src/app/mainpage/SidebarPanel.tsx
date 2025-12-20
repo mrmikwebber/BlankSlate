@@ -121,7 +121,12 @@ export default function SidebarPanel() {
   }, []);
 
   return (
-    <aside className="space-y-4 max-h-[calc(100vh-160px)] overflow-y-auto w-full text-sm">
+    <aside className="space-y-4 max-h-[calc(100vh-160px)] overflow-y-auto w-full text-sm" style={
+      {
+        scrollbarWidth: 'thin',
+        scrollbarColor: 'rgb(148, 163, 184) rgb(15, 23, 42)'
+      }
+    }>
       {/* Accounts card */}
       <Card className="shadow-sm">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
@@ -134,7 +139,7 @@ export default function SidebarPanel() {
           <Button
             size="sm"
             onClick={() => setShowModal(true)}
-            className="gap-1"
+            className="gap-1 bg-teal-600 hover:bg-teal-700 text-white dark:bg-teal-700 dark:hover:bg-teal-600"
           >
             <Plus className="h-4 w-4" />
             Add

@@ -104,20 +104,20 @@ export default function InlineTargetEditor({
   return (
     <TableRow
       data-cy="inline-target-editor"
-      className="bg-slate-100 border-t border-slate-300"
+      className="bg-slate-100 dark:bg-slate-800 border-t border-slate-300 dark:border-slate-700"
     >
       <TableCell colSpan={4} className="px-4 py-3">
-        <div className="rounded-md border border-slate-300 bg-white px-3 py-2 shadow-sm space-y-3 text-xs sm:text-sm">
+        <div className="rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 shadow-sm dark:shadow-md space-y-3 text-xs sm:text-sm">
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
-              <label className="mb-1 block text-xs font-medium text-slate-700">
+              <label className="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">
                 Target type
               </label>
               <select
                 data-cy="target-type-select"
                 value={targetType}
                 onChange={(e) => setTargetType(e.target.value)}
-                className="w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-xs sm:text-sm"
+                className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1 text-xs sm:text-sm text-slate-900 dark:text-slate-100"
               >
                 <option value="monthly">Monthly</option>
                 <option value="Weekly">Weekly</option>
@@ -128,7 +128,7 @@ export default function InlineTargetEditor({
 
             {(targetType === "Custom" || targetType === "Full Payoff") && (
               <div>
-                <label className="mb-1 block text-xs font-medium text-slate-700">
+                <label className="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">
                   Target date
                 </label>
                 <input
@@ -136,7 +136,7 @@ export default function InlineTargetEditor({
                   type="date"
                   value={customTargetDate}
                   onChange={(e) => setCustomTargetDate(e.target.value)}
-                  className="w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-xs sm:text-sm"
+                  className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1 text-xs sm:text-sm text-slate-900 dark:text-slate-100"
                 />
               </div>
             )}
@@ -144,7 +144,7 @@ export default function InlineTargetEditor({
 
           {targetType !== "Full Payoff" && (
             <div className="sm:max-w-xs">
-              <label className="mb-1 block text-xs font-medium text-slate-700">
+              <label className="mb-1 block text-xs font-medium text-slate-700 dark:text-slate-300">
                 Target amount
               </label>
               <Input
@@ -160,7 +160,7 @@ export default function InlineTargetEditor({
           <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
             <span
               data-cy="target-amount-needed"
-              className="text-xs sm:text-sm text-muted-foreground"
+              className="text-xs sm:text-sm text-muted-foreground dark:text-slate-400"
             >
               Amount needed: {formatToUSD(calculateNeededAmount())}
             </span>

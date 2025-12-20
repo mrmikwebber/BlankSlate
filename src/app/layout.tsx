@@ -7,6 +7,7 @@ import { AccountProvider } from "./context/AccountContext";
 import { BudgetProvider } from "./context/BudgetContext";
 import { AuthProvider } from "./context/AuthContext";
 import { UndoRedoProvider } from "./context/UndoRedoContext";
+import { DarkModeProvider } from "./context/DarkModeContext";
 import AuthListener from "./auth/AuthListener";
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -32,14 +33,16 @@ export default function RootLayout({
       >
         <AuthListener />
         <SpeedInsights />
-        <AuthProvider>
-          <UndoRedoProvider>
-            <Navbar />
-            <AccountProvider>
-              <BudgetProvider>{children}</BudgetProvider>
-            </AccountProvider>
-          </UndoRedoProvider>
-        </AuthProvider>
+        <DarkModeProvider>
+          <AuthProvider>
+            <UndoRedoProvider>
+              <Navbar />
+              <AccountProvider>
+                <BudgetProvider>{children}</BudgetProvider>
+              </AccountProvider>
+            </UndoRedoProvider>
+          </AuthProvider>
+        </DarkModeProvider>
       </body>
     </html>
   );

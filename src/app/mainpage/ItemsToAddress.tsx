@@ -36,9 +36,9 @@ export default function ItemsToAddress({
   );
 
   return (
-    <div className="bg-white rounded-md p-4 shadow-sm space-y-1">
-      <h3 className="text-sm font-semibold">Items to Address</h3>
-      <ul className="text-sm text-gray-700 list-disc list-inside space-y-1">
+    <div className="bg-white dark:bg-slate-900 rounded-md p-4 shadow-sm dark:shadow-md space-y-1">
+      <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Items to Address</h3>
+      <ul className="text-sm text-gray-700 dark:text-slate-300 list-disc list-inside space-y-1">
         {unassignedAmount > 0 && (
           <li>{`$${unassignedAmount.toFixed(2)} remains unassigned`}</li>
         )}
@@ -63,7 +63,7 @@ export default function ItemsToAddress({
           overspentCategories.length === 0 &&
           creditCardsNeedingPayment.length === 0 &&
           unfundedTargets.length === 0 && (
-            <li className="text-green-600">Everything looks good 🎉</li>
+            <li className="text-green-600 dark:text-green-400">Everything looks good 🎉</li>
           )}
       </ul>
     </div>

@@ -587,11 +587,11 @@ export default function InlineTransactionRow({
         isEdit ? "transaction-form-row-edit" : "transaction-form-row-add"
       }
       data-mode={isEdit ? "edit" : "add"}
-      className="bg-teal-50/30 hover:bg-teal-50/50 transition-colors duration-150 border-b border-slate-200"
+      className="bg-teal-50/30 dark:bg-teal-950/30 hover:bg-teal-50/50 dark:hover:bg-teal-950/50 transition-colors duration-150 border-b border-slate-200 dark:border-slate-700"
     >
       {/* Empty checkbox cell to match the checkbox column */}
-      <td className="px-2 py-2 border-r border-slate-200"></td>
-      <td className="px-4 py-2 border-r border-slate-200">
+      <td className="px-2 py-2 border-r border-slate-200 dark:border-slate-700"></td>
+      <td className="px-4 py-2 border-r border-slate-200 dark:border-slate-700">
         <Input
           ref={dateRef}
           data-cy="tx-date-input"
@@ -599,7 +599,7 @@ export default function InlineTransactionRow({
           value={date}
           onChange={(e) => setDate(e.target.value)}
           onKeyDown={handleKeyDown}
-          className="h-9"
+          className="h-9 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100 focus-visible:ring-teal-500 dark:focus-visible:ring-teal-600"
         />
       </td>
 
@@ -610,7 +610,7 @@ export default function InlineTransactionRow({
             data-cy="tx-payee-select"
             type="text"
             placeholder="Select or type payee..."
-            className="h-9"
+            className="h-9 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100 dark:placeholder-slate-500 focus-visible:ring-teal-500 dark:focus-visible:ring-teal-600"
             value={payeeInput}
             onChange={(e) => {
               setPayeeInput(e.target.value);
@@ -682,7 +682,7 @@ export default function InlineTransactionRow({
           />
           {payeeDropdownOpen && (
             <div
-              className="fixed z-[9999] bg-white border border-slate-300 rounded-lg shadow-xl max-h-60 overflow-y-auto"
+              className="fixed z-[9999] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg shadow-xl dark:shadow-2xl max-h-60 overflow-y-auto"
               data-cy="payee-dropdown"
               style={{
                 top: `${payeeDropdownPos.top}px`,
@@ -693,7 +693,7 @@ export default function InlineTransactionRow({
             >
               {payeeSuggestions.length === 0 ? (
                 <div
-                  className="px-3 py-2 hover:bg-teal-50 cursor-pointer text-sm text-slate-700"
+                  className="px-3 py-2 hover:bg-teal-50 dark:hover:bg-teal-950 cursor-pointer text-sm text-slate-700 dark:text-slate-300"
                   onClick={() => {
                     setTransferPayee(payeeInput);
                     setSelectedPayeeAccountName(null);
@@ -707,7 +707,7 @@ export default function InlineTransactionRow({
                   {transferTargets.some(t => 
                     payeeSuggestions.some(s => s.type === "account" && s.accountName === t.name)
                   ) && (
-                    <div className="px-3 py-1.5 text-xs font-semibold text-slate-600 bg-slate-50 border-b border-slate-200">
+                    <div className="px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
                       Payments & Transfers
                     </div>
                   )}
@@ -716,7 +716,7 @@ export default function InlineTransactionRow({
                     .map((suggestion) => (
                       <div
                         key={suggestion.accountName}
-                        className="px-3 py-2 hover:bg-teal-50 cursor-pointer text-sm text-slate-700"
+                        className="px-3 py-2 hover:bg-teal-50 dark:hover:bg-teal-950 cursor-pointer text-sm text-slate-700 dark:text-slate-300"
                         onClick={() => {
                           setIsTypingPayee(false);
                           setTransferPayee(suggestion.accountName!);
@@ -740,7 +740,7 @@ export default function InlineTransactionRow({
                       </div>
                     ))}
                   {payeeSuggestions.some((s) => s.type === "payee") && (
-                    <div className="px-3 py-1.5 text-xs font-semibold text-slate-600 bg-slate-50 border-b border-slate-200">
+                    <div className="px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
                       Saved Payees
                     </div>
                   )}
@@ -749,7 +749,7 @@ export default function InlineTransactionRow({
                     .map((suggestion) => (
                       <div
                         key={suggestion.label}
-                        className="px-3 py-2 hover:bg-teal-50 cursor-pointer text-sm text-slate-700"
+                        className="px-3 py-2 hover:bg-teal-50 dark:hover:bg-teal-950 cursor-pointer text-sm text-slate-700 dark:text-slate-300"
                         onClick={() => {
                           setIsTypingPayee(false);
                           setTransferPayee(suggestion.label);
@@ -766,7 +766,7 @@ export default function InlineTransactionRow({
                     ))}
                   {payeeInput && (
                     <div
-                      className="px-3 py-2 hover:bg-teal-50 cursor-pointer text-sm border-t border-slate-200 text-teal-600 font-medium"
+                      className="px-3 py-2 hover:bg-teal-50 dark:hover:bg-teal-950 cursor-pointer text-sm border-t border-slate-200 dark:border-slate-700 text-teal-600 dark:text-teal-400 font-medium"
                       onClick={() => {
                         setTransferPayee(payeeInput);
                         setSelectedPayeeAccountName(null);
@@ -783,7 +783,7 @@ export default function InlineTransactionRow({
         </div>
       </td>
 
-      <td className="px-4 py-2 border-r border-slate-200 relative overflow-visible">
+      <td className="px-4 py-2 border-r border-slate-200 dark:border-slate-700 relative overflow-visible">
         {/* Hidden group value for tests / debugging */}
         <input
           type="hidden"
@@ -810,7 +810,7 @@ export default function InlineTransactionRow({
             {/* Choose existing group or 'Add New Category Group...' */}
             <select
               data-cy="tx-category-group-select"
-              className="w-full px-2 py-1.5 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent bg-white"
+              className="w-full px-2 py-1.5 border border-slate-300 dark:border-slate-700 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-transparent bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
               value={
                 newCategoryGroupIsNew
                   ? "__new_group__"
@@ -858,7 +858,7 @@ export default function InlineTransactionRow({
             {/* Tiny cancel back to normal dropdown */}
             <button
               type="button"
-              className="self-start text-xs text-slate-500 hover:text-teal-600 transition-colors"
+              className="self-start text-xs text-slate-500 dark:text-slate-400 hover:text-teal-600 dark:hover:text-teal-400 transition-colors"
               onClick={() => {
                 setNewCategoryMode(false);
                 setNewCategoryName("");
@@ -876,7 +876,7 @@ export default function InlineTransactionRow({
               data-cy="tx-item-select"
               type="text"
               placeholder="Select or type category..."
-              className="h-9"
+              className="h-9 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100 dark:placeholder-slate-500 focus-visible:ring-teal-500 dark:focus-visible:ring-teal-600"
               value={categoryInput}
               onChange={(e) => {
                 setCategoryInput(e.target.value);
@@ -957,7 +957,7 @@ export default function InlineTransactionRow({
             />
             {categoryDropdownOpen && !sameTypeTransfer && (
               <div
-                className="fixed z-[9999] bg-white border border-slate-300 rounded-lg shadow-xl max-h-60 overflow-y-auto"
+                className="fixed z-[9999] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg shadow-xl dark:shadow-2xl max-h-60 overflow-y-auto"
                 data-cy="category-dropdown"
                 style={{
                   top: `${categoryDropdownPos.top}px`,
@@ -968,7 +968,7 @@ export default function InlineTransactionRow({
               >
                 {categorySuggestions.length === 0 && !categoryInput.toLowerCase().includes("ready to assign") ? (
                   <div
-                    className="px-3 py-2 hover:bg-teal-50 cursor-pointer text-sm text-teal-600 font-medium"
+                    className="px-3 py-2 hover:bg-teal-50 dark:hover:bg-teal-950 cursor-pointer text-sm text-teal-600 dark:text-teal-400 font-medium"
                     onClick={() => {
                       setNewCategoryMode(true);
                       setNewCategoryName(categoryInput);
@@ -981,7 +981,7 @@ export default function InlineTransactionRow({
                   <>
                     {(categoryInput === "" || "ready to assign".includes(categoryInput.toLowerCase())) && (
                       <div
-                        className="px-3 py-2 hover:bg-teal-50 cursor-pointer text-sm font-semibold text-slate-700"
+                        className="px-3 py-2 hover:bg-teal-50 dark:hover:bg-teal-950 cursor-pointer text-sm font-semibold text-slate-700 dark:text-slate-300"
                         onClick={() => {
                           setSelectedGroup("Ready to Assign");
                           setSelectedItem("");
@@ -998,12 +998,12 @@ export default function InlineTransactionRow({
                       return (
                         <div key={`${suggestion.groupName}::${suggestion.itemName}`}>
                           {showHeader && (
-                            <div className="px-3 py-1.5 text-xs font-semibold text-slate-600 bg-slate-50 border-b border-slate-200">
+                            <div className="px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
                               {suggestion.groupName}
                             </div>
                           )}
                           <div
-                            className="px-3 py-2 hover:bg-teal-50 cursor-pointer text-sm pl-6 text-slate-700"
+                            className="px-3 py-2 hover:bg-teal-50 dark:hover:bg-teal-950 cursor-pointer text-sm pl-6 text-slate-700 dark:text-slate-300"
                             onClick={() => {
                               setIsTypingCategory(false);
                               setSelectedGroup(suggestion.groupName);
@@ -1036,7 +1036,7 @@ export default function InlineTransactionRow({
                     })}
                     {categoryInput && (
                       <div
-                        className="px-3 py-2 hover:bg-teal-50 cursor-pointer text-sm border-t border-slate-200 text-teal-600 font-medium"
+                        className="px-3 py-2 hover:bg-teal-50 dark:hover:bg-teal-950 cursor-pointer text-sm border-t border-slate-200 dark:border-slate-700 text-teal-600 dark:text-teal-400 font-medium"
                         onClick={() => {
                           setNewCategoryMode(true);
                           setNewCategoryName(categoryInput);
@@ -1055,7 +1055,7 @@ export default function InlineTransactionRow({
       </td>
 
 
-      <td className="px-4 py-2">
+      <td className="px-4 py-2 border-r border-slate-200 dark:border-slate-700">
         <div className="flex items-center gap-2">
           <Button
             data-cy="tx-sign-toggle"
@@ -1065,8 +1065,8 @@ export default function InlineTransactionRow({
             size="icon"
             onClick={() => setIsNegative((prev) => !prev)}
             className={`h-9 w-9 ${isNegative
-              ? "text-red-600 border-red-300 hover:bg-red-50 hover:text-red-700"
-              : "text-green-600 border-green-300 hover:bg-green-50 hover:text-green-700"
+              ? "text-red-600 dark:text-red-400 border-red-300 dark:border-red-700 hover:bg-red-50 dark:hover:bg-red-950 hover:text-red-700 dark:hover:text-red-300"
+              : "text-green-600 dark:text-green-400 border-green-300 dark:border-green-700 hover:bg-green-50 dark:hover:bg-green-950 hover:text-green-700 dark:hover:text-green-300"
               }`}
             aria-pressed={isNegative}
             aria-label={isNegative ? "Outflow" : "Inflow"}
@@ -1078,7 +1078,7 @@ export default function InlineTransactionRow({
             ref={amountInputRef}
             data-cy="tx-amount-input"
             type="number"
-            className="h-9 text-right font-mono"
+            className="h-9 text-right font-mono dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100 dark:placeholder-slate-500 focus-visible:ring-teal-500 dark:focus-visible:ring-teal-600"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             onKeyDown={handleKeyDown}
