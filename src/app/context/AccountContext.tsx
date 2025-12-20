@@ -170,10 +170,10 @@ const upsertPayee = async (name: string) => {
     }
   };
 
-  const normalizeAccount = (raw: any): Account => {
+  const normalizeAccount = (raw: { transactions?: Array<{ balance?: number }> } & Partial<Account>): Account => {
     const txs = raw.transactions ?? [];
     const computedBalance = txs.reduce(
-      (sum: number, tx: any) => sum + (tx.balance ?? 0),
+      (sum: number, tx) => sum + (tx.balance ?? 0),
       0
     );
 

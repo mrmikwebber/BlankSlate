@@ -26,13 +26,6 @@ export default function AuthPage() {
     checkSession();
   }, []);
 
-  useEffect(() => {
-    const debugSession = async () => {
-      const { data } = await supabase.auth.getSession();
-    };
-    debugSession();
-  }, []);
-
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");

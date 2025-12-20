@@ -434,7 +434,7 @@ export function updateMonthPure(
             : Math.max(pastAssigned + pastActivity, 0);
 
           // ⬇️ copy your existing target logic, unchanged
-          let newTarget = item.target;
+          const newTarget = item.target;
           const previousItem = prev[previousMonth]?.categories
             ?.find((cat) => cat.name === category.name)
             ?.categoryItems.find((i) => i.name === item.name);
@@ -560,7 +560,7 @@ export function updateMonthPure(
                 ?.available || 0
             : Math.max(pastAssigned + pastActivity, 0);
 
-          let newTarget = item.target;
+          const newTarget = item.target;
           const previousItem = prev[previousMonth]?.categories
             ?.find((cat) => cat.name === category.name)
             ?.categoryItems.find((i) => i.name === item.name);

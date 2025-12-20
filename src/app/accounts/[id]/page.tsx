@@ -1,6 +1,5 @@
 import AccountDetails from "@/app/mainpage/AccountDetails";
 import ActivitySidebar from "@/app/mainpage/ActivitySidebar";
-import { Activity } from "lucide-react";
 
 export default function AccountPage() {
   return (

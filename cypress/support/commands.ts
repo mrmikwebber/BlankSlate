@@ -205,6 +205,9 @@ Cypress.Commands.add(
     // Set payee
     cy.selectPayee(payee);
 
+    // Extract item name from category
+    const [, itemName] = category.split('::');
+
     // Begin new category creation
     cy.startCategoryCreation(itemName);
 
@@ -221,7 +224,6 @@ Cypress.Commands.add(
     }
 
     // Type the category name
-    const [, itemName] = category.split('::');
     cy.get('[data-cy=tx-new-category-input]').type(itemName);
 
     // Set sign

@@ -18,7 +18,7 @@ import {
 } from "date-fns";
 import { useAuth } from "./AuthContext";
 import { supabase } from "@/utils/supabaseClient";
-import { Account, useAccountContext } from "./AccountContext";
+import { useAccountContext } from "./AccountContext";
 
 const getPreviousMonth = (month: string) => {
   return format(subMonths(parseISO(`${month}-01`), 1), "yyyy-MM");
@@ -157,7 +157,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
           } = entryRaw as {
             month: string;
             data: { categories: Category[] };
-            [key: string]: any;
+            [key: string]: unknown;
           };
 
           formatted[month] = {
