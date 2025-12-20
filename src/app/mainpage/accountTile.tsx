@@ -32,6 +32,18 @@ export default function AccountTile({ account: initialAccount }) {
     setShowConfirm(false);
   };
 
+  useEffect(() => {
+    const handleEscape = (e) => {
+      if (e.key === "Escape" && showConfirm) {
+        cancelDelete();
+      }
+    };
+    if (showConfirm) {
+      window.addEventListener("keydown", handleEscape);
+    }
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [showConfirm]);
+
   return (
     <div
       onClick={openAccount}

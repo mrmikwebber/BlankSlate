@@ -153,8 +153,20 @@ export default function BudgetTable() {
       setGroupContext(null);
       setCategoryContext(null);
     };
+    
+    const handleEscape = (e) => {
+      if (e.key === "Escape") {
+        closeMenu();
+        setCategoryDeleteContext(null);
+      }
+    };
+    
     window.addEventListener("click", closeMenu);
-    return () => window.removeEventListener("click", closeMenu);
+    window.addEventListener("keydown", handleEscape);
+    return () => {
+      window.removeEventListener("click", closeMenu);
+      window.removeEventListener("keydown", handleEscape);
+    };
   }, []);
 
   const filteredCategories = useMemo(() => {
@@ -355,8 +367,14 @@ export default function BudgetTable() {
       {/* Category delete / reassign modal */}
       {categoryDeleteContext &&
         createPortal(
-          <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center">
-            <div className="bg-white p-5 rounded-lg shadow-lg w-full max-w-md space-y-4">
+          <div 
+            className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center"
+            onClick={() => setCategoryDeleteContext(null)}
+          >
+            <div 
+              className="bg-white p-5 rounded-lg shadow-lg w-full max-w-md space-y-4"
+              onClick={(e) => e.stopPropagation()}
+            >
               <h2 className="text-base font-semibold">
                 Delete “{categoryDeleteContext.itemName}”?
               </h2>

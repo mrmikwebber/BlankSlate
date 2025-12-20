@@ -27,6 +27,10 @@ export default function AccountDetails() {
     txId: number;
     accountId: number;
   } | null>(null);
+  const [bulkContextMenu, setBulkContextMenu] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
 
   const [editingTransactionId, setEditingTransactionId] = useState<
     number | null
@@ -35,6 +39,7 @@ export default function AccountDetails() {
   const [isEditingAccountName, setIsEditingAccountName] = useState(false);
   const [newAccountName, setNewAccountName] = useState<string | undefined>();
   const [selectedTxId, setSelectedTxId] = useState<number | null>(null);
+  const [selectedTxIds, setSelectedTxIds] = useState<Set<number>>(new Set());
 
   const account = accounts.find((acc) => acc.id.toString() === id);
   const accountBalance =
@@ -46,11 +51,24 @@ export default function AccountDetails() {
     }
   }, [account, newAccountName]);
 
-  // Close context menu on click
+  // Close context menu on click and Escape key
   useEffect(() => {
-    const handleClick = () => setContextMenu(null);
+    const handleClick = () => {
+      setContextMenu(null);
+      setBulkContextMenu(null);
+    };
+    const handleEscape = (e) => {
+      if (e.key === "Escape") {
+        setContextMenu(null);
+        setBulkContextMenu(null);
+      }
+    };
     window.addEventListener("click", handleClick);
-    return () => window.removeEventListener("click", handleClick);
+    window.addEventListener("keydown", handleEscape);
+    return () => {
+      window.removeEventListener("click", handleClick);
+      window.removeEventListener("keydown", handleEscape);
+    };
   }, []);
 
   const startEdit = (tx: any) => {
@@ -63,6 +81,43 @@ export default function AccountDetails() {
     if (!account || !newAccountName) return;
     await editAccountName(account.id, newAccountName);
     setIsEditingAccountName(false);
+  };
+
+  const handleBulkDelete = async () => {
+    if (!account || selectedTxIds.size === 0) return;
+    
+    // Delete all selected transactions
+    for (const txId of selectedTxIds) {
+      await deleteTransactionWithMirror(account.id, txId);
+    }
+    
+    // Clear selection
+    setSelectedTxIds(new Set());
+    setBulkContextMenu(null);
+  };
+
+  const toggleTransactionSelection = (txId: number, e?: React.MouseEvent) => {
+    if (e) {
+      e.stopPropagation();
+    }
+    setSelectedTxIds((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(txId)) {
+        newSet.delete(txId);
+      } else {
+        newSet.add(txId);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (!account) return;
+    if (selectedTxIds.size === account.transactions.length) {
+      setSelectedTxIds(new Set());
+    } else {
+      setSelectedTxIds(new Set(account.transactions.map(tx => tx.id)));
+    }
   };
 
   // Keyboard shortcuts
@@ -104,6 +159,12 @@ export default function AccountDetails() {
         e.preventDefault();
         deleteTransactionWithMirror(account.id, selectedTxId);
         setSelectedTxId(null);
+        // Remove from bulk selection too if present
+        setSelectedTxIds((prev) => {
+          const newSet = new Set(prev);
+          newSet.delete(selectedTxId);
+          return newSet;
+        });
         return;
       }
 
@@ -263,7 +324,14 @@ export default function AccountDetails() {
 
       {/* Transactions header + add button */}
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold text-slate-800">Transactions</h2>
+        <div className="flex items-center gap-4">
+          <h2 className="text-lg font-semibold text-slate-800">Transactions</h2>
+          {selectedTxIds.size > 0 && (
+            <span className="text-sm text-blue-600 font-medium">
+              {selectedTxIds.size} selected
+            </span>
+          )}
+        </div>
         {!showForm && !editingTransactionId && (
           <Button
             data-cy="add-transaction-button"
@@ -281,6 +349,14 @@ export default function AccountDetails() {
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-slate-50 text-slate-600 text-xs font-semibold border-b border-slate-300">
+              <th className="px-2 py-3 text-center border-r border-slate-200 w-10">
+                <input
+                  type="checkbox"
+                  checked={account.transactions.length > 0 && selectedTxIds.size === account.transactions.length}
+                  onChange={toggleSelectAll}
+                  className="cursor-pointer"
+                />
+              </th>
               <th className="px-4 py-3 text-left border-r border-slate-200">Date</th>
               <th className="px-4 py-3 text-left border-r border-slate-200">Payee</th>
               <th className="px-4 py-3 text-left border-r border-slate-200">Category</th>
@@ -329,20 +405,44 @@ export default function AccountDetails() {
                     } ${selectedTxId === tx.id
                       ? "ring-2 ring-teal-500 ring-inset bg-teal-50"
                       : "hover:bg-slate-100"
-                    }`}
+                    } ${selectedTxIds.has(tx.id) ? "bg-blue-50" : ""}`}
                   onClick={() => setSelectedTxId(tx.id)}
                   onDoubleClick={() => startEdit(tx)}
                   onContextMenu={(e) => {
                     e.preventDefault();
                     setSelectedTxId(tx.id);
-                    setContextMenu({
-                      x: e.clientX,
-                      y: e.clientY,
-                      txId: tx.id,
-                      accountId: account.id,
-                    });
+                    
+                    // Show bulk context menu if multiple transactions are selected
+                    if (selectedTxIds.size > 0) {
+                      setBulkContextMenu({
+                        x: e.clientX,
+                        y: e.clientY,
+                      });
+                    } else {
+                      setContextMenu({
+                        x: e.clientX,
+                        y: e.clientY,
+                        txId: tx.id,
+                        accountId: account.id,
+                      });
+                    }
                   }}
                 >
+                  <td 
+                    className="px-2 py-3 text-center border-r border-slate-200"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleTransactionSelection(tx.id);
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedTxIds.has(tx.id)}
+                      onChange={() => toggleTransactionSelection(tx.id)}
+                      className="cursor-pointer"
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  </td>
                   <td className="px-4 py-3 whitespace-nowrap border-r border-slate-200 text-slate-700">
                     {tx.date &&
                       format(parseISO(tx.date), "MMM d, yyyy")}
@@ -373,6 +473,23 @@ export default function AccountDetails() {
           </tbody>
         </table>
       </div>
+
+      {/* Bulk delete context menu */}
+      {bulkContextMenu && selectedTxIds.size > 0 && (
+        <div
+          className="fixed z-50 bg-white border border-slate-200 rounded-md shadow-lg py-1 min-w-[180px]"
+          style={{ top: bulkContextMenu.y, left: bulkContextMenu.x }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            className="w-full px-4 py-2 text-left text-sm hover:bg-red-50 flex items-center gap-2 text-red-600"
+            onClick={handleBulkDelete}
+          >
+            <Trash2 className="h-4 w-4" />
+            Delete {selectedTxIds.size} Transaction{selectedTxIds.size !== 1 ? 's' : ''}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
