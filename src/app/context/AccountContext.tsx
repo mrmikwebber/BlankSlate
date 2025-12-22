@@ -175,7 +175,6 @@ const upsertPayee = async (name: string) => {
     registerAction({
       description: `Added transaction ${transaction.payee} ($${transaction.balance})`,
       execute: async () => {
-        console.log('🔄 REDO: About to insert transaction', transactionData);
         // Re-insert the transaction for redo
         const { data: redoData, error: insertError } = await supabase.from("transactions").insert([
           {
@@ -186,11 +185,8 @@ const upsertPayee = async (name: string) => {
         ]).select();
 
         if (!insertError && redoData) {
-          console.log('✅ REDO: Inserted transaction with ID', redoData[0].id);
           currentTransactionId = redoData[0].id;
-          console.log('🔄 REDO: About to refresh account', accountId);
           await refreshSingleAccount(accountId);
-          console.log('✅ REDO: Account refreshed');
         } else {
           console.error('❌ REDO: Insert failed', insertError);
         }
@@ -388,7 +384,6 @@ const upsertPayee = async (name: string) => {
   }
 
   const refreshSingleAccount = async (accountId) => {
-    console.log('🔍 refreshSingleAccount: Starting for account', accountId);
     const { data, error } = await supabase
       .from("accounts")
       .select("*, transactions(*)")
@@ -400,12 +395,9 @@ const upsertPayee = async (name: string) => {
       return;
     }
 
-    console.log('📊 refreshSingleAccount: Got data with', data.transactions?.length, 'transactions');
     const updated = normalizeAccount(data);
-    console.log('📊 refreshSingleAccount: Normalized account has', updated.transactions?.length, 'transactions');
 
     setAccounts((prev) => {
-      console.log('🔄 setAccounts: Updating account', accountId);
       return prev.map((acc) => (acc.id === accountId ? updated : acc));
     });
   };
@@ -456,8 +448,6 @@ const upsertPayee = async (name: string) => {
     const account = accounts.find((a) => a.id === accountId);
     const deletedTransaction = account?.transactions.find((t) => t.id === transactionId);
 
-    console.log("🗑️ DELETE: Deleting transaction", transactionId, deletedTransaction?.payee);
-
     const { error } = await supabase
       .from("transactions")
       .delete()
@@ -470,21 +460,17 @@ const upsertPayee = async (name: string) => {
     if (error) {
       console.error("Failed to delete transaction:", error);
     } else {
-      console.log("✅ DELETE: Successfully deleted transaction", transactionId);
       await refreshSingleAccount(accountId);
 
       if (skipUndo) {
-        console.log("⚠️ DELETE: skipUndo is true, not registering action");
         return;
       }
 
-      console.log("📝 DELETE: About to register undo action");
       let currentTransactionId = transactionId;
 
       registerAction({
         description: `Deleted transaction ${deletedTransaction?.payee} ($${deletedTransaction?.balance})`,
         execute: async () => {
-          console.log("🔄 REDO DELETE: About to delete transaction", currentTransactionId);
           // Re-delete the transaction for redo
           const { error: deleteError } = await supabase
             .from("transactions")
@@ -492,18 +478,15 @@ const upsertPayee = async (name: string) => {
             .eq("id", currentTransactionId);
 
           if (!deleteError) {
-            console.log("✅ REDO DELETE: Successfully deleted", currentTransactionId);
             await refreshSingleAccount(accountId);
           } else {
             console.error("❌ REDO DELETE: Failed", deleteError);
           }
         },
         undo: async () => {
-          console.log("⏪ UNDO DELETE: About to restore transaction", deletedTransaction?.payee, "old ID:", currentTransactionId);
           if (deletedTransaction) {
             // Omit database-generated fields
             const { id, created_at, updated_at, ...transactionData } = deletedTransaction as any;
-            console.log("Transaction data to restore:", transactionData);
             const { data: restoreData, error: insertError } = await supabase.from("transactions").insert([
               {
                 date: deletedTransaction.date,
@@ -518,7 +501,6 @@ const upsertPayee = async (name: string) => {
 
             if (!insertError && restoreData) {
               currentTransactionId = restoreData[0].id;
-              console.log("✅ UNDO DELETE: Restored with new ID", currentTransactionId);
               await refreshSingleAccount(accountId);
             } else {
               console.error("❌ UNDO DELETE: Failed", insertError);

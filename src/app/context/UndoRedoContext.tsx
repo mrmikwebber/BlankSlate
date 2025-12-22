@@ -34,26 +34,20 @@ export const UndoRedoProvider = ({ children }: { children: React.ReactNode }) =>
       ...action,
     };
 
-    console.log("📝 REGISTER ACTION:", fullAction.description);
     
     // When a new action is registered, clear the redo stack
     setRedoStack([]);
     setUndoStack((prev) => {
       const newStack = [...prev, fullAction];
-      console.log("📚 Undo stack now has", newStack.length, "actions");
       return newStack;
     });
   }, []);
 
   const undo = useCallback(async () => {
-    console.log("⏪ UNDO called, stack size:", undoStack.length);
     const action = undoStack[undoStack.length - 1];
     if (!action) {
-      console.log("❌ No action to undo");
       return;
     }
-
-    console.log("⏪ Undoing:", action.description);
 
     // Remove from undo stack and add to redo stack FIRST
     setUndoStack((prev) => prev.slice(0, -1));
@@ -62,21 +56,16 @@ export const UndoRedoProvider = ({ children }: { children: React.ReactNode }) =>
     // THEN execute the undo (outside of setState)
     try {
       await action.undo();
-      console.log("✅ Undo completed");
     } catch (err) {
       console.error("Undo failed:", err);
     }
   }, [undoStack]);
 
   const redo = useCallback(async () => {
-    console.log("🔄 REDO called, stack size:", redoStack.length);
     const action = redoStack[redoStack.length - 1];
     if (!action) {
-      console.log("❌ No action to redo");
       return;
     }
-
-    console.log("🔄 Redoing:", action.description);
 
     // Remove from redo stack and add to undo stack FIRST
     setRedoStack((prev) => prev.slice(0, -1));
@@ -85,7 +74,6 @@ export const UndoRedoProvider = ({ children }: { children: React.ReactNode }) =>
     // THEN execute the redo (outside of setState)
     try {
       await action.execute();
-      console.log("✅ Redo completed");
     } catch (err) {
       console.error("Redo failed:", err);
     }

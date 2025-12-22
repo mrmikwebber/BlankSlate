@@ -765,11 +765,9 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const deleteCategoryGroup = (groupName: string) => {
-    console.log("🗑️ DELETE GROUP: Deleting group", groupName);
     
     // Capture previous state for undo BEFORE any changes
     const previousData = JSON.parse(JSON.stringify(budgetData));
-    console.log("📸 Previous data captured:", previousData);
     
     // Create the new state (don't rely on setBudgetData callback)
     const updatedData = { ...budgetData };
@@ -785,12 +783,10 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
 
     // Update state with the new data
     setBudgetData(updatedData);
-    console.log("✅ DELETE GROUP: State updated");
 
     registerAction({
       description: `Deleted group '${groupName}'`,
       execute: async () => {
-        console.log("🔄 REDO DELETE GROUP:", groupName);
         // Re-delete the group for redo
         setBudgetData((prev) => {
           const updated = { ...prev };
@@ -809,8 +805,6 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
         });
       },
       undo: async () => {
-        console.log("⏪ UNDO DELETE GROUP:", groupName);
-        console.log("Restoring to:", previousData);
         // Restore the previous state
         setBudgetData(previousData);
       },

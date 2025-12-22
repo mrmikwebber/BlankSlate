@@ -162,14 +162,14 @@ export default function MobileBudgetTab() {
   const cumulativeAvailable = getCumulativeAvailable(currentMonth);
 
   return (
-    <div className="space-y-4 pb-20">
+    <div className="space-y-4 pb-20 text-slate-900 dark:text-slate-200">
       {/* Month Navigation */}
       <MonthNav />
 
       {/* Ready to Assign */}
-      <Card className="shadow-none border border-teal-100 bg-teal-50 text-teal-800">
+      <Card className="shadow-none border border-teal-100 dark:border-teal-800/40 bg-teal-50 dark:bg-teal-900/30 text-teal-800 dark:text-teal-200">
         <CardContent className="py-3">
-          <p className="text-xs font-medium text-teal-700 mb-1">Ready to Assign</p>
+          <p className="text-xs font-medium text-teal-700 dark:text-teal-300 mb-1">Ready to Assign</p>
           <p className="text-2xl font-bold">
             {formatToUSD(cumulativeAvailable)}
           </p>
@@ -182,19 +182,19 @@ export default function MobileBudgetTab() {
           {/* Group Header */}
           <button
             onClick={() => toggleGroup(group.name)}
-            className="w-full flex items-center justify-between px-4 py-3 rounded-lg bg-slate-100 hover:bg-slate-200 transition-colors font-semibold text-slate-900"
+            className="w-full flex items-center justify-between px-4 py-3 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors font-semibold text-slate-900 dark:text-slate-100"
           >
             <span>{group.name}</span>
             <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-slate-700">
+              <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
                 {formatToUSD(
                   group.categoryItems.reduce((sum, item) => sum + item.assigned, 0)
                 )}
               </span>
               {expandedGroups.has(group.name) ? (
-                <ChevronDown className="w-5 h-5 text-slate-600" />
+                <ChevronDown className="w-5 h-5 text-slate-600 dark:text-slate-300" />
               ) : (
-                <ChevronRight className="w-5 h-5 text-slate-600" />
+                <ChevronRight className="w-5 h-5 text-slate-600 dark:text-slate-300" />
               )}
             </div>
           </button>
@@ -205,7 +205,7 @@ export default function MobileBudgetTab() {
               {group.categoryItems.map((item) => {
                 const status = getTargetStatus(item);
                 return (
-                  <Card key={item.name} className="shadow-none border-slate-200" onClick={() => openItemSheet(group.name, item.name, item.assigned)}>
+                  <Card key={item.name} className="shadow-none border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900" onClick={() => openItemSheet(group.name, item.name, item.assigned)}>
                     <CardContent className="pt-3">
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex-1">
@@ -215,14 +215,14 @@ export default function MobileBudgetTab() {
                           {status && status.type && (
                             <Badge
                               variant={getStatusColor(status.type)}
-                              className="mt-2 text-xs"
+                              className={`mt-2 text-xs ${status.type === 'funded' ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-200' : ''}`}
                             >
                               {status.message}
                             </Badge>
                           )}
                         </div>
                         <div className="text-right ml-3">
-                          <p className="text-xs text-slate-500 mb-1 font-medium">Available</p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mb-1 font-medium">Available</p>
                           <p className={`text-base font-bold ${item.available > 0 ? 'text-teal-600' : 'text-red-600'
                             }`}>
                             {formatToUSD(item.available)}
@@ -231,12 +231,12 @@ export default function MobileBudgetTab() {
                       </div>
 
                       {/* Mini Progress Bar */}
-                      <div className="space-y-2 bg-slate-50 rounded p-2">
-                        <div className="flex justify-between text-xs text-slate-600">
+                      <div className="space-y-2 bg-slate-50 dark:bg-slate-800 rounded p-2">
+                        <div className="flex justify-between text-xs text-slate-600 dark:text-slate-300">
                           <span>Assigned: {formatToUSD(item.assigned)}</span>
                           <span>Activity: {formatToUSD(item.activity)}</span>
                         </div>
-                        <div className="w-full bg-slate-300 rounded-full h-2 overflow-hidden">
+                        <div className="w-full bg-slate-300 dark:bg-slate-700 rounded-full h-2 overflow-hidden">
                           <div
                             className={`h-full rounded-full transition-all ${item.available < 0 ? 'bg-red-500' : 'bg-teal-500'
                               }`}
@@ -256,9 +256,8 @@ export default function MobileBudgetTab() {
 
               {/* Add Category Button */}
               <Button
-                variant="outline"
                 size="sm"
-                className="w-full gap-1.5 border-slate-300 text-slate-800 hover:bg-slate-50"
+                className="w-full gap-1.5 bg-teal-600 dark:bg-teal-700 text-white hover:bg-teal-500 dark:hover:bg-teal-600"
                 onClick={() => {
                   setAddToGroup(group.name);
                   setNewItemName("");
@@ -273,11 +272,11 @@ export default function MobileBudgetTab() {
         </div>
       ))}
       <Dialog open={Boolean(selectedItem)} onOpenChange={(o) => !o && closeItemSheet()}>
-        <DialogContent className="p-0 overflow-hidden max-w-none w-[96vw] sm:max-w-md rounded-2xl">
-          <div className="p-4 border-b bg-white">
+        <DialogContent className="p-0 overflow-hidden max-w-none w-[96vw] sm:max-w-md rounded-2xl bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-200">
+          <div className="p-4 border-b bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
             <DialogHeader>
               <DialogTitle className="text-base">{selectedItem?.itemName}</DialogTitle>
-              <p className="text-xs text-slate-500">{selectedItem?.groupName}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">{selectedItem?.groupName}</p>
             </DialogHeader>
           </div>
 
@@ -287,16 +286,16 @@ export default function MobileBudgetTab() {
             const status = item ? getTargetStatus(item) : null;
 
             return (
-              <div className="p-4 space-y-4 bg-white">
-                <div className="space-y-2">
+              <div className="p-4 space-y-4 bg-white dark:bg-slate-900">
+                    <div className="space-y-2">
                   <div className="flex items-end justify-between">
                     <div>
-                      <p className="text-xs font-medium text-slate-500">Assigned</p>
-                      <p className="text-lg font-semibold text-slate-900">{formatToUSD(item?.assigned ?? 0)}</p>
+                      <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Assigned</p>
+                      <p className="text-lg font-semibold text-slate-900 dark:text-slate-200">{formatToUSD(item?.assigned ?? 0)}</p>
                     </div>
-                    <Button size="sm" variant="outline" onClick={handleAssignedSave}>
-                      Done
-                    </Button>
+                        <Button size="sm" className="bg-teal-600 dark:bg-teal-700 text-white hover:bg-teal-500 dark:hover:bg-teal-600" onClick={handleAssignedSave}>
+                          Done
+                        </Button>
                   </div>
 
                   <Input
@@ -306,15 +305,15 @@ export default function MobileBudgetTab() {
                     className="h-11"
                   />
 
-                  <div className="flex justify-between text-xs text-slate-600">
+                  <div className="flex justify-between text-xs text-slate-600 dark:text-slate-300">
                     <span>Activity: {formatToUSD(item?.activity ?? 0)}</span>
                     <span>Available: {formatToUSD(item?.available ?? 0)}</span>
                   </div>
                 </div>
 
                 {item && (
-                  <div className="rounded-lg border border-slate-200 p-3">
-                    <p className="text-xs font-medium text-slate-500 mb-2">Target</p>
+                  <div className="rounded-lg border border-slate-200 dark:border-slate-800 p-3">
+                    <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2">Target</p>
                     <table className="w-full">
                       <tbody>
                         <InlineTargetEditor
@@ -338,7 +337,7 @@ export default function MobileBudgetTab() {
         </DialogContent>
       </Dialog>
       <Dialog open={Boolean(addToGroup)} onOpenChange={(o) => !o && setAddToGroup(null)}>
-        <DialogContent className="max-w-none w-[96vw] sm:max-w-md rounded-2xl">
+        <DialogContent className="max-w-none w-[96vw] sm:max-w-md rounded-2xl bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-200">
           <DialogHeader>
             <DialogTitle className="text-base">Add category to {addToGroup}</DialogTitle>
           </DialogHeader>
@@ -353,11 +352,11 @@ export default function MobileBudgetTab() {
             />
 
             <div className="flex gap-2">
-              <Button variant="outline" className="flex-1" onClick={() => setAddToGroup(null)}>
+              <Button variant="outline" className="flex-1 dark:border-slate-700" onClick={() => setAddToGroup(null)}>
                 Cancel
               </Button>
               <Button
-                className="flex-1"
+                className="flex-1 bg-teal-600 dark:bg-teal-700 text-white hover:bg-teal-500 dark:hover:bg-teal-600"
                 onClick={() => {
                   if (!addToGroup) return;
                   const name = newItemName.trim();

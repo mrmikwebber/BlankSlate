@@ -24,8 +24,6 @@ export default defineConfig({
             );
           }
 
-          console.log('Resetting database with:', { supabaseUrl: supabaseUrl?.toString?.(), testUserId });
-
           const result = await resetDatabase(supabaseUrl as string, serviceKey as string, testUserId as string);
           return result;
         }

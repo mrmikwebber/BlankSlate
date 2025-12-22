@@ -243,7 +243,6 @@ cy.wait(500);
               .invoke("text")
               .then((rtaText) => {
                 const initialRTA = parseCurrency(rtaText);
-                console.log("Initial RTA:", initialRTA);
                 cy.get(`[data-cy="category-row"][data-category="${groupName}"][data-item="${catSource}"]`).rightclick();
                 cy.get("[data-cy=category-context-menu]")
                   .should("be.visible")

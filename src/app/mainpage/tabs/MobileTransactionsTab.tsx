@@ -325,9 +325,9 @@ export default function MobileTransactionsTab({
 
   if (!displayedTransactions || displayedTransactions.length === 0) {
     return (
-      <div className="space-y-4 pb-24">
+      <div className="space-y-4 pb-24 text-slate-900 dark:text-slate-200">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-sm text-slate-600">
+          <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
             <span>{showingLabel}</span>
             {selectedAccount && (
               <Button
@@ -340,18 +340,18 @@ export default function MobileTransactionsTab({
               </Button>
             )}
           </div>
-          <Button size="sm" onClick={() => setShowForm(true)}>
+          <Button size="sm" className="bg-teal-600 dark:bg-teal-700 text-white hover:bg-teal-500 dark:hover:bg-teal-600" onClick={() => setShowForm(true)}>
             Add transaction
           </Button>
         </div>
 
         {showForm && (
-          <Card className="border-slate-200 shadow-none">
+          <Card className="border border-slate-200 dark:border-slate-700 shadow-none bg-white dark:bg-slate-900">
             <CardContent className="space-y-3 pt-4">
               <div className="flex flex-col gap-2">
-                <label className="text-xs text-slate-600">Account</label>
+                <label className="text-xs text-slate-600 dark:text-slate-300">Account</label>
                 <select
-                  className="text-sm border border-slate-300 rounded px-2 py-2 bg-white"
+                  className="text-sm border border-slate-300 dark:border-slate-700 rounded px-2 py-2 bg-white dark:bg-slate-800 dark:text-slate-200"
                   value={formAccountId != null ? String(formAccountId) : ""}
                   onChange={(e) => setFormAccountId(Number(e.target.value))}
                 >
@@ -363,7 +363,7 @@ export default function MobileTransactionsTab({
                 </select>
               </div>
               <div className="flex flex-col gap-2">
-                <label className="text-xs text-slate-600">Payee</label>
+                <label className="text-xs text-slate-600 dark:text-slate-300">Payee</label>
                 <div className="relative">
                   <Input
                     value={payeeInput}
@@ -377,14 +377,14 @@ export default function MobileTransactionsTab({
                     placeholder="Type or select payee"
                   />
                   {payeeDropdownOpen && (
-                    <div className="absolute z-20 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-52 overflow-y-auto">
+                    <div className="absolute z-20 mt-1 w-full rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-lg max-h-52 overflow-y-auto">
                       {payeeSuggestions
                         .filter((s) => isTypingPayee && payeeInput ? (s?.label || "").toLowerCase().includes(payeeInput.toLowerCase()) : true)
                         .map((s) => (
                           <button
                             key={s.label}
                             type="button"
-                            className="w-full text-left px-3 py-2 text-sm hover:bg-teal-50"
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-teal-50 dark:hover:bg-teal-900/20 text-slate-800 dark:text-slate-200"
                             onMouseDown={(e) => e.preventDefault()}
                             onClick={() => {
                               setIsTypingPayee(false);
@@ -416,7 +416,7 @@ export default function MobileTransactionsTab({
                         ) && (
                           <button
                             type="button"
-                            className="w-full text-left px-3 py-2 text-sm text-teal-700 font-medium border-t border-slate-200 hover:bg-teal-50"
+                            className="w-full text-left px-3 py-2 text-sm text-teal-700 dark:text-teal-300 font-medium border-t border-slate-200 dark:border-slate-700 hover:bg-teal-50 dark:hover:bg-teal-900/20"
                             onMouseDown={(e) => e.preventDefault()}
                             onClick={() => {
                               setSelectedPayeeAccountName(null);
@@ -432,7 +432,7 @@ export default function MobileTransactionsTab({
                 </div>
               </div>
               <div className="flex flex-col gap-2">
-                <label className="text-xs text-slate-600">Category</label>
+                <label className="text-xs text-slate-600 dark:text-slate-300">Category</label>
                 <div className="relative">
                   <Input
                     value={categoryInput}
@@ -455,14 +455,14 @@ export default function MobileTransactionsTab({
                     disabled={isCheckingTransfer}
                   />
                   {categoryDropdownOpen && (
-                    <div className="absolute z-20 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-52 overflow-y-auto">
+                    <div className="absolute z-20 mt-1 w-full rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-lg max-h-52 overflow-y-auto">
                       {categoryOptions
                         .filter((opt) => isTypingCategory && categoryInput ? (opt?.label || "").toLowerCase().includes(categoryInput.toLowerCase()) : true)
                         .map((opt) => (
                         <button
                           key={opt.value}
                           type="button"
-                          className="w-full text-left px-3 py-2 text-sm hover:bg-teal-50"
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-teal-50 dark:hover:bg-teal-900/20 text-slate-800 dark:text-slate-200"
                           onMouseDown={(e) => e.preventDefault()}
                           onClick={() => {
                             setIsTypingCategory(false);
@@ -489,7 +489,7 @@ export default function MobileTransactionsTab({
                       {categoryInput && !categoryOptions.some((opt) => (opt?.label || "").toLowerCase() === categoryInput.toLowerCase()) && (
                         <button
                           type="button"
-                          className="w-full text-left px-3 py-2 text-sm text-teal-700 font-medium border-t border-slate-200 hover:bg-teal-50"
+                          className="w-full text-left px-3 py-2 text-sm text-teal-700 dark:text-teal-300 font-medium border-t border-slate-200 dark:border-slate-700 hover:bg-teal-50 dark:hover:bg-teal-900/20"
                           onMouseDown={(e) => e.preventDefault()}
                           onClick={() => {
                             setNewCategoryMode(true);
@@ -503,14 +503,14 @@ export default function MobileTransactionsTab({
                     </div>
                   )}
                   {newCategoryMode && (
-                    <div className="mt-2 rounded-md border border-dashed border-teal-300 bg-teal-50/40 p-3 space-y-2">
+                    <div className="mt-2 rounded-md border border-dashed border-teal-300 dark:border-teal-800 bg-teal-50/40 dark:bg-teal-900/20 p-3 space-y-2">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold text-teal-800">
+                        <span className="text-xs font-semibold text-teal-800 dark:text-teal-200">
                           New category details
                         </span>
                         <button
                           type="button"
-                          className="text-xs text-teal-700 underline"
+                          className="text-xs text-teal-700 dark:text-teal-300 underline"
                           onClick={() => {
                             setNewCategoryMode(false);
                             setNewCategoryName("");
@@ -523,7 +523,7 @@ export default function MobileTransactionsTab({
                       </div>
 
                       <div className="flex flex-col gap-1">
-                        <label className="text-xs text-slate-600">Category name</label>
+                        <label className="text-xs text-slate-600 dark:text-slate-300">Category name</label>
                         <Input
                           value={newCategoryName}
                           onChange={(e) => setNewCategoryName(e.target.value)}
@@ -531,9 +531,9 @@ export default function MobileTransactionsTab({
                       </div>
 
                       <div className="flex flex-col gap-1">
-                        <label className="text-xs text-slate-600">Category group</label>
+                        <label className="text-xs text-slate-600 dark:text-slate-300">Category group</label>
                         <select
-                          className="text-sm border border-slate-300 rounded px-2 py-2 bg-white"
+                          className="text-sm border border-slate-300 dark:border-slate-700 rounded px-2 py-2 bg-white dark:bg-slate-800 dark:text-slate-200"
                           value={
                             newCategoryGroupIsNew
                               ? "__new__"
@@ -564,7 +564,7 @@ export default function MobileTransactionsTab({
 
                       {newCategoryGroupIsNew && (
                         <div className="flex flex-col gap-1">
-                          <label className="text-xs text-slate-600">New group name</label>
+                          <label className="text-xs text-slate-600 dark:text-slate-300">New group name</label>
                           <Input
                             value={newCategoryGroupName}
                             onChange={(e) => setNewCategoryGroupName(e.target.value)}
@@ -578,7 +578,7 @@ export default function MobileTransactionsTab({
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="flex flex-col gap-2">
-                  <label className="text-xs text-slate-600">Amount</label>
+                  <label className="text-xs text-slate-600 dark:text-slate-300">Amount</label>
                   <Input
                     type="number"
                     value={formAmount}
@@ -587,7 +587,7 @@ export default function MobileTransactionsTab({
                   />
                 </div>
                 <div className="flex flex-col gap-2">
-                  <label className="text-xs text-slate-600">Date</label>
+                  <label className="text-xs text-slate-600 dark:text-slate-300">Date</label>
                   <Input
                     type="date"
                     value={formDate}
@@ -596,14 +596,14 @@ export default function MobileTransactionsTab({
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <label className="text-xs text-slate-600">Type</label>
+                <label className="text-xs text-slate-600 dark:text-slate-300">Type</label>
                 <div className="flex gap-2 text-sm">
                   <button
                     type="button"
                     onClick={() => setFormType("expense")}
                     className={`px-3 py-1 rounded border ${formType === "expense"
-                      ? "border-teal-500 text-teal-700 bg-teal-50"
-                      : "border-slate-300 text-slate-600"
+                      ? "border-teal-500 text-teal-700 bg-teal-50 dark:bg-teal-900/20 dark:text-teal-300"
+                      : "border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300"
                       }`}
                   >
                     Expense
@@ -612,8 +612,8 @@ export default function MobileTransactionsTab({
                     type="button"
                     onClick={() => setFormType("income")}
                     className={`px-3 py-1 rounded border ${formType === "income"
-                      ? "border-teal-500 text-teal-700 bg-teal-50"
-                      : "border-slate-300 text-slate-600"
+                      ? "border-teal-500 text-teal-700 bg-teal-50 dark:bg-teal-900/20 dark:text-teal-300"
+                      : "border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300"
                       }`}
                   >
                     Income
@@ -624,7 +624,7 @@ export default function MobileTransactionsTab({
                 <Button variant="ghost" size="sm" onClick={resetForm}>
                   Cancel
                 </Button>
-                <Button size="sm" onClick={handleAddTransaction}>
+                <Button size="sm" className="bg-teal-600 dark:bg-teal-700 text-white hover:bg-teal-500 dark:hover:bg-teal-600" onClick={handleAddTransaction}>
                   {editingTxId ? "Update" : "Save"}
                 </Button>
               </div>
@@ -632,7 +632,7 @@ export default function MobileTransactionsTab({
           </Card>
         )}
 
-        <div className="text-center py-12 text-slate-400">
+        <div className="text-center py-12 text-slate-400 dark:text-slate-500">
           <p>No transactions yet</p>
         </div>
       </div>
@@ -640,9 +640,9 @@ export default function MobileTransactionsTab({
   }
 
   return (
-    <div className="space-y-4 pb-24">
+    <div className="space-y-4 pb-24 text-slate-900 dark:text-slate-200">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-sm text-slate-600">
+        <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
           <span>{showingLabel}</span>
           {selectedAccount && (
             <Button
@@ -655,18 +655,18 @@ export default function MobileTransactionsTab({
             </Button>
           )}
         </div>
-        <Button size="sm" onClick={() => setShowForm(true)}>
+        <Button size="sm" className="bg-teal-600 dark:bg-teal-700 text-white hover:bg-teal-500 dark:hover:bg-teal-600" onClick={() => setShowForm(true)}>
           Add transaction
         </Button>
       </div>
 
       {showForm && (
-        <Card className="border-slate-200 shadow-none">
+        <Card className="border border-slate-200 dark:border-slate-700 shadow-none bg-white dark:bg-slate-900">
           <CardContent className="space-y-3 pt-4">
             <div className="flex flex-col gap-2">
-              <label className="text-xs text-slate-600">Account</label>
+              <label className="text-xs text-slate-600 dark:text-slate-300">Account</label>
               <select
-                className="text-sm border border-slate-300 rounded px-2 py-2 bg-white"
+                className="text-sm border border-slate-300 dark:border-slate-700 rounded px-2 py-2 bg-white dark:bg-slate-800 dark:text-slate-200"
                 value={formAccountId != null ? String(formAccountId) : ""}
                 onChange={(e) => setFormAccountId(Number(e.target.value))}
               >
@@ -678,7 +678,7 @@ export default function MobileTransactionsTab({
               </select>
             </div>
             <div className="flex flex-col gap-2">
-              <label className="text-xs text-slate-600">Payee</label>
+              <label className="text-xs text-slate-600 dark:text-slate-300">Payee</label>
               <div className="relative">
                 <Input
                   value={payeeInput}
@@ -692,14 +692,14 @@ export default function MobileTransactionsTab({
                   placeholder="Type or select payee"
                 />
                   {payeeDropdownOpen && (
-                  <div className="absolute z-20 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-52 overflow-y-auto">
+                  <div className="absolute z-20 mt-1 w-full rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-lg max-h-52 overflow-y-auto">
                     {payeeSuggestions
                       .filter((s) => isTypingPayee && payeeInput ? (s?.label || "").toLowerCase().includes(payeeInput.toLowerCase()) : true)
                       .map((s) => (
                         <button
                           key={s.label}
                           type="button"
-                          className="w-full text-left px-3 py-2 text-sm hover:bg-teal-50"
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-teal-50 dark:hover:bg-teal-900/20 text-slate-800 dark:text-slate-200"
                           onMouseDown={(e) => e.preventDefault()}
                           onClick={() => {
                             setIsTypingPayee(false);
@@ -731,7 +731,7 @@ export default function MobileTransactionsTab({
                       ) && (
                         <button
                           type="button"
-                          className="w-full text-left px-3 py-2 text-sm text-teal-700 font-medium border-t border-slate-200 hover:bg-teal-50"
+                          className="w-full text-left px-3 py-2 text-sm text-teal-700 dark:text-teal-300 font-medium border-t border-slate-200 dark:border-slate-700 hover:bg-teal-50 dark:hover:bg-teal-900/20"
                           onMouseDown={(e) => e.preventDefault()}
                           onClick={() => {
                             setSelectedPayeeAccountName(null);
@@ -747,7 +747,7 @@ export default function MobileTransactionsTab({
               </div>
             </div>
             <div className="flex flex-col gap-2">
-              <label className="text-xs text-slate-600">Category</label>
+              <label className="text-xs text-slate-600 dark:text-slate-300">Category</label>
               <div className="relative">
                 <Input
                   value={categoryInput}
@@ -770,14 +770,14 @@ export default function MobileTransactionsTab({
                   disabled={isCheckingTransfer}
                 />
                 {categoryDropdownOpen && (
-                  <div className="absolute z-20 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-52 overflow-y-auto">
+                  <div className="absolute z-20 mt-1 w-full rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-lg max-h-52 overflow-y-auto">
                     {categoryOptions
                       .filter((opt) => isTypingCategory && categoryInput ? (opt?.label || "").toLowerCase().includes(categoryInput.toLowerCase()) : true)
                       .map((opt) => (
                       <button
                         key={opt.value}
                         type="button"
-                        className="w-full text-left px-3 py-2 text-sm hover:bg-teal-50"
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-teal-50 dark:hover:bg-teal-900/20 text-slate-800 dark:text-slate-200"
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={() => {
                           setIsTypingCategory(false);
@@ -804,7 +804,7 @@ export default function MobileTransactionsTab({
                     {categoryInput && !categoryOptions.some((opt) => (opt?.label || "").toLowerCase() === categoryInput.toLowerCase()) && (
                       <button
                         type="button"
-                        className="w-full text-left px-3 py-2 text-sm text-teal-700 font-medium border-t border-slate-200 hover:bg-teal-50"
+                        className="w-full text-left px-3 py-2 text-sm text-teal-700 dark:text-teal-300 font-medium border-t border-slate-200 dark:border-slate-700 hover:bg-teal-50 dark:hover:bg-teal-900/20"
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={() => {
                           setNewCategoryMode(true);
@@ -821,7 +821,7 @@ export default function MobileTransactionsTab({
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="flex flex-col gap-2">
-                <label className="text-xs text-slate-600">Amount</label>
+                <label className="text-xs text-slate-600 dark:text-slate-300">Amount</label>
                 <Input
                   type="number"
                   value={formAmount}
@@ -837,7 +837,7 @@ export default function MobileTransactionsTab({
                 />
               </div>
               <div className="flex flex-col gap-2">
-                <label className="text-xs text-slate-600">Date</label>
+                <label className="text-xs text-slate-600 dark:text-slate-300">Date</label>
                 <Input
                   type="date"
                   value={formDate}
@@ -846,14 +846,14 @@ export default function MobileTransactionsTab({
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <label className="text-xs text-slate-600">Type</label>
+              <label className="text-xs text-slate-600 dark:text-slate-300">Type</label>
               <div className="flex gap-2 text-sm">
                 <button
                   type="button"
                   onClick={() => setFormType("expense")}
                   className={`px-3 py-1 rounded border ${formType === "expense"
-                    ? "border-teal-500 text-teal-700 bg-teal-50"
-                    : "border-slate-300 text-slate-600"
+                    ? "border-teal-500 text-teal-700 bg-teal-50 dark:bg-teal-900/20 dark:text-teal-300"
+                    : "border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300"
                     }`}
                 >
                   Expense
@@ -862,8 +862,8 @@ export default function MobileTransactionsTab({
                   type="button"
                   onClick={() => setFormType("income")}
                   className={`px-3 py-1 rounded border ${formType === "income"
-                    ? "border-teal-500 text-teal-700 bg-teal-50"
-                    : "border-slate-300 text-slate-600"
+                    ? "border-teal-500 text-teal-700 bg-teal-50 dark:bg-teal-900/20 dark:text-teal-300"
+                    : "border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300"
                     }`}
                 >
                   Income
@@ -874,7 +874,7 @@ export default function MobileTransactionsTab({
               <Button variant="ghost" size="sm" onClick={() => setShowForm(false)}>
                 Cancel
               </Button>
-              <Button size="sm" onClick={handleAddTransaction}>
+              <Button size="sm" className="bg-teal-600 dark:bg-teal-700 text-white hover:bg-teal-500 dark:hover:bg-teal-600" onClick={handleAddTransaction}>
                 Save
               </Button>
             </div>
@@ -917,7 +917,7 @@ export default function MobileTransactionsTab({
               </button>
             </div>
             <Card
-              className="shadow-none border-slate-200 relative"
+              className="shadow-none border border-slate-200 dark:border-slate-700 relative bg-white dark:bg-slate-900"
               style={{
                 transform: `translateX(${translateX}px)`,
                 transition: isSwiped && swipeX === 0 ? 'transform 0.3s ease-out' : 'none',
@@ -946,26 +946,26 @@ export default function MobileTransactionsTab({
               <CardContent className="pt-4" onClick={() => beginEdit(tx)}>
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex-1">
-                    <p className="text-sm font-semibold text-slate-900">
+                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-200">
                       {tx.payee}
                     </p>
                     <div className="flex flex-wrap items-center gap-2 mt-2">
-                      <span className="text-xs bg-teal-100 text-teal-700 px-2.5 py-1 rounded-full font-medium">
+                      <span className="text-xs bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 px-2.5 py-1 rounded-full font-medium">
                         {tx.category || "Ready to Assign"}
                       </span>
-                      <span className="text-xs text-slate-600 bg-slate-100 px-2.5 py-1 rounded-full">
+                      <span className="text-xs text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-full">
                         {tx.accountName}
                       </span>
                     </div>
                   </div>
                   <div className="text-right ml-3 flex-shrink-0">
                     <p
-                      className={`text-base font-bold ${tx.balance < 0 ? "text-red-600" : "text-green-600"
+                      className={`text-base font-bold ${tx.balance < 0 ? "text-red-600" : "text-green-500"
                         }`}
                     >
                       {tx.balance < 0 ? "-" : "+"}${Math.abs(tx.balance).toFixed(2)}
                     </p>
-                    <p className="text-xs text-slate-500 mt-1">
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                       {tx.date ? format(parseISO(tx.date), "MMM d, yyyy") : "N/A"}
                     </p>
                   </div>

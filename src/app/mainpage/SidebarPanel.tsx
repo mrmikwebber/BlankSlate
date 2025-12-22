@@ -8,7 +8,6 @@ import { useAccountContext } from "@/app/context/AccountContext";
 import { useBudgetContext } from "../context/BudgetContext";
 
 import AccountCardCompact from "./AccountCardCompact";
-import ItemsToAddress from "./ItemsToAddress";
 import AddAccountModal from "./AddAccountModal";
 
 import {
@@ -93,13 +92,7 @@ export default function SidebarPanel() {
     }));
   }, [accounts, currentMonth, totalInflow]);
 
-  const creditCardsThatNeedPayment = (
-    budgetData[currentMonth]?.categories.find(
-      (group) => group.name === "Credit Card Payments"
-    )?.categoryItems || []
-  )
-    .filter((item) => item.available > 0 || item.activity < 0)
-    .map((item) => item.name);
+  // Removed ItemsToAddress; no need to compute credit card payment data here
 
   const totalOutflow = spendingData.reduce(
     (sum, category) => sum + (category.value as number),
@@ -121,15 +114,10 @@ export default function SidebarPanel() {
   }, []);
 
   return (
-    <aside className="space-y-4 max-h-[calc(100vh-160px)] overflow-y-auto w-full text-sm" style={
-      {
-        scrollbarWidth: 'thin',
-        scrollbarColor: 'rgb(148, 163, 184) rgb(15, 23, 42)'
-      }
-    }>
+    <aside className="space-y-3 w-full text-sm">
       {/* Accounts card */}
       <Card className="shadow-sm">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <div>
             <CardTitle className="text-sm font-semibold">Accounts</CardTitle>
             <CardDescription className="text-xs">
@@ -145,7 +133,7 @@ export default function SidebarPanel() {
             Add
           </Button>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-3">
           {accounts.length === 0 ? (
             <p className="text-muted-foreground text-center">
               No accounts added yet.
@@ -213,7 +201,7 @@ export default function SidebarPanel() {
 
       {/* Spending card */}
       <Card className="shadow-sm">
-        <CardHeader className="pb-3">
+        <CardHeader className="pb-2">
           <CardTitle className="text-sm font-semibold">
             Spending This Month
           </CardTitle>
@@ -222,7 +210,7 @@ export default function SidebarPanel() {
             {formatToUSD(totalOutflow)}
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-2">
           <div className="flex justify-center mb-3">
             <PieChart width={200} height={200}>
               <Pie
@@ -241,7 +229,7 @@ export default function SidebarPanel() {
             </PieChart>
           </div>
 
-          <ul className="mt-1 space-y-1 max-h-40 overflow-y-auto pr-1">
+          <ul className="mt-1 space-y-1 pr-1">
             {spendingData.map((cat, i) => (
               <li key={i} className="flex items-center justify-between gap-2">
                 <span className="flex items-center min-w-0">
@@ -265,24 +253,7 @@ export default function SidebarPanel() {
         </CardContent>
       </Card>
 
-      {/* Items to address card */}
-      <Card className="shadow-sm">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-semibold">
-            Items to Address
-          </CardTitle>
-          <CardDescription className="text-xs">
-            Categories and credit cards that may need attention.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="pt-0">
-          <ItemsToAddress
-            categories={budgetData[currentMonth]?.categories || []}
-            unassignedAmount={budgetData[currentMonth]?.ready_to_assign || 0}
-            creditCardsNeedingPayment={creditCardsThatNeedPayment}
-          />
-        </CardContent>
-      </Card>
+      {/* ItemsToAddress removed per request */}
 
       {/* Right-click context menu for delete account (kept, but visually softened) */}
       {contextMenu &&
