@@ -670,7 +670,7 @@ export default function BudgetTable() {
         )}
 
       {/* Main card */}
-      <Card className="flex flex-col h-full overflow-hidden border border-slate-200 dark:border-slate-700 shadow-md dark:shadow-lg rounded-xl bg-white dark:bg-slate-950">
+      <Card className="flex flex-col w-full h-full min-h-0 overflow-hidden border border-slate-200 dark:border-slate-700 shadow-md dark:shadow-lg rounded-xl bg-white dark:bg-slate-950">
         <CardHeader className="pb-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
           <div className="flex flex-col gap-4">
             {/* Top row: RTA + Month */}
@@ -724,11 +724,11 @@ export default function BudgetTable() {
           </div>
         </CardHeader>
 
-        <CardContent className="p-0 flex-1 flex flex-col min-h-0">
-          <div className="flex-1 overflow-y-auto">
+        <CardContent className="px-0 pb-2 flex-1 flex flex-col min-h-0">
+          <div className="flex-1 min-h-0 [&>div]:h-full">
             <Table data-cy="budget-table" className="w-full">
-              <TableHeader>
-                <TableRow className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800">
+              <TableHeader className="sticky top-0 z-30 bg-slate-100 dark:bg-slate-800">
+                <TableRow className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700">
                   <TableHead className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">
                     Category
                   </TableHead>

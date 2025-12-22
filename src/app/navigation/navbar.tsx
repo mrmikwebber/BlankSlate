@@ -85,11 +85,11 @@ export default function Navbar() {
 
   return (
     <div>
-      <nav className="block w-full px-4 py-4 mx-auto bg-white dark:bg-slate-900 bg-opacity-90 sticky top-3 shadow dark:shadow-lg lg:px-8 backdrop-blur-lg backdrop-saturate-150 z-[9999]">
+      <nav className="block w-full px-3 py-2 mx-auto bg-white dark:bg-slate-900 sticky top-0 shadow-sm dark:shadow lg:px-4 z-[9999]">
         <div className="flex flex-wrap items-center justify-between w-full text-slate-800 dark:text-slate-100">
           <Link
             href="/"
-            className="mr-4 block cursor-pointer py-1.5 text-teal-600 font-bold text-2xl"
+            className="mr-4 block cursor-pointer py-0.5 text-teal-600 font-bold text-lg"
           >
             blankslate
           </Link>
@@ -119,29 +119,33 @@ export default function Navbar() {
           </div>
 
           <div className="hidden lg:block">
-            <ul className="flex flex-col gap-2 mt-2 mb-4 lg:mb-0 lg:mt-0 lg:flex-row lg:items-center lg:gap-6">
+            {/* Compact links + user actions */}
+            <ul className="flex flex-row items-center gap-3 m-0">
+              <li>
+                <Link href="/legal" className="text-xs text-slate-700 dark:text-slate-300 hover:underline">Legal</Link>
+              </li>
               <li>
                 {user && (
                   <div className="flex items-center gap-2">
-                    <p className="text-sm text-gray-600 dark:text-slate-400">Hello, {name || "User"}</p>
+                    <p className="text-xs text-gray-600 dark:text-slate-400">Hello, {name || "User"}</p>
                     <button
                       onClick={toggleDarkMode}
-                      className="p-2 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                      className="p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                       title={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
                     >
                       {isDarkMode ? (
-                        <Sun className="h-5 w-5 text-yellow-500" />
+                        <Sun className="h-4 w-4 text-yellow-500" />
                       ) : (
-                        <Moon className="h-5 w-5 text-slate-600" />
+                        <Moon className="h-4 w-4 text-slate-600" />
                       )}
                     </button>
                     <button 
                       onClick={() => setShowResetModal(true)} 
-                      className="bg-red-600 dark:bg-red-700 hover:bg-red-500 dark:hover:bg-red-600 text-white px-4 py-2 rounded-md text-sm transition-colors"
+                      className="px-3 py-1.5 rounded-md text-xs border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                     >
                       Reset Account
                     </button>
-                    <button onClick={signOut} className="bg-teal-600 dark:bg-teal-700 hover:bg-teal-500 dark:hover:bg-teal-600 text-white px-8 py-2 rounded-md transition-colors">
+                    <button onClick={signOut} className="bg-teal-600 dark:bg-teal-700 hover:bg-teal-500 dark:hover:bg-teal-600 text-white px-5 py-1.5 rounded-md text-xs transition-colors">
                       Sign Out
                     </button>
                   </div>

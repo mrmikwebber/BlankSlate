@@ -42,20 +42,6 @@ export default function RootLayout({
               <AccountProvider>
                 <BudgetProvider>
                   {children}
-                  {/* Site footer with legal links */}
-                  <footer className="mt-16 border-t border-neutral-200 dark:border-neutral-800">
-                    <div className="mx-auto max-w-5xl px-4 py-8 text-sm text-neutral-600 dark:text-neutral-300 flex flex-col sm:flex-row gap-4 sm:gap-6 items-start sm:items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">BlankSlate</span>
-                        <span className="opacity-70">© {new Date().getFullYear()}</span>
-                      </div>
-                      <nav className="flex flex-wrap gap-4">
-                        <Link href="/terms" className="hover:underline">Terms</Link>
-                        <Link href="/privacy" className="hover:underline">Privacy</Link>
-                        <Link href="/cookies" className="hover:underline">Cookies</Link>
-                      </nav>
-                    </div>
-                  </footer>
                 </BudgetProvider>
               </AccountProvider>
             </UndoRedoProvider>

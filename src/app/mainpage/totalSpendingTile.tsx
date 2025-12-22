@@ -67,8 +67,10 @@ const TotalSpendingTile = () => {
     0
   );
 
+  const isDark = typeof document !== "undefined" && document.documentElement.classList.contains("dark");
+
   return (
-    <div className="bg-white p-4 rounded-lg shadow-md mt-6 w-full">
+    <div className="bg-white dark:bg-slate-900 p-4 rounded-lg shadow-md mt-6 w-full">
       <h2 className="text-lg font-semibold mb-4">Current Month Spending</h2>
 
       {totalInflow === 0 && totalOutflow === 0 ? (
@@ -100,7 +102,16 @@ const TotalSpendingTile = () => {
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
-                <Tooltip formatter={(value) => formatToUSD(value)} />
+                <Tooltip
+                  formatter={(value) => formatToUSD(value)}
+                  contentStyle={
+                    isDark
+                      ? { backgroundColor: "#0f172a", border: "1px solid #334155", color: "#e2e8f0" }
+                      : undefined
+                  }
+                  wrapperStyle={isDark ? { outline: "none" } : undefined}
+                  labelStyle={isDark ? { color: "#e2e8f0" } : undefined}
+                />
               </PieChart>
             </div>
 

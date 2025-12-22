@@ -4,7 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import { useRouter } from "next/navigation";
 import { useUndoRedoShortcuts } from "../hooks/useUndoRedoShortcuts";
 import BudgetTable from "../mainpage/BudgetTable";
-import ActivitySidebar from "../mainpage/ActivitySidebar";
+// ActivitySidebar removed per request
 import SidebarPanel from "../mainpage/SidebarPanel";
 import MobileDashboardShell from "../mainpage/MobileDashboardShell";
 
@@ -37,15 +37,13 @@ export default function Home() {
       </div>
 
       {/* Desktop Layout - Hidden below md */}
-      <div className="hidden md:flex h-[calc(100vh-76px)] overflow-hidden">
-        <ActivitySidebar page="dashboard" />
-
-        <div className="m-4 grid grid-cols-1 lg:grid-cols-[35%_65%] gap-3 w-full overflow-hidden">
+      <div className="hidden md:flex h-[calc(100vh-76px)] overflow-hidden flex-col">
+        <div className="m-4 grid grid-cols-1 lg:grid-cols-[22%_78%] gap-3 w-full min-h-0">
           <div className="bg-zinc-100 dark:bg-slate-900 p-4 rounded-md drop-shadow-md dark:drop-shadow-lg h-full">
             <SidebarPanel />
           </div>
 
-          <div className="bg-zinc-100 dark:bg-slate-900 p-4 rounded-md drop-shadow-md dark:drop-shadow-lg h-full overflow-y-auto min-w-[600px]">
+          <div className="bg-zinc-100 dark:bg-slate-900 pl-4 pr-8 py-4 rounded-md drop-shadow-md dark:drop-shadow-lg h-full min-h-0 flex">
             <BudgetTable />
           </div>
         </div>

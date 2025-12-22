@@ -7,7 +7,12 @@ import { formatDistanceToNow } from "date-fns";
 import { useRouter } from "next/navigation";
 import { RotateCcw, RotateCw } from "lucide-react";
 
-export default function ActivitySidebar({ page }) {
+type ActivitySidebarProps = {
+  page: "dashboard" | "account";
+  orientation?: "vertical" | "horizontal";
+};
+
+export default function ActivitySidebar({ page, orientation = "vertical" }: ActivitySidebarProps) {
   const { recentChanges } = useBudgetContext();
   const { recentTransactions } = useAccountContext();
   const { undo, redo, canUndo, canRedo, undoDescription, redoDescription } = useUndoRedo();
@@ -28,8 +33,17 @@ export default function ActivitySidebar({ page }) {
     setActivity(merged);
   }, [recentChanges, recentTransactions]);
 
+  const isHorizontal = orientation === "horizontal";
+
   return (
-    <div data-cy="activity-sidebar" className="w-64 bg-white dark:bg-slate-900 border-r border-slate-300 dark:border-slate-700 p-4 space-y-4 shadow-sm dark:shadow-md overflow-y-auto h-screen">
+    <div
+      data-cy="activity-sidebar"
+      className={
+        isHorizontal
+          ? "w-full bg-white dark:bg-slate-900 border-b border-slate-300 dark:border-slate-700 p-3 shadow-sm dark:shadow-md"
+          : "w-64 bg-white dark:bg-slate-900 border-r border-slate-300 dark:border-slate-700 p-4 space-y-4 shadow-sm dark:shadow-md overflow-y-auto h-screen"
+      }
+    >
       {page === "account" && (
         <button
           onClick={() => router.push("/dashboard")}
@@ -40,7 +54,7 @@ export default function ActivitySidebar({ page }) {
       )}
       
       {/* Undo/Redo buttons */}
-      <div className="flex gap-2 mb-4">
+      <div className={isHorizontal ? "flex gap-2 mb-2" : "flex gap-2 mb-4"}>
         <button
           onClick={undo}
           disabled={!canUndo}
@@ -61,17 +75,30 @@ export default function ActivitySidebar({ page }) {
         </button>
       </div>
 
-      <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Recent Activity</h2>
-      <ul data-cy="recent-activity-list" className="text-sm space-y-2">
+      {!isHorizontal && (
+        <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Recent Activity</h2>
+      )}
+      <ul
+        data-cy="recent-activity-list"
+        className={
+          isHorizontal
+            ? "flex items-stretch gap-2 overflow-x-auto py-1"
+            : "text-sm space-y-2"
+        }
+      >
         {activity.length === 0 && (
-          <li className="text-slate-400 dark:text-slate-500 text-center py-4">No recent updates</li>
+          <li className={isHorizontal ? "text-slate-400 dark:text-slate-500 py-2" : "text-slate-400 dark:text-slate-500 text-center py-4"}>No recent updates</li>
         )}
         {activity.map((item, idx) => (
           <li
             key={idx}
             data-cy="activity-item"
             data-activity-type={item.type}
-            className="border-l-4 pl-3 border-teal-400 dark:border-teal-600 bg-slate-50 dark:bg-slate-800 p-2.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+            className={
+              isHorizontal
+                ? "min-w-[260px] border-l-4 pl-3 border-teal-400 dark:border-teal-600 bg-slate-50 dark:bg-slate-800 p-2.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                : "border-l-4 pl-3 border-teal-400 dark:border-teal-600 bg-slate-50 dark:bg-slate-800 p-2.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+            }
           >
             {item.type === "transaction" ? (
               <>
