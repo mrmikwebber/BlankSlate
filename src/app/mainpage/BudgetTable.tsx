@@ -897,6 +897,15 @@ export default function BudgetTable() {
                                   name: e.target.value,
                                 })
                               }
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  handleAddItem(group.name);
+                                } else if (e.key === "Escape") {
+                                  e.preventDefault();
+                                  setActiveCategory(null);
+                                }
+                              }}
                               className="h-8 text-sm"
                             />
                             <div className="flex justify-end gap-2">

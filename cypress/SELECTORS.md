@@ -42,7 +42,7 @@ Use these canonical selectors and interaction patterns:
 - New group input: `[data-cy="tx-new-group-input]`
 - Item select: `[data-cy="tx-item-select]` (use `__new__` to create new)
 - New item input: `[data-cy="tx-new-item-input]`
-- Amount sign toggle: `[data-cy="tx-sign-toggle]` ("−" for outflow, "+" for inflow)
+- Amount sign toggle: `[data-cy="tx-sign-toggle]` ("Outflow" / "Inflow" label)
 - Amount input: `[data-cy="tx-amount-input]`
 - Submit: `[data-cy="tx-submit]`
 - Transaction row: `tr[data-cy="transaction-row"][data-txid]`

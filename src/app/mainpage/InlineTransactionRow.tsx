@@ -1062,17 +1062,16 @@ export default function InlineTransactionRow({
             data-state={isNegative ? "negative" : "positive"}
             type="button"
             variant="outline"
-            size="icon"
+            size="sm"
             onClick={() => setIsNegative((prev) => !prev)}
-            className={`h-9 w-9 ${isNegative
+            className={`h-9 px-3 ${isNegative
               ? "text-red-600 dark:text-red-400 border-red-300 dark:border-red-700 hover:bg-red-50 dark:hover:bg-red-950 hover:text-red-700 dark:hover:text-red-300"
               : "text-green-600 dark:text-green-400 border-green-300 dark:border-green-700 hover:bg-green-50 dark:hover:bg-green-950 hover:text-green-700 dark:hover:text-green-300"
               }`}
             aria-pressed={isNegative}
             aria-label={isNegative ? "Outflow" : "Inflow"}
           >
-            {isNegative ? <Minus className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-            <span className="sr-only">{isNegative ? "Outflow" : "Inflow"}</span>
+            {isNegative ? "Outflow" : "Inflow"}
           </Button>
           <Input
             ref={amountInputRef}
