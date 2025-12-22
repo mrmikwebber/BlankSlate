@@ -517,11 +517,11 @@ export default function BudgetTable() {
       {categoryDeleteContext &&
         createPortal(
           <div 
-            className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center"
+            className="fixed inset-0 bg-black/30 dark:bg-black/50 z-50 flex items-center justify-center"
             onClick={() => setCategoryDeleteContext(null)}
           >
             <div 
-              className="bg-white p-5 rounded-lg shadow-lg w-full max-w-md space-y-4"
+              className="bg-white dark:bg-neutral-900 p-5 rounded-lg shadow-lg w-full max-w-md space-y-4 text-neutral-800 dark:text-neutral-200"
               onClick={(e) => e.stopPropagation()}
             >
               <h2 className="text-base font-semibold">
@@ -538,7 +538,7 @@ export default function BudgetTable() {
 
                   <select
                     data-cy="reassign-target-select"
-                    className="w-full border border-slate-300 rounded-md px-2 py-1 text-sm"
+                    className="w-full border border-slate-300 dark:border-neutral-700 rounded-md px-2 py-1 text-sm bg-white dark:bg-neutral-900 text-neutral-800 dark:text-neutral-200"
                     value={selectedTargetCategory}
                     onChange={(e) => setSelectedTargetCategory(e.target.value)}
                   >
@@ -583,7 +583,7 @@ export default function BudgetTable() {
                 </>
               ) : (
                 <>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-sm text-muted-foreground dark:text-neutral-400">
                     This category has no funds or activity. Are you sure you
                     want to delete it?
                   </p>
