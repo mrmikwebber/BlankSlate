@@ -81,10 +81,10 @@ export default function MobileOverviewTab() {
   }, 0);
 
   return (
-    <div className="space-y-4 pb-24">
+    <div className="space-y-4 pb-24 text-slate-900 dark:text-slate-200">
       {/* Key Metrics */}
       <div className="grid grid-cols-2 gap-3">
-        <Card className="shadow-none border-slate-200 bg-gradient-to-br from-teal-50 to-teal-100/50">
+        <Card className="shadow-none border border-teal-200 dark:border-teal-800/40 bg-teal-50 dark:bg-teal-900/30 text-teal-800 dark:text-teal-200">
           <CardContent className="pt-4">
             <p className="text-xs text-teal-700 font-medium mb-2">Ready to Assign</p>
             <p className="text-lg font-bold text-teal-600">
@@ -93,7 +93,7 @@ export default function MobileOverviewTab() {
           </CardContent>
         </Card>
 
-        <Card className="shadow-none border-slate-200 bg-gradient-to-br from-red-50 to-red-100/50">
+        <Card className="shadow-none border border-red-200 dark:border-red-800/40 bg-red-50 dark:bg-red-900/30 text-red-800 dark:text-red-200">
           <CardContent className="pt-4">
             <p className="text-xs text-red-700 font-medium mb-2">Total Spending</p>
             <p className="text-lg font-bold text-red-600">
@@ -102,19 +102,19 @@ export default function MobileOverviewTab() {
           </CardContent>
         </Card>
 
-        <Card className="shadow-none border-slate-200">
+        <Card className="shadow-none border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
           <CardContent className="pt-4">
             <p className="text-xs text-slate-600 font-medium mb-2">Balances</p>
-            <p className="text-lg font-bold text-slate-900">
+            <p className="text-lg font-bold">
               {formatToUSD(accountsTotal)}
             </p>
           </CardContent>
         </Card>
 
-        <Card className="shadow-none border-slate-200">
+        <Card className="shadow-none border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
           <CardContent className="pt-4">
             <p className="text-xs text-slate-600 font-medium mb-2">Accounts</p>
-            <p className="text-lg font-bold text-slate-900">
+            <p className="text-lg font-bold">
               {accounts.length}
             </p>
           </CardContent>
@@ -123,7 +123,7 @@ export default function MobileOverviewTab() {
 
       {/* Spending Distribution Chart */}
       {spendingData.length > 0 && (
-        <Card className="shadow-none border-slate-200">
+        <Card className="shadow-none border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
           <CardHeader>
             <CardTitle className="text-sm">Spending Distribution</CardTitle>
           </CardHeader>
@@ -152,7 +152,7 @@ export default function MobileOverviewTab() {
 
       {/* Top Categories */}
       {spendingData.length > 0 && (
-        <Card className="shadow-none border-slate-200">
+        <Card className="shadow-none border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
           <CardHeader>
             <CardTitle className="text-sm">Top Categories</CardTitle>
           </CardHeader>
@@ -165,9 +165,9 @@ export default function MobileOverviewTab() {
                       className="w-3 h-3 rounded-full flex-shrink-0"
                       style={{ backgroundColor: item.color }}
                     />
-                    <span className="text-sm text-slate-700 truncate">{item.name}</span>
+                    <span className="text-sm text-slate-700 dark:text-slate-300 truncate">{item.name}</span>
                   </div>
-                  <span className="font-semibold text-slate-900 ml-2 flex-shrink-0">
+                  <span className="font-semibold ml-2 flex-shrink-0">
                     {formatToUSD(item.value)}
                   </span>
                 </div>

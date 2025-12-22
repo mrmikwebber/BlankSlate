@@ -884,7 +884,7 @@ export default function BudgetTable() {
                             className={`${dropUp
                               ? "bottom-full mb-2"
                               : "top-full mt-2"
-                              } absolute left-0 w-72 bg-white p-3 shadow-lg rounded-md border border-slate-200 z-50 space-y-2`}
+                              } absolute left-0 w-72 bg-white dark:bg-slate-900 p-3 shadow-lg rounded-md border border-slate-200 dark:border-slate-700 z-50 space-y-2 text-slate-800 dark:text-slate-200`}
                           >
                             <Input
                               data-cy="add-item-input"
@@ -912,6 +912,7 @@ export default function BudgetTable() {
                                 data-category={group.name}
                                 size="sm"
                                 onClick={() => handleAddItem(group.name)}
+                                className="bg-teal-600 dark:bg-teal-700 text-white hover:bg-teal-500 dark:hover:bg-teal-600"
                               >
                                 Add category
                               </Button>

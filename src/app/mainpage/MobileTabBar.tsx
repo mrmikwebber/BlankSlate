@@ -26,8 +26,8 @@ export default function MobileTabBar({ activeTab, onTabChange }: Props) {
           className={cn(
             "flex flex-col items-center justify-center gap-1 py-3 px-2 transition-all duration-200 border-t-2",
             activeTab === tab.id
-              ? "text-teal-600 border-teal-600 bg-teal-50/50"
-              : "text-slate-500 border-transparent hover:text-slate-700 active:bg-slate-100"
+              ? "text-teal-600 dark:text-teal-400 border-teal-600 dark:border-teal-400 bg-teal-50/50 dark:bg-teal-900/20"
+              : "text-slate-500 dark:text-slate-400 border-transparent hover:text-slate-700 dark:hover:text-slate-200 active:bg-slate-100 dark:active:bg-slate-800"
           )}
         >
           {tab.icon}
