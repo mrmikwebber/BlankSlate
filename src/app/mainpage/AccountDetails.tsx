@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAccountContext } from "@/app/context/AccountContext";
 import { useUndoRedo } from "@/app/context/UndoRedoContext";
 import { supabase } from "@/utils/supabaseClient";
@@ -44,6 +44,10 @@ export default function AccountDetails() {
   const [newAccountName, setNewAccountName] = useState<string | undefined>();
   const [selectedTxId, setSelectedTxId] = useState<number | null>(null);
   const [selectedTxIds, setSelectedTxIds] = useState<Set<number>>(new Set());
+  const [sortConfig, setSortConfig] = useState<{ key: "date" | "payee" | "category" | "amount"; direction: "asc" | "desc" }>({
+    key: "date",
+    direction: "desc",
+  });
 
   const account = accounts.find((acc) => acc.id.toString() === id);
   const accountBalance =
@@ -175,6 +179,55 @@ export default function AccountDetails() {
     }
   };
 
+  const categoryLabel = useMemo(
+    () =>
+      (tx: any) => {
+        if (tx.payee && (tx.payee.startsWith("Transfer") || tx.payee.startsWith("Payment"))) {
+          return tx.payee;
+        }
+        if (tx.category_group && tx.category) return `${tx.category_group}: ${tx.category}`;
+        return tx.category || tx.category_group || "";
+      },
+    []
+  );
+
+  const sortedTransactions = useMemo(() => {
+    if (!account) return [];
+    const txs = [...account.transactions];
+    const dir = sortConfig.direction === "asc" ? 1 : -1;
+
+    txs.sort((a, b) => {
+      if (sortConfig.key === "date") {
+        return (new Date(a.date).getTime() - new Date(b.date).getTime()) * dir;
+      }
+      if (sortConfig.key === "payee") {
+        return a.payee.localeCompare(b.payee) * dir;
+      }
+      if (sortConfig.key === "category") {
+        return categoryLabel(a).localeCompare(categoryLabel(b)) * dir;
+      }
+      // amount
+      if (a.balance === b.balance) return a.id - b.id;
+      return (a.balance - b.balance) * dir;
+    });
+
+    return txs;
+  }, [account, sortConfig, categoryLabel]);
+
+  const toggleSort = (key: "date" | "payee" | "category" | "amount") => {
+    setSortConfig((prev) => {
+      if (prev.key === key) {
+        return { key, direction: prev.direction === "asc" ? "desc" : "asc" };
+      }
+      return { key, direction: key === "date" ? "desc" : "asc" };
+    });
+  };
+
+  const sortIndicator = (key: "date" | "payee" | "category" | "amount") => {
+    if (sortConfig.key !== key) return "";
+    return sortConfig.direction === "asc" ? "▲" : "▼";
+  };
+
   // Keyboard shortcuts
   useEffect(() => {
     if (!account) return;
@@ -237,10 +290,7 @@ export default function AccountDetails() {
         if (!account.transactions.length) return;
         e.preventDefault();
 
-        const sorted = [...account.transactions].sort(
-          (a, b) =>
-            new Date(b.date).getTime() - new Date(a.date).getTime()
-        );
+        const sorted = sortedTransactions;
 
         if (selectedTxId == null) {
           setSelectedTxId(sorted[0].id);
@@ -261,17 +311,11 @@ export default function AccountDetails() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [account, selectedTxId, showForm, editingTransactionId, deleteTransactionWithMirror]);
+  }, [account, selectedTxId, showForm, editingTransactionId, deleteTransactionWithMirror, sortedTransactions]);
 
   if (!account) {
     return <p className="text-center mt-10">Account not found.</p>;
   }
-
-  const sortedTransactions = account.transactions
-    .slice()
-    .sort(
-      (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-    );
 
   return (
     <div className="mx-auto p-8 relative bg-slate-50 dark:bg-slate-950 min-h-screen">
@@ -427,10 +471,38 @@ export default function AccountDetails() {
                   className="cursor-pointer"
                 />
               </th>
-              <th className="px-4 py-3 text-left border-r border-slate-200 dark:border-slate-700">Date</th>
-              <th className="px-4 py-3 text-left border-r border-slate-200 dark:border-slate-700">Payee</th>
-              <th className="px-4 py-3 text-left border-r border-slate-200 dark:border-slate-700">Category</th>
-              <th className="px-4 py-3 text-right">Amount</th>
+              <th
+                className="px-4 py-3 text-left border-r border-slate-200 dark:border-slate-700 cursor-pointer select-none"
+                onClick={() => toggleSort("date")}
+              >
+                <span className="flex items-center gap-1">
+                  Date <span className="text-[10px] text-slate-500">{sortIndicator("date")}</span>
+                </span>
+              </th>
+              <th
+                className="px-4 py-3 text-left border-r border-slate-200 dark:border-slate-700 cursor-pointer select-none"
+                onClick={() => toggleSort("payee")}
+              >
+                <span className="flex items-center gap-1">
+                  Payee <span className="text-[10px] text-slate-500">{sortIndicator("payee")}</span>
+                </span>
+              </th>
+              <th
+                className="px-4 py-3 text-left border-r border-slate-200 dark:border-slate-700 cursor-pointer select-none"
+                onClick={() => toggleSort("category")}
+              >
+                <span className="flex items-center gap-1">
+                  Category <span className="text-[10px] text-slate-500">{sortIndicator("category")}</span>
+                </span>
+              </th>
+              <th
+                className="px-4 py-3 text-right cursor-pointer select-none"
+                onClick={() => toggleSort("amount")}
+              >
+                <span className="flex items-center gap-1 justify-end">
+                  Amount <span className="text-[10px] text-slate-500">{sortIndicator("amount")}</span>
+                </span>
+              </th>
             </tr>
           </thead>
           <tbody>
