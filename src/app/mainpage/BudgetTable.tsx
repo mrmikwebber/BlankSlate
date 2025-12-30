@@ -750,7 +750,7 @@ export default function BudgetTable() {
           </div>
         </CardHeader>
 
-        <CardContent className="px-0 pb-2 flex-1 flex flex-col min-h-0 gap-2">
+        <CardContent className="px-0 pb-2 flex-1 flex flex-col min-h-0 gap-0">
           <div className="w-full">
             <Table data-cy="budget-table-header" className="w-full table-fixed">
               <TableHeader className="bg-slate-100 dark:bg-slate-800">
