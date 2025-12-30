@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useAccountContext } from "@/app/context/AccountContext";
 import { useUndoRedo } from "@/app/context/UndoRedoContext";
@@ -16,10 +16,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Plus, Edit2, Trash2 } from "lucide-react";
+import { Plus, Edit2, Trash2, ArrowLeft } from "lucide-react";
 
 export default function AccountDetails() {
   const { id } = useParams();
+  const router = useRouter();
   const { accounts, deleteTransactionWithMirror, editAccountName, refreshSingleAccount } =
     useAccountContext();
   const { registerAction } = useUndoRedo();
@@ -360,7 +361,18 @@ export default function AccountDetails() {
 
       {/* Header / balance */}
       <div className="flex items-center justify-between gap-4 mb-6 pb-4 border-b border-slate-200 dark:border-slate-700">
-        <div>
+        <div className="flex items-start gap-3">
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Back"
+            data-cy="account-back-button"
+            onClick={() => router.push("/dashboard")}
+            className="mt-1"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div>
           {isEditingAccountName ? (
             <div className="flex items-center gap-3">
               <Input
@@ -407,6 +419,7 @@ export default function AccountDetails() {
               })}
             </span>
           </p>
+        </div>
         </div>
 
         {!isEditingAccountName && (
