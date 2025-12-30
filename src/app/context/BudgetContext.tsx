@@ -764,6 +764,68 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
     ]);
   };
 
+    const reorderCategoryGroups = useCallback(
+      (draggedName: string, targetName: string) => {
+        if (!draggedName || !targetName || draggedName === targetName) return;
+
+        const previousData = JSON.parse(JSON.stringify(budgetData));
+
+        const applyReorder = (data) => {
+          const updated = { ...data };
+
+          Object.keys(updated).forEach((month) => {
+            const monthData = updated[month];
+            if (!monthData?.categories) return;
+
+            const categories = [...monthData.categories];
+            const fromIndex = categories.findIndex(
+              (cat) => cat.name === draggedName
+            );
+            const toIndex = categories.findIndex((cat) => cat.name === targetName);
+
+            if (fromIndex === -1 || toIndex === -1) return;
+
+            const [moved] = categories.splice(fromIndex, 1);
+            categories.splice(toIndex, 0, moved);
+
+            updated[month] = {
+              ...monthData,
+              categories,
+            };
+
+            dirtyMonths.current.add(month);
+          });
+
+          return updated;
+        };
+
+        setBudgetData((prev) => applyReorder(prev));
+
+        registerAction({
+          description: `Moved group '${draggedName}'`,
+          execute: async () => {
+            setBudgetData((prev) => applyReorder(prev));
+          },
+          undo: async () => {
+            Object.keys(previousData).forEach((month) =>
+              dirtyMonths.current.add(month)
+            );
+            setBudgetData(previousData);
+          },
+        });
+
+        setIsDirty(true);
+        setRecentChanges((prev) => [
+          ...prev.slice(-9),
+          {
+            description: `Moved group '${draggedName}'`,
+            timestamp: new Date().toISOString(),
+          },
+        ]);
+      },
+      [budgetData, registerAction]
+    );
+
   const deleteCategoryGroup = (groupName: string) => {
     
     // Capture previous state for undo BEFORE any changes
@@ -1049,6 +1111,139 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
       setIsDirty(true);
     },
     [budgetData, currentMonth, setAccounts]
+  );
+
+  const reorderCategoryItems = useCallback(
+    (
+      fromGroup: string,
+      draggedName: string,
+      toGroup: string,
+      targetName?: string,
+      position: "before" | "after" = "before"
+    ) => {
+      if (!fromGroup || !draggedName || !toGroup) return;
+      if (draggedName === targetName && fromGroup === toGroup) return;
+
+      // Disallow moving items into or out of Credit Card Payments
+      if (
+        (fromGroup === "Credit Card Payments" && toGroup !== fromGroup) ||
+        (toGroup === "Credit Card Payments" && fromGroup !== toGroup)
+      ) {
+        return;
+      }
+
+      const previousData = JSON.parse(JSON.stringify(budgetData));
+
+      const applyReorder = (data) => {
+        const updated = { ...data };
+
+        Object.keys(updated).forEach((month) => {
+          const monthData = updated[month];
+          if (!monthData?.categories) return;
+
+          const categories = monthData.categories.map((cat) => ({ ...cat }));
+
+          const fromCat = categories.find((c) => c.name === fromGroup);
+          const toCat = categories.find((c) => c.name === toGroup);
+          if (!fromCat || !toCat) return;
+
+          const fromItems = [...fromCat.categoryItems];
+          const itemIndex = fromItems.findIndex((i) => i.name === draggedName);
+          if (itemIndex === -1) return;
+
+          const [moved] = fromItems.splice(itemIndex, 1);
+          fromCat.categoryItems = fromItems;
+
+          const toItems = [...toCat.categoryItems];
+
+          if (targetName) {
+            const targetIndex = toItems.findIndex((i) => i.name === targetName);
+            if (targetIndex === -1) {
+              toItems.push(moved);
+            } else {
+              const insertIndex = Math.min(
+                Math.max(targetIndex + (position === "after" ? 1 : 0), 0),
+                toItems.length
+              );
+              toItems.splice(insertIndex, 0, moved);
+            }
+          } else {
+            toItems.push(moved);
+          }
+
+          toCat.categoryItems = toItems;
+
+          updated[month] = {
+            ...monthData,
+            categories,
+          };
+
+          dirtyMonths.current.add(month);
+        });
+
+        return updated;
+      };
+
+      setBudgetData((prev) => applyReorder(prev));
+
+      // Keep transactions aligned with the new group assignment
+      setAccounts((prevAccounts) =>
+        prevAccounts.map((account) => ({
+          ...account,
+          transactions: account.transactions.map((tx) => {
+            if (tx.category === draggedName && tx.category_group === fromGroup) {
+              return { ...tx, category_group: toGroup };
+            }
+            return tx;
+          }),
+        }))
+      );
+
+      registerAction({
+        description: `Moved category '${draggedName}'`,
+        execute: async () => {
+          setBudgetData((prev) => applyReorder(prev));
+          setAccounts((prevAccounts) =>
+            prevAccounts.map((account) => ({
+              ...account,
+              transactions: account.transactions.map((tx) => {
+                if (tx.category === draggedName && tx.category_group === fromGroup) {
+                  return { ...tx, category_group: toGroup };
+                }
+                return tx;
+              }),
+            }))
+          );
+        },
+        undo: async () => {
+          Object.keys(previousData).forEach((month) =>
+            dirtyMonths.current.add(month)
+          );
+          setBudgetData(previousData);
+          setAccounts((prevAccounts) =>
+            prevAccounts.map((account) => ({
+              ...account,
+              transactions: account.transactions.map((tx) => {
+                if (tx.category === draggedName && tx.category_group === toGroup) {
+                  return { ...tx, category_group: fromGroup };
+                }
+                return tx;
+              }),
+            }))
+          );
+        },
+      });
+
+      setIsDirty(true);
+      setRecentChanges((prev) => [
+        ...prev.slice(-9),
+        {
+          description: `Moved category '${draggedName}'`,
+          timestamp: new Date().toISOString(),
+        },
+      ]);
+    },
+    [budgetData, registerAction, setAccounts]
   );
 
 
@@ -1941,6 +2136,8 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
         deleteCategoryGroup,
         deleteCategoryWithReassignment,
         deleteCategoryItem,
+        reorderCategoryGroups,
+        reorderCategoryItems,
         dirtyMonths,
         refreshAllReadyToAssign,
         calculateCreditCardAccountActivity,

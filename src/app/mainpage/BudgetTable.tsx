@@ -28,7 +28,7 @@ import {
   CardTitle,
   CardContent,
 } from "@/components/ui/card";
-import { ChevronDown, ChevronRight, Plus } from "lucide-react";
+import { ChevronDown, ChevronRight, GripVertical, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
 
@@ -50,6 +50,8 @@ export default function BudgetTable() {
     calculateCreditCardAccountActivity,
     calculateActivityForMonth,
     setRecentChanges,
+    reorderCategoryGroups,
+    reorderCategoryItems,
   } = useBudgetContext();
 
   const { accounts } = useAccountContext();
@@ -110,6 +112,15 @@ export default function BudgetTable() {
     assigned: number;
     activity: number;
     available: number;
+  } | null>(null);
+
+  const [draggingGroup, setDraggingGroup] = useState<string | null>(null);
+  const [dragOverGroup, setDragOverGroup] = useState<string | null>(null);
+  const [draggingItem, setDraggingItem] = useState<{ group: string; item: string } | null>(null);
+  const [dragOverItem, setDragOverItem] = useState<{
+    group: string;
+    item: string;
+    position?: "before" | "after";
   } | null>(null);
 
   const addItemRef = useRef<HTMLDivElement | null>(null);
@@ -203,13 +214,9 @@ export default function BudgetTable() {
 
     const allCategories = budgetData[currentMonth]?.categories || [];
 
-    const sortedCategories = [...allCategories].sort((a, b) => {
-      if (a.name === "Credit Card Payments") return -1;
-      if (b.name === "Credit Card Payments") return 1;
-      return 0;
-    });
+    const orderedCategories = [...allCategories];
 
-    return sortedCategories
+    return orderedCategories
       .map((category) => {
         const filteredItems = category.categoryItems.filter((item) => {
           switch (selectedFilter) {
@@ -477,6 +484,44 @@ export default function BudgetTable() {
       setActiveCategory(null);
     }
   }, [newItem, addItemToCategory]);
+
+  const handleGroupDrop = useCallback(
+    (targetName: string) => {
+      if (!draggingGroup || draggingGroup === targetName) return;
+      reorderCategoryGroups(draggingGroup, targetName);
+      setDraggingGroup(null);
+      setDragOverGroup(null);
+    },
+    [draggingGroup, reorderCategoryGroups]
+  );
+
+  const handleItemDrop = useCallback(
+    (targetGroup: string, targetName?: string, position: "before" | "after" = "before") => {
+      if (!draggingItem) return;
+      if (
+        (draggingItem.group === "Credit Card Payments" && targetGroup !== draggingItem.group) ||
+        (targetGroup === "Credit Card Payments" && draggingItem.group !== targetGroup)
+      ) {
+        setDraggingItem(null);
+        setDragOverItem(null);
+        return;
+      }
+      if (draggingItem.item === targetName && draggingItem.group === targetGroup)
+        return;
+
+      reorderCategoryItems(
+        draggingItem.group,
+        draggingItem.item,
+        targetGroup,
+        targetName,
+        position
+      );
+
+      setDraggingItem(null);
+      setDragOverItem(null);
+    },
+    [draggingItem, reorderCategoryItems]
+  );
 
   const isDeletingRef = useRef(false);
 
@@ -784,7 +829,66 @@ export default function BudgetTable() {
                     <TableRow
                       data-cy="category-group-row"
                       data-category={group.name}
-                      className="group bg-slate-100 dark:bg-slate-800 text-sm font-semibold text-slate-900 dark:text-slate-100 border-b border-slate-200 dark:border-slate-700"
+                      className={cn(
+                        "group bg-slate-100 dark:bg-slate-800 text-sm font-semibold text-slate-900 dark:text-slate-100 border-b border-slate-200 dark:border-slate-700",
+                        draggingGroup === group.name && "opacity-70",
+                        dragOverGroup === group.name && draggingGroup
+                          ? "ring-2 ring-teal-500/70 bg-teal-50/60 dark:bg-teal-950/40 border-l-4 border-l-teal-500 shadow-sm"
+                          : "",
+                        dragOverItem?.group === group.name && dragOverItem?.item === "__group__"
+                          ? "ring-2 ring-teal-500/70 bg-teal-50/60 dark:bg-teal-950/40 border-l-4 border-l-teal-500 shadow-sm"
+                          : ""
+                      )}
+                      onDragOver={(e) => {
+                        if (draggingGroup) {
+                          e.preventDefault();
+                          if (draggingGroup !== group.name) {
+                            setDragOverGroup(group.name);
+                          }
+                          return;
+                        }
+
+                        if (draggingItem) {
+                          if (
+                            group.name === "Credit Card Payments" &&
+                            draggingItem.group !== group.name
+                          ) {
+                            return;
+                          }
+                          e.preventDefault();
+                          setDragOverItem({ group: group.name, item: "__group__", position: "after" });
+                        }
+                      }}
+                      onDrop={(e) => {
+                        if (draggingGroup) {
+                          e.preventDefault();
+                          handleGroupDrop(group.name);
+                          return;
+                        }
+
+                        if (draggingItem) {
+                          if (
+                            group.name === "Credit Card Payments" &&
+                            draggingItem.group !== group.name
+                          ) {
+                            setDragOverItem(null);
+                            return;
+                          }
+                          e.preventDefault();
+                          handleItemDrop(group.name, undefined, "after");
+                        }
+                      }}
+                      onDragLeave={() => {
+                        if (dragOverGroup === group.name) {
+                          setDragOverGroup(null);
+                        }
+                        if (
+                          dragOverItem?.group === group.name &&
+                          dragOverItem?.item === "__group__"
+                        ) {
+                          setDragOverItem(null);
+                        }
+                      }}
                     >
                       <TableCell
                         className="p-4 align-middle"
@@ -805,6 +909,22 @@ export default function BudgetTable() {
                         }}
                       >
                         <div className="flex items-center gap-1">
+                          <span
+                            className="mr-1 flex h-6 w-6 items-center justify-center text-slate-400 cursor-grab active:cursor-grabbing"
+                            draggable
+                            onDragStart={(e) => {
+                              e.stopPropagation();
+                              setDraggingGroup(group.name);
+                              setDragOverGroup(group.name);
+                              e.dataTransfer.effectAllowed = "move";
+                            }}
+                            onDragEnd={() => {
+                              setDraggingGroup(null);
+                              setDragOverGroup(null);
+                            }}
+                          >
+                            <GripVertical className="h-4 w-4" />
+                          </span>
                           <Button
                             data-cy="group-toggle"
                             data-category={group.name}
@@ -971,7 +1091,20 @@ export default function BudgetTable() {
                             data-cy="category-row"
                             data-category={group.name}
                             data-item={item.name}
-                            className="odd:bg-white dark:odd:bg-slate-950 even:bg-slate-50/60 dark:even:bg-slate-900/40 border-b border-slate-100 dark:border-slate-700"
+                            className={cn(
+                              "relative odd:bg-white dark:odd:bg-slate-950 even:bg-slate-50/60 dark:even:bg-slate-900/40 border-b border-slate-100 dark:border-slate-700",
+                              draggingItem?.group === group.name &&
+                                draggingItem?.item === item.name &&
+                                "opacity-70",
+                              dragOverItem?.group === group.name &&
+                                dragOverItem?.item === item.name &&
+                                cn(
+                                  "ring-2 ring-teal-500/70 bg-teal-50/60 dark:bg-teal-950/40 shadow-sm",
+                                  dragOverItem?.position === "after"
+                                    ? "border-b-4 border-b-teal-500"
+                                    : "border-l-4 border-l-teal-500"
+                                )
+                            )}
                             onContextMenu={(e) => {
                               e.preventDefault();
                               setCategoryContext({
@@ -983,6 +1116,39 @@ export default function BudgetTable() {
                                 activity: item.activity,
                                 available: item.available,
                               });
+                            }}
+                            onDragOver={(e) => {
+                              if (!draggingItem) return;
+                              if (
+                                group.name === "Credit Card Payments" &&
+                                draggingItem.group !== group.name
+                              ) {
+                                return;
+                              }
+                              e.preventDefault();
+                              const rect = (e.currentTarget as HTMLTableRowElement).getBoundingClientRect();
+                              const position = e.clientY - rect.top > rect.height / 2 ? "after" : "before";
+                              setDragOverItem({ group: group.name, item: item.name, position });
+                            }}
+                            onDrop={(e) => {
+                              if (!draggingItem) return;
+                              if (
+                                group.name === "Credit Card Payments" &&
+                                draggingItem.group !== group.name
+                              ) {
+                                setDragOverItem(null);
+                                return;
+                              }
+                              e.preventDefault();
+                              handleItemDrop(group.name, item.name, dragOverItem?.position || "before");
+                            }}
+                            onDragLeave={() => {
+                              if (
+                                dragOverItem?.group === group.name &&
+                                dragOverItem?.item === item.name
+                              ) {
+                                setDragOverItem(null);
+                              }
                             }}
                           >
                             <TableCell
@@ -1038,6 +1204,22 @@ export default function BudgetTable() {
                                 />
                               ) : (
                                 <div className="flex items-center gap-2">
+                                  <span
+                                    className="flex h-5 w-5 items-center justify-center text-slate-400 cursor-grab active:cursor-grabbing"
+                                    draggable
+                                    onDragStart={(e) => {
+                                      e.stopPropagation();
+                                      setDraggingItem({ group: group.name, item: item.name });
+                                      setDragOverItem({ group: group.name, item: item.name });
+                                      e.dataTransfer.effectAllowed = "move";
+                                    }}
+                                    onDragEnd={() => {
+                                      setDraggingItem(null);
+                                      setDragOverItem(null);
+                                    }}
+                                  >
+                                    <GripVertical className="h-3 w-3" />
+                                  </span>
                                   <div className="relative h-6 rounded-md px-1 flex-1">
                                     {item.target && (
                                       <div
