@@ -55,6 +55,8 @@ export default function BudgetTable() {
   const { accounts } = useAccountContext();
   const { registerAction } = useUndoRedo();
 
+  console.count("BudgetTable render");
+
   const FILTERS = [
     "All",
     "Money Available",
@@ -62,7 +64,6 @@ export default function BudgetTable() {
     "Overfunded",
     "Underfunded",
   ];
-  const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState("");
   const [inlineEditorCategory, setInlineEditorCategory] = useState<
     string | null
@@ -113,6 +114,31 @@ export default function BudgetTable() {
 
   const addItemRef = useRef<HTMLDivElement | null>(null);
 
+  const tableRef = useRef<HTMLDivElement>(null);
+  const isScrolling = useRef(false);
+
+  useEffect(() => {
+    const container = tableRef.current;
+    if (!container) return;
+
+    let scrollTimeout: NodeJS.Timeout;
+
+    const handleScroll = () => {
+      isScrolling.current = true;
+      clearTimeout(scrollTimeout);
+
+      scrollTimeout = setTimeout(() => {
+        isScrolling.current = false;
+      }, 150);
+    };
+
+    container.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      container.removeEventListener('scroll', handleScroll);
+      clearTimeout(scrollTimeout);
+    };
+  }, []);
+
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (addItemRef.current && !addItemRef.current.contains(e.target as Node)) {
@@ -156,14 +182,14 @@ export default function BudgetTable() {
       setGroupContext(null);
       setCategoryContext(null);
     };
-    
+
     const handleEscape = (e) => {
       if (e.key === "Escape") {
         closeMenu();
         setCategoryDeleteContext(null);
       }
     };
-    
+
     window.addEventListener("click", closeMenu);
     window.addEventListener("keydown", handleEscape);
     return () => {
@@ -206,9 +232,9 @@ export default function BudgetTable() {
       .filter(Boolean);
   }, [budgetData, currentMonth, selectedFilter]);
 
-  const toggleCategory = (category: string) => {
+  const toggleCategory = useCallback((category: string) => {
     setOpenCategories((prev) => ({ ...prev, [category]: !prev[category] }));
-  };
+  }, []);
 
   const handleInputChange = useCallback((categoryName, itemName, value) => {
     // Capture previous state for undo
@@ -439,7 +465,7 @@ export default function BudgetTable() {
     ]);
   }, [currentMonth, setBudgetData, setIsDirty, setRecentChanges, registerAction, calculateActivityForMonth, getCumulativeAvailable, calculateCreditCardAccountActivity, refreshAllReadyToAssign]);
 
-  const handleAddItem = (category: string) => {
+  const handleAddItem = useCallback((category: string) => {
     if (newItem.name.trim() !== "") {
       addItemToCategory(category, {
         name: newItem.name,
@@ -450,7 +476,7 @@ export default function BudgetTable() {
       setNewItem({ name: "", assigned: 0, activity: 0, available: 0 });
       setActiveCategory(null);
     }
-  };
+  }, [newItem, addItemToCategory]);
 
   const isDeletingRef = useRef(false);
 
@@ -516,11 +542,11 @@ export default function BudgetTable() {
       {/* Category delete / reassign modal */}
       {categoryDeleteContext &&
         createPortal(
-          <div 
+          <div
             className="fixed inset-0 bg-black/30 dark:bg-black/50 z-50 flex items-center justify-center"
             onClick={() => setCategoryDeleteContext(null)}
           >
-            <div 
+            <div
               className="bg-white dark:bg-neutral-900 p-5 rounded-lg shadow-lg w-full max-w-md space-y-4 text-neutral-800 dark:text-neutral-200"
               onClick={(e) => e.stopPropagation()}
             >
@@ -670,7 +696,7 @@ export default function BudgetTable() {
         )}
 
       {/* Main card */}
-      <Card className="flex flex-col w-full h-full min-h-0 overflow-hidden border border-slate-200 dark:border-slate-700 shadow-md dark:shadow-lg rounded-xl bg-white dark:bg-slate-950">
+      <Card className="flex flex-col w-full h-full min-h-0 overflow-hidden border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-950">
         <CardHeader className="pb-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
           <div className="flex flex-col gap-4">
             {/* Top row: RTA + Month */}
@@ -724,10 +750,10 @@ export default function BudgetTable() {
           </div>
         </CardHeader>
 
-        <CardContent className="px-0 pb-2 flex-1 flex flex-col min-h-0">
-          <div className="flex-1 min-h-0 [&>div]:h-full">
-            <Table data-cy="budget-table" className="w-full">
-              <TableHeader className="sticky top-0 z-30 bg-slate-100 dark:bg-slate-800">
+        <CardContent className="px-0 pb-2 flex-1 flex flex-col min-h-0 gap-2">
+          <div className="w-full">
+            <Table data-cy="budget-table-header" className="w-full table-fixed">
+              <TableHeader className="bg-slate-100 dark:bg-slate-800">
                 <TableRow className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700">
                   <TableHead className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">
                     Category
@@ -743,6 +769,14 @@ export default function BudgetTable() {
                   </TableHead>
                 </TableRow>
               </TableHeader>
+            </Table>
+          </div>
+
+          <div
+            className="flex-1 min-h-0 overflow-auto"
+            style={{ contain: "paint", willChange: "transform", transform: "translateZ(0)" }}
+          >
+            <Table data-cy="budget-table" className="w-full table-fixed">
               <TableBody>
                 {filteredCategories.map((group) => (
                   <Fragment key={group.name}>
@@ -750,9 +784,7 @@ export default function BudgetTable() {
                     <TableRow
                       data-cy="category-group-row"
                       data-category={group.name}
-                      className="bg-slate-100 dark:bg-slate-800 hover:bg-slate-150 dark:hover:bg-slate-700 text-sm font-semibold text-slate-900 dark:text-slate-100 border-b border-slate-200 dark:border-slate-700 transition-colors"
-                      onMouseEnter={() => setHoveredCategory(group.name)}
-                      onMouseLeave={() => setHoveredCategory(null)}
+                      className="group bg-slate-100 dark:bg-slate-800 text-sm font-semibold text-slate-900 dark:text-slate-100 border-b border-slate-200 dark:border-slate-700"
                     >
                       <TableCell
                         className="p-4 align-middle"
@@ -822,18 +854,16 @@ export default function BudgetTable() {
                             </span>
                           )}
                           <div className="ms-1 w-6 h-6 flex items-center justify-center">
-                            {hoveredCategory === group.name && (
-                              <Button
-                                data-cy="group-add-item-button"
-                                data-category={group.name}
-                                size="icon"
-                                variant="outline"
-                                onClick={() => setActiveCategory(group.name)}
-                                className="h-6 w-6"
-                              >
-                                <Plus className="h-3 w-3" />
-                              </Button>
-                            )}
+                            <Button
+                              data-cy="group-add-item-button"
+                              data-category={group.name}
+                              size="icon"
+                              variant="outline"
+                              onClick={() => setActiveCategory(group.name)}
+                              className="h-6 w-6 hidden group-hover:block"
+                            >
+                              <Plus className="h-3 w-3" />
+                            </Button>
                           </div>
                         </div>
                       </TableCell>
@@ -884,7 +914,7 @@ export default function BudgetTable() {
                             className={`${dropUp
                               ? "bottom-full mb-2"
                               : "top-full mt-2"
-                              } absolute left-0 w-72 bg-white dark:bg-slate-900 p-3 shadow-lg rounded-md border border-slate-200 dark:border-slate-700 z-50 space-y-2 text-slate-800 dark:text-slate-200`}
+                              } absolute left-0 w-72 bg-white dark:bg-slate-900 p-3 shadow-sm rounded-md border border-slate-200 dark:border-slate-700 z-50 space-y-2 text-slate-800 dark:text-slate-200`}
                           >
                             <Input
                               data-cy="add-item-input"
@@ -941,7 +971,7 @@ export default function BudgetTable() {
                             data-cy="category-row"
                             data-category={group.name}
                             data-item={item.name}
-                            className="odd:bg-white dark:odd:bg-slate-950 even:bg-slate-50/60 dark:even:bg-slate-900/40 hover:bg-teal-50 dark:hover:bg-slate-800 border-b border-slate-100 dark:border-slate-700 transition-colors"
+                            className="odd:bg-white dark:odd:bg-slate-950 even:bg-slate-50/60 dark:even:bg-slate-900/40 border-b border-slate-100 dark:border-slate-700"
                             onContextMenu={(e) => {
                               e.preventDefault();
                               setCategoryContext({
@@ -1011,7 +1041,7 @@ export default function BudgetTable() {
                                   <div className="relative h-6 rounded-md px-1 flex-1">
                                     {item.target && (
                                       <div
-                                        className="absolute top-0 left-0 h-full bg-gradient-to-r from-teal-500 to-teal-400 dark:from-teal-500 dark:to-teal-300 transition-all duration-300 opacity-90 dark:opacity-100 rounded-md"
+                                        className="absolute top-0 left-0 h-full bg-teal-500 dark:bg-teal-600 rounded-md"
                                         style={{
                                           width: `${Math.min(
                                             (item.assigned /
@@ -1029,17 +1059,16 @@ export default function BudgetTable() {
                                     </div>
                                   </div>
                                   {item.target && getTargetStatus(item).message && (
-                                    <div className={`px-2 py-0.5 rounded text-[10px] font-semibold whitespace-nowrap ${
-                                      getTargetStatus(item).type === "overspent" 
-                                        ? "bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-200"
-                                        : getTargetStatus(item).type === "funded"
+                                    <div className={`px-2 py-0.5 rounded text-[10px] font-semibold whitespace-nowrap ${getTargetStatus(item).type === "overspent"
+                                      ? "bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-200"
+                                      : getTargetStatus(item).type === "funded"
                                         ? "bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-200"
                                         : getTargetStatus(item).type === "overfunded"
-                                        ? "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-200"
-                                        : getTargetStatus(item).type === "underfunded"
-                                        ? "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-200"
-                                        : "bg-slate-100 dark:bg-slate-800/40 text-slate-600 dark:text-slate-300"
-                                    }`}>
+                                          ? "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-200"
+                                          : getTargetStatus(item).type === "underfunded"
+                                            ? "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-200"
+                                            : "bg-slate-100 dark:bg-slate-800/40 text-slate-600 dark:text-slate-300"
+                                      }`}>
                                       {getTargetStatus(item).type === "funded" && "✓ Funded"}
                                       {getTargetStatus(item).type === "overfunded" && "↑ Overfunded"}
                                       {getTargetStatus(item).type === "underfunded" && "↓ " + (item.target.amountNeeded - item.assigned > 0 ? formatToUSD(item.target.amountNeeded - item.assigned) + " left" : "")}
