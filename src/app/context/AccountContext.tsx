@@ -51,6 +51,11 @@ interface AccountContextType {
   ) => void;
   editAccountName: (accountId: number, newName: string) => void;
   refreshSingleAccount: (accountId: number) => void;
+  reorderAccounts: (
+    draggedId: number,
+    targetId: number,
+    position?: "before" | "after"
+  ) => void;
 }
 
 const AccountContext = createContext<AccountContextType | undefined>(undefined);
@@ -71,6 +76,47 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [savedPayees, setSavedPayees] = useState<SavedPayee[]>([]);
   const [recentTransactions, setRecentTransactions] = useState([]);
+
+  const orderKey = useMemo(
+    () => (user?.id ? `account-order:${user.id}` : null),
+    [user?.id]
+  );
+
+  const loadOrder = () => {
+    if (!orderKey || typeof window === "undefined") return null;
+    try {
+      const raw = window.localStorage.getItem(orderKey);
+      return raw ? (JSON.parse(raw) as number[]) : null;
+    } catch (err) {
+      console.warn("Failed to load account order", err);
+      return null;
+    }
+  };
+
+  const saveOrder = (ids: number[]) => {
+    if (!orderKey || typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(orderKey, JSON.stringify(ids));
+    } catch (err) {
+      console.warn("Failed to save account order", err);
+    }
+  };
+
+  const applyOrder = (list: Account[], order: number[] | null) => {
+    if (!order || order.length === 0) return list;
+    const map = new Map(list.map((a) => [a.id, a] as const));
+    const ordered: Account[] = [];
+    order.forEach((id) => {
+      const acc = map.get(id);
+      if (acc) {
+        ordered.push(acc);
+        map.delete(id);
+      }
+    });
+    // append any new accounts not yet in order
+    map.forEach((acc) => ordered.push(acc));
+    return ordered;
+  };
   useEffect(() => {
     if (!user) return;
     const fetchAccounts = async () => {
@@ -85,7 +131,9 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
 
       if (!error && data) {
-        setAccounts(data as unknown as Account[]);
+        const normalized = (data as unknown as Account[]).map((acc) => normalizeAccount(acc));
+        const ordered = applyOrder(normalized, loadOrder());
+        setAccounts(ordered);
       }
     };
 
@@ -422,7 +470,11 @@ const upsertPayee = async (name: string) => {
     }
     const generatedTransaction = await addTransaction(currentAccountId, newTransaction, true);
     
-    setAccounts((prev) => [...prev, { ...account, id: currentAccountId, transactions: generatedTransaction }]);
+    setAccounts((prev) => {
+      const next = [...prev, { ...account, id: currentAccountId, transactions: generatedTransaction }];
+      saveOrder(next.map((a) => a.id));
+      return next;
+    });
   };
 
   const deleteAccount = async (accountId: number | string) => {
@@ -439,7 +491,11 @@ const upsertPayee = async (name: string) => {
     if (error) {
       console.error("Failed to delete account:", error);
     } else {
-      setAccounts((prev) => prev.filter((acc) => acc.id !== accountId));
+      setAccounts((prev) => {
+        const next = prev.filter((acc) => acc.id !== accountId);
+        saveOrder(next.map((a) => a.id));
+        return next;
+      });
     }
   };
 
@@ -609,6 +665,60 @@ const upsertPayee = async (name: string) => {
     });
   };
 
+  const reorderAccounts = (
+    draggedId: number,
+    targetId: number,
+    position: "before" | "after" = "before"
+  ) => {
+    if (!draggedId || !targetId || draggedId === targetId) return;
+
+    const dragged = accounts.find((a) => a.id === draggedId);
+    const target = accounts.find((a) => a.id === targetId);
+    // Do not allow mixing credit/debit ordering across groups
+    if (!dragged || !target || dragged.type !== target.type) return;
+
+    const previousOrder = accounts.map((a) => a.id);
+
+    const reorderOnce = (list: Account[]) => {
+      const fromIdx = list.findIndex((a) => a.id === draggedId);
+      const toIdx = list.findIndex((a) => a.id === targetId);
+      if (fromIdx === -1 || toIdx === -1) return list;
+
+      const next = [...list];
+      const [moved] = next.splice(fromIdx, 1);
+      const insertIdx = Math.min(
+        Math.max(position === "after" ? toIdx + (fromIdx < toIdx ? 0 : 1) : toIdx, 0),
+        next.length
+      );
+      next.splice(insertIdx, 0, moved);
+      return next;
+    };
+
+    const nextList = reorderOnce(accounts);
+    if (nextList === accounts) return;
+
+    saveOrder(nextList.map((a) => a.id));
+    setAccounts(nextList);
+
+    registerAction({
+      description: "Reordered accounts",
+      execute: async () => {
+        setAccounts((prevRun) => {
+          const updated = reorderOnce(prevRun);
+          saveOrder(updated.map((a) => a.id));
+          return updated;
+        });
+      },
+      undo: async () => {
+        setAccounts((prevUndo) => {
+          const ordered = applyOrder(prevUndo, previousOrder);
+          saveOrder(previousOrder);
+          return ordered;
+        });
+      },
+    });
+  };
+
   const contextValue = useMemo(
     () => ({
       accounts,
@@ -624,9 +734,10 @@ const upsertPayee = async (name: string) => {
       recentTransactions,
       savedPayees,
       upsertPayee,
-      refreshSingleAccount
+      refreshSingleAccount,
+      reorderAccounts,
     }),
-    [accounts, recentTransactions, savedPayees]
+    [accounts, recentTransactions, savedPayees, reorderAccounts]
   );
 
   return (
