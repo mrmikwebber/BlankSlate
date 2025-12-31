@@ -21,11 +21,16 @@ async function main() {
     const source = process.env.TAG_SOURCE || "manual";
     const note = process.env.TAG_NOTE || null;
 
-    const { error } = await supabase.from("app_versions").insert({
-        version,
-        source,
-        note,
-    });
+    const { error } = await supabase
+        .from("app_versions")
+        .upsert(
+            { version, source, note },
+            { onConflict: "version,note" }
+        )
+        .throwOnError();
+
+
+
 
 
     if (error) {
