@@ -27,8 +27,14 @@ async function main() {
         note,
     });
 
+
     if (error) {
-        console.error("Failed to insert version tag", error);
+        console.error("Failed to insert version tag");
+        console.error("error.message:", error.message);
+        console.error("error.code:", error.code);
+        console.error("error.details:", error.details);
+        console.error("error.hint:", error.hint);
+        console.error("raw:", JSON.stringify(error, null, 2));
         process.exit(1);
     }
 
