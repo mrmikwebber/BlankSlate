@@ -38,8 +38,8 @@ export default function Home() {
 
       {/* Desktop Layout - Hidden below md */}
       <div className="hidden md:flex h-[calc(100vh-76px)] overflow-hidden flex-col">
-        <div className="m-4 grid grid-cols-1 lg:grid-cols-[22%_78%] gap-3 w-full min-h-0">
-          <div className="bg-zinc-100 dark:bg-slate-900 p-4 rounded-md drop-shadow-md dark:drop-shadow-lg h-full">
+        <div className="m-4 grid grid-cols-1 lg:grid-cols-[22%_78%] gap-3 w-full h-full min-h-0">
+          <div className="bg-zinc-100 dark:bg-slate-900 p-4 rounded-md drop-shadow-md dark:drop-shadow-lg h-full overflow-auto">
             <SidebarPanel />
           </div>
 
