@@ -32,15 +32,25 @@ interface Target {
   amountNeeded: number;
 }
 
+interface NoteEntry {
+  text: string;
+  updated_at: string;
+}
+
 interface BudgetData {
   categories: {
     name: string;
+    notes?: string;
+    notes_history?: NoteEntry[];
     categoryItems: {
       name: string;
       assigned: number;
       activity: number;
       available: number;
+      snoozed?: boolean;
       target?: Target;
+      notes?: string;
+      notes_history?: NoteEntry[];
     }[];
   }[];
   assignable_money?: number;
@@ -53,6 +63,7 @@ interface CategoryItem {
   assigned: number;
   activity: number;
   available: number;
+  snoozed?: boolean;
 }
 
 interface Category {
@@ -66,9 +77,12 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const [recentChanges, setRecentChanges] = useState([]);
+  const [sandboxMode, setSandboxMode] = useState(false);
+  const sandboxBaselineRef = useRef<Record<string, BudgetData> | null>(null);
+  const sandboxBaselineMonthRef = useRef<string | null>(null);
   const dirtyMonths = useRef<Set<string>>(new Set());
   const { user } = useAuth() || { user: null };
-  const { registerAction } = useUndoRedo();
+  const { registerAction, clearHistory } = useUndoRedo();
   const [currentMonth, setCurrentMonth] = useState(
     format(new Date(), "yyyy-MM")
   );
@@ -78,16 +92,16 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
     {
       name: "Bills",
       categoryItems: [
-        { name: "Rent", assigned: 0, activity: 0, available: 0 },
-        { name: "Electricity", assigned: 0, activity: 0, available: 0 },
-        { name: "Water", assigned: 0, activity: 0, available: 0 },
+        { name: "Rent", assigned: 0, activity: 0, available: 0, snoozed: false },
+        { name: "Electricity", assigned: 0, activity: 0, available: 0, snoozed: false },
+        { name: "Water", assigned: 0, activity: 0, available: 0, snoozed: false },
       ],
     },
     {
       name: "Subscriptions",
       categoryItems: [
-        { name: "Spotify", assigned: 0, activity: 0, available: 0 },
-        { name: "Netflix", assigned: 0, activity: 0, available: 0 },
+        { name: "Spotify", assigned: 0, activity: 0, available: 0, snoozed: false },
+        { name: "Netflix", assigned: 0, activity: 0, available: 0, snoozed: false },
       ],
     },
     {
@@ -97,6 +111,84 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
   ];
 
   const { accounts, setAccounts } = useAccountContext();
+
+  // Helper: Update or add a note to a category group
+  const updateCategoryGroupNote = useCallback(
+    (categoryName: string, noteText: string) => {
+      setBudgetData((prev) => {
+        const updated = { ...prev };
+        const monthData = updated[currentMonth];
+        if (!monthData?.categories) return prev;
+
+        const updatedCategories = monthData.categories.map((cat) => {
+          if (cat.name !== categoryName) return cat;
+
+          const now = new Date().toISOString();
+          const newHistory = [
+            ...(cat.notes_history || []),
+            { text: noteText, updated_at: now },
+          ];
+
+          return {
+            ...cat,
+            notes: noteText,
+            notes_history: newHistory,
+          };
+        });
+
+        updated[currentMonth] = {
+          ...monthData,
+          categories: updatedCategories,
+        };
+
+        setIsDirty(true);
+        return updated;
+      });
+    },
+    [currentMonth, setIsDirty]
+  );
+
+  // Helper: Update or add a note to a category item
+  const updateCategoryItemNote = useCallback(
+    (categoryName: string, itemName: string, noteText: string) => {
+      setBudgetData((prev) => {
+        const updated = { ...prev };
+        const monthData = updated[currentMonth];
+        if (!monthData?.categories) return prev;
+
+        const updatedCategories = monthData.categories.map((cat) => {
+          if (cat.name !== categoryName) return cat;
+
+          const updatedItems = cat.categoryItems.map((item) => {
+            if (item.name !== itemName) return item;
+
+            const now = new Date().toISOString();
+            const newHistory = [
+              ...(item.notes_history || []),
+              { text: noteText, updated_at: now },
+            ];
+
+            return {
+              ...item,
+              notes: noteText,
+              notes_history: newHistory,
+            };
+          });
+
+          return { ...cat, categoryItems: updatedItems };
+        });
+
+        updated[currentMonth] = {
+          ...monthData,
+          categories: updatedCategories,
+        };
+
+        setIsDirty(true);
+        return updated;
+      });
+    },
+    [currentMonth, setIsDirty]
+  );
 
   useEffect(() => {
     if (!user) return;
@@ -175,6 +267,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
   }, [user]);
 
   useEffect(() => {
+    if (sandboxMode) return;
     if (dirtyMonths.current.size === 0) return;
 
     for (const month of dirtyMonths.current) {
@@ -186,12 +279,46 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
     }
 
     dirtyMonths.current.clear();
-  }, [budgetData]);
+  }, [budgetData, sandboxMode]);
 
   const resetBudgetData = () => {
     setBudgetData({});
     setLoading(true);
   };
+
+  const enterSandbox = useCallback(() => {
+    if (sandboxMode) return;
+    sandboxBaselineRef.current = JSON.parse(JSON.stringify(budgetData || {}));
+    sandboxBaselineMonthRef.current = currentMonth;
+    dirtyMonths.current.clear();
+    setIsDirty(false);
+    clearHistory();
+    setSandboxMode(true);
+  }, [sandboxMode, budgetData, currentMonth, clearHistory]);
+
+  const exitSandbox = useCallback(() => {
+    if (!sandboxMode) return;
+    if (sandboxBaselineRef.current) {
+      const restored = sandboxBaselineRef.current;
+      setBudgetData(restored);
+
+      const hasCurrent = restored[currentMonth];
+      if (!hasCurrent) {
+        const fallback = sandboxBaselineMonthRef.current && restored[sandboxBaselineMonthRef.current]
+          ? sandboxBaselineMonthRef.current
+          : Object.keys(restored).sort().pop() || format(new Date(), "yyyy-MM");
+        setCurrentMonth(fallback);
+      }
+    }
+    sandboxBaselineRef.current = null;
+    sandboxBaselineMonthRef.current = null;
+    dirtyMonths.current.clear();
+    setIsDirty(false);
+    setRecentChanges([]);
+    clearHistory();
+    lastSaved.current = null;
+    setSandboxMode(false);
+  }, [sandboxMode, currentMonth, clearHistory, setRecentChanges]);
 
   const refreshAccounts = async () => {
     const { data, error } = await supabase
@@ -208,6 +335,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const _saveBudget = async (month, data) => {
+    if (sandboxMode) return;
     if (!user?.id) {
       console.error("No user ID found. Not saving budget.");
       return;
@@ -401,6 +529,40 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const renameCategoryGroup = async (oldName: string, newName: string) => {
+    if (sandboxMode) {
+      setBudgetData((prev) => {
+        const updated = { ...prev };
+        const monthData = updated[currentMonth];
+        if (!monthData?.categories) return prev;
+
+        const updatedCategories = monthData.categories.map((group) =>
+          group.name === oldName
+            ? {
+              ...group,
+              name: newName,
+              categoryItems: group.categoryItems.map((item) => ({
+                ...item,
+                category_group: newName,
+              })),
+            }
+            : group
+        );
+
+        updated[currentMonth] = { ...monthData, categories: updatedCategories };
+        dirtyMonths.current.add(currentMonth);
+        return updated;
+      });
+      setIsDirty(true);
+      setRecentChanges((prev) => [
+        ...prev.slice(-9),
+        {
+          description: `Renamed group '${oldName}' to '${newName}' (sandbox)`,
+          timestamp: new Date().toISOString(),
+        },
+      ]);
+      return;
+    }
+
     const { data: existingRows, error: fetchError } = await supabase
       .from("budget_data")
       .select("id, data")
@@ -459,6 +621,36 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
     oldItem: string,
     newItem: string
   ) => {
+    if (sandboxMode) {
+      setBudgetData((prev) => {
+        const updated = { ...prev };
+        const monthData = updated[currentMonth];
+        if (!monthData?.categories) return prev;
+
+        updated[currentMonth].categories = monthData.categories.map((cat) =>
+          cat.name === categoryName
+            ? {
+              ...cat,
+              categoryItems: cat.categoryItems.map((item) =>
+                item.name === oldItem ? { ...item, name: newItem } : item
+              ),
+            }
+            : cat
+        );
+        dirtyMonths.current.add(currentMonth);
+        return updated;
+      });
+      setIsDirty(true);
+      setRecentChanges((prev) => [
+        ...prev.slice(-9),
+        {
+          description: `Renamed category '${oldItem}' to '${newItem}' in '${categoryName}' (sandbox)`,
+          timestamp: new Date().toISOString(),
+        },
+      ]);
+      return;
+    }
+
     await supabase
       .from("categories")
       .update({ name: newItem })
@@ -545,6 +737,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   useEffect(() => {
+    if (sandboxMode) return;
     if (!budgetData[currentMonth]) return;
 
     const key = `${currentMonth}-${JSON.stringify(budgetData[currentMonth])}`;
@@ -557,7 +750,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
     saveBudgetMonth(currentMonth, budgetData[currentMonth]);
 
     lastSaved.current = key;
-  }, [budgetData, currentMonth]);
+  }, [budgetData, currentMonth, sandboxMode]);
 
   useEffect(() => {
     if (!budgetData[currentMonth] || !accounts.length) return;
@@ -689,6 +882,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
         assigned: 0,
         activity: 0,
         available: 0,
+        snoozed: item.snoozed ?? false,
         target: null,
       })),
     }));
@@ -889,10 +1083,16 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
       assigned: number;
       activity: number;
       available: number;
+      snoozed?: boolean;
     }
   ) => {
     const monthData = budgetData[currentMonth];
     if (!monthData) return;
+
+    const normalizedNewItem = {
+      ...newItem,
+      snoozed: newItem.snoozed ?? false,
+    };
 
     const existingGroup = monthData.categories.find(
       (cat) => cat.name === categoryName
@@ -909,14 +1109,14 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
 
       newCategories = monthData.categories.map((cat) =>
         cat.name === categoryName
-          ? { ...cat, categoryItems: [...cat.categoryItems, newItem] }
+          ? { ...cat, categoryItems: [...cat.categoryItems, normalizedNewItem] }
           : cat
       );
     } else {
       // Group doesn't exist yet – create it with this one item
       newCategories = [
         ...monthData.categories,
-        { name: categoryName, categoryItems: [newItem] },
+        { name: categoryName, categoryItems: [normalizedNewItem] },
       ];
     }
 
@@ -949,7 +1149,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
 
           const newCategories = monthData.categories.map((cat) =>
             cat.name === categoryName
-              ? { ...cat, categoryItems: [...cat.categoryItems, newItem] }
+                ? { ...cat, categoryItems: [...cat.categoryItems, normalizedNewItem] }
               : cat
           );
 
@@ -1307,6 +1507,53 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
       },
     ]);
   };
+
+  const setCategorySnooze = useCallback(
+    (groupName: string, itemName: string, snoozed: boolean) => {
+      const description = `${snoozed ? "Snoozed" : "Unsnoozed"} '${itemName}'`;
+
+      const apply = (value: boolean) => {
+        setBudgetData((prev) => {
+          const monthData = prev[currentMonth];
+          if (!monthData) return prev;
+
+          const updatedCategories = monthData.categories.map((cat) =>
+            cat.name === groupName
+              ? {
+                ...cat,
+                categoryItems: cat.categoryItems.map((item) =>
+                  item.name === itemName ? { ...item, snoozed: value } : item
+                ),
+              }
+              : cat
+          );
+
+          const updated = {
+            ...prev,
+            [currentMonth]: { ...monthData, categories: updatedCategories },
+          };
+
+          dirtyMonths.current.add(currentMonth);
+          return updated;
+        });
+      };
+
+      apply(snoozed);
+
+      registerAction({
+        description,
+        execute: async () => apply(snoozed),
+        undo: async () => apply(!snoozed),
+      });
+
+      setIsDirty(true);
+      setRecentChanges((prev) => [
+        ...prev.slice(-9),
+        { description, timestamp: new Date().toISOString() },
+      ]);
+    },
+    [currentMonth, registerAction, setRecentChanges]
+  );
 
   const setCategoryTarget = (categoryItemName, target) => {
     // Capture old target for undo
@@ -1785,6 +2032,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
                     assigned: 0,
                     activity: 0,
                     available: 0,
+                    snoozed: item.snoozed ?? false,
                     target: item.target ?? null,
                   })) || [];
 
@@ -2138,6 +2386,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
         deleteCategoryItem,
         reorderCategoryGroups,
         reorderCategoryItems,
+        setCategorySnooze,
         dirtyMonths,
         refreshAllReadyToAssign,
         calculateCreditCardAccountActivity,
@@ -2148,6 +2397,11 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
         recentChanges,
         setRecentChanges,
         refreshAccounts,
+        updateCategoryGroupNote,
+        updateCategoryItemNote,
+        sandboxMode,
+        enterSandbox,
+        exitSandbox,
       }}
     >
       {children}

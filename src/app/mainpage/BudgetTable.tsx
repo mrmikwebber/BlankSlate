@@ -11,6 +11,8 @@ import { createPortal } from "react-dom";
 import InlineTargetEditor from "./TargetInlineEditor";
 import { useAccountContext } from "../context/AccountContext";
 import { useUndoRedo } from "../context/UndoRedoContext";
+import { NotesPopover } from "@/components/ui/NotesPopover";
+import { subMonths, format, parse } from "date-fns";
 import {
   Table,
   TableBody,
@@ -28,7 +30,7 @@ import {
   CardTitle,
   CardContent,
 } from "@/components/ui/card";
-import { ChevronDown, ChevronRight, GripVertical, Plus, RotateCcw, RotateCw } from "lucide-react";
+import { ChevronDown, ChevronRight, GripVertical, Plus, RotateCcw, RotateCw, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
 
@@ -52,6 +54,12 @@ export default function BudgetTable() {
     setRecentChanges,
     reorderCategoryGroups,
     reorderCategoryItems,
+    updateCategoryGroupNote,
+    updateCategoryItemNote,
+    sandboxMode,
+    enterSandbox,
+    exitSandbox,
+    setCategorySnooze,
   } = useBudgetContext();
 
   const { accounts } = useAccountContext();
@@ -65,6 +73,7 @@ export default function BudgetTable() {
     "Overspent",
     "Overfunded",
     "Underfunded",
+    "Snoozed",
   ];
   const [selectedCategory, setSelectedCategory] = useState("");
   const [inlineEditorCategory, setInlineEditorCategory] = useState<
@@ -84,10 +93,12 @@ export default function BudgetTable() {
     assigned: 0,
     activity: 0,
     available: 0,
+    snoozed: false,
   });
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [addPopoverPos, setAddPopoverPos] = useState<{ top: number; left: number } | null>(null);
   const [selectedFilter, setSelectedFilter] = useState("All");
+  const [compareToLastMonth, setCompareToLastMonth] = useState(false);
   const [openCategories, setOpenCategories] = useState<Record<string, boolean>>(
     {}
   );
@@ -112,6 +123,7 @@ export default function BudgetTable() {
     assigned: number;
     activity: number;
     available: number;
+    snoozed?: boolean;
   } | null>(null);
 
   const [draggingGroup, setDraggingGroup] = useState<string | null>(null);
@@ -135,6 +147,28 @@ export default function BudgetTable() {
 
   const tableRef = useRef<HTMLDivElement>(null);
   const isScrolling = useRef(false);
+
+  const prevMonthKey = useMemo(() => {
+    if (!currentMonth) return null;
+    const parsedDate = parse(`${currentMonth}-01`, "yyyy-MM-dd", new Date());
+    return format(subMonths(parsedDate, 1), "yyyy-MM");
+  }, [currentMonth]);
+
+  const getPreviousActivity = useCallback((groupName: string, itemName: string): number => {
+    if (!budgetData || !prevMonthKey) return 0;
+    if (!budgetData[prevMonthKey]) return 0;
+    return calculateActivityForMonth(prevMonthKey, itemName, groupName) || 0;
+  }, [budgetData, prevMonthKey, calculateActivityForMonth]);
+
+  const getPreviousAssigned = useCallback((groupName: string, itemName: string): number => {
+    if (!budgetData || !prevMonthKey) return 0;
+    const prevMonth = budgetData[prevMonthKey];
+    if (!prevMonth?.categories) return 0;
+
+    const prevGroup = prevMonth.categories.find((c) => c.name === groupName);
+    const prevItem = prevGroup?.categoryItems.find((i) => i.name === itemName);
+    return prevItem?.assigned ?? 0;
+  }, [budgetData, prevMonthKey]);
 
   useEffect(() => {
     const container = tableRef.current;
@@ -211,6 +245,8 @@ export default function BudgetTable() {
     };
   }, []);
 
+  const showCompare = compareToLastMonth && !!prevMonthKey;
+
   const filteredCategories = useMemo(() => {
     if (!budgetData || !currentMonth) return [];
 
@@ -230,6 +266,8 @@ export default function BudgetTable() {
               return item.target && item.assigned > item.target.amountNeeded;
             case "Underfunded":
               return item.target && item.assigned < item.target.amountNeeded;
+            case "Snoozed":
+              return item.snoozed === true;
             case "All":
             default:
               return true;
@@ -481,8 +519,9 @@ export default function BudgetTable() {
         assigned: newItem.assigned,
         activity: newItem.activity,
         available: newItem.assigned + newItem.activity,
+        snoozed: newItem.snoozed ?? false,
       });
-      setNewItem({ name: "", assigned: 0, activity: 0, available: 0 });
+      setNewItem({ name: "", assigned: 0, activity: 0, available: 0, snoozed: false });
       setActiveCategory(null);
     }
   }, [newItem, addItemToCategory]);
@@ -638,6 +677,241 @@ export default function BudgetTable() {
     setMoveAmount(0);
     setMoveToCategory("");
   }, [moveMoneyModal, moveToCategory, moveAmount, budgetData, currentMonth, setBudgetData, calculateActivityForMonth, getCumulativeAvailable, calculateCreditCardAccountActivity, refreshAllReadyToAssign, registerAction, setIsDirty, setRecentChanges]);
+
+  // Get assigned amount from previous month
+  const getLastMonthAssigned = useCallback((groupName: string, itemName: string): number => {
+    if (!budgetData || !currentMonth) return 0;
+    
+    const parsedDate = parse(`${currentMonth}-01`, "yyyy-MM-dd", new Date());
+    const prevMonthDate = subMonths(parsedDate, 1);
+    const prevMonth = format(prevMonthDate, "yyyy-MM");
+    
+    if (!budgetData[prevMonth]) return 0;
+    
+    const item = budgetData[prevMonth].categories
+      .find(c => c.name === groupName)?.categoryItems
+      .find(i => i.name === itemName);
+    
+    return item?.assigned ?? 0;
+  }, [budgetData, currentMonth]);
+
+  // Get 3-month average assigned
+  const getThreeMonthAverageAssigned = useCallback((groupName: string, itemName: string): number => {
+    if (!budgetData || !currentMonth) return 0;
+    
+    const months = [];
+    const parsedDate = parse(`${currentMonth}-01`, "yyyy-MM-dd", new Date());
+    
+    for (let i = 1; i <= 3; i++) {
+      const monthDate = subMonths(parsedDate, i);
+      const monthKey = format(monthDate, "yyyy-MM");
+      months.push(monthKey);
+    }
+    
+    let total = 0;
+    let count = 0;
+    
+    for (const month of months) {
+      if (budgetData[month]) {
+        const item = budgetData[month].categories
+          .find(c => c.name === groupName)?.categoryItems
+          .find(i => i.name === itemName);
+        
+        if (item) {
+          total += item.assigned;
+          count++;
+        }
+      }
+    }
+    
+    return count > 0 ? Math.round((total / count) * 100) / 100 : 0;
+  }, [budgetData, currentMonth]);
+
+  // Apply quick assign operation (Last Month, Average, or Zero)
+  const handleQuickAssign = useCallback((
+    groupName: string,
+    itemName: string,
+    mode: "last-month" | "average" | "zero"
+  ) => {
+    if (!budgetData || !currentMonth) return;
+
+    const category = budgetData[currentMonth].categories.find(c => c.name === groupName);
+    const item = category?.categoryItems.find(i => i.name === itemName);
+    
+    if (!item) return;
+
+    let newAssigned = 0;
+    let description = "";
+
+    if (mode === "last-month") {
+      newAssigned = getLastMonthAssigned(groupName, itemName);
+      description = `Set '${itemName}' to last month's assigned (${formatToUSD(newAssigned)})`;
+    } else if (mode === "average") {
+      newAssigned = getThreeMonthAverageAssigned(groupName, itemName);
+      description = `Set '${itemName}' to 3-month average (${formatToUSD(newAssigned)})`;
+    } else if (mode === "zero") {
+      newAssigned = 0;
+      description = `Zeroed out '${itemName}'`;
+    }
+
+    const oldAssigned = item.assigned;
+
+    // Apply the change
+    setBudgetData((prev) => {
+      const updated = { ...prev };
+      const updatedCategories = updated[currentMonth].categories.map((cat) => {
+        if (cat.name !== groupName && cat.name !== "Credit Card Payments") {
+          return cat;
+        }
+
+        const updatedItems = cat.categoryItems.map((i) => {
+          if (cat.name === groupName && i.name === itemName) {
+            const itemActivity = calculateActivityForMonth(currentMonth, i.name, cat.name);
+            const cumulative = getCumulativeAvailable(updated, i.name, cat.name);
+            const available = newAssigned + itemActivity + Math.max(cumulative, 0);
+            return { ...i, assigned: newAssigned, available };
+          }
+
+          if (cat.name === "Credit Card Payments") {
+            const activity = calculateCreditCardAccountActivity(currentMonth, i.name, updated);
+            const cumulative = getCumulativeAvailable(updated, i.name, cat.name);
+            const available = i.assigned + activity + Math.max(cumulative, 0);
+            return { ...i, activity, available };
+          }
+
+          return i;
+        });
+
+        return { ...cat, categoryItems: updatedItems };
+      });
+
+      updated[currentMonth] = { ...updated[currentMonth], categories: updatedCategories };
+      refreshAllReadyToAssign(updated);
+      return updated;
+    });
+
+    // Register undo/redo
+    registerAction({
+      description,
+      execute: async () => {
+        setBudgetData((prev) => {
+          const updated = { ...prev };
+          const updatedCategories = updated[currentMonth].categories.map((cat) => {
+            if (cat.name !== groupName && cat.name !== "Credit Card Payments") {
+              return cat;
+            }
+
+            const updatedItems = cat.categoryItems.map((i) => {
+              if (cat.name === groupName && i.name === itemName) {
+                const itemActivity = calculateActivityForMonth(currentMonth, i.name, cat.name);
+                const cumulative = getCumulativeAvailable(updated, i.name, cat.name);
+                const available = newAssigned + itemActivity + Math.max(cumulative, 0);
+                return { ...i, assigned: newAssigned, available };
+              }
+
+              if (cat.name === "Credit Card Payments") {
+                const activity = calculateCreditCardAccountActivity(currentMonth, i.name, updated);
+                const cumulative = getCumulativeAvailable(updated, i.name, cat.name);
+                const available = i.assigned + activity + Math.max(cumulative, 0);
+                return { ...i, activity, available };
+              }
+
+              return i;
+            });
+
+            return { ...cat, categoryItems: updatedItems };
+          });
+
+          updated[currentMonth] = { ...updated[currentMonth], categories: updatedCategories };
+          refreshAllReadyToAssign(updated);
+          return updated;
+        });
+      },
+      undo: async () => {
+        setBudgetData((prev) => {
+          const updated = { ...prev };
+          const updatedCategories = updated[currentMonth].categories.map((cat) => {
+            if (cat.name !== groupName && cat.name !== "Credit Card Payments") {
+              return cat;
+            }
+
+            const updatedItems = cat.categoryItems.map((i) => {
+              if (cat.name === groupName && i.name === itemName) {
+                const itemActivity = calculateActivityForMonth(currentMonth, i.name, cat.name);
+                const cumulative = getCumulativeAvailable(updated, i.name, cat.name);
+                const available = oldAssigned + itemActivity + Math.max(cumulative, 0);
+                return { ...i, assigned: oldAssigned, available };
+              }
+
+              if (cat.name === "Credit Card Payments") {
+                const activity = calculateCreditCardAccountActivity(currentMonth, i.name, updated);
+                const cumulative = getCumulativeAvailable(updated, i.name, cat.name);
+                const available = i.assigned + activity + Math.max(cumulative, 0);
+                return { ...i, activity, available };
+              }
+
+              return i;
+            });
+
+            return { ...cat, categoryItems: updatedItems };
+          });
+
+          updated[currentMonth] = { ...updated[currentMonth], categories: updatedCategories };
+          refreshAllReadyToAssign(updated);
+          return updated;
+        });
+      },
+    });
+
+    setIsDirty(true);
+    setRecentChanges((prev) => [
+      ...prev.slice(-9),
+      {
+        description,
+        timestamp: new Date().toISOString(),
+      },
+    ]);
+
+    setCategoryContext(null);
+  }, [budgetData, currentMonth, getLastMonthAssigned, getThreeMonthAverageAssigned, setBudgetData, calculateActivityForMonth, getCumulativeAvailable, calculateCreditCardAccountActivity, refreshAllReadyToAssign, registerAction, setIsDirty, setRecentChanges]);
+
+  // Keyboard shortcuts for quick assign: L=Last Month, A=Average, Z=Zero
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!categoryContext) return;
+
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      const isTypingTarget =
+        tag === "INPUT" ||
+        tag === "SELECT" ||
+        tag === "TEXTAREA" ||
+        target?.isContentEditable;
+
+      if (isTypingTarget) return;
+
+      if ((e.key === "l" || e.key === "L") && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        handleQuickAssign(categoryContext.groupName, categoryContext.itemName, "last-month");
+        return;
+      }
+
+      if ((e.key === "a" || e.key === "A") && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        handleQuickAssign(categoryContext.groupName, categoryContext.itemName, "average");
+        return;
+      }
+
+      if ((e.key === "z" || e.key === "Z") && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        handleQuickAssign(categoryContext.groupName, categoryContext.itemName, "zero");
+        return;
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [categoryContext, handleQuickAssign]);
 
   return (
     <>
@@ -924,10 +1198,67 @@ export default function BudgetTable() {
         createPortal(
           <div
             data-cy="category-context-menu"
-            className="fixed z-50 bg-white border border-slate-200 rounded-md shadow-md text-xs"
+            className="fixed z-50 bg-white border border-slate-200 rounded-md shadow-md text-xs dark:bg-slate-900 dark:border-slate-700 min-w-max"
             style={{ top: categoryContext.y, left: categoryContext.x }}
             onClick={() => setCategoryContext(null)}
           >
+            <div className="py-1">
+              <button
+                data-cy="category-assign-last-month"
+                data-category={categoryContext.groupName}
+                data-item={categoryContext.itemName}
+                onClick={() => handleQuickAssign(categoryContext.groupName, categoryContext.itemName, "last-month")}
+                className="px-3 py-2 hover:bg-teal-50 dark:hover:bg-teal-950 text-teal-600 dark:text-teal-400 w-full text-left flex items-center justify-between gap-4"
+              >
+                <span>Set to last month</span>
+                <span className="text-slate-500 dark:text-slate-400 font-mono text-[10px]">
+                  {formatToUSD(getLastMonthAssigned(categoryContext.groupName, categoryContext.itemName))}
+                </span>
+              </button>
+
+              <button
+                data-cy="category-assign-average"
+                data-category={categoryContext.groupName}
+                data-item={categoryContext.itemName}
+                onClick={() => handleQuickAssign(categoryContext.groupName, categoryContext.itemName, "average")}
+                className="px-3 py-2 hover:bg-blue-50 dark:hover:bg-blue-950 text-blue-600 dark:text-blue-400 w-full text-left flex items-center justify-between gap-4"
+              >
+                <span>Set to 3-month avg</span>
+                <span className="text-slate-500 dark:text-slate-400 font-mono text-[10px]">
+                  {formatToUSD(getThreeMonthAverageAssigned(categoryContext.groupName, categoryContext.itemName))}
+                </span>
+              </button>
+
+              <button
+                data-cy="category-assign-zero"
+                data-category={categoryContext.groupName}
+                data-item={categoryContext.itemName}
+                onClick={() => handleQuickAssign(categoryContext.groupName, categoryContext.itemName, "zero")}
+                className="px-3 py-2 hover:bg-orange-50 dark:hover:bg-orange-950 text-orange-600 dark:text-orange-400 w-full text-left border-b border-slate-200 dark:border-slate-700 flex items-center justify-between gap-4"
+              >
+                <span>Zero out</span>
+                <span className="text-slate-500 dark:text-slate-400 font-mono text-[10px]">$0.00</span>
+              </button>
+            </div>
+
+              <button
+                data-cy="category-snooze-toggle"
+                data-category={categoryContext.groupName}
+                data-item={categoryContext.itemName}
+                onClick={() => {
+                  setCategorySnooze(
+                    categoryContext.groupName,
+                    categoryContext.itemName,
+                    !(categoryContext.snoozed ?? false)
+                  );
+                  setCategoryContext(null);
+                }}
+                className="px-3 py-2 hover:bg-amber-50 dark:hover:bg-amber-950 text-amber-700 dark:text-amber-300 w-full text-left border-t border-b border-slate-200 dark:border-slate-700 flex items-center justify-between gap-4"
+              >
+                <span>{categoryContext.snoozed ? "Unsnooze category" : "Snooze category"}</span>
+                <span className="text-[10px] uppercase tracking-wide font-semibold">{categoryContext.snoozed ? "On hold" : "Pause"}</span>
+              </button>
+
             <button
               data-cy="category-rename"
               data-category={categoryContext.groupName}
@@ -940,7 +1271,7 @@ export default function BudgetTable() {
                 setNewCategoryName(categoryContext.itemName);
                 setCategoryContext(null);
               }}
-              className="px-3 py-2 hover:bg-slate-50 text-slate-700 w-full text-left"
+              className="px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 w-full text-left"
             >
               Rename category
             </button>
@@ -960,12 +1291,12 @@ export default function BudgetTable() {
                   });
                   setCategoryContext(null);
                 }}
-                className="px-3 py-2 hover:bg-red-50 text-red-600 w-full text-left border-t border-slate-200"
+                className="px-3 py-2 hover:bg-red-50 dark:hover:bg-red-950 text-red-600 dark:text-red-400 w-full text-left border-t border-slate-200 dark:border-slate-700"
               >
                 Delete category
               </button>
             ) : (
-              <div className="px-3 py-2 text-[11px] text-muted-foreground border-t border-slate-200">
+              <div className="px-3 py-2 text-[11px] text-muted-foreground border-t border-slate-200 dark:border-slate-700">
                 Cannot delete (credit card category)
               </div>
             )}
@@ -977,6 +1308,31 @@ export default function BudgetTable() {
       <Card className="flex flex-col w-full h-full min-h-0 overflow-hidden border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-950">
         <CardHeader className="pb-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
           <div className="flex flex-col gap-4">
+            {sandboxMode && (
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-amber-900 dark:border-amber-700 dark:bg-amber-900/40 dark:text-amber-100">
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center gap-2 text-sm font-semibold">
+                    <Badge className="bg-amber-600 text-white hover:bg-amber-500">Preview</Badge>
+                    <span>Preview mode — not saved</span>
+                  </div>
+                  <p className="text-xs text-amber-800 dark:text-amber-200">
+                    All budget edits stay local until you exit.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-amber-400 text-amber-900 hover:bg-amber-100 dark:border-amber-500 dark:text-amber-50 dark:hover:bg-amber-800"
+                    onClick={exitSandbox}
+                    data-cy="sandbox-exit-banner"
+                  >
+                    Exit & discard changes
+                  </Button>
+                </div>
+              </div>
+            )}
+
             {/* Top row: RTA + Month */}
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div data-cy="ready-to-assign" className="flex items-center gap-2">
@@ -997,7 +1353,7 @@ export default function BudgetTable() {
 
             {/* Toolbar: Filters + Add Group */}
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 {FILTERS.map((filter) => (
                   <Button
                     key={filter}
@@ -1013,6 +1369,37 @@ export default function BudgetTable() {
                     {filter}
                   </Button>
                 ))}
+
+                <Button
+                  data-cy="compare-toggle"
+                  variant={compareToLastMonth ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setCompareToLastMonth((prev) => !prev)}
+                  className={cn(
+                    "text-xs gap-2",
+                    compareToLastMonth
+                      ? "bg-teal-600 text-white hover:bg-teal-500 dark:bg-teal-700 dark:hover:bg-teal-600"
+                      : "dark:hover:bg-slate-800"
+                  )}
+                >
+                  <TrendingUp className="h-4 w-4" />
+                  Compare to last month
+                </Button>
+
+                <Button
+                  data-cy="sandbox-toggle"
+                  variant={sandboxMode ? "destructive" : "outline"}
+                  size="sm"
+                  onClick={() => (sandboxMode ? exitSandbox() : enterSandbox())}
+                  className={cn(
+                    "text-xs gap-2",
+                    sandboxMode
+                      ? "bg-amber-600 text-white hover:bg-amber-500 dark:bg-amber-700 dark:hover:bg-amber-600"
+                      : "dark:hover:bg-slate-800"
+                  )}
+                >
+                  {sandboxMode ? "Exit sandbox" : "Sandbox mode"}
+                </Button>
               </div>
               <div className="flex items-center gap-2">
                 <Button
@@ -1044,6 +1431,9 @@ export default function BudgetTable() {
                   shortcuts={[
                     { key: "Ctrl+Z / Cmd+Z", description: "Undo last action" },
                     { key: "Ctrl+Y / Cmd+Shift+Z", description: "Redo last action" },
+                    { key: "L", description: "Set category to last month's assigned (right-click menu)" },
+                    { key: "A", description: "Set category to 3-month average (right-click menu)" },
+                    { key: "Z", description: "Zero out category (right-click menu)" },
                   ]}
                 />
                 <AddCategoryButton handleSubmit={addCategoryGroup} />
@@ -1230,6 +1620,13 @@ export default function BudgetTable() {
                               {group.name}
                             </span>
                           )}
+                          <NotesPopover
+                            currentNote={group.notes}
+                            history={group.notes_history}
+                            onSave={(noteText) => updateCategoryGroupNote(group.name, noteText)}
+                            triggerSize="icon"
+                            className="ml-1"
+                          />
                           <div className="ms-1 w-6 h-6 flex items-center justify-center">
                             <Button
                               data-cy="group-add-item-button"
@@ -1348,10 +1745,20 @@ export default function BudgetTable() {
 
                     {/* Item rows */}
                     {openCategories[group.name] &&
-                      group.categoryItems.map((item) => (
-                        <Fragment
-                          key={`${group.name}::${item.name}-fragment`}
-                        >
+                      group.categoryItems.map((item) => {
+                        const previousAssigned = showCompare
+                          ? getPreviousAssigned(group.name, item.name)
+                          : 0;
+                        const assignedDelta = (item.assigned ?? 0) - previousAssigned;
+                        const previousActivity = showCompare
+                          ? getPreviousActivity(group.name, item.name)
+                          : 0;
+                        const activityDelta = (item.activity ?? 0) - previousActivity;
+
+                        return (
+                          <Fragment
+                            key={`${group.name}::${item.name}-fragment`}
+                          >
                           <TableRow
                             data-cy="category-row"
                             data-category={group.name}
@@ -1368,7 +1775,8 @@ export default function BudgetTable() {
                                 dragOverItem?.position === "after"
                                   ? "border-b-4 border-b-teal-500"
                                   : "border-l-4 border-l-teal-500"
-                              )
+                              ),
+                              item.snoozed && "opacity-80 dark:opacity-70"
                             )}
                             onContextMenu={(e) => {
                               e.preventDefault();
@@ -1380,6 +1788,7 @@ export default function BudgetTable() {
                                 assigned: item.assigned,
                                 activity: item.activity,
                                 available: item.available,
+                                snoozed: item.snoozed ?? false,
                               });
                             }}
                             onDragOver={(e) => {
@@ -1436,6 +1845,7 @@ export default function BudgetTable() {
                                   assigned: item.assigned,
                                   activity: item.activity,
                                   available: item.available,
+                                  snoozed: item.snoozed ?? false,
                                 });
                               }}
                             >
@@ -1467,7 +1877,7 @@ export default function BudgetTable() {
                                   className="h-7 text-sm font-medium"
                                   autoFocus
                                 />
-                              ) : (
+                                ) : (
                                 <div className="flex items-center gap-2">
                                   <span
                                     className="flex h-5 w-5 items-center justify-center text-slate-400 cursor-grab active:cursor-grabbing"
@@ -1499,10 +1909,22 @@ export default function BudgetTable() {
                                         }}
                                       />
                                     )}
-                                    <div className="relative z-10 px-2 flex items-center h-full">
+                                    <div className="relative z-10 px-2 flex items-center h-full gap-2">
                                       <span className="font-medium truncate text-slate-800 dark:text-slate-200 text-sm">
                                         {item.name}
                                       </span>
+                                      <NotesPopover
+                                        currentNote={item.notes}
+                                        history={item.notes_history}
+                                        onSave={(noteText) => updateCategoryItemNote(group.name, item.name, noteText)}
+                                        triggerSize="icon"
+                                        className="flex-shrink-0"
+                                      />
+                                      {item.snoozed && (
+                                        <Badge className="bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/30 dark:text-amber-100 dark:border-amber-700" data-cy="snoozed-pill">
+                                          Snoozed
+                                        </Badge>
+                                      )}
                                     </div>
                                   </div>
                                   {item.target && getTargetStatus(item).message && (
@@ -1531,6 +1953,8 @@ export default function BudgetTable() {
                               itemName={item.name}
                               item={item}
                               handleInputChange={handleInputChange}
+                              showDelta={showCompare}
+                              deltaAmount={assignedDelta}
                             />
 
                             <TableCell
@@ -1543,7 +1967,21 @@ export default function BudgetTable() {
                                 );
                               }}
                             >
-                              {formatToUSD(item.activity || 0)}
+                              <div className="flex flex-col items-end gap-1">
+                                <span>{formatToUSD(item.activity || 0)}</span>
+                                {showCompare && (
+                                  <span className={`text-[11px] font-semibold ${activityDelta > 0
+                                    ? "text-emerald-600"
+                                    : activityDelta < 0
+                                      ? "text-red-600"
+                                      : "text-slate-500"
+                                    }`}>
+                                    {activityDelta === 0
+                                      ? "No change"
+                                      : `${activityDelta > 0 ? "▲" : "▼"} ${activityDelta > 0 ? "+" : "-"}${formatToUSD(Math.abs(activityDelta))}`}
+                                  </span>
+                                )}
+                              </div>
                             </TableCell>
                             <TableCell
                               data-cy="item-available"
@@ -1587,8 +2025,9 @@ export default function BudgetTable() {
                               }
                             />
                           )}
-                        </Fragment>
-                      ))}
+                          </Fragment>
+                        );
+                      })}
                   </Fragment>
                 ))}
               </TableBody>

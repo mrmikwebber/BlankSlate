@@ -275,8 +275,8 @@ describe("Overspending & filters", () => {
 
     const categorySelector = `[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"]`;
 
-    // Open InlineTargetEditor by clicking the category name cell (not the assigned cell)
-    cy.get(categorySelector).find('[data-cy="category-item-name"]').click();
+    // Open InlineTargetEditor by clicking the category name (avoid NotesPopover)
+    cy.get(categorySelector).find('[data-cy="category-item-name"] span').first().click();
 
     // Inside inline target editor: set a simple "amount needed" target.
     // Adjust these selectors to match your InlineTargetEditor.
