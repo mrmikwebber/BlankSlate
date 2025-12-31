@@ -24,13 +24,8 @@ describe("Credit Card Payments behaviour", () => {
     ).should("have.length.at.least", 1);
   });
 
-  it("shows Credit Card Payments as the first group and with Payment label", () => {
-    // 1. Group is pinned first
-    cy.get('[data-cy="category-group-row"]')
-      .first()
-      .should("have.attr", "data-category", CREDIT_CARD_GROUP_NAME);
-
-    // 2. Group row has the 'Payment - $X' label in the last column
+  it("shows Credit Card Payments with Payment label and matching totals", () => {
+    // Group row has the 'Payment - $X' label in the last column
     cy.get(
       `[data-cy="category-group-row"][data-category="${CREDIT_CARD_GROUP_NAME}"]`
     ).within(() => {

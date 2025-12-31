@@ -28,7 +28,7 @@ import {
   CardTitle,
   CardContent,
 } from "@/components/ui/card";
-import { ChevronDown, ChevronRight, Plus } from "lucide-react";
+import { ChevronDown, ChevronRight, GripVertical, Plus, RotateCcw, RotateCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
 
@@ -50,10 +50,14 @@ export default function BudgetTable() {
     calculateCreditCardAccountActivity,
     calculateActivityForMonth,
     setRecentChanges,
+    reorderCategoryGroups,
+    reorderCategoryItems,
   } = useBudgetContext();
 
   const { accounts } = useAccountContext();
-  const { registerAction } = useUndoRedo();
+  const { registerAction, undo, redo, canUndo, canRedo, undoDescription, redoDescription } = useUndoRedo();
+
+  console.count("BudgetTable render");
 
   const FILTERS = [
     "All",
@@ -62,13 +66,11 @@ export default function BudgetTable() {
     "Overfunded",
     "Underfunded",
   ];
-  const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState("");
   const [inlineEditorCategory, setInlineEditorCategory] = useState<
     string | null
   >(null);
   const [selectedTargetCategory, setSelectedTargetCategory] = useState("");
-  const [dropUp, setDropUp] = useState(false);
   const [editingGroup, setEditingGroup] = useState<string | null>(null);
   const [newGroupName, setNewGroupName] = useState<string>("");
   const [editingItem, setEditingItem] = useState<{
@@ -84,6 +86,7 @@ export default function BudgetTable() {
     available: 0,
   });
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [addPopoverPos, setAddPopoverPos] = useState<{ top: number; left: number } | null>(null);
   const [selectedFilter, setSelectedFilter] = useState("All");
   const [openCategories, setOpenCategories] = useState<Record<string, boolean>>(
     {}
@@ -111,24 +114,52 @@ export default function BudgetTable() {
     available: number;
   } | null>(null);
 
+  const [draggingGroup, setDraggingGroup] = useState<string | null>(null);
+  const [dragOverGroup, setDragOverGroup] = useState<string | null>(null);
+  const [draggingItem, setDraggingItem] = useState<{ group: string; item: string } | null>(null);
+  const [dragOverItem, setDragOverItem] = useState<{
+    group: string;
+    item: string;
+    position?: "before" | "after";
+  } | null>(null);
+
   const addItemRef = useRef<HTMLDivElement | null>(null);
+
+  const tableRef = useRef<HTMLDivElement>(null);
+  const isScrolling = useRef(false);
+
+  useEffect(() => {
+    const container = tableRef.current;
+    if (!container) return;
+
+    let scrollTimeout: NodeJS.Timeout;
+
+    const handleScroll = () => {
+      isScrolling.current = true;
+      clearTimeout(scrollTimeout);
+
+      scrollTimeout = setTimeout(() => {
+        isScrolling.current = false;
+      }, 150);
+    };
+
+    container.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      container.removeEventListener('scroll', handleScroll);
+      clearTimeout(scrollTimeout);
+    };
+  }, []);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (addItemRef.current && !addItemRef.current.contains(e.target as Node)) {
         setActiveCategory(null);
+        setAddPopoverPos(null);
       }
     };
 
     if (activeCategory) {
       document.addEventListener("mousedown", handleClickOutside);
-
-      const rect = addItemRef.current?.getBoundingClientRect();
-      if (rect && rect.bottom + 120 > window.innerHeight) {
-        setDropUp(true);
-      } else {
-        setDropUp(false);
-      }
     }
 
     return () => document.removeEventListener("mousedown", handleClickOutside);
@@ -156,14 +187,14 @@ export default function BudgetTable() {
       setGroupContext(null);
       setCategoryContext(null);
     };
-    
+
     const handleEscape = (e) => {
       if (e.key === "Escape") {
         closeMenu();
         setCategoryDeleteContext(null);
       }
     };
-    
+
     window.addEventListener("click", closeMenu);
     window.addEventListener("keydown", handleEscape);
     return () => {
@@ -177,13 +208,9 @@ export default function BudgetTable() {
 
     const allCategories = budgetData[currentMonth]?.categories || [];
 
-    const sortedCategories = [...allCategories].sort((a, b) => {
-      if (a.name === "Credit Card Payments") return -1;
-      if (b.name === "Credit Card Payments") return 1;
-      return 0;
-    });
+    const orderedCategories = [...allCategories];
 
-    return sortedCategories
+    return orderedCategories
       .map((category) => {
         const filteredItems = category.categoryItems.filter((item) => {
           switch (selectedFilter) {
@@ -206,9 +233,9 @@ export default function BudgetTable() {
       .filter(Boolean);
   }, [budgetData, currentMonth, selectedFilter]);
 
-  const toggleCategory = (category: string) => {
+  const toggleCategory = useCallback((category: string) => {
     setOpenCategories((prev) => ({ ...prev, [category]: !prev[category] }));
-  };
+  }, []);
 
   const handleInputChange = useCallback((categoryName, itemName, value) => {
     // Capture previous state for undo
@@ -439,7 +466,7 @@ export default function BudgetTable() {
     ]);
   }, [currentMonth, setBudgetData, setIsDirty, setRecentChanges, registerAction, calculateActivityForMonth, getCumulativeAvailable, calculateCreditCardAccountActivity, refreshAllReadyToAssign]);
 
-  const handleAddItem = (category: string) => {
+  const handleAddItem = useCallback((category: string) => {
     if (newItem.name.trim() !== "") {
       addItemToCategory(category, {
         name: newItem.name,
@@ -450,7 +477,45 @@ export default function BudgetTable() {
       setNewItem({ name: "", assigned: 0, activity: 0, available: 0 });
       setActiveCategory(null);
     }
-  };
+  }, [newItem, addItemToCategory]);
+
+  const handleGroupDrop = useCallback(
+    (targetName: string) => {
+      if (!draggingGroup || draggingGroup === targetName) return;
+      reorderCategoryGroups(draggingGroup, targetName);
+      setDraggingGroup(null);
+      setDragOverGroup(null);
+    },
+    [draggingGroup, reorderCategoryGroups]
+  );
+
+  const handleItemDrop = useCallback(
+    (targetGroup: string, targetName?: string, position: "before" | "after" = "before") => {
+      if (!draggingItem) return;
+      if (
+        (draggingItem.group === "Credit Card Payments" && targetGroup !== draggingItem.group) ||
+        (targetGroup === "Credit Card Payments" && draggingItem.group !== targetGroup)
+      ) {
+        setDraggingItem(null);
+        setDragOverItem(null);
+        return;
+      }
+      if (draggingItem.item === targetName && draggingItem.group === targetGroup)
+        return;
+
+      reorderCategoryItems(
+        draggingItem.group,
+        draggingItem.item,
+        targetGroup,
+        targetName,
+        position
+      );
+
+      setDraggingItem(null);
+      setDragOverItem(null);
+    },
+    [draggingItem, reorderCategoryItems]
+  );
 
   const isDeletingRef = useRef(false);
 
@@ -516,11 +581,11 @@ export default function BudgetTable() {
       {/* Category delete / reassign modal */}
       {categoryDeleteContext &&
         createPortal(
-          <div 
+          <div
             className="fixed inset-0 bg-black/30 dark:bg-black/50 z-50 flex items-center justify-center"
             onClick={() => setCategoryDeleteContext(null)}
           >
-            <div 
+            <div
               className="bg-white dark:bg-neutral-900 p-5 rounded-lg shadow-lg w-full max-w-md space-y-4 text-neutral-800 dark:text-neutral-200"
               onClick={(e) => e.stopPropagation()}
             >
@@ -670,7 +735,7 @@ export default function BudgetTable() {
         )}
 
       {/* Main card */}
-      <Card className="flex flex-col w-full h-full min-h-0 overflow-hidden border border-slate-200 dark:border-slate-700 shadow-md dark:shadow-lg rounded-xl bg-white dark:bg-slate-950">
+      <Card className="flex flex-col w-full h-full min-h-0 overflow-hidden border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-950">
         <CardHeader className="pb-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
           <div className="flex flex-col gap-4">
             {/* Top row: RTA + Month */}
@@ -711,6 +776,30 @@ export default function BudgetTable() {
                 ))}
               </div>
               <div className="flex items-center gap-2">
+                <Button
+                  data-cy="undo-button"
+                  onClick={undo}
+                  disabled={!canUndo}
+                  title={canUndo ? `Undo: ${undoDescription}` : "Nothing to undo"}
+                  variant="outline"
+                  size="sm"
+                  className="gap-1"
+                >
+                  <RotateCcw className="h-4 w-4" />
+                  Undo
+                </Button>
+                <Button
+                  data-cy="redo-button"
+                  onClick={redo}
+                  disabled={!canRedo}
+                  title={canRedo ? `Redo: ${redoDescription}` : "Nothing to redo"}
+                  variant="outline"
+                  size="sm"
+                  className="gap-1"
+                >
+                  <RotateCw className="h-4 w-4" />
+                  Redo
+                </Button>
                 <KeyboardShortcuts
                   page="budget"
                   shortcuts={[
@@ -724,10 +813,10 @@ export default function BudgetTable() {
           </div>
         </CardHeader>
 
-        <CardContent className="px-0 pb-2 flex-1 flex flex-col min-h-0">
-          <div className="flex-1 min-h-0 [&>div]:h-full">
-            <Table data-cy="budget-table" className="w-full">
-              <TableHeader className="sticky top-0 z-30 bg-slate-100 dark:bg-slate-800">
+        <CardContent className="px-0 pb-2 flex-1 flex flex-col min-h-0 gap-0">
+          <div className="w-full">
+            <Table data-cy="budget-table-header" className="w-full table-fixed">
+              <TableHeader className="bg-slate-100 dark:bg-slate-800">
                 <TableRow className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700">
                   <TableHead className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">
                     Category
@@ -743,6 +832,14 @@ export default function BudgetTable() {
                   </TableHead>
                 </TableRow>
               </TableHeader>
+            </Table>
+          </div>
+
+          <div
+            className="flex-1 min-h-0 overflow-auto pb-8"
+            style={{ willChange: "transform", transform: "translateZ(0)" }}
+          >
+            <Table data-cy="budget-table" className="w-full table-fixed">
               <TableBody>
                 {filteredCategories.map((group) => (
                   <Fragment key={group.name}>
@@ -750,9 +847,66 @@ export default function BudgetTable() {
                     <TableRow
                       data-cy="category-group-row"
                       data-category={group.name}
-                      className="bg-slate-100 dark:bg-slate-800 hover:bg-slate-150 dark:hover:bg-slate-700 text-sm font-semibold text-slate-900 dark:text-slate-100 border-b border-slate-200 dark:border-slate-700 transition-colors"
-                      onMouseEnter={() => setHoveredCategory(group.name)}
-                      onMouseLeave={() => setHoveredCategory(null)}
+                      className={cn(
+                        "group bg-slate-100 dark:bg-slate-800 text-sm font-semibold text-slate-900 dark:text-slate-100 border-b border-slate-200 dark:border-slate-700",
+                        draggingGroup === group.name && "opacity-70",
+                        dragOverGroup === group.name && draggingGroup
+                          ? "ring-2 ring-teal-500/70 bg-teal-50/60 dark:bg-teal-950/40 border-l-4 border-l-teal-500 shadow-sm"
+                          : "",
+                        dragOverItem?.group === group.name && dragOverItem?.item === "__group__"
+                          ? "ring-2 ring-teal-500/70 bg-teal-50/60 dark:bg-teal-950/40 border-l-4 border-l-teal-500 shadow-sm"
+                          : ""
+                      )}
+                      onDragOver={(e) => {
+                        if (draggingGroup) {
+                          e.preventDefault();
+                          if (draggingGroup !== group.name) {
+                            setDragOverGroup(group.name);
+                          }
+                          return;
+                        }
+
+                        if (draggingItem) {
+                          if (
+                            group.name === "Credit Card Payments" &&
+                            draggingItem.group !== group.name
+                          ) {
+                            return;
+                          }
+                          e.preventDefault();
+                          setDragOverItem({ group: group.name, item: "__group__", position: "after" });
+                        }
+                      }}
+                      onDrop={(e) => {
+                        if (draggingGroup) {
+                          e.preventDefault();
+                          handleGroupDrop(group.name);
+                          return;
+                        }
+
+                        if (draggingItem) {
+                          if (
+                            group.name === "Credit Card Payments" &&
+                            draggingItem.group !== group.name
+                          ) {
+                            setDragOverItem(null);
+                            return;
+                          }
+                          e.preventDefault();
+                          handleItemDrop(group.name, undefined, "after");
+                        }
+                      }}
+                      onDragLeave={() => {
+                        if (dragOverGroup === group.name) {
+                          setDragOverGroup(null);
+                        }
+                        if (
+                          dragOverItem?.group === group.name &&
+                          dragOverItem?.item === "__group__"
+                        ) {
+                          setDragOverItem(null);
+                        }
+                      }}
                     >
                       <TableCell
                         className="p-4 align-middle"
@@ -773,6 +927,22 @@ export default function BudgetTable() {
                         }}
                       >
                         <div className="flex items-center gap-1">
+                          <span
+                            className="mr-1 flex h-6 w-6 items-center justify-center text-slate-400 cursor-grab active:cursor-grabbing"
+                            draggable
+                            onDragStart={(e) => {
+                              e.stopPropagation();
+                              setDraggingGroup(group.name);
+                              setDragOverGroup(group.name);
+                              e.dataTransfer.effectAllowed = "move";
+                            }}
+                            onDragEnd={() => {
+                              setDraggingGroup(null);
+                              setDragOverGroup(null);
+                            }}
+                          >
+                            <GripVertical className="h-4 w-4" />
+                          </span>
                           <Button
                             data-cy="group-toggle"
                             data-category={group.name}
@@ -822,18 +992,20 @@ export default function BudgetTable() {
                             </span>
                           )}
                           <div className="ms-1 w-6 h-6 flex items-center justify-center">
-                            {hoveredCategory === group.name && (
-                              <Button
-                                data-cy="group-add-item-button"
-                                data-category={group.name}
-                                size="icon"
-                                variant="outline"
-                                onClick={() => setActiveCategory(group.name)}
-                                className="h-6 w-6"
-                              >
-                                <Plus className="h-3 w-3" />
-                              </Button>
-                            )}
+                            <Button
+                              data-cy="group-add-item-button"
+                              data-category={group.name}
+                              size="icon"
+                              variant="outline"
+                              onClick={(e) => {
+                                const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
+                                setActiveCategory(group.name);
+                                setAddPopoverPos({ top: rect.top, left: rect.right + 8 });
+                              }}
+                              className="relative z-40 h-7 w-7 p-0 rounded-md border border-slate-300 bg-white shadow-sm hover:bg-slate-50 hover:border-slate-400 focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-1 dark:bg-slate-900 dark:border-slate-700 dark:hover:bg-slate-800 dark:hover:border-slate-500"
+                            >
+                              <Plus className="h-3 w-3" />
+                            </Button>
                           </div>
                         </div>
                       </TableCell>
@@ -878,56 +1050,60 @@ export default function BudgetTable() {
                     {/* Add item popover row */}
                     <TableRow className="hover:bg-transparent">
                       <TableCell colSpan={4} className="relative p-0">
-                        {activeCategory === group.name && (
-                          <div
-                            ref={addItemRef}
-                            className={`${dropUp
-                              ? "bottom-full mb-2"
-                              : "top-full mt-2"
-                              } absolute left-0 w-72 bg-white dark:bg-slate-900 p-3 shadow-lg rounded-md border border-slate-200 dark:border-slate-700 z-50 space-y-2 text-slate-800 dark:text-slate-200`}
-                          >
-                            <Input
-                              data-cy="add-item-input"
-                              type="text"
-                              placeholder="New category name"
-                              value={newItem.name}
-                              onChange={(e) =>
-                                setNewItem({
-                                  ...newItem,
-                                  name: e.target.value,
-                                })
-                              }
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") {
-                                  e.preventDefault();
-                                  handleAddItem(group.name);
-                                } else if (e.key === "Escape") {
-                                  e.preventDefault();
-                                  setActiveCategory(null);
+                        {activeCategory === group.name && addPopoverPos &&
+                          createPortal(
+                            <div
+                              ref={addItemRef}
+                              style={{ position: "fixed", top: addPopoverPos.top, left: addPopoverPos.left }}
+                              className="w-72 bg-white dark:bg-slate-900 p-3 shadow-sm rounded-md border border-slate-200 dark:border-slate-700 z-50 space-y-2 text-slate-800 dark:text-slate-200"
+                            >
+                              <Input
+                                data-cy="add-item-input"
+                                type="text"
+                                placeholder="New category name"
+                                value={newItem.name}
+                                onChange={(e) =>
+                                  setNewItem({
+                                    ...newItem,
+                                    name: e.target.value,
+                                  })
                                 }
-                              }}
-                              className="h-8 text-sm"
-                            />
-                            <div className="flex justify-end gap-2">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setActiveCategory(null)}
-                              >
-                                Cancel
-                              </Button>
-                              <Button
-                                data-cy="add-item-submit"
-                                data-category={group.name}
-                                size="sm"
-                                onClick={() => handleAddItem(group.name)}
-                                className="bg-teal-600 dark:bg-teal-700 text-white hover:bg-teal-500 dark:hover:bg-teal-600"
-                              >
-                                Add category
-                              </Button>
-                            </div>
-                          </div>
-                        )}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    e.preventDefault();
+                                    handleAddItem(group.name);
+                                  } else if (e.key === "Escape") {
+                                    e.preventDefault();
+                                    setActiveCategory(null);
+                                    setAddPopoverPos(null);
+                                  }
+                                }}
+                                className="h-8 text-sm"
+                              />
+                              <div className="flex justify-end gap-2">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    setActiveCategory(null);
+                                    setAddPopoverPos(null);
+                                  }}
+                                >
+                                  Cancel
+                                </Button>
+                                <Button
+                                  data-cy="add-item-submit"
+                                  data-category={group.name}
+                                  size="sm"
+                                  onClick={() => handleAddItem(group.name)}
+                                  className="bg-teal-600 dark:bg-teal-700 text-white hover:bg-teal-500 dark:hover:bg-teal-600"
+                                >
+                                  Add category
+                                </Button>
+                              </div>
+                            </div>,
+                            document.body
+                          )}
                       </TableCell>
                     </TableRow>
 
@@ -941,7 +1117,20 @@ export default function BudgetTable() {
                             data-cy="category-row"
                             data-category={group.name}
                             data-item={item.name}
-                            className="odd:bg-white dark:odd:bg-slate-950 even:bg-slate-50/60 dark:even:bg-slate-900/40 hover:bg-teal-50 dark:hover:bg-slate-800 border-b border-slate-100 dark:border-slate-700 transition-colors"
+                            className={cn(
+                              "relative odd:bg-white dark:odd:bg-slate-950 even:bg-slate-50/60 dark:even:bg-slate-900/40 border-b border-slate-100 dark:border-slate-700",
+                              draggingItem?.group === group.name &&
+                              draggingItem?.item === item.name &&
+                              "opacity-70",
+                              dragOverItem?.group === group.name &&
+                              dragOverItem?.item === item.name &&
+                              cn(
+                                "ring-2 ring-teal-500/70 bg-teal-50/60 dark:bg-teal-950/40 shadow-sm",
+                                dragOverItem?.position === "after"
+                                  ? "border-b-4 border-b-teal-500"
+                                  : "border-l-4 border-l-teal-500"
+                              )
+                            )}
                             onContextMenu={(e) => {
                               e.preventDefault();
                               setCategoryContext({
@@ -953,6 +1142,39 @@ export default function BudgetTable() {
                                 activity: item.activity,
                                 available: item.available,
                               });
+                            }}
+                            onDragOver={(e) => {
+                              if (!draggingItem) return;
+                              if (
+                                group.name === "Credit Card Payments" &&
+                                draggingItem.group !== group.name
+                              ) {
+                                return;
+                              }
+                              e.preventDefault();
+                              const rect = (e.currentTarget as HTMLTableRowElement).getBoundingClientRect();
+                              const position = e.clientY - rect.top > rect.height / 2 ? "after" : "before";
+                              setDragOverItem({ group: group.name, item: item.name, position });
+                            }}
+                            onDrop={(e) => {
+                              if (!draggingItem) return;
+                              if (
+                                group.name === "Credit Card Payments" &&
+                                draggingItem.group !== group.name
+                              ) {
+                                setDragOverItem(null);
+                                return;
+                              }
+                              e.preventDefault();
+                              handleItemDrop(group.name, item.name, dragOverItem?.position || "before");
+                            }}
+                            onDragLeave={() => {
+                              if (
+                                dragOverItem?.group === group.name &&
+                                dragOverItem?.item === item.name
+                              ) {
+                                setDragOverItem(null);
+                              }
                             }}
                           >
                             <TableCell
@@ -1008,10 +1230,26 @@ export default function BudgetTable() {
                                 />
                               ) : (
                                 <div className="flex items-center gap-2">
+                                  <span
+                                    className="flex h-5 w-5 items-center justify-center text-slate-400 cursor-grab active:cursor-grabbing"
+                                    draggable
+                                    onDragStart={(e) => {
+                                      e.stopPropagation();
+                                      setDraggingItem({ group: group.name, item: item.name });
+                                      setDragOverItem({ group: group.name, item: item.name });
+                                      e.dataTransfer.effectAllowed = "move";
+                                    }}
+                                    onDragEnd={() => {
+                                      setDraggingItem(null);
+                                      setDragOverItem(null);
+                                    }}
+                                  >
+                                    <GripVertical className="h-3 w-3" />
+                                  </span>
                                   <div className="relative h-6 rounded-md px-1 flex-1">
                                     {item.target && (
                                       <div
-                                        className="absolute top-0 left-0 h-full bg-gradient-to-r from-teal-500 to-teal-400 dark:from-teal-500 dark:to-teal-300 transition-all duration-300 opacity-90 dark:opacity-100 rounded-md"
+                                        className="absolute top-0 left-0 h-full bg-teal-500 dark:bg-teal-600 rounded-md"
                                         style={{
                                           width: `${Math.min(
                                             (item.assigned /
@@ -1029,17 +1267,16 @@ export default function BudgetTable() {
                                     </div>
                                   </div>
                                   {item.target && getTargetStatus(item).message && (
-                                    <div className={`px-2 py-0.5 rounded text-[10px] font-semibold whitespace-nowrap ${
-                                      getTargetStatus(item).type === "overspent" 
-                                        ? "bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-200"
-                                        : getTargetStatus(item).type === "funded"
+                                    <div className={`px-2 py-0.5 rounded text-[10px] font-semibold whitespace-nowrap ${getTargetStatus(item).type === "overspent"
+                                      ? "bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-200"
+                                      : getTargetStatus(item).type === "funded"
                                         ? "bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-200"
                                         : getTargetStatus(item).type === "overfunded"
-                                        ? "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-200"
-                                        : getTargetStatus(item).type === "underfunded"
-                                        ? "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-200"
-                                        : "bg-slate-100 dark:bg-slate-800/40 text-slate-600 dark:text-slate-300"
-                                    }`}>
+                                          ? "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-200"
+                                          : getTargetStatus(item).type === "underfunded"
+                                            ? "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-200"
+                                            : "bg-slate-100 dark:bg-slate-800/40 text-slate-600 dark:text-slate-300"
+                                      }`}>
                                       {getTargetStatus(item).type === "funded" && "✓ Funded"}
                                       {getTargetStatus(item).type === "overfunded" && "↑ Overfunded"}
                                       {getTargetStatus(item).type === "underfunded" && "↓ " + (item.target.amountNeeded - item.assigned > 0 ? formatToUSD(item.target.amountNeeded - item.assigned) + " left" : "")}
