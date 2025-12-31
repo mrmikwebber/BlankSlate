@@ -12,6 +12,7 @@ import InlineTargetEditor from "./TargetInlineEditor";
 import { useAccountContext } from "../context/AccountContext";
 import { useUndoRedo } from "../context/UndoRedoContext";
 import { NotesPopover } from "@/components/ui/NotesPopover";
+import { subMonths, format, parse } from "date-fns";
 import {
   Table,
   TableBody,
@@ -642,6 +643,241 @@ export default function BudgetTable() {
     setMoveToCategory("");
   }, [moveMoneyModal, moveToCategory, moveAmount, budgetData, currentMonth, setBudgetData, calculateActivityForMonth, getCumulativeAvailable, calculateCreditCardAccountActivity, refreshAllReadyToAssign, registerAction, setIsDirty, setRecentChanges]);
 
+  // Get assigned amount from previous month
+  const getLastMonthAssigned = useCallback((groupName: string, itemName: string): number => {
+    if (!budgetData || !currentMonth) return 0;
+    
+    const parsedDate = parse(`${currentMonth}-01`, "yyyy-MM-dd", new Date());
+    const prevMonthDate = subMonths(parsedDate, 1);
+    const prevMonth = format(prevMonthDate, "yyyy-MM");
+    
+    if (!budgetData[prevMonth]) return 0;
+    
+    const item = budgetData[prevMonth].categories
+      .find(c => c.name === groupName)?.categoryItems
+      .find(i => i.name === itemName);
+    
+    return item?.assigned ?? 0;
+  }, [budgetData, currentMonth]);
+
+  // Get 3-month average assigned
+  const getThreeMonthAverageAssigned = useCallback((groupName: string, itemName: string): number => {
+    if (!budgetData || !currentMonth) return 0;
+    
+    const months = [];
+    const parsedDate = parse(`${currentMonth}-01`, "yyyy-MM-dd", new Date());
+    
+    for (let i = 1; i <= 3; i++) {
+      const monthDate = subMonths(parsedDate, i);
+      const monthKey = format(monthDate, "yyyy-MM");
+      months.push(monthKey);
+    }
+    
+    let total = 0;
+    let count = 0;
+    
+    for (const month of months) {
+      if (budgetData[month]) {
+        const item = budgetData[month].categories
+          .find(c => c.name === groupName)?.categoryItems
+          .find(i => i.name === itemName);
+        
+        if (item) {
+          total += item.assigned;
+          count++;
+        }
+      }
+    }
+    
+    return count > 0 ? Math.round((total / count) * 100) / 100 : 0;
+  }, [budgetData, currentMonth]);
+
+  // Apply quick assign operation (Last Month, Average, or Zero)
+  const handleQuickAssign = useCallback((
+    groupName: string,
+    itemName: string,
+    mode: "last-month" | "average" | "zero"
+  ) => {
+    if (!budgetData || !currentMonth) return;
+
+    const category = budgetData[currentMonth].categories.find(c => c.name === groupName);
+    const item = category?.categoryItems.find(i => i.name === itemName);
+    
+    if (!item) return;
+
+    let newAssigned = 0;
+    let description = "";
+
+    if (mode === "last-month") {
+      newAssigned = getLastMonthAssigned(groupName, itemName);
+      description = `Set '${itemName}' to last month's assigned (${formatToUSD(newAssigned)})`;
+    } else if (mode === "average") {
+      newAssigned = getThreeMonthAverageAssigned(groupName, itemName);
+      description = `Set '${itemName}' to 3-month average (${formatToUSD(newAssigned)})`;
+    } else if (mode === "zero") {
+      newAssigned = 0;
+      description = `Zeroed out '${itemName}'`;
+    }
+
+    const oldAssigned = item.assigned;
+
+    // Apply the change
+    setBudgetData((prev) => {
+      const updated = { ...prev };
+      const updatedCategories = updated[currentMonth].categories.map((cat) => {
+        if (cat.name !== groupName && cat.name !== "Credit Card Payments") {
+          return cat;
+        }
+
+        const updatedItems = cat.categoryItems.map((i) => {
+          if (cat.name === groupName && i.name === itemName) {
+            const itemActivity = calculateActivityForMonth(currentMonth, i.name, cat.name);
+            const cumulative = getCumulativeAvailable(updated, i.name, cat.name);
+            const available = newAssigned + itemActivity + Math.max(cumulative, 0);
+            return { ...i, assigned: newAssigned, available };
+          }
+
+          if (cat.name === "Credit Card Payments") {
+            const activity = calculateCreditCardAccountActivity(currentMonth, i.name, updated);
+            const cumulative = getCumulativeAvailable(updated, i.name, cat.name);
+            const available = i.assigned + activity + Math.max(cumulative, 0);
+            return { ...i, activity, available };
+          }
+
+          return i;
+        });
+
+        return { ...cat, categoryItems: updatedItems };
+      });
+
+      updated[currentMonth] = { ...updated[currentMonth], categories: updatedCategories };
+      refreshAllReadyToAssign(updated);
+      return updated;
+    });
+
+    // Register undo/redo
+    registerAction({
+      description,
+      execute: async () => {
+        setBudgetData((prev) => {
+          const updated = { ...prev };
+          const updatedCategories = updated[currentMonth].categories.map((cat) => {
+            if (cat.name !== groupName && cat.name !== "Credit Card Payments") {
+              return cat;
+            }
+
+            const updatedItems = cat.categoryItems.map((i) => {
+              if (cat.name === groupName && i.name === itemName) {
+                const itemActivity = calculateActivityForMonth(currentMonth, i.name, cat.name);
+                const cumulative = getCumulativeAvailable(updated, i.name, cat.name);
+                const available = newAssigned + itemActivity + Math.max(cumulative, 0);
+                return { ...i, assigned: newAssigned, available };
+              }
+
+              if (cat.name === "Credit Card Payments") {
+                const activity = calculateCreditCardAccountActivity(currentMonth, i.name, updated);
+                const cumulative = getCumulativeAvailable(updated, i.name, cat.name);
+                const available = i.assigned + activity + Math.max(cumulative, 0);
+                return { ...i, activity, available };
+              }
+
+              return i;
+            });
+
+            return { ...cat, categoryItems: updatedItems };
+          });
+
+          updated[currentMonth] = { ...updated[currentMonth], categories: updatedCategories };
+          refreshAllReadyToAssign(updated);
+          return updated;
+        });
+      },
+      undo: async () => {
+        setBudgetData((prev) => {
+          const updated = { ...prev };
+          const updatedCategories = updated[currentMonth].categories.map((cat) => {
+            if (cat.name !== groupName && cat.name !== "Credit Card Payments") {
+              return cat;
+            }
+
+            const updatedItems = cat.categoryItems.map((i) => {
+              if (cat.name === groupName && i.name === itemName) {
+                const itemActivity = calculateActivityForMonth(currentMonth, i.name, cat.name);
+                const cumulative = getCumulativeAvailable(updated, i.name, cat.name);
+                const available = oldAssigned + itemActivity + Math.max(cumulative, 0);
+                return { ...i, assigned: oldAssigned, available };
+              }
+
+              if (cat.name === "Credit Card Payments") {
+                const activity = calculateCreditCardAccountActivity(currentMonth, i.name, updated);
+                const cumulative = getCumulativeAvailable(updated, i.name, cat.name);
+                const available = i.assigned + activity + Math.max(cumulative, 0);
+                return { ...i, activity, available };
+              }
+
+              return i;
+            });
+
+            return { ...cat, categoryItems: updatedItems };
+          });
+
+          updated[currentMonth] = { ...updated[currentMonth], categories: updatedCategories };
+          refreshAllReadyToAssign(updated);
+          return updated;
+        });
+      },
+    });
+
+    setIsDirty(true);
+    setRecentChanges((prev) => [
+      ...prev.slice(-9),
+      {
+        description,
+        timestamp: new Date().toISOString(),
+      },
+    ]);
+
+    setCategoryContext(null);
+  }, [budgetData, currentMonth, getLastMonthAssigned, getThreeMonthAverageAssigned, setBudgetData, calculateActivityForMonth, getCumulativeAvailable, calculateCreditCardAccountActivity, refreshAllReadyToAssign, registerAction, setIsDirty, setRecentChanges]);
+
+  // Keyboard shortcuts for quick assign: L=Last Month, A=Average, Z=Zero
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!categoryContext) return;
+
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      const isTypingTarget =
+        tag === "INPUT" ||
+        tag === "SELECT" ||
+        tag === "TEXTAREA" ||
+        target?.isContentEditable;
+
+      if (isTypingTarget) return;
+
+      if ((e.key === "l" || e.key === "L") && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        handleQuickAssign(categoryContext.groupName, categoryContext.itemName, "last-month");
+        return;
+      }
+
+      if ((e.key === "a" || e.key === "A") && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        handleQuickAssign(categoryContext.groupName, categoryContext.itemName, "average");
+        return;
+      }
+
+      if ((e.key === "z" || e.key === "Z") && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        handleQuickAssign(categoryContext.groupName, categoryContext.itemName, "zero");
+        return;
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [categoryContext, handleQuickAssign]);
+
   return (
     <>
       {/* Group context menu */}
@@ -927,10 +1163,49 @@ export default function BudgetTable() {
         createPortal(
           <div
             data-cy="category-context-menu"
-            className="fixed z-50 bg-white border border-slate-200 rounded-md shadow-md text-xs"
+            className="fixed z-50 bg-white border border-slate-200 rounded-md shadow-md text-xs dark:bg-slate-900 dark:border-slate-700 min-w-max"
             style={{ top: categoryContext.y, left: categoryContext.x }}
             onClick={() => setCategoryContext(null)}
           >
+            <div className="py-1">
+              <button
+                data-cy="category-assign-last-month"
+                data-category={categoryContext.groupName}
+                data-item={categoryContext.itemName}
+                onClick={() => handleQuickAssign(categoryContext.groupName, categoryContext.itemName, "last-month")}
+                className="px-3 py-2 hover:bg-teal-50 dark:hover:bg-teal-950 text-teal-600 dark:text-teal-400 w-full text-left flex items-center justify-between gap-4"
+              >
+                <span>Set to last month</span>
+                <span className="text-slate-500 dark:text-slate-400 font-mono text-[10px]">
+                  {formatToUSD(getLastMonthAssigned(categoryContext.groupName, categoryContext.itemName))}
+                </span>
+              </button>
+
+              <button
+                data-cy="category-assign-average"
+                data-category={categoryContext.groupName}
+                data-item={categoryContext.itemName}
+                onClick={() => handleQuickAssign(categoryContext.groupName, categoryContext.itemName, "average")}
+                className="px-3 py-2 hover:bg-blue-50 dark:hover:bg-blue-950 text-blue-600 dark:text-blue-400 w-full text-left flex items-center justify-between gap-4"
+              >
+                <span>Set to 3-month avg</span>
+                <span className="text-slate-500 dark:text-slate-400 font-mono text-[10px]">
+                  {formatToUSD(getThreeMonthAverageAssigned(categoryContext.groupName, categoryContext.itemName))}
+                </span>
+              </button>
+
+              <button
+                data-cy="category-assign-zero"
+                data-category={categoryContext.groupName}
+                data-item={categoryContext.itemName}
+                onClick={() => handleQuickAssign(categoryContext.groupName, categoryContext.itemName, "zero")}
+                className="px-3 py-2 hover:bg-orange-50 dark:hover:bg-orange-950 text-orange-600 dark:text-orange-400 w-full text-left border-b border-slate-200 dark:border-slate-700 flex items-center justify-between gap-4"
+              >
+                <span>Zero out</span>
+                <span className="text-slate-500 dark:text-slate-400 font-mono text-[10px]">$0.00</span>
+              </button>
+            </div>
+
             <button
               data-cy="category-rename"
               data-category={categoryContext.groupName}
@@ -943,7 +1218,7 @@ export default function BudgetTable() {
                 setNewCategoryName(categoryContext.itemName);
                 setCategoryContext(null);
               }}
-              className="px-3 py-2 hover:bg-slate-50 text-slate-700 w-full text-left"
+              className="px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 w-full text-left"
             >
               Rename category
             </button>
@@ -963,12 +1238,12 @@ export default function BudgetTable() {
                   });
                   setCategoryContext(null);
                 }}
-                className="px-3 py-2 hover:bg-red-50 text-red-600 w-full text-left border-t border-slate-200"
+                className="px-3 py-2 hover:bg-red-50 dark:hover:bg-red-950 text-red-600 dark:text-red-400 w-full text-left border-t border-slate-200 dark:border-slate-700"
               >
                 Delete category
               </button>
             ) : (
-              <div className="px-3 py-2 text-[11px] text-muted-foreground border-t border-slate-200">
+              <div className="px-3 py-2 text-[11px] text-muted-foreground border-t border-slate-200 dark:border-slate-700">
                 Cannot delete (credit card category)
               </div>
             )}
@@ -1047,6 +1322,9 @@ export default function BudgetTable() {
                   shortcuts={[
                     { key: "Ctrl+Z / Cmd+Z", description: "Undo last action" },
                     { key: "Ctrl+Y / Cmd+Shift+Z", description: "Redo last action" },
+                    { key: "L", description: "Set category to last month's assigned (right-click menu)" },
+                    { key: "A", description: "Set category to 3-month average (right-click menu)" },
+                    { key: "Z", description: "Zero out category (right-click menu)" },
                   ]}
                 />
                 <AddCategoryButton handleSubmit={addCategoryGroup} />
