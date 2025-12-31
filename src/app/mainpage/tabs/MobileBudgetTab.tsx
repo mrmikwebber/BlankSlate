@@ -44,6 +44,7 @@ export default function MobileBudgetTab() {
   const [editAssigned, setEditAssigned] = useState<string>("");
   const [addToGroup, setAddToGroup] = useState<string | null>(null);
   const [newItemName, setNewItemName] = useState<string>("");
+  const [touchStart, setTouchStart] = useState<{ x: number; y: number } | null>(null);
 
   const openItemSheet = (groupName: string, itemName: string, assigned: number) => {
     setSelectedItem({ groupName, itemName });
@@ -53,6 +54,26 @@ export default function MobileBudgetTab() {
   const closeItemSheet = () => {
     setSelectedItem(null);
     setEditAssigned("");
+  };
+
+  const handleCardTouch = (e: React.TouchEvent, groupName: string, itemName: string, assigned: number) => {
+    const touch = e.touches[0];
+    setTouchStart({ x: touch.clientX, y: touch.clientY });
+  };
+
+  const handleCardTouchEnd = (e: React.TouchEvent, groupName: string, itemName: string, assigned: number) => {
+    if (!touchStart) return;
+
+    const touch = e.changedTouches[0];
+    const deltaX = Math.abs(touch.clientX - touchStart.x);
+    const deltaY = Math.abs(touch.clientY - touchStart.y);
+
+    // Only open if movement is less than 10px (tap, not scroll)
+    if (deltaX < 10 && deltaY < 10) {
+      openItemSheet(groupName, itemName, assigned);
+    }
+
+    setTouchStart(null);
   };
 
   const handleAssignedSave = () => {
@@ -205,7 +226,12 @@ export default function MobileBudgetTab() {
               {group.categoryItems.map((item) => {
                 const status = getTargetStatus(item);
                 return (
-                  <Card key={item.name} className="shadow-none border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900" onClick={() => openItemSheet(group.name, item.name, item.assigned)}>
+                  <Card 
+                    key={item.name} 
+                    className="shadow-none border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 select-none"
+                    onTouchStart={(e) => handleCardTouch(e, group.name, item.name, item.assigned)}
+                    onTouchEnd={(e) => handleCardTouchEnd(e, group.name, item.name, item.assigned)}
+                  >
                     <CardContent className="pt-3">
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex-1">
@@ -257,7 +283,9 @@ export default function MobileBudgetTab() {
               {/* Add Category Button */}
               <Button
                 size="sm"
-                className="w-full gap-1.5 bg-teal-600 dark:bg-teal-700 text-white hover:bg-teal-500 dark:hover:bg-teal-600"
+                className="w-full gap-1.5 bg-teal-600 dark:bg-teal-700 text-white hover:bg-teal-500 dark:hover:bg-teal-600 active:scale-95 transition-transform"
+                onTouchStart={(e) => e.stopPropagation()}
+                onTouchEnd={(e) => e.stopPropagation()}
                 onClick={() => {
                   setAddToGroup(group.name);
                   setNewItemName("");
