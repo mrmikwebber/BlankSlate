@@ -836,8 +836,8 @@ export default function BudgetTable() {
           </div>
 
           <div
-            className="flex-1 min-h-0 overflow-auto"
-            style={{ contain: "paint", willChange: "transform", transform: "translateZ(0)" }}
+            className="flex-1 min-h-0 overflow-auto pb-8"
+            style={{ willChange: "transform", transform: "translateZ(0)" }}
           >
             <Table data-cy="budget-table" className="w-full table-fixed">
               <TableBody>
