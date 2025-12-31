@@ -299,7 +299,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
   const exitSandbox = useCallback(() => {
     if (!sandboxMode) return;
     if (sandboxBaselineRef.current) {
-      const restored = JSON.parse(JSON.stringify(sandboxBaselineRef.current));
+      const restored = sandboxBaselineRef.current;
       setBudgetData(restored);
 
       const hasCurrent = restored[currentMonth];
