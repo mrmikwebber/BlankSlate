@@ -54,13 +54,13 @@ export default function AccountCarousel({ selectedAccountId, onSelect }: Props) 
 
   return (
     <div className="relative">
-      {/* Left Arrow */}
+      {/* Left Arrow - Hidden on Mobile */}
       {canScrollLeft && (
         <Button
           variant="ghost"
           size="icon"
           onClick={() => scroll("left")}
-          className="absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-white/80 hover:bg-white shadow-sm"
+          className="absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-white/80 hover:bg-white shadow-sm hidden md:flex"
         >
           <ChevronLeft className="w-4 h-4" />
         </Button>
@@ -95,13 +95,13 @@ export default function AccountCarousel({ selectedAccountId, onSelect }: Props) 
         ))}
       </div>
 
-      {/* Right Arrow */}
+      {/* Right Arrow - Hidden on Mobile */}
       {canScrollRight && (
         <Button
           variant="ghost"
           size="icon"
           onClick={() => scroll("right")}
-          className="absolute right-0 top-1/2 -translate-y-1/2 z-10 bg-white/80 hover:bg-white shadow-sm"
+          className="absolute right-0 top-1/2 -translate-y-1/2 z-10 bg-white/80 hover:bg-white shadow-sm hidden md:flex"
         >
           <ChevronRight className="w-4 h-4" />
         </Button>
