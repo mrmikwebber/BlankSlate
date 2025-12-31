@@ -410,18 +410,14 @@ describe("Undo/Redo Functionality", () => {
                 .type("500{enter}");
             cy.wait(300);
 
-            // Check that undo button exists in activity sidebar
-            cy.get('[data-cy="activity-sidebar"]').within(() => {
-                cy.contains("button", "Undo").should("exist").and("not.be.disabled");
-                cy.contains("Redo").should("be.disabled");
-            });
+            // Check that undo button exists and is enabled
+            cy.get('[data-cy="undo-button"]').should("exist").and("not.be.disabled");
+            cy.get('[data-cy="redo-button"]').should("be.disabled");
         });
 
         it("should disable undo button when nothing to undo", () => {
             // Initially, undo should be disabled
-            cy.get('[data-cy="activity-sidebar"]').within(() => {
-                cy.contains("button", "Undo").should("be.disabled");
-            });
+            cy.get('[data-cy="undo-button"]').should("be.disabled");
         });
 
         it("should show redo button after undo", () => {
@@ -439,9 +435,7 @@ describe("Undo/Redo Functionality", () => {
             cy.wait(300);
 
             // Check that redo button is now enabled
-            cy.get('[data-cy="activity-sidebar"]').within(() => {
-                cy.contains("button", "Redo").should("exist").and("not.be.disabled");
-            });
+            cy.get('[data-cy="redo-button"]').should("exist").and("not.be.disabled");
         });
 
         it("should allow clicking undo/redo buttons directly", () => {
@@ -455,9 +449,7 @@ describe("Undo/Redo Functionality", () => {
             cy.wait(300);
 
             // Click undo button
-            cy.get('[data-cy="activity-sidebar"]').within(() => {
-                cy.contains("button", "Undo").click();
-            });
+            cy.get('[data-cy="undo-button"]').click();
             cy.wait(300);
 
             // Verify undo worked
@@ -466,9 +458,7 @@ describe("Undo/Redo Functionality", () => {
                 .should("contain", "$0.00");
 
             // Click redo button
-            cy.get('[data-cy="activity-sidebar"]').within(() => {
-                cy.contains("button", "Redo").click();
-            });
+            cy.get('[data-cy="redo-button"]').click();
             cy.wait(300);
 
             // Verify redo worked

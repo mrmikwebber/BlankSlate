@@ -28,7 +28,7 @@ import {
   CardTitle,
   CardContent,
 } from "@/components/ui/card";
-import { ChevronDown, ChevronRight, GripVertical, Plus } from "lucide-react";
+import { ChevronDown, ChevronRight, GripVertical, Plus, RotateCcw, RotateCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
 
@@ -55,7 +55,7 @@ export default function BudgetTable() {
   } = useBudgetContext();
 
   const { accounts } = useAccountContext();
-  const { registerAction } = useUndoRedo();
+  const { registerAction, undo, redo, canUndo, canRedo, undoDescription, redoDescription } = useUndoRedo();
 
   console.count("BudgetTable render");
 
@@ -71,7 +71,6 @@ export default function BudgetTable() {
     string | null
   >(null);
   const [selectedTargetCategory, setSelectedTargetCategory] = useState("");
-  const [dropUp, setDropUp] = useState(false);
   const [editingGroup, setEditingGroup] = useState<string | null>(null);
   const [newGroupName, setNewGroupName] = useState<string>("");
   const [editingItem, setEditingItem] = useState<{
@@ -87,6 +86,7 @@ export default function BudgetTable() {
     available: 0,
   });
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [addPopoverPos, setAddPopoverPos] = useState<{ top: number; left: number } | null>(null);
   const [selectedFilter, setSelectedFilter] = useState("All");
   const [openCategories, setOpenCategories] = useState<Record<string, boolean>>(
     {}
@@ -154,18 +154,12 @@ export default function BudgetTable() {
     const handleClickOutside = (e: MouseEvent) => {
       if (addItemRef.current && !addItemRef.current.contains(e.target as Node)) {
         setActiveCategory(null);
+        setAddPopoverPos(null);
       }
     };
 
     if (activeCategory) {
       document.addEventListener("mousedown", handleClickOutside);
-
-      const rect = addItemRef.current?.getBoundingClientRect();
-      if (rect && rect.bottom + 120 > window.innerHeight) {
-        setDropUp(true);
-      } else {
-        setDropUp(false);
-      }
     }
 
     return () => document.removeEventListener("mousedown", handleClickOutside);
@@ -782,6 +776,30 @@ export default function BudgetTable() {
                 ))}
               </div>
               <div className="flex items-center gap-2">
+                <Button
+                  data-cy="undo-button"
+                  onClick={undo}
+                  disabled={!canUndo}
+                  title={canUndo ? `Undo: ${undoDescription}` : "Nothing to undo"}
+                  variant="outline"
+                  size="sm"
+                  className="gap-1"
+                >
+                  <RotateCcw className="h-4 w-4" />
+                  Undo
+                </Button>
+                <Button
+                  data-cy="redo-button"
+                  onClick={redo}
+                  disabled={!canRedo}
+                  title={canRedo ? `Redo: ${redoDescription}` : "Nothing to redo"}
+                  variant="outline"
+                  size="sm"
+                  className="gap-1"
+                >
+                  <RotateCw className="h-4 w-4" />
+                  Redo
+                </Button>
                 <KeyboardShortcuts
                   page="budget"
                   shortcuts={[
@@ -979,8 +997,12 @@ export default function BudgetTable() {
                               data-category={group.name}
                               size="icon"
                               variant="outline"
-                              onClick={() => setActiveCategory(group.name)}
-                              className="h-6 w-6 hidden group-hover:block"
+                              onClick={(e) => {
+                                const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
+                                setActiveCategory(group.name);
+                                setAddPopoverPos({ top: rect.top, left: rect.right + 8 });
+                              }}
+                              className="relative z-40 h-7 w-7 p-0 rounded-md border border-slate-300 bg-white shadow-sm hover:bg-slate-50 hover:border-slate-400 focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-1 dark:bg-slate-900 dark:border-slate-700 dark:hover:bg-slate-800 dark:hover:border-slate-500"
                             >
                               <Plus className="h-3 w-3" />
                             </Button>
@@ -1028,56 +1050,60 @@ export default function BudgetTable() {
                     {/* Add item popover row */}
                     <TableRow className="hover:bg-transparent">
                       <TableCell colSpan={4} className="relative p-0">
-                        {activeCategory === group.name && (
-                          <div
-                            ref={addItemRef}
-                            className={`${dropUp
-                              ? "bottom-full mb-2"
-                              : "top-full mt-2"
-                              } absolute left-0 w-72 bg-white dark:bg-slate-900 p-3 shadow-sm rounded-md border border-slate-200 dark:border-slate-700 z-50 space-y-2 text-slate-800 dark:text-slate-200`}
-                          >
-                            <Input
-                              data-cy="add-item-input"
-                              type="text"
-                              placeholder="New category name"
-                              value={newItem.name}
-                              onChange={(e) =>
-                                setNewItem({
-                                  ...newItem,
-                                  name: e.target.value,
-                                })
-                              }
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") {
-                                  e.preventDefault();
-                                  handleAddItem(group.name);
-                                } else if (e.key === "Escape") {
-                                  e.preventDefault();
-                                  setActiveCategory(null);
+                        {activeCategory === group.name && addPopoverPos &&
+                          createPortal(
+                            <div
+                              ref={addItemRef}
+                              style={{ position: "fixed", top: addPopoverPos.top, left: addPopoverPos.left }}
+                              className="w-72 bg-white dark:bg-slate-900 p-3 shadow-sm rounded-md border border-slate-200 dark:border-slate-700 z-50 space-y-2 text-slate-800 dark:text-slate-200"
+                            >
+                              <Input
+                                data-cy="add-item-input"
+                                type="text"
+                                placeholder="New category name"
+                                value={newItem.name}
+                                onChange={(e) =>
+                                  setNewItem({
+                                    ...newItem,
+                                    name: e.target.value,
+                                  })
                                 }
-                              }}
-                              className="h-8 text-sm"
-                            />
-                            <div className="flex justify-end gap-2">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setActiveCategory(null)}
-                              >
-                                Cancel
-                              </Button>
-                              <Button
-                                data-cy="add-item-submit"
-                                data-category={group.name}
-                                size="sm"
-                                onClick={() => handleAddItem(group.name)}
-                                className="bg-teal-600 dark:bg-teal-700 text-white hover:bg-teal-500 dark:hover:bg-teal-600"
-                              >
-                                Add category
-                              </Button>
-                            </div>
-                          </div>
-                        )}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    e.preventDefault();
+                                    handleAddItem(group.name);
+                                  } else if (e.key === "Escape") {
+                                    e.preventDefault();
+                                    setActiveCategory(null);
+                                    setAddPopoverPos(null);
+                                  }
+                                }}
+                                className="h-8 text-sm"
+                              />
+                              <div className="flex justify-end gap-2">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    setActiveCategory(null);
+                                    setAddPopoverPos(null);
+                                  }}
+                                >
+                                  Cancel
+                                </Button>
+                                <Button
+                                  data-cy="add-item-submit"
+                                  data-category={group.name}
+                                  size="sm"
+                                  onClick={() => handleAddItem(group.name)}
+                                  className="bg-teal-600 dark:bg-teal-700 text-white hover:bg-teal-500 dark:hover:bg-teal-600"
+                                >
+                                  Add category
+                                </Button>
+                              </div>
+                            </div>,
+                            document.body
+                          )}
                       </TableCell>
                     </TableRow>
 
@@ -1094,16 +1120,16 @@ export default function BudgetTable() {
                             className={cn(
                               "relative odd:bg-white dark:odd:bg-slate-950 even:bg-slate-50/60 dark:even:bg-slate-900/40 border-b border-slate-100 dark:border-slate-700",
                               draggingItem?.group === group.name &&
-                                draggingItem?.item === item.name &&
-                                "opacity-70",
+                              draggingItem?.item === item.name &&
+                              "opacity-70",
                               dragOverItem?.group === group.name &&
-                                dragOverItem?.item === item.name &&
-                                cn(
-                                  "ring-2 ring-teal-500/70 bg-teal-50/60 dark:bg-teal-950/40 shadow-sm",
-                                  dragOverItem?.position === "after"
-                                    ? "border-b-4 border-b-teal-500"
-                                    : "border-l-4 border-l-teal-500"
-                                )
+                              dragOverItem?.item === item.name &&
+                              cn(
+                                "ring-2 ring-teal-500/70 bg-teal-50/60 dark:bg-teal-950/40 shadow-sm",
+                                dragOverItem?.position === "after"
+                                  ? "border-b-4 border-b-teal-500"
+                                  : "border-l-4 border-l-teal-500"
+                              )
                             )}
                             onContextMenu={(e) => {
                               e.preventDefault();

@@ -56,15 +56,5 @@ describe('UI interactions and misc', () => {
       cy.get('input[data-cy="assigned-input"]').clear().type('2{enter}');
     });
 
-    // Verify recent activity list shows the changes
-    cy.get('[data-cy="activity-sidebar"]').should('exist');
-    cy.get('[data-cy="recent-activity-list"]').within(() => {
-      // Should have activity items (changes are logged)
-      cy.get('[data-cy="activity-item"]').should('have.length.greaterThan', 0);
-      // Recent activity list shows most recent 10-20 items (implementation dependent)
-      cy.get('[data-cy="activity-item"]').should('have.length.at.most', 20);
-      // Verify at least one is a budget change (not just transactions)
-      cy.get('[data-cy="activity-item"][data-activity-type="change"]').should('exist');
-    });
   });
 });
