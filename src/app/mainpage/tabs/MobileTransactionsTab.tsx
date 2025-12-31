@@ -21,7 +21,8 @@ export default function MobileTransactionsTab({
   const { budgetData, currentMonth, addItemToCategory } = useBudgetContext();
 
   const [showForm, setShowForm] = useState(false);
-  const [formAccountId, setFormAccountId] = useState<number | null>(null);
+  // Allow string or number IDs depending on backend shape
+  const [formAccountId, setFormAccountId] = useState<string | number | null>(null);
   const [payeeInput, setPayeeInput] = useState("");
   const [payeeDropdownOpen, setPayeeDropdownOpen] = useState(false);
   const [selectedPayeeAccountName, setSelectedPayeeAccountName] = useState<string | null>(null);
@@ -40,14 +41,13 @@ export default function MobileTransactionsTab({
   const [isTypingPayee, setIsTypingPayee] = useState(false);
   const [isTypingCategory, setIsTypingCategory] = useState(false);
 
-  // Keep form account in sync with selection
+  // Initialize form account once on mount
   useEffect(() => {
-    if (selectedAccountId != null) {
-      setFormAccountId(selectedAccountId);
-    } else if (accounts[0]) {
+    if (formAccountId === null && accounts[0]) {
       setFormAccountId(accounts[0].id);
     }
-  }, [accounts, selectedAccountId]);
+  }, []);
+
 
   const selectedAccount = useMemo(
     () => accounts.find((a) => a.id === selectedAccountId) || null,
@@ -55,7 +55,7 @@ export default function MobileTransactionsTab({
   );
 
   const thisAccount = useMemo(
-    () => accounts.find((a) => a.id === formAccountId) || null,
+    () => accounts.find((a) => String(a.id) === String(formAccountId)) || null,
     [accounts, formAccountId]
   );
 
@@ -212,6 +212,10 @@ export default function MobileTransactionsTab({
     const payeeName = selectedPayeeAccountName || payeeInput.trim();
     if (!formAccountId || !payeeName || !formAmount) return;
 
+    // Normalize account id to number when possible
+    const formAccountIdNum = Number(formAccountId);
+    const accountIdForTx = Number.isNaN(formAccountIdNum) ? formAccountId : formAccountIdNum;
+
     const amountNum = Number(formAmount);
     if (Number.isNaN(amountNum) || amountNum <= 0) return;
 
@@ -274,10 +278,10 @@ export default function MobileTransactionsTab({
 
     if (editingTxId) {
       // ✏️ Editing existing transaction
-      await editTransaction(formAccountId, editingTxId, txPayload);
+      await editTransaction(accountIdForTx as any, editingTxId, txPayload);
     } else {
       // ➕ Creating new transaction
-      await addTransaction(formAccountId, txPayload);
+      await addTransaction(accountIdForTx as any, txPayload);
 
       if (!isTransfer && upsertPayee) {
         await upsertPayee(payeeName);
@@ -353,10 +357,13 @@ export default function MobileTransactionsTab({
                 <select
                   className="text-sm border border-slate-300 dark:border-slate-700 rounded px-2 py-2 bg-white dark:bg-slate-800 dark:text-slate-200"
                   value={formAccountId != null ? String(formAccountId) : ""}
-                  onChange={(e) => setFormAccountId(Number(e.target.value))}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    setFormAccountId(raw === "" ? null : raw);
+                  }}
                 >
                   {accounts.map((acc) => (
-                    <option key={acc.id} value={acc.id}>
+                    <option key={acc.id} value={String(acc.id)}>
                       {acc.name}
                     </option>
                   ))}
@@ -459,33 +466,33 @@ export default function MobileTransactionsTab({
                       {categoryOptions
                         .filter((opt) => isTypingCategory && categoryInput ? (opt?.label || "").toLowerCase().includes(categoryInput.toLowerCase()) : true)
                         .map((opt) => (
-                        <button
-                          key={opt.value}
-                          type="button"
-                          className="w-full text-left px-3 py-2 text-sm hover:bg-teal-50 dark:hover:bg-teal-900/20 text-slate-800 dark:text-slate-200"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => {
-                            setIsTypingCategory(false);
-                            setCategoryInput(opt.label);
-                            if (opt.isAccount && opt.accountName && thisAccount) {
-                              const label = getPreviewLabel(opt.accountName);
-                              setPayeeInput(label);
-                              setSelectedPayeeAccountName(opt.accountName);
-                              setIsTypingPayee(false);
-                            } else if (selectedPayeeAccountName) {
-                              // Check if current payee is a credit card - if so, clear it since category doesn't match
-                              const acc = accounts.find((a) => a.name === selectedPayeeAccountName);
-                              if (acc?.type === "credit") {
-                                setPayeeInput("");
-                                setSelectedPayeeAccountName(null);
+                          <button
+                            key={opt.value}
+                            type="button"
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-teal-50 dark:hover:bg-teal-900/20 text-slate-800 dark:text-slate-200"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => {
+                              setIsTypingCategory(false);
+                              setCategoryInput(opt.label);
+                              if (opt.isAccount && opt.accountName && thisAccount) {
+                                const label = getPreviewLabel(opt.accountName);
+                                setPayeeInput(label);
+                                setSelectedPayeeAccountName(opt.accountName);
+                                setIsTypingPayee(false);
+                              } else if (selectedPayeeAccountName) {
+                                // Check if current payee is a credit card - if so, clear it since category doesn't match
+                                const acc = accounts.find((a) => a.name === selectedPayeeAccountName);
+                                if (acc?.type === "credit") {
+                                  setPayeeInput("");
+                                  setSelectedPayeeAccountName(null);
+                                }
                               }
-                            }
-                            setCategoryDropdownOpen(false);
-                          }}
-                        >
-                          {opt.label}
-                        </button>
-                      ))}
+                              setCategoryDropdownOpen(false);
+                            }}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
                       {categoryInput && !categoryOptions.some((opt) => (opt?.label || "").toLowerCase() === categoryInput.toLowerCase()) && (
                         <button
                           type="button"
@@ -668,10 +675,13 @@ export default function MobileTransactionsTab({
               <select
                 className="text-sm border border-slate-300 dark:border-slate-700 rounded px-2 py-2 bg-white dark:bg-slate-800 dark:text-slate-200"
                 value={formAccountId != null ? String(formAccountId) : ""}
-                onChange={(e) => setFormAccountId(Number(e.target.value))}
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  setFormAccountId(raw === "" ? null : raw);
+                }}
               >
                 {accounts.map((acc) => (
-                  <option key={acc.id} value={acc.id}>
+                  <option key={acc.id} value={String(acc.id)}>
                     {acc.name}
                   </option>
                 ))}
@@ -691,7 +701,7 @@ export default function MobileTransactionsTab({
                   onBlur={() => setTimeout(() => setPayeeDropdownOpen(false), 120)}
                   placeholder="Type or select payee"
                 />
-                  {payeeDropdownOpen && (
+                {payeeDropdownOpen && (
                   <div className="absolute z-20 mt-1 w-full rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-lg max-h-52 overflow-y-auto">
                     {payeeSuggestions
                       .filter((s) => isTypingPayee && payeeInput ? (s?.label || "").toLowerCase().includes(payeeInput.toLowerCase()) : true)
@@ -774,33 +784,33 @@ export default function MobileTransactionsTab({
                     {categoryOptions
                       .filter((opt) => isTypingCategory && categoryInput ? (opt?.label || "").toLowerCase().includes(categoryInput.toLowerCase()) : true)
                       .map((opt) => (
-                      <button
-                        key={opt.value}
-                        type="button"
-                        className="w-full text-left px-3 py-2 text-sm hover:bg-teal-50 dark:hover:bg-teal-900/20 text-slate-800 dark:text-slate-200"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => {
-                          setIsTypingCategory(false);
-                          setCategoryInput(opt.label);
-                          if (opt.isAccount && opt.accountName && thisAccount) {
-                            const label = getPreviewLabel(opt.accountName);
-                            setPayeeInput(label);
-                            setSelectedPayeeAccountName(opt.accountName);
-                            setIsTypingPayee(false);
-                          } else if (selectedPayeeAccountName) {
-                            // Check if current payee is a credit card - if so, clear it since category doesn't match
-                            const acc = accounts.find((a) => a.name === selectedPayeeAccountName);
-                            if (acc?.type === "credit") {
-                              setPayeeInput("");
-                              setSelectedPayeeAccountName(null);
+                        <button
+                          key={opt.value}
+                          type="button"
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-teal-50 dark:hover:bg-teal-900/20 text-slate-800 dark:text-slate-200"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            setIsTypingCategory(false);
+                            setCategoryInput(opt.label);
+                            if (opt.isAccount && opt.accountName && thisAccount) {
+                              const label = getPreviewLabel(opt.accountName);
+                              setPayeeInput(label);
+                              setSelectedPayeeAccountName(opt.accountName);
+                              setIsTypingPayee(false);
+                            } else if (selectedPayeeAccountName) {
+                              // Check if current payee is a credit card - if so, clear it since category doesn't match
+                              const acc = accounts.find((a) => a.name === selectedPayeeAccountName);
+                              if (acc?.type === "credit") {
+                                setPayeeInput("");
+                                setSelectedPayeeAccountName(null);
+                              }
                             }
-                          }
-                          setCategoryDropdownOpen(false);
-                        }}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
+                            setCategoryDropdownOpen(false);
+                          }}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
                     {categoryInput && !categoryOptions.some((opt) => (opt?.label || "").toLowerCase() === categoryInput.toLowerCase()) && (
                       <button
                         type="button"
