@@ -16,12 +16,20 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Plus, Edit2, Trash2, ArrowLeft } from "lucide-react";
 
 export default function AccountDetails() {
   const { id } = useParams();
   const router = useRouter();
-  const { accounts, deleteTransactionWithMirror, editAccountName, refreshSingleAccount } =
+  const { accounts, addTransaction, deleteTransactionWithMirror, editAccountName, refreshSingleAccount } =
     useAccountContext();
   const { registerAction } = useUndoRedo();
 
@@ -49,10 +57,21 @@ export default function AccountDetails() {
     key: "date",
     direction: "desc",
   });
+  const [reconcileOpen, setReconcileOpen] = useState(false);
+  const [reconcileInput, setReconcileInput] = useState("");
+  const [reconcileError, setReconcileError] = useState<string | null>(null);
 
   const account = accounts.find((acc) => acc.id.toString() === id);
   const accountBalance =
     account?.transactions?.reduce((sum, tx) => sum + tx.balance, 0) ?? 0;
+
+  const sanitizedReconcileInput = reconcileInput.replace(/[^0-9.-]/g, "");
+  const parsedReconcileTarget = reconcileInput
+    ? Number.parseFloat(sanitizedReconcileInput)
+    : Number.NaN;
+  const reconcileDifference = Number.isNaN(parsedReconcileTarget)
+    ? null
+    : parsedReconcileTarget - accountBalance;
 
   useEffect(() => {
     if (account && newAccountName === undefined) {
@@ -154,6 +173,36 @@ export default function AccountDetails() {
     // Clear selection
     setSelectedTxIds(new Set());
     setBulkContextMenu(null);
+  };
+
+  const handleReconcileSubmit = async () => {
+    if (!account) return;
+    const sanitized = reconcileInput.replace(/[^0-9.-]/g, "");
+    const targetBalance = Number.parseFloat(sanitized);
+
+    if (Number.isNaN(targetBalance)) {
+      setReconcileError("Enter a valid number for the balance.");
+      return;
+    }
+
+    const difference = targetBalance - accountBalance;
+    if (Math.abs(difference) < 0.005) {
+      setReconcileError("Balance already matches; no adjustment needed.");
+      return;
+    }
+
+    const today = new Date().toISOString().split("T")[0];
+
+    await addTransaction(account.id, {
+      date: today,
+      payee: "Reconciliation Adjustment",
+      category: "Reconciliation (Hidden)",
+      category_group: "Reconciliation (Hidden)",
+      balance: difference,
+    });
+
+    setReconcileOpen(false);
+    setReconcileError(null);
   };
 
   const toggleTransactionSelection = (txId: number, e?: React.MouseEvent) => {
@@ -422,16 +471,29 @@ export default function AccountDetails() {
         </div>
         </div>
 
-        {!isEditingAccountName && (
+        <div className="flex items-center gap-2">
           <Button
-            onClick={() => setIsEditingAccountName(true)}
-            variant="ghost"
+            onClick={() => {
+              setReconcileInput(accountBalance.toFixed(2));
+              setReconcileError(null);
+              setReconcileOpen(true);
+            }}
+            variant="outline"
             size="sm"
           >
-            <Edit2 className="h-4 w-4 mr-2" />
-            Rename
+            Reconcile Balance
           </Button>
-        )}
+          {!isEditingAccountName && (
+            <Button
+              onClick={() => setIsEditingAccountName(true)}
+              variant="ghost"
+              size="sm"
+            >
+              <Edit2 className="h-4 w-4 mr-2" />
+              Rename
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Transactions header + add button */}
@@ -645,6 +707,73 @@ export default function AccountDetails() {
           </button>
         </div>
       )}
+
+      <Dialog
+        open={reconcileOpen}
+        onOpenChange={(open) => {
+          setReconcileOpen(open);
+          if (open) {
+            setReconcileInput(accountBalance.toFixed(2));
+            setReconcileError(null);
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reconcile balance</DialogTitle>
+            <DialogDescription>
+              Enter the real-world balance for this account. If it differs, a hidden reconciliation transaction will be added without touching your budget categories.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2">
+            <label
+              htmlFor="reconcile-balance"
+              className="text-sm font-medium text-slate-700 dark:text-slate-200"
+            >
+              Current balance
+            </label>
+            <Input
+              id="reconcile-balance"
+              type="number"
+              value={reconcileInput}
+              onChange={(e) => {
+                setReconcileInput(e.target.value);
+                setReconcileError(null);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  void handleReconcileSubmit();
+                }
+              }}
+              autoFocus
+            />
+            {reconcileError && (
+              <p className="text-sm text-red-600 dark:text-red-400">{reconcileError}</p>
+            )}
+            {!reconcileError && reconcileDifference !== null && (
+              <p className="text-sm text-slate-600 dark:text-slate-400">
+                Adjustment to apply: <span className={`font-semibold ${reconcileDifference < 0 ? "text-red-600 dark:text-red-400" : "text-green-700 dark:text-green-300"}`}>
+                  {reconcileDifference.toLocaleString("en-US", {
+                    style: "currency",
+                    currency: "USD",
+                  })}
+                </span>
+              </p>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReconcileOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={() => void handleReconcileSubmit()} className="bg-teal-600 hover:bg-teal-700 text-white">
+              Create Adjustment
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
