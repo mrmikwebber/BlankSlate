@@ -30,7 +30,7 @@ import {
   CardTitle,
   CardContent,
 } from "@/components/ui/card";
-import { ChevronDown, ChevronRight, GripVertical, Plus, RotateCcw, RotateCw } from "lucide-react";
+import { ChevronDown, ChevronRight, GripVertical, Plus, RotateCcw, RotateCw, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
 
@@ -92,6 +92,7 @@ export default function BudgetTable() {
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [addPopoverPos, setAddPopoverPos] = useState<{ top: number; left: number } | null>(null);
   const [selectedFilter, setSelectedFilter] = useState("All");
+  const [compareToLastMonth, setCompareToLastMonth] = useState(false);
   const [openCategories, setOpenCategories] = useState<Record<string, boolean>>(
     {}
   );
@@ -139,6 +140,28 @@ export default function BudgetTable() {
 
   const tableRef = useRef<HTMLDivElement>(null);
   const isScrolling = useRef(false);
+
+  const prevMonthKey = useMemo(() => {
+    if (!currentMonth) return null;
+    const parsedDate = parse(`${currentMonth}-01`, "yyyy-MM-dd", new Date());
+    return format(subMonths(parsedDate, 1), "yyyy-MM");
+  }, [currentMonth]);
+
+  const getPreviousActivity = useCallback((groupName: string, itemName: string): number => {
+    if (!budgetData || !prevMonthKey) return 0;
+    if (!budgetData[prevMonthKey]) return 0;
+    return calculateActivityForMonth(prevMonthKey, itemName, groupName) || 0;
+  }, [budgetData, prevMonthKey, calculateActivityForMonth]);
+
+  const getPreviousAssigned = useCallback((groupName: string, itemName: string): number => {
+    if (!budgetData || !prevMonthKey) return 0;
+    const prevMonth = budgetData[prevMonthKey];
+    if (!prevMonth?.categories) return 0;
+
+    const prevGroup = prevMonth.categories.find((c) => c.name === groupName);
+    const prevItem = prevGroup?.categoryItems.find((i) => i.name === itemName);
+    return prevItem?.assigned ?? 0;
+  }, [budgetData, prevMonthKey]);
 
   useEffect(() => {
     const container = tableRef.current;
@@ -214,6 +237,8 @@ export default function BudgetTable() {
       window.removeEventListener("keydown", handleEscape);
     };
   }, []);
+
+  const showCompare = compareToLastMonth && !!prevMonthKey;
 
   const filteredCategories = useMemo(() => {
     if (!budgetData || !currentMonth) return [];
@@ -1275,7 +1300,7 @@ export default function BudgetTable() {
 
             {/* Toolbar: Filters + Add Group */}
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 {FILTERS.map((filter) => (
                   <Button
                     key={filter}
@@ -1291,6 +1316,22 @@ export default function BudgetTable() {
                     {filter}
                   </Button>
                 ))}
+
+                <Button
+                  data-cy="compare-toggle"
+                  variant={compareToLastMonth ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setCompareToLastMonth((prev) => !prev)}
+                  className={cn(
+                    "text-xs gap-2",
+                    compareToLastMonth
+                      ? "bg-teal-600 text-white hover:bg-teal-500 dark:bg-teal-700 dark:hover:bg-teal-600"
+                      : "dark:hover:bg-slate-800"
+                  )}
+                >
+                  <TrendingUp className="h-4 w-4" />
+                  Compare to last month
+                </Button>
               </div>
               <div className="flex items-center gap-2">
                 <Button
@@ -1636,10 +1677,20 @@ export default function BudgetTable() {
 
                     {/* Item rows */}
                     {openCategories[group.name] &&
-                      group.categoryItems.map((item) => (
-                        <Fragment
-                          key={`${group.name}::${item.name}-fragment`}
-                        >
+                      group.categoryItems.map((item) => {
+                        const previousAssigned = showCompare
+                          ? getPreviousAssigned(group.name, item.name)
+                          : 0;
+                        const assignedDelta = (item.assigned ?? 0) - previousAssigned;
+                        const previousActivity = showCompare
+                          ? getPreviousActivity(group.name, item.name)
+                          : 0;
+                        const activityDelta = (item.activity ?? 0) - previousActivity;
+
+                        return (
+                          <Fragment
+                            key={`${group.name}::${item.name}-fragment`}
+                          >
                           <TableRow
                             data-cy="category-row"
                             data-category={group.name}
@@ -1826,6 +1877,8 @@ export default function BudgetTable() {
                               itemName={item.name}
                               item={item}
                               handleInputChange={handleInputChange}
+                              showDelta={showCompare}
+                              deltaAmount={assignedDelta}
                             />
 
                             <TableCell
@@ -1838,7 +1891,21 @@ export default function BudgetTable() {
                                 );
                               }}
                             >
-                              {formatToUSD(item.activity || 0)}
+                              <div className="flex flex-col items-end gap-1">
+                                <span>{formatToUSD(item.activity || 0)}</span>
+                                {showCompare && (
+                                  <span className={`text-[11px] font-semibold ${activityDelta > 0
+                                    ? "text-emerald-600"
+                                    : activityDelta < 0
+                                      ? "text-red-600"
+                                      : "text-slate-500"
+                                    }`}>
+                                    {activityDelta === 0
+                                      ? "No change"
+                                      : `${activityDelta > 0 ? "▲" : "▼"} ${activityDelta > 0 ? "+" : "-"}${formatToUSD(Math.abs(activityDelta))}`}
+                                  </span>
+                                )}
+                              </div>
                             </TableCell>
                             <TableCell
                               data-cy="item-available"
@@ -1882,8 +1949,9 @@ export default function BudgetTable() {
                               }
                             />
                           )}
-                        </Fragment>
-                      ))}
+                          </Fragment>
+                        );
+                      })}
                   </Fragment>
                 ))}
               </TableBody>
