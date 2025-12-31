@@ -31,6 +31,24 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "VERSION=$VERSION" >> $GITHUB_ENV
 
+      - name: Validate Supabase secrets (safe)
+        run: |
+          node -e "
+          const url = process.env.SUPABASE_URL || '';
+          const key = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+          const hasCtl = (s)=>/[\\r\\n\\t\\0\\f\\v]/.test(s);
+          console.log('URL starts https://', url.startsWith('https://'));
+          console.log('URL contains supabase.co', url.includes('supabase.co'));
+          console.log('URL has control chars', hasCtl(url));
+          console.log('KEY has control chars', hasCtl(key));
+          console.log('KEY looks like JWT (two dots)', (key.split('.').length - 1) === 2);
+          console.log('URL length', url.length);
+          console.log('KEY length', key.length);
+          "
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
       - name: Tag version in Supabase
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
