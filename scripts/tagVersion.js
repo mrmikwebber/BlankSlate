@@ -9,33 +9,30 @@ const fs = require("fs");
 const pkgPath = path.join(__dirname, "..", "package.json");
 const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseUrl = (process.env.SUPABASE_URL || "").trim();
+const serviceKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim();
 
-if (!supabaseUrl || !serviceRoleKey) {
-  console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY env vars.");
-  process.exit(1);
-}
+if (!supabaseUrl || !serviceKey) throw new Error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
 
-const supabase = createClient(supabaseUrl, serviceRoleKey);
+const supabase = createClient(supabaseUrl, serviceKey);
 
 async function main() {
-  const version = pkg.version || "0.0.0";
-  const source = process.env.TAG_SOURCE || "manual";
-  const note = process.env.TAG_NOTE || null;
+    const version = pkg.version || "0.0.0";
+    const source = process.env.TAG_SOURCE || "manual";
+    const note = process.env.TAG_NOTE || null;
 
-  const { error } = await supabase.from("app_versions").insert({
-    version,
-    source,
-    note,
-  });
+    const { error } = await supabase.from("app_versions").insert({
+        version,
+        source,
+        note,
+    });
 
-  if (error) {
-    console.error("Failed to insert version tag", error);
-    process.exit(1);
-  }
+    if (error) {
+        console.error("Failed to insert version tag", error);
+        process.exit(1);
+    }
 
-  console.log(`Tagged version ${version}${note ? ` (${note})` : ""}`);
+    console.log(`Tagged version ${version}${note ? ` (${note})` : ""}`);
 }
 
 main();
