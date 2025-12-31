@@ -1,6 +1,6 @@
 {
   "name": "blankslate",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
@@ -11,7 +11,8 @@
     "cy:run": "cypress run",
     "cy:open": "cypress open",
     "test": "vitest",
-    "test:watch": "vitest --watch"
+    "test:watch": "vitest --watch",
+    "tag:release": "node scripts/tagVersion.js"
   },
   "dependencies": {
     "@playwright/test": "^1.51.1",

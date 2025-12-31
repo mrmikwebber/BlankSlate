@@ -12,6 +12,7 @@ export default function Navbar() {
   const [showResetModal, setShowResetModal] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const { isDarkMode, toggleDarkMode } = useDarkMode();
+  const appVersion = process.env.NEXT_PUBLIC_APP_VERSION || "1.0.0";
   
   useEffect(() => {
     const handleEscape = (e) => {
@@ -93,6 +94,7 @@ export default function Navbar() {
           >
             blankslate
           </Link>
+          <span className="hidden lg:inline text-[11px] text-slate-500 dark:text-slate-400">v{appVersion}</span>
 
           <div className="lg:hidden">
             <button
