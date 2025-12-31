@@ -56,6 +56,10 @@ export default function BudgetTable() {
     reorderCategoryItems,
     updateCategoryGroupNote,
     updateCategoryItemNote,
+    sandboxMode,
+    enterSandbox,
+    exitSandbox,
+    setCategorySnooze,
   } = useBudgetContext();
 
   const { accounts } = useAccountContext();
@@ -69,6 +73,7 @@ export default function BudgetTable() {
     "Overspent",
     "Overfunded",
     "Underfunded",
+    "Snoozed",
   ];
   const [selectedCategory, setSelectedCategory] = useState("");
   const [inlineEditorCategory, setInlineEditorCategory] = useState<
@@ -88,6 +93,7 @@ export default function BudgetTable() {
     assigned: 0,
     activity: 0,
     available: 0,
+    snoozed: false,
   });
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [addPopoverPos, setAddPopoverPos] = useState<{ top: number; left: number } | null>(null);
@@ -117,6 +123,7 @@ export default function BudgetTable() {
     assigned: number;
     activity: number;
     available: number;
+    snoozed?: boolean;
   } | null>(null);
 
   const [draggingGroup, setDraggingGroup] = useState<string | null>(null);
@@ -259,6 +266,8 @@ export default function BudgetTable() {
               return item.target && item.assigned > item.target.amountNeeded;
             case "Underfunded":
               return item.target && item.assigned < item.target.amountNeeded;
+            case "Snoozed":
+              return item.snoozed === true;
             case "All":
             default:
               return true;
@@ -510,8 +519,9 @@ export default function BudgetTable() {
         assigned: newItem.assigned,
         activity: newItem.activity,
         available: newItem.assigned + newItem.activity,
+        snoozed: newItem.snoozed ?? false,
       });
-      setNewItem({ name: "", assigned: 0, activity: 0, available: 0 });
+      setNewItem({ name: "", assigned: 0, activity: 0, available: 0, snoozed: false });
       setActiveCategory(null);
     }
   }, [newItem, addItemToCategory]);
@@ -1231,6 +1241,24 @@ export default function BudgetTable() {
               </button>
             </div>
 
+              <button
+                data-cy="category-snooze-toggle"
+                data-category={categoryContext.groupName}
+                data-item={categoryContext.itemName}
+                onClick={() => {
+                  setCategorySnooze(
+                    categoryContext.groupName,
+                    categoryContext.itemName,
+                    !(categoryContext.snoozed ?? false)
+                  );
+                  setCategoryContext(null);
+                }}
+                className="px-3 py-2 hover:bg-amber-50 dark:hover:bg-amber-950 text-amber-700 dark:text-amber-300 w-full text-left border-t border-b border-slate-200 dark:border-slate-700 flex items-center justify-between gap-4"
+              >
+                <span>{categoryContext.snoozed ? "Unsnooze category" : "Snooze category"}</span>
+                <span className="text-[10px] uppercase tracking-wide font-semibold">{categoryContext.snoozed ? "On hold" : "Pause"}</span>
+              </button>
+
             <button
               data-cy="category-rename"
               data-category={categoryContext.groupName}
@@ -1280,6 +1308,31 @@ export default function BudgetTable() {
       <Card className="flex flex-col w-full h-full min-h-0 overflow-hidden border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-950">
         <CardHeader className="pb-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
           <div className="flex flex-col gap-4">
+            {sandboxMode && (
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-amber-900 dark:border-amber-700 dark:bg-amber-900/40 dark:text-amber-100">
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center gap-2 text-sm font-semibold">
+                    <Badge className="bg-amber-600 text-white hover:bg-amber-500">Preview</Badge>
+                    <span>Preview mode — not saved</span>
+                  </div>
+                  <p className="text-xs text-amber-800 dark:text-amber-200">
+                    All budget edits stay local until you exit.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-amber-400 text-amber-900 hover:bg-amber-100 dark:border-amber-500 dark:text-amber-50 dark:hover:bg-amber-800"
+                    onClick={exitSandbox}
+                    data-cy="sandbox-exit-banner"
+                  >
+                    Exit & discard changes
+                  </Button>
+                </div>
+              </div>
+            )}
+
             {/* Top row: RTA + Month */}
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div data-cy="ready-to-assign" className="flex items-center gap-2">
@@ -1331,6 +1384,21 @@ export default function BudgetTable() {
                 >
                   <TrendingUp className="h-4 w-4" />
                   Compare to last month
+                </Button>
+
+                <Button
+                  data-cy="sandbox-toggle"
+                  variant={sandboxMode ? "destructive" : "outline"}
+                  size="sm"
+                  onClick={() => (sandboxMode ? exitSandbox() : enterSandbox())}
+                  className={cn(
+                    "text-xs gap-2",
+                    sandboxMode
+                      ? "bg-amber-600 text-white hover:bg-amber-500 dark:bg-amber-700 dark:hover:bg-amber-600"
+                      : "dark:hover:bg-slate-800"
+                  )}
+                >
+                  {sandboxMode ? "Exit sandbox" : "Sandbox mode"}
                 </Button>
               </div>
               <div className="flex items-center gap-2">
@@ -1707,7 +1775,8 @@ export default function BudgetTable() {
                                 dragOverItem?.position === "after"
                                   ? "border-b-4 border-b-teal-500"
                                   : "border-l-4 border-l-teal-500"
-                              )
+                              ),
+                              item.snoozed && "opacity-80 dark:opacity-70"
                             )}
                             onContextMenu={(e) => {
                               e.preventDefault();
@@ -1719,6 +1788,7 @@ export default function BudgetTable() {
                                 assigned: item.assigned,
                                 activity: item.activity,
                                 available: item.available,
+                                snoozed: item.snoozed ?? false,
                               });
                             }}
                             onDragOver={(e) => {
@@ -1775,6 +1845,7 @@ export default function BudgetTable() {
                                   assigned: item.assigned,
                                   activity: item.activity,
                                   available: item.available,
+                                  snoozed: item.snoozed ?? false,
                                 });
                               }}
                             >
@@ -1849,6 +1920,11 @@ export default function BudgetTable() {
                                         triggerSize="icon"
                                         className="flex-shrink-0"
                                       />
+                                      {item.snoozed && (
+                                        <Badge className="bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/30 dark:text-amber-100 dark:border-amber-700" data-cy="snoozed-pill">
+                                          Snoozed
+                                        </Badge>
+                                      )}
                                     </div>
                                   </div>
                                   {item.target && getTargetStatus(item).message && (
