@@ -32,15 +32,24 @@ interface Target {
   amountNeeded: number;
 }
 
+interface NoteEntry {
+  text: string;
+  updated_at: string;
+}
+
 interface BudgetData {
   categories: {
     name: string;
+    notes?: string;
+    notes_history?: NoteEntry[];
     categoryItems: {
       name: string;
       assigned: number;
       activity: number;
       available: number;
       target?: Target;
+      notes?: string;
+      notes_history?: NoteEntry[];
     }[];
   }[];
   assignable_money?: number;
@@ -97,6 +106,84 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
   ];
 
   const { accounts, setAccounts } = useAccountContext();
+
+  // Helper: Update or add a note to a category group
+  const updateCategoryGroupNote = useCallback(
+    (categoryName: string, noteText: string) => {
+      setBudgetData((prev) => {
+        const updated = { ...prev };
+        const monthData = updated[currentMonth];
+        if (!monthData?.categories) return prev;
+
+        const updatedCategories = monthData.categories.map((cat) => {
+          if (cat.name !== categoryName) return cat;
+
+          const now = new Date().toISOString();
+          const newHistory = [
+            ...(cat.notes_history || []),
+            { text: noteText, updated_at: now },
+          ];
+
+          return {
+            ...cat,
+            notes: noteText,
+            notes_history: newHistory,
+          };
+        });
+
+        updated[currentMonth] = {
+          ...monthData,
+          categories: updatedCategories,
+        };
+
+        setIsDirty(true);
+        return updated;
+      });
+    },
+    [currentMonth, setIsDirty]
+  );
+
+  // Helper: Update or add a note to a category item
+  const updateCategoryItemNote = useCallback(
+    (categoryName: string, itemName: string, noteText: string) => {
+      setBudgetData((prev) => {
+        const updated = { ...prev };
+        const monthData = updated[currentMonth];
+        if (!monthData?.categories) return prev;
+
+        const updatedCategories = monthData.categories.map((cat) => {
+          if (cat.name !== categoryName) return cat;
+
+          const updatedItems = cat.categoryItems.map((item) => {
+            if (item.name !== itemName) return item;
+
+            const now = new Date().toISOString();
+            const newHistory = [
+              ...(item.notes_history || []),
+              { text: noteText, updated_at: now },
+            ];
+
+            return {
+              ...item,
+              notes: noteText,
+              notes_history: newHistory,
+            };
+          });
+
+          return { ...cat, categoryItems: updatedItems };
+        });
+
+        updated[currentMonth] = {
+          ...monthData,
+          categories: updatedCategories,
+        };
+
+        setIsDirty(true);
+        return updated;
+      });
+    },
+    [currentMonth, setIsDirty]
+  );
 
   useEffect(() => {
     if (!user) return;
@@ -2148,6 +2235,8 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
         recentChanges,
         setRecentChanges,
         refreshAccounts,
+        updateCategoryGroupNote,
+        updateCategoryItemNote,
       }}
     >
       {children}

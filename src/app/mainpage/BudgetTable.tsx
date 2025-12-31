@@ -11,6 +11,7 @@ import { createPortal } from "react-dom";
 import InlineTargetEditor from "./TargetInlineEditor";
 import { useAccountContext } from "../context/AccountContext";
 import { useUndoRedo } from "../context/UndoRedoContext";
+import { NotesPopover } from "@/components/ui/NotesPopover";
 import {
   Table,
   TableBody,
@@ -52,6 +53,8 @@ export default function BudgetTable() {
     setRecentChanges,
     reorderCategoryGroups,
     reorderCategoryItems,
+    updateCategoryGroupNote,
+    updateCategoryItemNote,
   } = useBudgetContext();
 
   const { accounts } = useAccountContext();
@@ -1230,6 +1233,13 @@ export default function BudgetTable() {
                               {group.name}
                             </span>
                           )}
+                          <NotesPopover
+                            currentNote={group.notes}
+                            history={group.notes_history}
+                            onSave={(noteText) => updateCategoryGroupNote(group.name, noteText)}
+                            triggerSize="icon"
+                            className="ml-1"
+                          />
                           <div className="ms-1 w-6 h-6 flex items-center justify-center">
                             <Button
                               data-cy="group-add-item-button"
@@ -1467,7 +1477,7 @@ export default function BudgetTable() {
                                   className="h-7 text-sm font-medium"
                                   autoFocus
                                 />
-                              ) : (
+                                  ) : (
                                 <div className="flex items-center gap-2">
                                   <span
                                     className="flex h-5 w-5 items-center justify-center text-slate-400 cursor-grab active:cursor-grabbing"
@@ -1499,10 +1509,17 @@ export default function BudgetTable() {
                                         }}
                                       />
                                     )}
-                                    <div className="relative z-10 px-2 flex items-center h-full">
+                                    <div className="relative z-10 px-2 flex items-center h-full gap-2">
                                       <span className="font-medium truncate text-slate-800 dark:text-slate-200 text-sm">
                                         {item.name}
                                       </span>
+                                      <NotesPopover
+                                        currentNote={item.notes}
+                                        history={item.notes_history}
+                                        onSave={(noteText) => updateCategoryItemNote(group.name, item.name, noteText)}
+                                        triggerSize="icon"
+                                        className="flex-shrink-0"
+                                      />
                                     </div>
                                   </div>
                                   {item.target && getTargetStatus(item).message && (
