@@ -33,6 +33,7 @@ import {
 import { ChevronDown, ChevronRight, GripVertical, Plus, RotateCcw, RotateCw, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
+import { YnabImportDialog } from "./YnabImportDialog";
 
 export default function BudgetTable() {
   const {
@@ -60,8 +61,10 @@ export default function BudgetTable() {
     enterSandbox,
     exitSandbox,
     setCategorySnooze,
+    importPending,
+    confirmImport,
+    undoImport,
   } = useBudgetContext();
-
   const { accounts } = useAccountContext();
   const { registerAction, undo, redo, canUndo, canRedo, undoDescription, redoDescription } = useUndoRedo();
 
@@ -87,6 +90,7 @@ export default function BudgetTable() {
     item: string;
   } | null>(null);
   const [newCategoryName, setNewCategoryName] = useState("");
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
 
   const [newItem, setNewItem] = useState({
     name: "",
@@ -1400,6 +1404,40 @@ export default function BudgetTable() {
                 >
                   {sandboxMode ? "Exit sandbox" : "Sandbox mode"}
                 </Button>
+
+                <Button
+                  data-cy="ynab-import-button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setImportDialogOpen(true)}
+                  className="text-xs gap-2"
+                  style={{ display: importPending ? "none" : "inline-flex" }}
+                >
+                  Import YNAB CSV
+                </Button>
+
+                {importPending && (
+                  <div className="flex gap-2">
+                    <Button
+                      data-cy="confirm-import-button"
+                      variant="default"
+                      size="sm"
+                      onClick={confirmImport}
+                      className="text-xs gap-2 bg-green-600 hover:bg-green-700"
+                    >
+                      Confirm Import
+                    </Button>
+                    <Button
+                      data-cy="undo-import-button"
+                      variant="destructive"
+                      size="sm"
+                      onClick={undoImport}
+                      className="text-xs gap-2"
+                    >
+                      Undo Import
+                    </Button>
+                  </div>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <Button
@@ -2035,6 +2073,11 @@ export default function BudgetTable() {
           </div>
         </CardContent>
       </Card>
+
+        <YnabImportDialog
+          open={importDialogOpen}
+          onOpenChange={setImportDialogOpen}
+        />
     </>
   );
 }

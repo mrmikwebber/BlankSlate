@@ -283,6 +283,13 @@ export default function InlineTransactionRow({
       itemName = "";
     }
 
+    const needsCategory =
+      !isTransfer &&
+      !sameTypeTransfer &&
+      groupName !== "Ready to Assign" &&
+      (!groupName || !itemName) &&
+      !newCategoryMode;
+
     // Basic validation
     if (
       !amount ||
@@ -876,7 +883,10 @@ export default function InlineTransactionRow({
               data-cy="tx-item-select"
               type="text"
               placeholder="Select or type category..."
-              className="h-9 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100 dark:placeholder-slate-500 focus-visible:ring-teal-500 dark:focus-visible:ring-teal-600"
+              className={cn(
+                "h-9 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100 dark:placeholder-slate-500 focus-visible:ring-teal-500 dark:focus-visible:ring-teal-600",
+                needsCategory && "border-red-400 focus-visible:ring-red-500"
+              )}
               value={categoryInput}
               onChange={(e) => {
                 setCategoryInput(e.target.value);
@@ -1051,6 +1061,10 @@ export default function InlineTransactionRow({
               </div>
             )}
           </div>
+        )}
+
+        {needsCategory && !categoryDropdownOpen && (
+          <p className="mt-1 text-xs text-red-600 dark:text-red-400 font-medium">Category required (or choose Ready to Assign)</p>
         )}
       </td>
 
