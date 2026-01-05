@@ -59,10 +59,16 @@ export default function ResetPasswordPage() {
     if (error) {
       setError(error.message);
     } else {
-      setSuccess('Password updated successfully! Redirecting to login...');
+      // Invalidate all sessions after password change
+      const { error: signOutError } = await supabase.auth.signOut({ scope: 'global' });
+      if (signOutError) {
+        console.error('Error signing out after password change:', signOutError.message);
+      }
+
+      setSuccess('Password updated. Please sign in again.');
       setTimeout(() => {
         router.push('/auth');
-      }, 2000);
+      }, 1500);
     }
   };
 
