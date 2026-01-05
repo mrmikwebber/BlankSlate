@@ -1915,7 +1915,7 @@ export default function BudgetTable() {
                                   className="h-7 text-sm font-medium"
                                   autoFocus
                                 />
-                                  ) : (
+                                ) : (
                                 <div className="flex items-center gap-2">
                                   <span
                                     className="flex h-5 w-5 items-center justify-center text-slate-400 cursor-grab active:cursor-grabbing"

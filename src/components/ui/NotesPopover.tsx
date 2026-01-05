@@ -43,10 +43,19 @@ export function NotesPopover({
     setShowHistoryView(false);
   };
 
+  const handleOpenChange = (nextOpen: boolean) => {
+    setOpen(nextOpen);
+    if (!nextOpen) {
+      // Reset unsaved edits and history view when closing the popover
+      setEditText(currentNote);
+      setShowHistoryView(false);
+    }
+  };
+
   const hasNote = Boolean(currentNote?.trim());
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <Button
           variant="ghost"
