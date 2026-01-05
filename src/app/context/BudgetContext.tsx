@@ -1968,6 +1968,18 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
       const registerParsed = parseYnabRegister(registerText);
       const planParsed = parseYnabPlan(planText);
       for (const account of registerParsed.accounts) {
+        // Remove any existing account with the same name for this user to avoid duplicates on repeated imports
+        const { error: deleteExistingError } = await supabase
+          .from("accounts")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("name", account.name);
+
+        if (deleteExistingError) {
+          throw new Error(
+            `Failed to prepare account '${account.name}' for import: ${deleteExistingError.message}`
+          );
+        }
         const { data: createdAccount, error: accountError } = await supabase
           .from("accounts")
           .insert({

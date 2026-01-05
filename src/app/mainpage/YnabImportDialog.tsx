@@ -56,18 +56,26 @@ export function YnabImportDialog({ open, onOpenChange }: YnabImportDialogProps) 
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Import from YNAB</DialogTitle>
+          <DialogTitle>Import CSV Files</DialogTitle>
           <DialogDescription>
-            Drop your YNAB Register CSV (transactions) and Plan CSV (budget) to create accounts, transactions, and monthly budgets here. Existing months with the same key will be overwritten.
+            Import your Register (transactions) and Plan (budget) CSV files.
+            <span className="block text-xs text-slate-600 dark:text-slate-300 mt-1">
+              Only supports YNAB CSV exports (Register.csv and Plan.csv).
+            </span>
           </DialogDescription>
         </DialogHeader>
 
         {/* Beta Warning */}
-        <div className="bg-amber-50 border border-amber-200 rounded-md p-3 flex gap-3">
-          <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
-          <div className="text-sm text-amber-800">
-            <p className="font-semibold mb-1">Beta Feature</p>
-            <p>This import feature is still in beta. Please verify your imported data carefully before relying on it. Consider backing up your data first.</p>
+        <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-md p-4 flex gap-3">
+          <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-500 flex-shrink-0 mt-0.5" />
+          <div className="text-sm text-amber-900 dark:text-amber-100">
+            <p className="font-semibold mb-2">Beta Feature</p>
+            <ul className="space-y-1 text-xs opacity-90">
+              <li>• Please review your imported data carefully</li>
+              <li>• Back up your data before importing</li>
+              <li>• You can undo the import if needed</li>
+              <li>• Category mappings may need adjustment</li>
+            </ul>
           </div>
         </div>
 
@@ -100,14 +108,18 @@ export function YnabImportDialog({ open, onOpenChange }: YnabImportDialogProps) 
             )}
           </div>
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={importing}>
             Cancel
           </Button>
-          <Button onClick={handleImport} disabled={importing} data-cy="ynab-import-submit">
+          <Button 
+            onClick={handleImport} 
+            disabled={importing}
+            data-cy="ynab-import-submit"
+          >
             {importing ? "Importing..." : "Import"}
           </Button>
         </DialogFooter>

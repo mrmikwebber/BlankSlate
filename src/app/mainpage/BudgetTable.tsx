@@ -1413,7 +1413,7 @@ export default function BudgetTable() {
                   className="text-xs gap-2"
                   style={{ display: importPending ? "none" : "inline-flex" }}
                 >
-                  Import YNAB CSV
+                  Import CSV
                 </Button>
 
                 {importPending && (
