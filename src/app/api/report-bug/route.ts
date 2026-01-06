@@ -3,7 +3,43 @@ import { NextResponse } from "next/server";
 const GITHUB_REPO = process.env.GITHUB_REPO; // e.g., "owner/repo"
 const GITHUB_ISSUE_TOKEN = process.env.GITHUB_ISSUE_TOKEN; // token with repo:issues scope
 
+// Additional rate limiting for bug reports: 3 per IP per hour
+const BUG_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+const BUG_RATE_LIMIT_MAX = 20;
+const bugIpHits = new Map<string, number[]>();
+
+function getClientIp(req: Request): string {
+  const xfwd = req.headers.get("x-forwarded-for");
+  if (xfwd) return xfwd.split(",")[0]?.trim() || "unknown";
+  return "unknown";
+}
+
 export async function POST(req: Request) {
+  // Check bug-specific rate limit
+  const now = Date.now();
+  const windowStart = now - BUG_RATE_LIMIT_WINDOW_MS;
+  const ip = getClientIp(req);
+
+  const hits = bugIpHits.get(ip) || [];
+  const recentHits = hits.filter((ts) => ts > windowStart);
+
+  if (recentHits.length >= BUG_RATE_LIMIT_MAX) {
+    return NextResponse.json(
+      { error: "Too many bug reports. Please wait before submitting another." },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": Math.ceil(BUG_RATE_LIMIT_WINDOW_MS / 1000).toString(),
+          "X-RateLimit-Limit": BUG_RATE_LIMIT_MAX.toString(),
+          "X-RateLimit-Remaining": "0",
+        },
+      }
+    );
+  }
+
+  recentHits.push(now);
+  bugIpHits.set(ip, recentHits);
+
   if (!GITHUB_REPO || !GITHUB_ISSUE_TOKEN) {
     return NextResponse.json(
       { error: "Bug reporting is not configured." },

@@ -6,6 +6,7 @@ import { format } from "date-fns";
 import { supabase } from "@/utils/supabaseClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 import { Plus, Minus } from "lucide-react";
 
 export default function InlineTransactionRow({
@@ -242,6 +243,15 @@ export default function InlineTransactionRow({
     }
   };
 
+  // Calculate if category is required (outside handleSubmit so it can be used in render)
+  const needsCategory =
+    !selectedPayeeAccountName &&
+    !transferPayee &&
+    !sameTypeTransfer &&
+    selectedGroup !== "Ready to Assign" &&
+    (!selectedGroup || !selectedItem) &&
+    !newCategoryMode;
+
   const handleSubmit = async () => {
     const payeeName = selectedPayeeAccountName || transferPayee || payeeInput.trim();
 
@@ -282,13 +292,6 @@ export default function InlineTransactionRow({
       groupName = "";
       itemName = "";
     }
-
-    const needsCategory =
-      !isTransfer &&
-      !sameTypeTransfer &&
-      groupName !== "Ready to Assign" &&
-      (!groupName || !itemName) &&
-      !newCategoryMode;
 
     // Basic validation
     if (
