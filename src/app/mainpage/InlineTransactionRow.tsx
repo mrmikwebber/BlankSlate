@@ -81,6 +81,8 @@ export default function InlineTransactionRow({
   const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
   const [isTypingPayee, setIsTypingPayee] = useState(false);
   const [isTypingCategory, setIsTypingCategory] = useState(false);
+  const [payeeSelectedIndex, setPayeeSelectedIndex] = useState(0);
+  const [categorySelectedIndex, setCategorySelectedIndex] = useState(0);
 
 
 
@@ -625,6 +627,7 @@ export default function InlineTransactionRow({
             onChange={(e) => {
               setPayeeInput(e.target.value);
               setIsTypingPayee(true);
+              setPayeeSelectedIndex(0);
               if (payeeInputRef.current) {
                 const rect = payeeInputRef.current.getBoundingClientRect();
                 setPayeeDropdownPos({ top: rect.bottom, left: rect.left, width: rect.width });
@@ -642,7 +645,7 @@ export default function InlineTransactionRow({
               if (e.key === "Enter") {
                 e.preventDefault();
                 if (payeeSuggestions.length > 0) {
-                  const match = payeeSuggestions[0];
+                  const match = payeeSuggestions[payeeSelectedIndex] || payeeSuggestions[0];
                   setIsTypingPayee(false);
                   if (match.type === "account") {
                     setTransferPayee(match.accountName);
@@ -680,7 +683,14 @@ export default function InlineTransactionRow({
                 onCancel?.();
               } else if (e.key === "ArrowDown" && payeeDropdownOpen) {
                 e.preventDefault();
-                // Could add keyboard navigation here
+                setPayeeSelectedIndex((prev) => Math.min(prev + 1, payeeSuggestions.length - 1));
+              } else if (e.key === "ArrowUp" && payeeDropdownOpen) {
+                e.preventDefault();
+                setPayeeSelectedIndex((prev) => Math.max(prev - 1, 0));
+              } else if (e.key === "ArrowDown" && !payeeDropdownOpen) {
+                e.preventDefault();
+                setPayeeDropdownOpen(true);
+                setPayeeSelectedIndex(0);
               }
             }}
             onBlur={(e) => {
@@ -894,6 +904,7 @@ export default function InlineTransactionRow({
               onChange={(e) => {
                 setCategoryInput(e.target.value);
                 setIsTypingCategory(true);
+                setCategorySelectedIndex(0);
                 // Only clear payee if it was a credit card payment and category changed
                 if (isTypingCategory && selectedPayeeAccountName) {
                   const acc = accounts.find((a) => a.name === selectedPayeeAccountName);
@@ -920,7 +931,7 @@ export default function InlineTransactionRow({
                 if (e.key === "Enter") {
                   e.preventDefault();
                   if (categorySuggestions.length > 0) {
-                    const match = categorySuggestions[0];
+                    const match = categorySuggestions[categorySelectedIndex] || categorySuggestions[0];
                     setIsTypingCategory(false);
                     setSelectedGroup(match.groupName);
                     setSelectedItem(match.itemName);
@@ -959,6 +970,16 @@ export default function InlineTransactionRow({
                   e.preventDefault();
                   setCategoryDropdownOpen(false);
                   onCancel?.();
+                } else if (e.key === "ArrowDown" && categoryDropdownOpen) {
+                  e.preventDefault();
+                  setCategorySelectedIndex((prev) => Math.min(prev + 1, categorySuggestions.length - 1));
+                } else if (e.key === "ArrowUp" && categoryDropdownOpen) {
+                  e.preventDefault();
+                  setCategorySelectedIndex((prev) => Math.max(prev - 1, 0));
+                } else if (e.key === "ArrowDown" && !categoryDropdownOpen) {
+                  e.preventDefault();
+                  setCategoryDropdownOpen(true);
+                  setCategorySelectedIndex(0);
                 }
               }}
               onBlur={() => {
@@ -1067,7 +1088,7 @@ export default function InlineTransactionRow({
         )}
 
         {needsCategory && !categoryDropdownOpen && (
-          <p className="mt-1 text-xs text-red-600 dark:text-red-400 font-medium">Category required (or choose Ready to Assign)</p>
+          <></>
         )}
       </td>
 
@@ -1105,6 +1126,7 @@ export default function InlineTransactionRow({
             onClick={() => void handleSubmit()}
             size="sm"
             className="h-9"
+            disabled={needsCategory || !payeeInput.trim() || !amount}
           >
             Save
           </Button>

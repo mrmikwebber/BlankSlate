@@ -38,6 +38,7 @@ type ParsedBudgetData = {
 type RegisterParseResult = {
   accounts: ParsedAccount[];
   transactionCount: number;
+  payees: string[];
 };
 
 type PlanParseResult = {
@@ -156,11 +157,23 @@ const inferIssuer = (
 export const parseYnabRegister = (text: string): RegisterParseResult => {
   const rows = parseCsv(text) as YnabRegisterRow[];
   const accountsMap = new Map<string, ParsedAccount>();
+  const payeesSet = new Set<string>();
   let transactionCount = 0;
 
   for (const row of rows) {
     const accountName = row["Account"]?.trim() || "Imported Account";
     const payee = row["Payee"]?.trim() || "Unknown";
+    
+    // Collect payees (excluding transfers and special payees)
+    if (payee && 
+        !payee.startsWith("Transfer") && 
+        !payee.startsWith("Payment") &&
+        payee !== "Unknown" &&
+        payee !== "Initial Balance" &&
+        payee !== "Reconciliation Adjustment") {
+      payeesSet.add(payee);
+    }
+    
     const outflow = parseMoney(row["Outflow"]);
     const inflow = parseMoney(row["Inflow"]);
     const balance = inflow - outflow;
@@ -194,6 +207,7 @@ export const parseYnabRegister = (text: string): RegisterParseResult => {
   return {
     accounts: Array.from(accountsMap.values()),
     transactionCount,
+    payees: Array.from(payeesSet),
   };
 };
 

@@ -65,6 +65,20 @@ export function YnabImportDialog({ open, onOpenChange }: YnabImportDialogProps) 
           </DialogDescription>
         </DialogHeader>
 
+        {/* Replacement Warning */}
+        <div className="bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-md p-4 flex gap-3">
+          <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-500 flex-shrink-0 mt-0.5" />
+          <div className="text-sm text-red-900 dark:text-red-100">
+            <p className="font-bold mb-1">⚠️ This Will Replace Your Previous Budget</p>
+            <p className="text-xs opacity-90">
+              Importing will completely replace your existing accounts, categories, and budget data. 
+              <span className="block mt-1 italic text-red-700 dark:text-red-300">
+                (Merge functionality coming soon)
+              </span>
+            </p>
+          </div>
+        </div>
+
         {/* Beta Warning */}
         <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-md p-4 flex gap-3">
           <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-500 flex-shrink-0 mt-0.5" />

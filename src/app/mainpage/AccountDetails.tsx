@@ -248,7 +248,12 @@ export default function AccountDetails() {
 
     txs.sort((a, b) => {
       if (sortConfig.key === "date") {
-        return (new Date(a.date).getTime() - new Date(b.date).getTime()) * dir;
+        const dateCompare = (new Date(a.date).getTime() - new Date(b.date).getTime()) * dir;
+        // If dates are equal, sort by ID descending (newest first) for desc, or ascending for asc
+        if (dateCompare === 0) {
+          return dir === -1 ? b.id - a.id : a.id - b.id;
+        }
+        return dateCompare;
       }
       if (sortConfig.key === "payee") {
         return a.payee.localeCompare(b.payee) * dir;
@@ -359,8 +364,20 @@ export default function AccountDetails() {
       }
     };
 
+    // Alt+N to add transaction
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.altKey && (e.key === "n" || e.key === "N")) {
+        e.preventDefault();
+        setShowForm(true);
+      }
+    };
+
     window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    window.addEventListener("keydown", handleGlobalKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keydown", handleGlobalKeyDown);
+    };
   }, [account, selectedTxId, showForm, editingTransactionId, deleteTransactionWithMirror, sortedTransactions]);
 
   if (!account) {
@@ -670,14 +687,16 @@ export default function AccountDetails() {
                   <td className="px-4 py-3 truncate max-w-xs border-r border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 text-xs">
                         {tx.payee && (tx.payee.startsWith("Transfer") || tx.payee.startsWith("Payment"))
                           ? tx.payee
-                          : tx.category_group && tx.category
-                            ? `${tx.category_group}: ${tx.category}`
-                            : (
-                              <span className="inline-flex items-center gap-2 text-red-600 dark:text-red-400 font-semibold">
-                                Uncategorized
-                                <span className="text-[11px] uppercase tracking-wide bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-200 rounded px-1.5 py-0.5">Add category</span>
-                              </span>
-                            )}
+                          : tx.category === "Ready to Assign" || tx.category_group === "Ready to Assign"
+                            ? "Ready to Assign"
+                            : tx.category_group && tx.category
+                              ? `${tx.category_group}: ${tx.category}`
+                              : (
+                                <span className="inline-flex items-center gap-2 text-red-600 dark:text-red-400 font-semibold">
+                                  Uncategorized
+                                  <span className="text-[11px] uppercase tracking-wide bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-200 rounded px-1.5 py-0.5">Add category</span>
+                                </span>
+                              )}
                   </td>
                   <td
                     data-cy="transaction-amount"

@@ -1,9 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { PieChart, Pie, Cell, Tooltip as RechartsTooltip } from "recharts";
-import { isSameMonth, parseISO } from "date-fns";
 import { createPortal } from "react-dom";
 
-import { formatToUSD } from "@/app/utils/formatToUSD";
 import { useAccountContext } from "@/app/context/AccountContext";
 import { useBudgetContext } from "../context/BudgetContext";
 
@@ -36,73 +33,6 @@ export default function SidebarPanel() {
     id: number;
     position: "before" | "after";
   } | null>(null);
-  const { currentMonth, budgetData } = useBudgetContext();
-
-  const COLORS = [
-    "#0088FE",
-    "#00C49F",
-    "#FFBB28",
-    "#FF8042",
-    "#A728F5",
-    "#FF2D55",
-  ];
-
-  const totalInflow = useMemo(() => {
-    return accounts
-      .flatMap((account) => account.transactions)
-      .filter((tx) => {
-        return (
-          tx.category === "Ready to Assign" &&
-          tx.date &&
-          isSameMonth(
-            typeof tx.date === "string" ? parseISO(tx.date) : tx.date,
-            parseISO(currentMonth)
-          )
-        );
-      })
-      .reduce((sum, tx) => sum + tx.balance, 0);
-  }, [accounts, currentMonth]);
-
-  const spendingData = useMemo(() => {
-    const categoryTotals: Record<string, number> = {};
-    const accountNames = new Set(accounts.map((a) => a.name));
-
-    accounts.forEach((account) => {
-      account.transactions.forEach((tx) => {
-        if (tx.category === "Ready to Assign" || accountNames.has(tx.category))
-          return;
-        if (
-          tx.balance < 0 &&
-          tx.date &&
-          isSameMonth(
-            typeof tx.date === "string" ? parseISO(tx.date) : tx.date,
-            parseISO(currentMonth)
-          )
-        ) {
-          if (!categoryTotals[tx.category]) {
-            categoryTotals[tx.category] = 0;
-          }
-          categoryTotals[tx.category] += Math.abs(tx.balance);
-        }
-      });
-    });
-
-    return Object.entries(categoryTotals).map(([category, amount], index) => ({
-      name: category,
-      value: amount,
-      percentage: totalInflow
-        ? (((amount as number) / totalInflow) * 100).toFixed(1)
-        : 0,
-      color: COLORS[index % COLORS.length],
-    }));
-  }, [accounts, currentMonth, totalInflow]);
-
-  // Removed ItemsToAddress; no need to compute credit card payment data here
-
-  const totalOutflow = spendingData.reduce(
-    (sum, category) => sum + (category.value as number),
-    0
-  );
 
   const handleAddAccount = (newAccount) => {
     addAccount(newAccount);
@@ -285,60 +215,6 @@ export default function SidebarPanel() {
               onClose={() => setShowModal(false)}
             />
           )}
-        </CardContent>
-      </Card>
-
-      {/* Spending card */}
-      <Card className="shadow-sm">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-semibold">
-            Spending This Month
-          </CardTitle>
-          <CardDescription className="text-xs">
-            Income {formatToUSD(totalInflow)} · Spending{" "}
-            {formatToUSD(totalOutflow)}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="pt-2">
-          <div className="flex justify-center mb-3">
-            <PieChart width={200} height={200}>
-              <Pie
-                data={spendingData}
-                cx="50%"
-                cy="50%"
-                outerRadius={80}
-                dataKey="value"
-                labelLine={false}
-              >
-                {spendingData.map((entry, idx) => (
-                  <Cell key={idx} fill={entry.color} />
-                ))}
-              </Pie>
-              <RechartsTooltip formatter={(value) => formatToUSD(value as number)} />
-            </PieChart>
-          </div>
-
-          <ul className="mt-1 space-y-1 pr-1">
-            {spendingData.map((cat, i) => (
-              <li key={i} className="flex items-center justify-between gap-2">
-                <span className="flex items-center min-w-0">
-                  <span
-                    className="inline-block w-2 h-2 rounded-full mr-2 flex-shrink-0"
-                    style={{ backgroundColor: cat.color }}
-                  />
-                  <span className="truncate text-xs text-slate-700">
-                    {cat.name}
-                  </span>
-                </span>
-                <span className="text-xs text-slate-700">
-                  {formatToUSD(cat.value)}{" "}
-                  <span className="text-[11px] text-muted-foreground">
-                    ({cat.percentage}%)
-                  </span>
-                </span>
-              </li>
-            ))}
-          </ul>
         </CardContent>
       </Card>
 

@@ -26,7 +26,9 @@ const EditableAssigned = memo(({
 
   const handleSave = useCallback(() => {
     try {
-      const evaluatedValue = evaluate(inputValue);
+      // Remove commas before evaluation
+      const cleanedValue = inputValue.replace(/,/g, '');
+      const evaluatedValue = evaluate(cleanedValue);
       const parsedValue = parseFloat(evaluatedValue as string);
 
       if (isNaN(parsedValue)) {

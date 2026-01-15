@@ -1960,6 +1960,25 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
       importedAccountIdsRef.current = [];
       importedBudgetMonthsRef.current = [];
 
+      // Delete ALL existing accounts and budget data for complete replacement
+      const { error: deleteAccountsError } = await supabase
+        .from("accounts")
+        .delete()
+        .eq("user_id", user.id);
+
+      if (deleteAccountsError) {
+        throw new Error(`Failed to clear existing accounts: ${deleteAccountsError.message}`);
+      }
+
+      const { error: deleteBudgetError } = await supabase
+        .from("budget_data")
+        .delete()
+        .eq("user_id", user.id);
+
+      if (deleteBudgetError) {
+        throw new Error(`Failed to clear existing budget data: ${deleteBudgetError.message}`);
+      }
+
       const [registerText, planText] = await Promise.all([
         registerFile.text(),
         planFile.text(),
@@ -1967,19 +1986,28 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
 
       const registerParsed = parseYnabRegister(registerText);
       const planParsed = parseYnabPlan(planText);
-      for (const account of registerParsed.accounts) {
-        // Remove any existing account with the same name for this user to avoid duplicates on repeated imports
-        const { error: deleteExistingError } = await supabase
-          .from("accounts")
-          .delete()
-          .eq("user_id", user.id)
-          .eq("name", account.name);
+      
+      // Import payees
+      if (registerParsed.payees && registerParsed.payees.length > 0) {
+        const payeePayload = registerParsed.payees.map((payeeName) => ({
+          user_id: user.id,
+          name: payeeName,
+          last_used_at: new Date().toISOString(),
+        }));
 
-        if (deleteExistingError) {
-          throw new Error(
-            `Failed to prepare account '${account.name}' for import: ${deleteExistingError.message}`
-          );
+        for (const chunk of chunkArray(payeePayload, 100)) {
+          const { error: payeeError } = await supabase
+            .from("transaction_payees")
+            .upsert(chunk, { onConflict: "user_id,name" });
+
+          if (payeeError) {
+            console.error("Failed to import payees:", payeeError.message);
+            // Don't throw - payees are nice to have but not critical
+          }
         }
+      }
+      
+      for (const account of registerParsed.accounts) {
         const { data: createdAccount, error: accountError } = await supabase
           .from("accounts")
           .insert({
