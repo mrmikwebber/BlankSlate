@@ -733,32 +733,40 @@ export default function InlineTransactionRow({
                   )}
                   {payeeSuggestions
                     .filter((s) => s.type === "account")
-                    .map((suggestion) => (
-                      <div
-                        key={suggestion.accountName}
-                        className="px-3 py-2 hover:bg-teal-50 dark:hover:bg-teal-950 cursor-pointer text-sm text-slate-700 dark:text-slate-300"
-                        onClick={() => {
-                          setIsTypingPayee(false);
-                          setTransferPayee(suggestion.accountName!);
-                          setSelectedPayeeAccountName(suggestion.accountName!);
-                          const acc = accounts.find((a) => a.name === suggestion.accountName);
-                          if (acc?.type === "credit") {
-                            setSelectedGroup("Credit Card Payments");
-                            setSelectedItem(acc.name);
-                            setCategoryInput(acc.name);
-                            setIsTypingCategory(false);
-                          } else {
-                            setSelectedGroup("");
-                            setSelectedItem("");
-                            setCategoryInput("");
-                          }
-                          setPayeeInput(suggestion.label);
-                          setPayeeDropdownOpen(false);
-                        }}
-                      >
-                        {suggestion.label}
-                      </div>
-                    ))}
+                    .map((suggestion, idx) => {
+                      const actualIndex = payeeSuggestions.findIndex((s) => s.accountName === suggestion.accountName && s.type === "account");
+                      const isSelected = actualIndex === payeeSelectedIndex;
+                      return (
+                        <div
+                          key={suggestion.accountName}
+                          className={`px-3 py-2 cursor-pointer text-sm ${
+                            isSelected
+                              ? "bg-teal-100 dark:bg-teal-900 text-slate-900 dark:text-slate-100 font-medium"
+                              : "hover:bg-teal-50 dark:hover:bg-teal-950 text-slate-700 dark:text-slate-300"
+                          }`}
+                          onClick={() => {
+                            setIsTypingPayee(false);
+                            setTransferPayee(suggestion.accountName!);
+                            setSelectedPayeeAccountName(suggestion.accountName!);
+                            const acc = accounts.find((a) => a.name === suggestion.accountName);
+                            if (acc?.type === "credit") {
+                              setSelectedGroup("Credit Card Payments");
+                              setSelectedItem(acc.name);
+                              setCategoryInput(acc.name);
+                              setIsTypingCategory(false);
+                            } else {
+                              setSelectedGroup("");
+                              setSelectedItem("");
+                              setCategoryInput("");
+                            }
+                            setPayeeInput(suggestion.label);
+                            setPayeeDropdownOpen(false);
+                          }}
+                        >
+                          {suggestion.label}
+                        </div>
+                      );
+                    })}
                   {payeeSuggestions.some((s) => s.type === "payee") && (
                     <div className="px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
                       Saved Payees
@@ -766,24 +774,32 @@ export default function InlineTransactionRow({
                   )}
                   {payeeSuggestions
                     .filter((s) => s.type === "payee")
-                    .map((suggestion) => (
-                      <div
-                        key={suggestion.label}
-                        className="px-3 py-2 hover:bg-teal-50 dark:hover:bg-teal-950 cursor-pointer text-sm text-slate-700 dark:text-slate-300"
-                        onClick={() => {
-                          setIsTypingPayee(false);
-                          setTransferPayee(suggestion.label);
-                          setSelectedPayeeAccountName(null);
-                          setSelectedGroup("");
-                          setSelectedItem("");
-                          setCategoryInput("");
-                          setPayeeInput(suggestion.label);
-                          setPayeeDropdownOpen(false);
-                        }}
-                      >
-                        {suggestion.label}
-                      </div>
-                    ))}
+                    .map((suggestion) => {
+                      const actualIndex = payeeSuggestions.findIndex((s) => s.label === suggestion.label && s.type === "payee");
+                      const isSelected = actualIndex === payeeSelectedIndex;
+                      return (
+                        <div
+                          key={suggestion.label}
+                          className={`px-3 py-2 cursor-pointer text-sm ${
+                            isSelected
+                              ? "bg-teal-100 dark:bg-teal-900 text-slate-900 dark:text-slate-100 font-medium"
+                              : "hover:bg-teal-50 dark:hover:bg-teal-950 text-slate-700 dark:text-slate-300"
+                          }`}
+                          onClick={() => {
+                            setIsTypingPayee(false);
+                            setTransferPayee(suggestion.label);
+                            setSelectedPayeeAccountName(null);
+                            setSelectedGroup("");
+                            setSelectedItem("");
+                            setCategoryInput("");
+                            setPayeeInput(suggestion.label);
+                            setPayeeDropdownOpen(false);
+                          }}
+                        >
+                          {suggestion.label}
+                        </div>
+                      );
+                    })}
                   {payeeInput && (
                     <div
                       className="px-3 py-2 hover:bg-teal-50 dark:hover:bg-teal-950 cursor-pointer text-sm border-t border-slate-200 dark:border-slate-700 text-teal-600 dark:text-teal-400 font-medium"
@@ -1015,7 +1031,11 @@ export default function InlineTransactionRow({
                   <>
                     {(categoryInput === "" || "ready to assign".includes(categoryInput.toLowerCase())) && (
                       <div
-                        className="px-3 py-2 hover:bg-teal-50 dark:hover:bg-teal-950 cursor-pointer text-sm font-semibold text-slate-700 dark:text-slate-300"
+                        className={`px-3 py-2 cursor-pointer text-sm font-semibold ${
+                          categorySelectedIndex === 0
+                            ? "bg-teal-100 dark:bg-teal-900 text-slate-900 dark:text-slate-100"
+                            : "hover:bg-teal-50 dark:hover:bg-teal-950 text-slate-700 dark:text-slate-300"
+                        }`}
                         onClick={() => {
                           setSelectedGroup("Ready to Assign");
                           setSelectedItem("");
@@ -1029,6 +1049,10 @@ export default function InlineTransactionRow({
                     {categorySuggestions.map((suggestion, idx) => {
                       const prevGroup = idx > 0 ? categorySuggestions[idx - 1].groupName : null;
                       const showHeader = suggestion.groupName !== prevGroup;
+                      // Index in the rendered list (accounting for "Ready to Assign" if visible)
+                      const readyToAssignOffset = (categoryInput === "" || "ready to assign".includes(categoryInput.toLowerCase())) ? 1 : 0;
+                      const itemIndex = readyToAssignOffset + idx;
+                      const isSelected = itemIndex === categorySelectedIndex;
                       return (
                         <div key={`${suggestion.groupName}::${suggestion.itemName}`}>
                           {showHeader && (
@@ -1037,7 +1061,11 @@ export default function InlineTransactionRow({
                             </div>
                           )}
                           <div
-                            className="px-3 py-2 hover:bg-teal-50 dark:hover:bg-teal-950 cursor-pointer text-sm pl-6 text-slate-700 dark:text-slate-300"
+                            className={`px-3 py-2 cursor-pointer text-sm pl-6 ${
+                              isSelected
+                                ? "bg-teal-100 dark:bg-teal-900 text-slate-900 dark:text-slate-100 font-medium"
+                                : "hover:bg-teal-50 dark:hover:bg-teal-950 text-slate-700 dark:text-slate-300"
+                            }`}
                             onClick={() => {
                               setIsTypingCategory(false);
                               setSelectedGroup(suggestion.groupName);
