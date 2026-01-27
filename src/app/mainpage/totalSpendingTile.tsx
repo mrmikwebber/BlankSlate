@@ -1,7 +1,7 @@
 "use client";
 import React, { useMemo } from "react";
 import dynamic from "next/dynamic";
-import { Pie, Cell, Tooltip } from "recharts";
+import { Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { useAccountContext } from "../context/AccountContext";
 import { useBudgetContext } from "../context/BudgetContext";
 import { formatToUSD } from "../utils/formatToUSD";
@@ -32,9 +32,16 @@ const TotalSpendingTile = () => {
     return accounts
       .flatMap((account) => account.transactions)
       .filter((tx) => {
+        const isTransfer = (!tx.category && !tx.category_group) || tx.payee?.toLowerCase().includes("transfer");
+        const isStartingBalance = tx.category === "Category Not Needed" || tx.category_group === "Starting Balance";
+        const isCardPayment = tx.category_group === "Credit Card Payments";
         return (
           tx.balance > 0 &&
-          tx.date && isSameMonth(format(parseISO(tx.date), "yyyy-MM"), currentMonthDate)
+          tx.date &&
+          isSameMonth(parseISO(tx.date), currentMonthDate) &&
+          !isTransfer &&
+          !isStartingBalance &&
+          !isCardPayment
         );
       })
       .reduce((sum, tx) => sum + tx.balance, 0);
@@ -46,8 +53,18 @@ const TotalSpendingTile = () => {
 
     accounts.forEach((account) => {
       account.transactions.forEach((tx) => {
-        if (tx.category === "Ready to Assign" || tx.category === "Ready To Assign") return;
-        if (tx.balance < 0 && tx.date && isSameMonth(format(parseISO(tx.date), "yyyy-MM"), currentMonthDate)) {
+        const isTransfer = (!tx.category && !tx.category_group) || tx.payee?.toLowerCase().includes("transfer");
+        const isStartingBalance = tx.category === "Category Not Needed" || tx.category_group === "Starting Balance";
+        const isCardPayment = tx.category_group === "Credit Card Payments";
+        if (
+          tx.category === "Ready to Assign" ||
+          tx.category === "Ready To Assign" ||
+          isStartingBalance ||
+          isCardPayment ||
+          isTransfer
+        )
+          return;
+        if (tx.balance < 0 && tx.date && isSameMonth(parseISO(tx.date), currentMonthDate)) {
           if (!categoryTotals[tx.category]) {
             categoryTotals[tx.category] = 0;
           }
@@ -72,8 +89,12 @@ const TotalSpendingTile = () => {
     return accounts
       .flatMap((account) => account.transactions)
       .filter((tx) => {
+        const isTransfer = (!tx.category && !tx.category_group) || tx.payee?.toLowerCase().includes("transfer");
+        const isStartingBalance = tx.category === "Category Not Needed" || tx.category_group === "Starting Balance";
+        const isCardPayment = tx.category_group === "Credit Card Payments";
+        if (isTransfer || isStartingBalance || isCardPayment) return false;
         if (tx.balance >= 0) return false;
-        if (!tx.date || !isSameMonth(format(parseISO(tx.date), "yyyy-MM"), currentMonthDate)) return false;
+        if (!tx.date || !isSameMonth(parseISO(tx.date), currentMonthDate)) return false;
         return true;
       })
       .reduce((sum, tx) => sum + Math.abs(tx.balance), 0);
@@ -90,7 +111,7 @@ const TotalSpendingTile = () => {
   return (
     <div className="w-full h-full flex flex-col gap-4 p-4 overflow-hidden max-w-full">
       {/* Header with Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 min-w-0">
         <div className="bg-emerald-50 dark:bg-emerald-950 border border-emerald-200 dark:border-emerald-800 rounded-xl p-6 shadow-sm">
           <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300 mb-1">Total Income</p>
           <p className="text-3xl font-bold text-emerald-900 dark:text-emerald-100">{formatToUSD(totalInflow)}</p>
@@ -110,13 +131,14 @@ const TotalSpendingTile = () => {
           </div>
         </div>
       ) : (
-        <div className="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm p-8 overflow-auto">
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-8">Spending Breakdown</h2>
+        <div className="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm p-6 overflow-auto">
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100 mb-6">Spending Breakdown</h2>
           
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start min-w-0 overflow-hidden">
             {/* Chart */}
-            <div className="flex justify-center items-center">
-              <PieChart width={380} height={380}>
+            <div className="w-full h-80 min-w-0 flex justify-center items-center">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
                 <Pie
                   data={spendingDataWithPercentages}
                   cx="50%"
@@ -153,13 +175,14 @@ const TotalSpendingTile = () => {
                   wrapperStyle={{ outline: "none" }}
                   cursor={{ fill: "transparent" }}
                 />
-              </PieChart>
+                </PieChart>
+              </ResponsiveContainer>
             </div>
 
             {/* Category List */}
-            <div className="space-y-3">
-              <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-300 mb-4">Categories</h3>
-              <div className="space-y-2 max-h-96 overflow-y-auto pr-2">
+            <div className="space-y-3 min-w-0">
+              <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-300 mb-3">Categories</h3>
+              <div className="space-y-2 max-h-80 overflow-y-auto pr-2 min-w-0">
                 {spendingDataWithPercentages.map((category, index) => (
                   <div
                     key={index}

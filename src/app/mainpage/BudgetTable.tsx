@@ -310,9 +310,18 @@ export default function BudgetTable() {
   const handleInputChange = useCallback((categoryName, itemName, value) => {
     // Capture previous state for undo
     const previousState = budgetData[currentMonth];
-    const oldValue = previousState?.categories
+    const oldItem = previousState?.categories
       .flatMap((c) => c.categoryItems)
-      .find((item) => item.name === itemName)?.assigned ?? 0;
+      .find((item) => item.name === itemName);
+    const oldValue = oldItem?.assigned ?? 0;
+    const oldActivity = oldItem?.activity ?? 0;  // Capture the original activity too
+
+    console.log(`[handleInputChange] Capturing undo state for ${categoryName} > ${itemName}:`, {
+      oldValue,
+      oldActivity,
+      categoryName,
+      isCardPaymentGroup: categoryName === "Credit Card Payments",
+    });
 
     setBudgetData((prev) => {
       const updated = { ...prev };
@@ -402,6 +411,7 @@ export default function BudgetTable() {
     registerAction({
       description: `Assigned $${value} to '${itemName}' in '${categoryName}'`,
       execute: async () => {
+        console.log(`[handleInputChange.execute/redo] Reapplying ${categoryName} > ${itemName} with assigned=${value}`);
         // Re-apply the assignment for redo
         setBudgetData((prev) => {
           const updated = { ...prev };
@@ -412,7 +422,7 @@ export default function BudgetTable() {
               }
 
               const updatedItems = category.categoryItems.map((item) => {
-                if (category.name === categoryName && item.name === itemName) {
+                if (category.name === categoryName && item.name === itemName && category.name !== "Credit Card Payments") {
                   const itemActivity = calculateActivityForMonth(
                     currentMonth,
                     item.name,
@@ -434,23 +444,25 @@ export default function BudgetTable() {
                 }
 
                 if (category.name === "Credit Card Payments") {
-                  const activity = calculateCreditCardAccountActivity(
-                    currentMonth,
-                    item.name,
-                    updated
-                  );
-                  const cumulative = getCumulativeAvailable(
-                    updated,
-                    item.name,
-                    category.name
-                  );
-                  const available = item.assigned + activity + Math.max(cumulative, 0);
+                  // For redo of credit card assignments, preserve activity (don't recalculate)
+                  if (categoryName === "Credit Card Payments" && item.name === itemName) {
+                    const cumulative = getCumulativeAvailable(
+                      updated,
+                      item.name,
+                      category.name
+                    );
+                    const available = value + item.activity + Math.max(cumulative, 0);
 
-                  return {
-                    ...item,
-                    activity,
-                    available,
-                  };
+                    return {
+                      ...item,
+                      assigned: value,
+                      activity: item.activity,
+                      available,
+                    };
+                  }
+
+                  // For other credit card items, return unchanged
+                  return item;
                 }
 
                 return item;
@@ -479,7 +491,7 @@ export default function BudgetTable() {
               }
 
               const updatedItems = category.categoryItems.map((item) => {
-                if (category.name === categoryName && item.name === itemName) {
+                if (category.name === categoryName && item.name === itemName && category.name !== "Credit Card Payments") {
                   const itemActivity = calculateActivityForMonth(
                     currentMonth,
                     item.name,
@@ -501,23 +513,25 @@ export default function BudgetTable() {
                 }
 
                 if (category.name === "Credit Card Payments") {
-                  const activity = calculateCreditCardAccountActivity(
-                    currentMonth,
-                    item.name,
-                    updated
-                  );
-                  const cumulative = getCumulativeAvailable(
-                    updated,
-                    item.name,
-                    category.name
-                  );
-                  const available = item.assigned + activity + Math.max(cumulative, 0);
+                  // When undoing, restore the original activity (don't recalculate)
+                  if (categoryName === "Credit Card Payments" && item.name === itemName) {
+                    const cumulative = getCumulativeAvailable(
+                      updated,
+                      item.name,
+                      category.name
+                    );
+                    const available = oldValue + oldActivity + Math.max(cumulative, 0);
 
-                  return {
-                    ...item,
-                    activity,
-                    available,
-                  };
+                    return {
+                      ...item,
+                      assigned: oldValue,
+                      activity: oldActivity,
+                      available,
+                    };
+                  }
+
+                  // For other credit card items, return unchanged
+                  return item;
                 }
 
                 return item;

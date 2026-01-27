@@ -425,7 +425,7 @@ const upsertPayee = async (name: string) => {
 
   const defaultTransaction = {
     date: new Date().toISOString(),
-    payee: "Initial Balance",
+    payee: "Starting Balance",
     category: "Ready to Assign",
     category_group: "Ready to Assign",
     balance: 0,
@@ -464,8 +464,12 @@ const upsertPayee = async (name: string) => {
     }
 
     const currentAccountId = data[0].id;
+    const isCredit = account.type === "credit";
     const newTransaction = {
       ...defaultTransaction,
+      payee: "Starting Balance",
+      category: isCredit ? "Category Not Needed" : "Ready to Assign",
+      category_group: isCredit ? null : "Ready to Assign",
       balance: account.balance,
     }
     const generatedTransaction = await addTransaction(currentAccountId, newTransaction, true);

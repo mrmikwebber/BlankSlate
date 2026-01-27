@@ -170,6 +170,7 @@ export const parseYnabRegister = (text: string): RegisterParseResult => {
         !payee.startsWith("Payment") &&
         payee !== "Unknown" &&
         payee !== "Initial Balance" &&
+        payee !== "Starting Balance" &&
         payee !== "Reconciliation Adjustment") {
       payeesSet.add(payee);
     }
@@ -185,6 +186,14 @@ export const parseYnabRegister = (text: string): RegisterParseResult => {
       row["Category"] || ""
     );
 
+    const isStartingBalance =
+      payee === "Initial Balance" ||
+      payee === "Starting Balance" ||
+      group === "Starting Balance" ||
+      category === "Starting Balance" ||
+      category === "Category Not Needed" ||
+      group === "Category Not Needed";
+
     const existing = accountsMap.get(accountName) || {
       name: accountName,
       type: inferAccountType(accountName),
@@ -192,11 +201,19 @@ export const parseYnabRegister = (text: string): RegisterParseResult => {
       transactions: [],
     };
 
+    const isCreditAccount = existing.type === "credit";
+    const mappedCategory = isStartingBalance 
+      ? (isCreditAccount ? "Category Not Needed" : "Ready to Assign")
+      : category;
+    const mappedGroup = isStartingBalance 
+      ? (isCreditAccount ? null : "Ready to Assign")
+      : group;
+
     existing.transactions.push({
       date,
-      payee,
-      category,
-      category_group: group,
+      payee: isStartingBalance ? "Starting Balance" : payee,
+      category: mappedCategory,
+      category_group: mappedGroup,
       balance,
     });
 

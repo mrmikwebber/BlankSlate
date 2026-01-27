@@ -689,14 +689,16 @@ export default function AccountDetails() {
                           ? tx.payee
                           : tx.category === "Ready to Assign" || tx.category_group === "Ready to Assign"
                             ? "Ready to Assign"
-                            : tx.category_group && tx.category
-                              ? `${tx.category_group}: ${tx.category}`
-                              : (
-                                <span className="inline-flex items-center gap-2 text-red-600 dark:text-red-400 font-semibold">
-                                  Uncategorized
-                                  <span className="text-[11px] uppercase tracking-wide bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-200 rounded px-1.5 py-0.5">Add category</span>
-                                </span>
-                              )}
+                            : tx.category === "Category Not Needed"
+                              ? "Category Not Needed"
+                              : tx.category_group && tx.category
+                                ? `${tx.category_group}: ${tx.category}`
+                                : (
+                                  <span className="inline-flex items-center gap-2 text-red-600 dark:text-red-400 font-semibold">
+                                    Uncategorized
+                                    <span className="text-[11px] uppercase tracking-wide bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-200 rounded px-1.5 py-0.5">Add category</span>
+                                  </span>
+                                )}
                   </td>
                   <td
                     data-cy="transaction-amount"
