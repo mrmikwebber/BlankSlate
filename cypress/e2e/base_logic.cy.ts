@@ -114,8 +114,9 @@ describe("purchases, payments, transfers", () => {
         ).should("exist");
 
         cy.get(
-          '[data-cy="category-row"][data-item="Restaurants"]'
+          '[data-cy="category-row"][data-category="Food & Dining"][data-item="Restaurants"]'
         )
+          .first()
           .as("restaurantsRow")
           .within(() => {
             // Activity should be -amount

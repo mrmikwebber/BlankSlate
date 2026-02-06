@@ -1,6 +1,11 @@
 // lib/budgetMath.ts
 import { format, isSameMonth, parseISO, subMonths } from "date-fns";
 
+const DEBUG_RTA = process.env.NEXT_PUBLIC_DEBUG_RTA === "true";
+const rtaLog = (...args: any[]) => {
+  if (DEBUG_RTA) console.log("[RTA]", ...args);
+};
+
 export interface Tx {
   date: string;
   balance: number;
@@ -84,6 +89,11 @@ export function calculateReadyToAssignPure(
   for (const m of pastMonths) {
     const monthCategories = data[m]?.categories || [];
 
+    rtaLog("budgetMath:cash-overspending:month-start", {
+      month: m,
+      categories: monthCategories.length,
+    });
+
     for (const category of monthCategories) {
       if (category.name === "Credit Card Payments") continue;
 
@@ -107,12 +117,45 @@ export function calculateReadyToAssignPure(
           (tx) => tx.accountType === "debit" && tx.balance < 0
         );
 
+        const debitTx = categoryTransactions.filter(
+          (tx) => tx.accountType === "debit" && tx.balance < 0
+        );
+        const creditTx = categoryTransactions.filter(
+          (tx) => tx.accountType === "credit" && tx.balance < 0
+        );
+        const debitSpentTotal = debitTx.reduce((sum, tx) => sum + Math.abs(tx.balance), 0);
+        const creditSpentTotal = creditTx.reduce((sum, tx) => sum + Math.abs(tx.balance), 0);
+
         if (debitSpending) {
           totalCashOverspending += Math.abs(item.available);
+          rtaLog("budgetMath:cash-overspending:item", {
+            month: m,
+            categoryGroup: category.name,
+            item: item.name,
+            itemAvailable: item.available,
+            debitSpentTotal,
+            creditSpentTotal,
+            appliedOverspend: Math.abs(item.available),
+            totalCashOverspending,
+          });
+        } else {
+          rtaLog("budgetMath:cash-overspending:skip", {
+            month: m,
+            categoryGroup: category.name,
+            item: item.name,
+            itemAvailable: item.available,
+            debitSpentTotal,
+            creditSpentTotal,
+          });
         }
       }
     }
   }
+
+  rtaLog("budgetMath:cash-overspending:summary", {
+    month,
+    totalCashOverspending,
+  });
 
   return inflowUpTo - totalAssigned - totalCashOverspending;
 }

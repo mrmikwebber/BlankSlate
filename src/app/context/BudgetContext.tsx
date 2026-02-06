@@ -6,6 +6,7 @@ import {
   useEffect,
   useRef,
   useCallback,
+  useMemo,
 } from "react";
 import {
   differenceInCalendarMonths,
@@ -21,6 +22,11 @@ import { supabase } from "@/utils/supabaseClient";
 import { useAccountContext } from "./AccountContext";
 import { useUndoRedo } from "./UndoRedoContext";
 import { parseYnabPlan, parseYnabRegister } from "@/lib/ynabImport";
+
+const DEBUG_RTA = process.env.NEXT_PUBLIC_DEBUG_RTA === "true";
+const rtaLog = (...args: any[]) => {
+  if (DEBUG_RTA) console.log("[RTA]", ...args);
+};
 
 const getPreviousMonth = (month: string) => {
   return format(subMonths(parseISO(`${month}-01`), 1), "yyyy-MM");
@@ -1687,10 +1693,136 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
     return inflowMonths.sort()[0] ?? null;
   };
 
-  const calculateReadyToAssign = (month: string, data, accountsToUse = accounts): number => {
+  const calculateLocalReadyToAssign = (
+    month: string,
+    data,
+    accountsToUse = accounts
+  ): number => {
     const allMonths = Object.keys(data).sort();
     const currentIndex = allMonths.indexOf(month);
     if (currentIndex === -1) return 0;
+
+    const inflowUpTo = allMonths.slice(0, currentIndex + 1).reduce((sum, m) => {
+      const inflow = accountsToUse
+        .filter((acc) => acc.type === "debit")
+        .flatMap((acc) => acc.transactions)
+        .filter(
+          (tx) =>
+            tx.date &&
+            isSameMonth(
+              format(parseISO(tx.date), "yyyy-MM"),
+              format(parseISO(m), "yyyy-MM")
+            ) &&
+            tx.balance > 0 &&
+            tx.category === "Ready to Assign"
+        )
+        .reduce((s, tx) => s + tx.balance, 0);
+
+      return sum + inflow;
+    }, 0);
+
+    const totalAssigned = allMonths.slice(0, currentIndex + 1).reduce((sum, m) => {
+      const assigned = data[m]?.categories?.reduce(
+        (catSum, cat) =>
+          catSum +
+          cat.categoryItems.reduce(
+            (itemSum, item) => itemSum + (item.assigned || 0),
+            0
+          ),
+        0
+      );
+      return sum + (assigned || 0);
+    }, 0);
+
+    let totalCashOverspending = 0;
+    const cashOverspendEntries: Array<{
+      month: string;
+      categoryGroup: string;
+      item: string;
+      assigned: number;
+      debitSpending: number;
+      envelopeBefore: number;
+      cashOverspend: number;
+    }> = [];
+    const envelope = new Map<string, number>();
+    const pastMonths = allMonths.slice(0, currentIndex);
+
+    for (const m of pastMonths) {
+      const monthCategories = data[m]?.categories || [];
+      const debitSpendingMap = new Map<string, number>();
+
+      for (const acc of accountsToUse.filter((a) => a.type === "debit")) {
+        for (const tx of acc.transactions) {
+          if (!tx.date || tx.balance >= 0) continue;
+
+          const txMonth = format(parseISO(tx.date), "yyyy-MM");
+          const mMonth = format(parseISO(`${m}-01`), "yyyy-MM");
+          if (!isSameMonth(txMonth, mMonth)) continue;
+
+          const groupName = tx.category_group || "";
+          const itemName = tx.category;
+          if (!itemName) continue;
+
+          const key = categoryKey(groupName, itemName);
+          const current = debitSpendingMap.get(key) || 0;
+          debitSpendingMap.set(key, current + Math.abs(tx.balance));
+        }
+      }
+
+      for (const category of monthCategories) {
+        if (category.name === "Credit Card Payments") continue;
+
+        for (const item of category.categoryItems) {
+          if (item.name === "Ready to Assign") continue;
+
+          const key = categoryKey(category.name, item.name);
+          const assigned = item.assigned || 0;
+          const assignedForOverspend = Math.max(0, assigned);
+
+          const prevEnv = envelope.get(key) || 0;
+          const envelopeBefore = prevEnv + assignedForOverspend;
+
+          const debitSpending = debitSpendingMap.get(key) || 0;
+
+          if (debitSpending <= envelopeBefore) {
+            envelope.set(key, envelopeBefore - debitSpending);
+          } else {
+            const cashOverspend = debitSpending - envelopeBefore;
+            totalCashOverspending += cashOverspend;
+            envelope.set(key, 0);
+            cashOverspendEntries.push({
+              month: m,
+              categoryGroup: category.name,
+              item: item.name,
+              assigned,
+              assignedForOverspend,
+              debitSpending,
+              envelopeBefore,
+              cashOverspend,
+            });
+          }
+        }
+      }
+    }
+
+    if (totalCashOverspending > 0) {
+      rtaLog("BudgetContext:local-cash-overspending", {
+        month,
+        totalCashOverspending,
+        entries: cashOverspendEntries,
+      });
+    }
+
+    return inflowUpTo - totalAssigned - totalCashOverspending;
+  };
+
+  const calculateReadyToAssign = (month: string, data, accountsToUse = accounts): number => {
+    const allMonths = Object.keys(data).sort();
+    const currentIndex = allMonths.indexOf(month);
+    if (currentIndex === -1) {
+      rtaLog("calculateReadyToAssign: month not found", { month });
+      return 0;
+    }
 
     // 1️⃣ Inflows up to and including `month`
     const inflowUpTo = allMonths.slice(0, currentIndex + 1).reduce((sum, m) => {
@@ -1728,6 +1860,15 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
 
     // 3️⃣ Total cash overspending from ALL *past* months (cash accounts only)
     let totalCashOverspending = 0;
+    const cashOverspendEntries: Array<{
+      month: string;
+      categoryGroup: string;
+      item: string;
+      assigned: number;
+      debitSpending: number;
+      envelopeBefore: number;
+      cashOverspend: number;
+    }> = [];
 
     // Envelope balance per (group, item)
     const envelope = new Map<string, number>();
@@ -1736,6 +1877,11 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
 
     for (const m of pastMonths) {
       const monthCategories = data[m]?.categories || [];
+
+      rtaLog("BudgetContext:cash-overspending:month-start", {
+        month: m,
+        categories: monthCategories.length,
+      });
 
       // Precompute debit spending per (group,item) for this month
       const debitSpendingMap = new Map<string, number>();
@@ -1768,9 +1914,10 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
 
           const key = categoryKey(category.name, item.name);
           const assigned = item.assigned || 0;
+          const assignedForOverspend = Math.max(0, assigned);
 
           const prevEnv = envelope.get(key) || 0;
-          const envelopeBefore = prevEnv + assigned;
+          const envelopeBefore = prevEnv + assignedForOverspend;
 
           const debitSpending = debitSpendingMap.get(key) || 0;
 
@@ -1782,15 +1929,114 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
             const cashOverspend = debitSpending - envelopeBefore;
             totalCashOverspending += cashOverspend;
             envelope.set(key, 0);
+            rtaLog("BudgetContext:cash-overspending:item", {
+              month: m,
+              categoryGroup: category.name,
+              item: item.name,
+              assigned,
+              assignedForOverspend,
+              debitSpending,
+              envelopeBefore,
+              cashOverspend,
+              totalCashOverspending,
+            });
+            cashOverspendEntries.push({
+              month: m,
+              categoryGroup: category.name,
+              item: item.name,
+              assigned,
+              assignedForOverspend,
+              debitSpending,
+              envelopeBefore,
+              cashOverspend,
+            });
           }
         }
       }
     }
 
+    if (totalCashOverspending > 0) {
+      rtaLog("BudgetContext:global-cash-overspending", {
+        month,
+        totalCashOverspending,
+        entries: cashOverspendEntries,
+        currentMonth,
+      });
+    }
+
     // 4️⃣ Final RTA
-    return inflowUpTo - totalAssigned - totalCashOverspending;
+    const result = inflowUpTo - totalAssigned - totalCashOverspending;
+    rtaLog("calculateReadyToAssign", {
+      month,
+      inflowUpTo,
+      totalAssigned,
+      totalCashOverspending,
+      result,
+      months: allMonths.length,
+      accounts: accountsToUse.length,
+    });
+    return result;
 
   };
+
+  const rtaDisplayState = useMemo(() => {
+    const months = Object.keys(budgetData).sort();
+    if (months.length === 0) {
+      return {
+        rtaByMonth: {},
+        carryByMonth: {},
+        globalRTA: 0,
+        deficitBeyond: 0,
+        startMonth: null,
+      };
+    }
+
+    const startMonth = months.includes(currentMonth)
+      ? currentMonth
+      : months[0];
+    const startIndex = months.indexOf(startMonth);
+
+    const localRtaByMonth: Record<string, number> = {};
+    for (const month of months) {
+      localRtaByMonth[month] = calculateLocalReadyToAssign(
+        month,
+        budgetData,
+        accounts
+      );
+    }
+
+    const latestMonth = months[months.length - 1];
+    const globalRTA = calculateReadyToAssign(latestMonth, budgetData, accounts);
+
+    let carry = Math.min(0, globalRTA);
+    const rtaByMonth: Record<string, number> = {};
+    const carryByMonth: Record<string, number> = {};
+
+    months.forEach((month, idx) => {
+      const local = localRtaByMonth[month] ?? 0;
+
+      if (idx < startIndex) {
+        rtaByMonth[month] = local;
+        carryByMonth[month] = 0;
+        return;
+      }
+
+      carryByMonth[month] = carry;
+      const display = local + carry;
+      rtaByMonth[month] = display;
+      carry = Math.min(0, display);
+    });
+
+    const deficitBeyond = carry < 0 ? Math.abs(carry) : 0;
+
+    return {
+      rtaByMonth,
+      carryByMonth,
+      globalRTA,
+      deficitBeyond,
+      startMonth,
+    };
+  }, [budgetData, accounts, currentMonth]);
 
 
   const refreshAllReadyToAssign = (data = budgetData, accountsOverride = null) => {
@@ -1798,13 +2044,23 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
     const updated = { ...data };
     const sortedMonths = Object.keys(updated).sort();
 
+    rtaLog("refreshAllReadyToAssign:start", {
+      months: sortedMonths,
+      accounts: accountsToUse.length,
+    });
+
     for (const month of sortedMonths) {
-      updated[month].ready_to_assign = calculateReadyToAssign(month, data, accountsToUse);
+      const rta = calculateReadyToAssign(month, data, accountsToUse);
+      updated[month].ready_to_assign = rta;
+      rtaLog("refreshAllReadyToAssign:month", { month, rta });
       dirtyMonths.current.add(month);
     }
 
     setBudgetData(updated);
     setIsDirty(true);
+    rtaLog("refreshAllReadyToAssign:done", {
+      updatedMonths: sortedMonths.length,
+    });
   };
 
   const calculateCreditCardAccountActivity = useCallback((
@@ -2670,6 +2926,14 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
         budgetData,
         setBudgetData,
         currentMonth,
+        getDisplayedRta: (month: string) =>
+          rtaDisplayState.rtaByMonth?.[month] ??
+          budgetData?.[month]?.ready_to_assign ??
+          0,
+        rtaCarryByMonth: rtaDisplayState.carryByMonth,
+        globalRTA: rtaDisplayState.globalRTA,
+        deficitBeyond: rtaDisplayState.deficitBeyond,
+        rtaStartMonth: rtaDisplayState.startMonth,
         updateMonth,
         addItemToCategory,
         addCategoryGroup,

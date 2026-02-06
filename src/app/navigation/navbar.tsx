@@ -6,6 +6,7 @@ import { useDarkMode } from "../context/DarkModeContext";
 import { supabase } from "../../utils/supabaseClient";
 import { createPortal } from "react-dom";
 import { Moon, Sun } from "lucide-react";
+import { isAdminUser, normalizeAdminList } from "@/lib/admin";
 
 export default function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -47,6 +48,12 @@ export default function Navbar() {
   
   const { user, signOut } = useAuth();
   const name = user?.user_metadata?.first_name;
+  const adminEmails = normalizeAdminList(process.env.NEXT_PUBLIC_ADMIN_EMAILS);
+  const adminIds = normalizeAdminList(process.env.NEXT_PUBLIC_ADMIN_USER_IDS);
+  const isAdmin = isAdminUser(
+    { email: user?.email, id: user?.id },
+    { emails: adminEmails, ids: adminIds }
+  );
 
   const handleResetAccount = async () => {
     if (!user) return;
@@ -161,6 +168,14 @@ export default function Navbar() {
                         <Moon className="h-4 w-4 text-slate-600" />
                       )}
                     </button>
+                    {isAdmin && (
+                      <Link
+                        href="/admin/port-user-data"
+                        className="px-3 py-1.5 rounded-md text-xs border border-teal-300 dark:border-teal-700 text-teal-800 dark:text-teal-300 bg-transparent hover:bg-teal-50 dark:hover:bg-teal-950 transition-colors"
+                      >
+                        Admin Tools
+                      </Link>
+                    )}
                     <button 
                       onClick={() => setShowResetModal(true)} 
                       className="px-3 py-1.5 rounded-md text-xs border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"

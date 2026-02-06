@@ -45,11 +45,21 @@ import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
 import { YnabImportDialog } from "./YnabImportDialog";
 
+const DEBUG_RTA = process.env.NEXT_PUBLIC_DEBUG_RTA === "true";
+const rtaLog = (...args: any[]) => {
+  if (DEBUG_RTA) console.log("[RTA]", ...args);
+};
+
 export default function BudgetTable() {
   const {
     currentMonth,
     budgetData,
     setBudgetData,
+    getDisplayedRta,
+    rtaCarryByMonth,
+    globalRTA,
+    deficitBeyond,
+    rtaStartMonth,
     setIsDirty,
     addCategoryGroup,
     addItemToCategory,
@@ -183,6 +193,59 @@ export default function BudgetTable() {
       return count + group.categoryItems.filter(item => item.available < 0).length;
     }, 0);
   }, [budgetData, currentMonth]);
+
+  const displayedRta = useMemo(() => {
+    return getDisplayedRta ? getDisplayedRta(currentMonth) : (budgetData[currentMonth]?.ready_to_assign ?? 0);
+  }, [getDisplayedRta, currentMonth, budgetData]);
+
+  const currentCarry = rtaCarryByMonth?.[currentMonth] ?? 0;
+  const showCarryNote = currentCarry < 0 && currentMonth !== rtaStartMonth;
+
+  const openMoveMoneyModal = useCallback(() => {
+    if (!budgetData || !currentMonth) return;
+    const categories = budgetData[currentMonth]?.categories || [];
+    for (const group of categories) {
+      for (const item of group.categoryItems) {
+        if (item.available > 0) {
+          setMoveMoneyModal({
+            toGroup: group.name,
+            toItem: item.name,
+            available: item.available,
+          });
+          setMoveAmount(0);
+          setMoveToCategory("");
+          setSourceAvailable(item.available);
+          return;
+        }
+      }
+    }
+  }, [budgetData, currentMonth]);
+
+  useEffect(() => {
+    if (!budgetData || !currentMonth || !budgetData[currentMonth]) return;
+
+    const monthData = budgetData[currentMonth];
+    const totalAssigned = monthData.categories.reduce(
+      (sum, group) =>
+        sum + group.categoryItems.reduce((s, item) => s + (item.assigned || 0), 0),
+      0
+    );
+
+    const totalAvailable = monthData.categories.reduce(
+      (sum, group) =>
+        sum + group.categoryItems.reduce((s, item) => s + (item.available || 0), 0),
+      0
+    );
+
+    rtaLog("BudgetTable:month-summary", {
+      month: currentMonth,
+      readyToAssign: displayedRta,
+      totalAssigned,
+      totalAvailable,
+      overspentCategoriesCount,
+      categories: monthData.categories.length,
+    });
+  }, [budgetData, currentMonth, overspentCategoriesCount, displayedRta]);
 
   const getPreviousAssigned = useCallback((groupName: string, itemName: string): number => {
     if (!budgetData || !prevMonthKey) return 0;
@@ -667,15 +730,35 @@ export default function BudgetTable() {
 
     // Capture the starting assigned values ONCE
     const sourceStartAssigned = isMovingFromRTA 
-      ? (budgetData[currentMonth]?.ready_to_assign ?? 0)
+      ? displayedRta
       : (sourceCategory?.assigned ?? 0);
     const targetStartAssigned = targetCategory.assigned;
+
+    rtaLog("BudgetTable:move-money:init", {
+      month: currentMonth,
+      isMovingFromRTA,
+      fromGroup,
+      fromItem,
+      toGroup,
+      toItem,
+      transferAmount,
+      sourceStartAssigned,
+      targetStartAssigned,
+      rtaStart: displayedRta,
+    });
 
     const applyState = (mode: "applied" | "reverted") => {
       const dstAssigned =
         mode === "applied"
           ? targetStartAssigned + transferAmount
           : targetStartAssigned;
+
+      rtaLog("BudgetTable:move-money:apply", {
+        mode,
+        dstAssigned,
+        sourceStartAssigned,
+        targetStartAssigned,
+      });
 
       setBudgetData((prev) => {
         const updated = { ...prev };
@@ -755,6 +838,10 @@ export default function BudgetTable() {
 
     // Apply once now (still fine since registerAction doesn't auto-execute)
     applyState("applied");
+    rtaLog("BudgetTable:move-money:applied", {
+      month: currentMonth,
+      rtaAfterApply: displayedRta,
+    });
 
     registerAction({
       description: `Moved ${formatToUSD(transferAmount)} from '${fromItem}' to '${toItem}'`,
@@ -775,6 +862,7 @@ export default function BudgetTable() {
     setMoveMoneyModal(null);
     setMoveAmount(0);
     setMoveToCategory("");
+    rtaLog("BudgetTable:move-money:done", { month: currentMonth });
   }, [moveMoneyModal, moveToCategory, moveAmount, budgetData, currentMonth, setBudgetData, calculateActivityForMonth, getCumulativeAvailable, calculateCreditCardAccountActivity, refreshAllReadyToAssign, registerAction, setIsDirty, setRecentChanges]);
 
   // Get assigned amount from previous month
@@ -1024,24 +1112,7 @@ export default function BudgetTable() {
       setSelectedFilter(FILTERS[nextIndex]);
     },
     onMoveMoney: () => {
-      // Open move money modal for first available category with funds
-      if (!budgetData || !currentMonth) return;
-      const categories = budgetData[currentMonth]?.categories || [];
-      for (const group of categories) {
-        for (const item of group.categoryItems) {
-          if (item.available > 0) {
-            setMoveMoneyModal({
-              toGroup: group.name,
-              toItem: item.name,
-              available: item.available,
-            });
-            setMoveAmount(0);
-            setMoveToCategory("");
-            setSourceAvailable(item.available);
-            return;
-          }
-        }
-      }
+      openMoveMoneyModal();
     },
     onNextMonth: () => {
       const parsedDate = parse(`${currentMonth}-01`, "yyyy-MM-dd", new Date());
@@ -1257,7 +1328,7 @@ export default function BudgetTable() {
 
                       // Handle RTA special case
                       if (value === "RTA") {
-                        const rtaBalance = budgetData[currentMonth]?.ready_to_assign ?? 0;
+                        const rtaBalance = displayedRta;
                         setSourceAvailable(rtaBalance);
                         const targetDeficit = moveMoneyModal.available < 0 ? Math.abs(moveMoneyModal.available) : rtaBalance;
                         setMoveAmount(targetDeficit);
@@ -1277,7 +1348,7 @@ export default function BudgetTable() {
                   >
                     <option value="">Select a category</option>
                     <option value="RTA" className="font-semibold">
-                      Ready to Assign (Avail {formatToUSD(budgetData[currentMonth]?.ready_to_assign || 0)})
+                      Ready to Assign (Avail {formatToUSD(displayedRta || 0)})
                     </option>
                     {budgetData[currentMonth]?.categories
                       .flatMap((cat) =>
@@ -1691,9 +1762,14 @@ export default function BudgetTable() {
                     variant="outline"
                     className="text-base font-bold font-mono px-3 py-1 bg-teal-500 dark:bg-teal-600 text-white border-teal-500 dark:border-teal-600"
                   >
-                    {formatToUSD(budgetData[currentMonth]?.ready_to_assign || 0)}
+                    {formatToUSD(displayedRta || 0)}
                   </Badge>
                 </div>
+                {showCarryNote && (
+                  <span className="text-xs text-amber-700 dark:text-amber-300">
+                    Reduced by {formatToUSD(Math.abs(currentCarry))} from prior months
+                  </span>
+                )}
                 {overspentCategoriesCount > 0 && (
                   <Badge
                     data-cy="overspent-indicator"
@@ -1708,6 +1784,7 @@ export default function BudgetTable() {
                 <MonthNav />
               </div>
             </div>
+
 
             {/* Toolbar: Filters + Add Group */}
             <div className="flex flex-wrap items-center justify-between gap-3">

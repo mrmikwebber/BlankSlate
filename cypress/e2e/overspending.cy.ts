@@ -25,6 +25,32 @@ const visitBudget = () => {
   cy.get("[data-cy=budget-table]").should("exist");
 };
 
+const addGroupAndItem = (groupName: string, itemName: string) => {
+  cy.get("[data-cy=add-category-group-button]").click();
+  cy.get("[data-cy=add-category-group-input]").clear().type(groupName);
+  cy.get("[data-cy=add-category-group-submit]").click();
+
+  cy.get(
+    `tr[data-cy="category-group-row"][data-category="${groupName}"]`
+  )
+    .first()
+    .trigger("mouseover");
+
+  cy.get(
+    `tr[data-cy="category-group-row"][data-category="${groupName}"] [data-cy="group-add-item-button"]`
+  )
+    .filter(":visible")
+    .first()
+    .click({ force: true });
+
+  cy.get("[data-cy=add-item-input]").clear().type(itemName);
+  cy.get("[data-cy=add-item-submit]").click();
+
+  cy.get(
+    `[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"]`
+  ).should("exist");
+};
+
 const visitAccount = (id: string, expectedName: string) => {
   cy.visit(`/accounts/${id}`);
   cy.get("[data-cy=account-name]").should("contain.text", expectedName);
@@ -332,5 +358,44 @@ describe("Overspending & filters", () => {
 
     cy.contains("button", "Underfunded").click();
     cy.get(categorySelector).should("not.exist");
+  });
+
+  it("does not treat negative assigned as cash overspending", () => {
+    const groupName = "Negative Assign Group";
+    const itemName = "Negative Assign Item";
+    const assignAmount = -50;
+
+    visitBudget();
+
+    cy.get("[data-cy=ready-to-assign]")
+      .invoke("text")
+      .then((initialText) => {
+        const initialRta = parseCurrency(initialText);
+
+        cy.get("[data-cy=month-prev]").click();
+
+        addGroupAndItem(groupName, itemName);
+
+        cy.get(
+          `[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"]`
+        ).within(() => {
+          cy.get("[data-cy=assigned-display]").click();
+          cy.get("[data-cy=assigned-input]")
+            .clear()
+            .type(`${assignAmount}{enter}`);
+        });
+
+        cy.get("[data-cy=month-next]").click();
+
+        cy.get("[data-cy=ready-to-assign]")
+          .invoke("text")
+          .then((finalText) => {
+            const finalRta = parseCurrency(finalText);
+            expect(
+              finalRta,
+              "RTA should increase by the negative assignment amount"
+            ).to.eq(initialRta - assignAmount);
+          });
+      });
   });
 });
