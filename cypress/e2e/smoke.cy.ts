@@ -18,42 +18,16 @@ describe("Smoke Tests - Core Functionality", () => {
     const groupName = "Smoke Test Group";
     const itemName = "Smoke Test Item";
 
-    // Create group
-    cy.get("[data-cy=add-category-group-button]").click();
-    cy.get("[data-cy=add-category-group-input]").type(groupName);
-    cy.get("[data-cy=add-category-group-submit]").click();
-
-    // Add item via hover button
-    cy.get(`tr[data-cy="category-group-row"][data-category="${groupName}"]`).trigger("mouseover");
-    cy.get(`[data-category="${groupName}"] [data-cy="group-add-item-button"]`)
-      .filter(":visible")
-      .first()
-      .click({ force: true });
-
-    cy.get("[data-cy=add-item-input]").type(itemName);
-    cy.get("[data-cy=add-item-submit]").click();
-
-    // Verify item exists
-    cy.get(
-      `[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"]`
-    ).should("exist");
+    cy.createCategory(groupName, itemName);
 
     // Assign $50
-    cy.get(
-      `[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"] [data-cy="assigned-display"]`
-    ).click();
-
-    cy.get(
-      `[data-cy="assigned-input"][data-category="${groupName}"][data-item="${itemName}"]`
-    )
-      .clear()
-      .type("50")
-      .blur();
+    cy.setAssignedValue(groupName, itemName, 50);
 
     // Verify assigned value updated
-    cy.get(
+    cy.budgetFind(
       `[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"] [data-cy="assigned-display"]`
     )
+      .first()
       .invoke("text")
       .then((text) => {
         const assigned = parseCurrency(text);
@@ -172,43 +146,19 @@ describe("Smoke Tests - Core Functionality", () => {
     const sourceItem = "Source Category";
     const targetItem = "Target Category";
 
-    cy.get("[data-cy=add-category-group-button]").click();
-    cy.get("[data-cy=add-category-group-input]").type(groupName);
-    cy.get("[data-cy=add-category-group-submit]").click();
-
-    // Add source item
-    cy.get(`tr[data-cy="category-group-row"][data-category="${groupName}"]`).trigger("mouseover");
-    cy.get(`[data-category="${groupName}"] [data-cy="group-add-item-button"]`)
-      .filter(":visible")
-      .first()
-      .click({ force: true });
-    cy.get("[data-cy=add-item-input]").type(sourceItem);
-    cy.get("[data-cy=add-item-submit]").click();
+    cy.createCategoryGroup(groupName);
+    cy.createCategoryItem(groupName, sourceItem);
 
     // Assign $100 to source
-    cy.get(
-      `[data-cy="category-row"][data-category="${groupName}"][data-item="${sourceItem}"] [data-cy="assigned-display"]`
-    ).click();
-    cy.get(
-      `[data-cy="assigned-input"][data-category="${groupName}"][data-item="${sourceItem}"]`
-    )
-      .clear()
-      .type("100")
-      .blur();
+    cy.setAssignedValue(groupName, sourceItem, 100);
 
     // Add target item
-    cy.get(`tr[data-cy="category-group-row"][data-category="${groupName}"]`).trigger("mouseover");
-    cy.get(`[data-category="${groupName}"] [data-cy="group-add-item-button"]`)
-      .filter(":visible")
-      .first()
-      .click({ force: true });
-    cy.get("[data-cy=add-item-input]").type(targetItem);
-    cy.get("[data-cy=add-item-submit]").click();
+    cy.createCategoryItem(groupName, targetItem);
 
     // Open move money modal from target category
-    cy.get(
+    cy.budgetRightClick(
       `[data-cy="category-row"][data-category="${groupName}"][data-item="${targetItem}"]`
-    ).rightclick();
+    );
 
     cy.get("[data-cy=category-context-menu]").should("be.visible");
     // Look for a button that might trigger move money (depends on implementation)
@@ -224,63 +174,49 @@ describe("Smoke Tests - Core Functionality", () => {
     const groupName = "Undo Test Group";
     const itemName = "Undo Test Item";
 
-    // Create category
-    cy.get("[data-cy=add-category-group-button]").click();
-    cy.get("[data-cy=add-category-group-input]").type(groupName);
-    cy.get("[data-cy=add-category-group-submit]").click();
-
-    cy.get(`tr[data-cy="category-group-row"][data-category="${groupName}"]`).trigger("mouseover");
-    cy.get(`[data-category="${groupName}"] [data-cy="group-add-item-button"]`)
-      .filter(":visible")
-      .first()
-      .click({ force: true });
-    cy.get("[data-cy=add-item-input]").type(itemName);
-    cy.get("[data-cy=add-item-submit]").click();
+    cy.createCategory(groupName, itemName);
 
     // Assign $75
-    cy.get(
-      `[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"] [data-cy="assigned-display"]`
-    ).click();
-    cy.get(
-      `[data-cy="assigned-input"][data-category="${groupName}"][data-item="${itemName}"]`
-    )
-      .clear()
-      .type("75")
-      .blur();
+    cy.setAssignedValue(groupName, itemName, 75);
 
     // Verify assignment
-    cy.get(
-      `[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"] [data-cy="assigned-display"]`
-    )
-      .invoke("text")
-      .then((txt) => {
-        const assigned = parseCurrency(txt);
+    cy.budgetRow(groupName, itemName)
+      .find('[data-cy="assigned-display"]')
+      .first()
+      .should(($el) => {
+        const assigned = parseCurrency($el.text());
         expect(assigned).to.eq(75);
       });
 
     // Undo
-    cy.get("[data-cy=undo-button]").should("not.be.disabled").click();
+    cy.get("[data-cy=undo-button]")
+      .filter(':visible')
+      .first()
+      .should("not.be.disabled")
+      .click();
 
     // Should revert to $0
-    cy.get(
-      `[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"] [data-cy="assigned-display"]`
-    )
-      .invoke("text")
-      .then((txt) => {
-        const assigned = parseCurrency(txt);
+    cy.budgetRow(groupName, itemName)
+      .find('[data-cy="assigned-display"]')
+      .first()
+      .should(($el) => {
+        const assigned = parseCurrency($el.text());
         expect(assigned).to.eq(0);
       });
 
     // Redo
-    cy.get("[data-cy=redo-button]").should("not.be.disabled").click();
+    cy.get("[data-cy=redo-button]")
+      .filter(':visible')
+      .first()
+      .should("not.be.disabled")
+      .click();
 
     // Should be back to $75
-    cy.get(
-      `[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"] [data-cy="assigned-display"]`
-    )
-      .invoke("text")
-      .then((txt) => {
-        const assigned = parseCurrency(txt);
+    cy.budgetRow(groupName, itemName)
+      .find('[data-cy="assigned-display"]')
+      .first()
+      .should(($el) => {
+        const assigned = parseCurrency($el.text());
         expect(assigned).to.eq(75);
       });
   });
@@ -293,48 +229,33 @@ describe("Smoke Tests - Core Functionality", () => {
     const itemName = "Filter Test Item";
 
     // Create category and assign money
-    cy.get("[data-cy=add-category-group-button]").click();
-    cy.get("[data-cy=add-category-group-input]").type(groupName);
-    cy.get("[data-cy=add-category-group-submit]").click();
-
-    cy.get(`tr[data-cy="category-group-row"][data-category="${groupName}"]`).trigger("mouseover");
-    cy.get(`[data-category="${groupName}"] [data-cy="group-add-item-button"]`)
-      .filter(":visible")
-      .first()
-      .click({ force: true });
-    cy.get("[data-cy=add-item-input]").type(itemName);
-    cy.get("[data-cy=add-item-submit]").click();
+    cy.createCategory(groupName, itemName);
 
     // Assign $60 (positive, so "Money Available" filter should show it)
-    cy.get(
-      `[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"] [data-cy="assigned-display"]`
-    ).click();
-    cy.get(
-      `[data-cy="assigned-input"][data-category="${groupName}"][data-item="${itemName}"]`
-    )
-      .clear()
-      .type("60")
-      .blur();
+    cy.setAssignedValue(groupName, itemName, 60);
 
     // Test "All" filter
-    cy.get("[data-cy=filter-all]").click();
-    cy.get(
+    cy.get("[data-cy=filter-all]").filter(':visible').first().click();
+    cy.budgetFind(
       `[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"]`
     ).should("exist");
 
     // Test "Money Available" filter
-    cy.get("[data-cy=filter-money-available]").click();
-    cy.get(
+    cy.get("[data-cy=filter-money-available]")
+      .filter(':visible')
+      .first()
+      .click();
+    cy.budgetFind(
       `[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"]`
     ).should("exist");
 
     // Test "Overspent" filter (should NOT show this category)
-    cy.get("[data-cy=filter-overspent]").click();
-    cy.get(
+    cy.get("[data-cy=filter-overspent]").filter(':visible').first().click();
+    cy.budgetFind(
       `[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"]`
     ).should("not.exist");
 
     // Return to All
-    cy.get("[data-cy=filter-all]").click();
+    cy.get("[data-cy=filter-all]").filter(':visible').first().click();
   });
 });

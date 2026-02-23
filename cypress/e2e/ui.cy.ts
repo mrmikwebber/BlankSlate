@@ -10,17 +10,17 @@ describe('UI interactions and misc', () => {
   });
 
   it('Scenario 21 – Collapse/expand groups', () => {
-    cy.get('[data-cy="group-toggle"]').first().click();
+    cy.get('[data-cy="group-toggle"]').filter(':visible').first().click();
     // Expect items hidden after collapse
     cy.get('tr[data-cy="category-row"]').should('have.length.lessThan', 50);
     // Toggle back
-    cy.get('[data-cy="group-toggle"]').first().click();
+    cy.get('[data-cy="group-toggle"]').filter(':visible').first().click();
   });
 
   it('Scenario 22 – Context menu positioning (basic smoke)', () => {
     // Right-click on a group near the bottom/right—hard to simulate deterministically here.
     // Basic test: context menu appears and has data-cy
-    cy.get('[data-cy="group-name"]').first().rightclick();
+    cy.rightClickFirst('[data-cy="group-name"]');
     cy.get('[data-cy="group-context-menu"]').should('exist');
     // Clicking elsewhere closes it
     cy.get('body').click(0, 0);
@@ -29,8 +29,8 @@ describe('UI interactions and misc', () => {
 
   it('Scenario 23 – Add item popover dropUp (visual; best-effort)', () => {
     // This is a best-effort check: open an add item on a group near the bottom and assert popover class contains "bottom-full" or similar
-    cy.get('tr[data-cy="category-group-row"]').last().trigger('mouseover');
-    cy.get('tr[data-cy="category-group-row"]').last().within(() => {
+    cy.get('tr[data-cy="category-group-row"]').filter(':visible').last().trigger('mouseover', { force: true });
+    cy.get('tr[data-cy="category-group-row"]').filter(':visible').last().within(() => {
       cy.get('[data-cy="group-add-item-button"]').filter(':visible').first().then(($btn) => {
         if ($btn.length) {
           cy.wrap($btn).click();
@@ -46,12 +46,12 @@ describe('UI interactions and misc', () => {
   it('Scenario 24 – Dirty state & recent changes log', () => {
     // Change assigned in two categories to mark dirty
     // Scope within specific category rows to avoid ambiguity
-    cy.get('tr[data-cy="category-row"]').first().within(() => {
+    cy.budgetFind('tr[data-cy="category-row"]').first().within(() => {
       cy.get('span[data-cy="assigned-display"]').click();
       cy.get('input[data-cy="assigned-input"]').clear().type('1{enter}');
     });
 
-    cy.get('tr[data-cy="category-row"]').eq(1).within(() => {
+    cy.budgetFind('tr[data-cy="category-row"]').eq(1).within(() => {
       cy.get('span[data-cy="assigned-display"]').click();
       cy.get('input[data-cy="assigned-input"]').clear().type('2{enter}');
     });

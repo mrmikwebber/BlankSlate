@@ -112,7 +112,7 @@ export default function InlineTransactionRow({
   const crossTypeTransfer =
     thisAccount && otherAccount && thisAccount.type !== otherAccount.type;
 
-  const categoryGroups = budgetData[currentMonth].categories;
+  const categoryGroups = budgetData?.[currentMonth]?.categories ?? [];
 
 
 

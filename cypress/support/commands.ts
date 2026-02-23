@@ -59,6 +59,46 @@ declare global {
         payee?: string;
         isExpense?: boolean;
       }): Chainable<any>
+      /**
+       * Get the visible budget table element.
+       */
+      getVisibleBudgetTable(): Chainable<JQuery<HTMLElement>>
+      /**
+       * Find a selector scoped to the visible budget table.
+       */
+      budgetFind(selector: string): Chainable<JQuery<HTMLElement>>
+      /**
+       * Get a category row from the visible budget table.
+       */
+      budgetRow(groupName: string, itemName: string): Chainable<JQuery<HTMLElement>>
+      /**
+       * Add a new category group from the header controls.
+       */
+      createCategoryGroup(groupName: string): Chainable<any>
+      /**
+       * Add a new category item inside a group.
+       */
+      createCategoryItem(groupName: string, itemName: string): Chainable<any>
+      /**
+       * Create a group + item in the budget.
+       */
+      createCategory(groupName: string, itemName: string): Chainable<any>
+      /**
+       * Set assigned value for a category item.
+       */
+      setAssignedValue(groupName: string, itemName: string, value: number | string): Chainable<any>
+      /**
+       * Get Ready to Assign as a numeric value.
+       */
+      getReadyToAssignValue(): Chainable<number>
+      /**
+       * Right-click the first visible element matching selector.
+       */
+      rightClickFirst(selector: string): Chainable<any>
+      /**
+       * Right-click the first visible element within the budget table.
+       */
+      budgetRightClick(selector: string): Chainable<any>
     }
   }
 }
@@ -78,6 +118,123 @@ Cypress.Commands.add('getSeededAccounts', () => {
   const accounts = Cypress.env('SEEDED_ACCOUNTS');
   return cy.wrap(accounts);
 });
+
+Cypress.Commands.add('getVisibleBudgetTable', () =>
+  cy.get('[data-cy=budget-table]').filter(':visible').first()
+);
+
+Cypress.Commands.add('budgetFind', (selector: string) =>
+  cy.getVisibleBudgetTable().find(selector)
+);
+
+Cypress.Commands.add('rightClickFirst', (selector: string) => {
+  cy.get(selector)
+    .filter(':visible')
+    .first()
+    .scrollIntoView()
+    .rightclick();
+});
+
+Cypress.Commands.add('budgetRightClick', (selector: string) => {
+  cy.getVisibleBudgetTable()
+    .find(selector)
+    .filter(':visible')
+    .first()
+    .scrollIntoView()
+    .rightclick();
+});
+
+Cypress.Commands.add('budgetRow', (groupName: string, itemName: string) =>
+  cy
+    .getVisibleBudgetTable()
+    .find(
+      `tr[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"]`
+    )
+    .first()
+);
+
+Cypress.Commands.add('createCategoryGroup', (groupName: string) => {
+  cy.get('[data-cy=add-category-group-button]')
+    .filter(':visible')
+    .first()
+    .scrollIntoView()
+    .click();
+  cy.get('[data-cy=add-category-group-input]')
+    .filter(':visible')
+    .first()
+    .scrollIntoView()
+    .clear()
+    .type(groupName);
+  cy.get('[data-cy=add-category-group-submit]')
+    .filter(':visible')
+    .first()
+    .scrollIntoView()
+    .click();
+});
+
+Cypress.Commands.add('createCategoryItem', (groupName: string, itemName: string) => {
+  cy.getVisibleBudgetTable()
+    .find(`tr[data-cy="category-group-row"][data-category="${groupName}"]`)
+    .first()
+    .scrollIntoView()
+    .trigger('mouseover', { force: true });
+  cy.getVisibleBudgetTable()
+    .find(
+      `tr[data-cy="category-group-row"][data-category="${groupName}"] [data-cy="group-add-item-button"]`
+    )
+    .first()
+    .scrollIntoView()
+    .click({ force: true });
+
+  cy.get('[data-cy=add-item-input]')
+    .filter(':visible')
+    .first()
+    .clear()
+    .type(itemName);
+  cy.get('[data-cy=add-item-submit]')
+    .filter(':visible')
+    .first()
+    .click();
+});
+
+Cypress.Commands.add('createCategory', (groupName: string, itemName: string) => {
+  cy.createCategoryGroup(groupName);
+  cy.createCategoryItem(groupName, itemName);
+  cy.budgetRow(groupName, itemName).should('exist');
+});
+
+Cypress.Commands.add(
+  'setAssignedValue',
+  (groupName: string, itemName: string, value: number | string) => {
+    cy.budgetRow(groupName, itemName)
+      .scrollIntoView()
+      .within(() => {
+        cy.get('[data-cy="assigned-display"]')
+          .first()
+          .scrollIntoView()
+          .click({ force: true });
+        cy.get('[data-cy="assigned-input"]')
+          .clear()
+          .type(`${value}{enter}`);
+      });
+  }
+);
+
+const parseCurrency = (text: string) =>
+  Number(text.replace(/[^0-9.-]/g, ''));
+
+Cypress.Commands.add('getReadyToAssignValue', () =>
+  cy
+    .get('[data-cy=ready-to-assign]')
+    .filter(':visible')
+    .first()
+    .should(($el) => {
+      const value = parseCurrency($el.text());
+      expect(value, 'Ready to Assign should be a number').to.not.be.NaN;
+    })
+    .invoke('text')
+    .then((text) => parseCurrency(text))
+);
 
 Cypress.Commands.add('selectPayee', (payeeName: string) => {
   const input = cy.get('[data-cy=tx-payee-select]');

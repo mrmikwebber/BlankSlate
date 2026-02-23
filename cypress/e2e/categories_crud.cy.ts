@@ -3,41 +3,29 @@
 // Group 6: Categories & Groups CRUD
 
 describe('Categories and Groups CRUD', () => {
+  const rightClickGroupName = (categoryName: string) => {
+    const selector = `[data-cy="group-name"][data-category="${categoryName}"]`;
+    cy.budgetFind(selector).then(($el) => {
+      if ($el.length) {
+        cy.wrap($el).first().scrollIntoView().rightclick();
+      } else {
+        cy.get(selector).first().scrollIntoView().rightclick();
+      }
+    });
+  };
   beforeEach(() => {
     cy.login('thedasherx@gmail.com', '123456');
     cy.get('[data-cy="ready-to-assign"]', { timeout: 10000 }).should('exist');
   });
 
   it('Scenario 15 – Add new group + category', () => {
-    cy.get('[data-cy="add-category-group-button"]').click();
-    cy.get('[data-cy="add-category-group-input"]').type('Hobbies');
-    cy.get('[data-cy="add-category-group-submit"]').click();
+    cy.createCategoryGroup('Hobbies');
 
     // Expand group if collapsed
     cy.get('[data-cy="group-name"][data-category="Hobbies"]').should('exist');
 
     // Add category under Hobbies
-    // The add-item button is only visible on hover in the UI. Try to trigger hover
-    // and click the button when visible; fall back to a forced click if needed.
-    // Ensure we trigger hover on a single element — the selector can match multiple TDs
-    cy.get('[data-category="Hobbies"]')
-      .filter(':visible')
-      .first()
-      .trigger('mouseover');
-    // The selector may match multiple td/button elements. Prefer the first visible one.
-    cy.get('[data-category="Hobbies"] [data-cy="group-add-item-button"]')
-      .filter(':visible')
-      .first()
-      .then(($btn) => {
-        if ($btn.length) {
-          cy.wrap($btn).click();
-        } else {
-          // fallback: click the first matched element with force
-          cy.get('[data-category="Hobbies"] [data-cy="group-add-item-button"]').first().click({ force: true });
-        }
-      });
-    cy.get('[data-cy="add-item-input"]').type('Board Games');
-    cy.get('[data-cy="add-item-submit"]').click();
+    cy.createCategoryItem('Hobbies', 'Board Games');
 
     // Verify the new category exists
     cy.get('tr[data-cy="category-row"][data-item="Board Games"]').should('exist');
@@ -48,26 +36,27 @@ describe('Categories and Groups CRUD', () => {
     const original = 'RenameMe';
     const renamed = 'RenamedGroup';
 
-    cy.get('[data-cy="add-category-group-button"]').click();
-    cy.get('[data-cy="add-category-group-input"]').clear().type(original);
-    cy.get('[data-cy="add-category-group-submit"]').click();
+    cy.createCategoryGroup(original);
     cy.get('[data-cy="group-name"][data-category="' + original + '"]').should('exist');
 
     // Open the group's context menu (the app renders a portal with
     // data-cy="group-rename"). Then find the inline input that appears
     // in the group header (the input doesn't have a data-cy in the app).
-    cy.get(`[data-cy="group-name"][data-category="${original}"]`).then(($name) => {
-      cy.wrap($name).rightclick();
-    });
+    rightClickGroupName(original);
     cy.get('[data-cy="group-rename"]').first().click();
 
     // The inline input replaces the span with the group name. Locate the
     // input inside the group row and submit the new name.
-    cy.get(`tr[data-cy="category-group-row"][data-category="${original}"]`).first()
+    cy.budgetFind(`tr[data-cy="category-group-row"][data-category="${original}"]`)
+      .first()
       .find('input')
-      .should('exist')
-      .clear()
-      .type(renamed + '{enter}');
+      .then(($input) => {
+        if ($input.length) {
+          cy.wrap($input).clear().type(renamed + '{enter}');
+        } else {
+          cy.get('input').filter(':visible').first().clear().type(renamed + '{enter}');
+        }
+      });
 
     // Verify rename if it took effect
     cy.get(`[data-cy="group-name"][data-category="${renamed}"]`).should('exist');
@@ -79,22 +68,8 @@ describe('Categories and Groups CRUD', () => {
     const newItem = 'NewItem';
 
     // Ensure Hobbies group exists
-    cy.get('[data-cy="add-category-group-button"]').click();
-    cy.get('[data-cy="add-category-group-input"]').clear().type(group);
-    cy.get('[data-cy="add-category-group-submit"]').click();
-
-    // Add a category under Hobbies: hover the exact group row to reveal
-    // the add button, fall back to forced click if the hover doesn't reveal it.
-    cy.get(`tr[data-cy="category-group-row"][data-category="${group}"]`).first().trigger('mouseover');
-    cy.get(`tr[data-cy="category-group-row"][data-category="${group}"] [data-cy="group-add-item-button"]`)
-      .filter(':visible')
-      .first()
-      .then(($btn) => {
-        if ($btn.length) cy.wrap($btn).click();
-        else cy.get(`tr[data-cy="category-group-row"][data-category="${group}"] [data-cy="group-add-item-button"]`).first().click({ force: true });
-      });
-    cy.get('[data-cy="add-item-input"]').clear().type(originalItem);
-    cy.get('[data-cy="add-item-submit"]').click();
+    cy.createCategoryGroup(group);
+    cy.createCategoryItem(group, originalItem);
 
     // Attempt to rename the item via inline rename or a rename button
     const itemSelectors = [
@@ -131,20 +106,8 @@ describe('Categories and Groups CRUD', () => {
     const emptyItem = 'TempEmpty';
 
     // Ensure group exists and add empty item
-    cy.get('[data-cy="add-category-group-button"]').click();
-    cy.get('[data-cy="add-category-group-input"]').clear().type(group);
-    cy.get('[data-cy="add-category-group-submit"]').click();
-
-    cy.get(`tr[data-cy="category-group-row"][data-category="${group}"]`).first().trigger('mouseover');
-    cy.get(`tr[data-cy="category-group-row"][data-category="${group}"] [data-cy="group-add-item-button"]`)
-      .filter(':visible')
-      .first()
-      .then(($btn) => {
-        if ($btn.length) cy.wrap($btn).click();
-        else cy.get(`tr[data-cy="category-group-row"][data-category="${group}"] [data-cy="group-add-item-button"]`).first().click({ force: true });
-      });
-    cy.get('[data-cy="add-item-input"]').clear().type(emptyItem);
-    cy.get('[data-cy="add-item-submit"]').click();
+    cy.createCategoryGroup(group);
+    cy.createCategoryItem(group, emptyItem);
 
     // Attempt to delete the empty item
     cy.get(`tr[data-cy="category-row"][data-item="${emptyItem}"]`).then(($row) => {
@@ -154,7 +117,7 @@ describe('Categories and Groups CRUD', () => {
           cy.wrap(delBtn).first().click();
         } else {
           // try contextual menu on the row (app uses a portal button data-cy="category-delete")
-          cy.wrap($row).rightclick();
+          cy.budgetRightClick(`tr[data-cy="category-row"][data-item="${emptyItem}"]`);
           cy.get('[data-cy="category-delete"]').first().click({ force: true });
         }
 
@@ -181,28 +144,16 @@ describe('Categories and Groups CRUD', () => {
     // Ensure the group exists (tests should be independent — reset runs between tests)
     cy.get('body').then(($body) => {
       if (!$body.find(`tr[data-cy="category-group-row"][data-category="${group}"]`).length) {
-        cy.get('[data-cy="add-category-group-button"]').click();
-        cy.get('[data-cy="add-category-group-input"]').clear().type(group);
-        cy.get('[data-cy="add-category-group-submit"]').click();
+        cy.createCategoryGroup(group);
         cy.get(`tr[data-cy="category-group-row"][data-category="${group}"]`).should('exist');
       }
     });
 
     // Add item and assign funds (hover to reveal add button, fallback to force click)
-    cy.get(`tr[data-cy="category-group-row"][data-category="${group}"]`).first().trigger('mouseover');
-    cy.get(`tr[data-cy="category-group-row"][data-category="${group}"] [data-cy="group-add-item-button"]`)
-      .filter(':visible')
-      .first()
-      .then(($btn) => {
-        if ($btn.length) cy.wrap($btn).click();
-        else cy.get(`tr[data-cy="category-group-row"][data-category="${group}"] [data-cy="group-add-item-button"]`).first().click({ force: true });
-      });
-    cy.get('[data-cy="add-item-input"]').clear().type(fromItem);
-    cy.get('[data-cy="add-item-submit"]').click();
+    cy.createCategoryItem(group, fromItem);
 
     // Assign 100 to the item (inline assigned input)
-    cy.get(`span[data-cy="assigned-display"][data-item="${fromItem}"]`).click();
-    cy.get(`input[data-cy="assigned-input"][data-item="${fromItem}"]`).clear().type('100{enter}');
+    cy.setAssignedValue(group, fromItem, 100);
 
     // Now attempt to delete and choose reassignment to Rent
     cy.get(`tr[data-cy="category-row"][data-item="${fromItem}"]`).then(($row) => {
@@ -212,19 +163,32 @@ describe('Categories and Groups CRUD', () => {
           cy.wrap(delBtn).first().click();
         } else {
           // try contextual menu on the row (app uses a portal button data-cy="category-delete")
-          cy.wrap($row).rightclick();
+          cy.budgetRightClick(`tr[data-cy="category-row"][data-item="${fromItem}"]`);
           cy.get('[data-cy="category-delete"]').first().click({ force: true });
         }
 
         // If a reassignment dialog appears, select target and confirm
         cy.get('body').then(($b) => {
           if ($b.find('[data-cy="reassign-target-select"]').length) {
-            cy.get('[data-cy="reassign-target-select"]').select(targetItem);
-            cy.get('[data-cy="reassign-confirm"]').click();
+            cy.get('[data-cy="reassign-target-select"]')
+              .filter(':visible')
+              .first()
+              .as('reassignSelect');
+            cy.get('@reassignSelect').select(targetItem, { force: true });
+            cy.get('@reassignSelect').should('have.value', targetItem);
+            cy.get('[data-cy="reassign-confirm"]').filter(':visible').first().click();
+
+            cy.wait(500); // wait for UI to update
 
             // Confirm the item was removed and that Rent's assigned increased
             cy.get(`tr[data-cy="category-row"][data-item="${fromItem}"]`).should('not.exist');
-            cy.get(`span[data-cy="assigned-display"][data-item="${targetItem}"]`).should('contain', '100');
+            cy.budgetFind(`span[data-cy="assigned-display"][data-item="${targetItem}"]`)
+              .first()
+              .invoke('text')
+              .then((text) => {
+                const value = Number(text.replace(/[^0-9.-]/g, ''));
+                expect(value).to.eq(100);
+              });
           } else {
             cy.log('Reassign UI not detected; manual verification may be required');
           }
@@ -241,44 +205,24 @@ describe('Categories and Groups CRUD', () => {
     const member = 'MemberItem';
 
     // Create an empty group and delete it
-    cy.get('[data-cy="add-category-group-button"]').click();
-    cy.get('[data-cy="add-category-group-input"]').clear().type(emptyGroup);
-    cy.get('[data-cy="add-category-group-submit"]').click();
+    cy.createCategoryGroup(emptyGroup);
     cy.get(`[data-cy="group-name"][data-category="${emptyGroup}"]`).should('exist');
 
     // Delete empty group via context menu (app shows portal button data-cy="group-delete")
-    cy.get(`[data-cy="group-name"][data-category="${emptyGroup}"]`).then(($name) => {
-      cy.wrap($name).rightclick();
-    });
+    rightClickGroupName(emptyGroup);
     cy.get('[data-cy="group-delete"]').first().click();
 
     cy.get(`[data-cy="group-name"][data-category="${emptyGroup}"]`).should('not.exist');
 
     // Create non-empty group
-    cy.get('[data-cy="add-category-group-button"]').click();
-    cy.get('[data-cy="add-category-group-input"]').clear().type(nonEmptyGroup);
-    cy.get('[data-cy="add-category-group-submit"]').click();
-
-    cy.get(`tr[data-cy="category-group-row"][data-category="${nonEmptyGroup}"]`).first().trigger('mouseover');
-    cy.get(`[data-category="${nonEmptyGroup}"] [data-cy="group-add-item-button"]`).first().click({ force: true });
-    cy.get(`tr[data-cy="category-group-row"][data-category="${nonEmptyGroup}"] [data-cy="group-add-item-button"]`)
-      .filter(':visible')
-      .first()
-      .then(($btn) => {
-        if ($btn.length) cy.wrap($btn).click();
-        else cy.get(`tr[data-cy="category-group-row"][data-category="${nonEmptyGroup}"] [data-cy="group-add-item-button"]`).first().click({ force: true });
-      });
-
-    cy.get('[data-cy="add-item-input"]').clear().type(member);
-    cy.get('[data-cy="add-item-submit"]').click();
+    cy.createCategoryGroup(nonEmptyGroup);
+    cy.createCategoryItem(nonEmptyGroup, member);
 
     // Attempt to delete non-empty group. The app's context menu will show
     // either a delete action (for empty groups) or a message that the
     // group cannot be deleted when it's non-empty. Assert the expected
     // behavior and that the group remains when deletion is blocked.
-    cy.get(`[data-cy="group-name"][data-category="${nonEmptyGroup}"]`).then(($name) => {
-      cy.wrap($name).rightclick();
-    });
+    rightClickGroupName(nonEmptyGroup);
 
     cy.get('body').then(($b) => {
       if ($b.find('[data-cy="group-delete"]').length) {

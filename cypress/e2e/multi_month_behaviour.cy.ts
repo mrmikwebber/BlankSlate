@@ -31,34 +31,14 @@ const visitAccount = (id: string, expectedName: string) => {
   cy.get("[data-cy=account-name]").should("contain.text", expectedName);
 };
 
-const goToNextMonth = () => cy.get("[data-cy=month-next]").click();
-const goToPrevMonth = () => cy.get("[data-cy=month-prev]").click();
+const goToNextMonth = () => cy.get("[data-cy=month-next]").filter(':visible').first().click();
+const goToPrevMonth = () => cy.get("[data-cy=month-prev]").filter(':visible').first().click();
 const getCurrentMonthLabel = () => cy.get("[data-cy=month-label]").invoke("text");
 
 // Helper: create a category group + item in current month via Budget UI
+// Add-category-group-* live in the card header, not inside [data-cy=budget-table], so use cy.get not budgetFind
 const createCategoryInCurrentMonth = (groupName: string, itemName: string) => {
-  cy.get("[data-cy=add-category-group-button]").click();
-  cy.get("[data-cy=add-category-group-input]").type(groupName);
-  cy.get("[data-cy=add-category-group-submit]").click();
-
-  // Reveal the add-item button with hover; prefer first visible, fallback to forced click
-  cy.get(`tr[data-cy="category-group-row"][data-category="${groupName}"]`).first().trigger("mouseover");
-  cy.get(`[data-category="${groupName}"] [data-cy="group-add-item-button"]`)
-    .filter(":visible")
-    .first()
-    .then(($btn) => {
-      if ($btn.length) {
-        cy.wrap($btn).click();
-      } else {
-        cy.get(`[data-category="${groupName}"] [data-cy="group-add-item-button"]`).first().click({ force: true });
-      }
-    });
-  cy.get("[data-cy=add-item-input]").type(itemName);
-  cy.get("[data-cy=add-item-submit]").click();
-
-  cy.get(
-    `[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"]`
-  ).should("exist");
+  cy.createCategory(groupName, itemName);
 };
 
 describe("Multi-month behaviour – carryover, overspending, edits", () => {
@@ -80,17 +60,10 @@ describe("Multi-month behaviour – carryover, overspending, edits", () => {
     createCategoryInCurrentMonth(groupName, itemName);
 
     // Assign money in month N
-    cy.get(
-      `[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"]`
-    ).within(() => {
-      cy.get('[data-cy="assigned-display"]').click();
-      cy.get('[data-cy="assigned-input"]').clear().type(`${amount}{enter}`);
-    });
+    cy.setAssignedValue(groupName, itemName, amount);
 
     // Assert month N state
-    cy.get(
-      `[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"]`
-    ).within(() => {
+    cy.budgetRow(groupName, itemName).within(() => {
       cy.get("[data-cy=item-available]")
         .invoke("text")
         .then((txt) => expect(parseCurrency(txt)).to.eq(amount));
@@ -103,9 +76,7 @@ describe("Multi-month behaviour – carryover, overspending, edits", () => {
       cy.get("[data-cy=month-label]").should('not.contain.text', oldLabel);
     });
 
-    cy.get(
-      `[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"]`
-    )
+    cy.budgetRow(groupName, itemName)
       .should("exist")
       .within(() => {
         cy.get("[data-cy=item-available]")
@@ -137,9 +108,7 @@ describe("Multi-month behaviour – carryover, overspending, edits", () => {
 
     // Month N category shows negative available
     visitBudget();
-    cy.get(
-      `[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"]`
-    ).within(() => {
+    cy.budgetRow(groupName, itemName).within(() => {
       cy.get("[data-cy=item-available]")
         .invoke("text")
         .then((txt) => expect(parseCurrency(txt)).to.eq(-amount));
@@ -153,9 +122,7 @@ describe("Multi-month behaviour – carryover, overspending, edits", () => {
     });
 
     // Negative should not persist as starting available
-    cy.get(
-      `[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"]`
-    ).within(() => {
+    cy.budgetRow(groupName, itemName).within(() => {
       cy.get("[data-cy=item-available]")
         .invoke("text")
         .then((txt) => expect(parseCurrency(txt)).to.be.at.least(0));
@@ -189,7 +156,7 @@ describe("Multi-month behaviour – carryover, overspending, edits", () => {
     visitBudget();
     cy.get(
       `[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"]`
-    ).within(() => {
+    ).first().within(() => {
       cy.get("[data-cy=item-activity]")
         .invoke("text")
         .then((txt) => expect(parseCurrency(txt)).to.eq(-initialAmount));
@@ -204,7 +171,7 @@ describe("Multi-month behaviour – carryover, overspending, edits", () => {
     goToNextMonth();
     cy.get(
       `[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"]`
-    ).within(() => {
+    ).first().within(() => {
       cy.get("[data-cy=item-activity]")
         .invoke("text")
         .then((txt) => expect(parseCurrency(txt)).to.eq(0));
@@ -218,7 +185,7 @@ describe("Multi-month behaviour – carryover, overspending, edits", () => {
     goToPrevMonth();
     visitAccount(accounts.checking.id, accounts.checking.name);
     cy.get("[data-cy=transaction-row]").first().as("txRow");
-    cy.get("@txRow").rightclick();
+    cy.get("@txRow").first().scrollIntoView().rightclick();
     cy.get("[data-cy=context-edit-transaction]").click();
     cy.get("[data-cy=transaction-form-row-edit]").as("editForm");
     cy.get("@editForm")
@@ -231,7 +198,7 @@ describe("Multi-month behaviour – carryover, overspending, edits", () => {
     visitBudget();
     cy.get(
       `[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"]`
-    ).within(() => {
+    ).first().within(() => {
       cy.get("[data-cy=item-activity]")
         .invoke("text")
         .then((txt) => expect(parseCurrency(txt)).to.eq(-editedAmount));
@@ -245,7 +212,7 @@ describe("Multi-month behaviour – carryover, overspending, edits", () => {
     goToNextMonth();
     cy.get(
       `[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"]`
-    ).within(() => {
+    ).first().within(() => {
       cy.get("[data-cy=item-activity]")
         .invoke("text")
         .then((txt) => expect(parseCurrency(txt)).to.eq(0));
@@ -264,84 +231,47 @@ describe("Multi-month behaviour – carryover, overspending, edits", () => {
 
     const parseCurrency = (text: string): number =>
       Number(text.replace(/[^0-9.-]/g, ""));
+    const readAvailable = (itemName: string, alias: string) => {
+      cy.budgetRow(group, itemName)
+        .find("[data-cy=item-available]")
+        .first()
+        .should(($el) => {
+          const value = parseCurrency($el.text());
+          expect(value, "available should be numeric").to.not.be.NaN;
+        })
+        .invoke("text")
+        .then((txt) => {
+          cy.wrap(parseCurrency(txt)).as(alias);
+        });
+    };
 
-    // 1️⃣ Create a dedicated group + two items
-    cy.get('[data-cy="add-category-group-button"]').click();
-    cy.get('[data-cy="add-category-group-input"]').clear().type(group);
-    cy.get('[data-cy="add-category-group-submit"]').click();
+    // 1️⃣ Create a dedicated group + two items (add-category-group-* are in header, not inside budget-table)
+    cy.createCategoryGroup(group);
     cy.get(
       `tr[data-cy="category-group-row"][data-category="${group}"]`
     ).should("exist");
 
     const addItem = (name: string) => {
-      cy.get(
-        `tr[data-cy="category-group-row"][data-category="${group}"]`
-      )
-        .first()
-        .trigger("mouseover");
-
-      cy.get(
-        `tr[data-cy="category-group-row"][data-category="${group}"] [data-cy="group-add-item-button"]`
-      )
-        .filter(":visible")
-        .first()
-        .then(($btn) => {
-          if ($btn.length) {
-            cy.wrap($btn).click();
-          } else {
-            cy.get(
-              `tr[data-cy="category-group-row"][data-category="${group}"] [data-cy="group-add-item-button"]`
-            )
-              .first()
-              .click({ force: true });
-          }
-        });
-
-      cy.get("[data-cy=add-item-input]").clear().type(name);
-      cy.get("[data-cy=add-item-submit]").click();
-      cy.get(
-        `tr[data-cy="category-row"][data-category="${group}"][data-item="${name}"]`
-      ).should("exist");
+      cy.createCategoryItem(group, name);
+      cy.budgetRow(group, name).should('exist');
     };
 
     addItem(fromItem);
     addItem(targetItem);
 
     const setAssigned = (itemName: string, value: number) => {
-      cy.get(
-        `tr[data-cy="category-row"][data-item="${itemName}"] span[data-cy="assigned-display"]`
-      ).click();
-      cy.get(
-        `tr[data-cy="category-row"][data-item="${itemName}"] input[data-cy="assigned-input"]`
-      )
-        .clear()
-        .type(String(value) + "{enter}");
+      cy.setAssignedValue(group, itemName, value);
     };
 
     // helpers to snapshot per-month state
     const snapshotMonth = (idx: number) => {
       // snapshot available for fromItem + targetItem and RTA for this month
-      cy.get(
-        `tr[data-cy="category-row"][data-item="${fromItem}"] [data-cy="item-available"]`
-      )
-        .invoke("text")
-        .then((txt) => {
-          cy.wrap(parseCurrency(txt)).as(`m${idx}_from_avail`);
-        });
+      readAvailable(fromItem, `m${idx}_from_avail`);
+      readAvailable(targetItem, `m${idx}_target_avail`);
 
-      cy.get(
-        `tr[data-cy="category-row"][data-item="${targetItem}"] [data-cy="item-available"]`
-      )
-        .invoke("text")
-        .then((txt) => {
-          cy.wrap(parseCurrency(txt)).as(`m${idx}_target_avail`);
-        });
-
-      cy.get("[data-cy=ready-to-assign]")
-        .invoke("text")
-        .then((txt) => {
-          cy.wrap(parseCurrency(txt)).as(`m${idx}_rta`);
-        });
+      cy.getReadyToAssignValue().then((value) => {
+        cy.wrap(value).as(`m${idx}_rta`);
+      });
     };
 
     // Month 0: assign some amounts
@@ -350,13 +280,13 @@ describe("Multi-month behaviour – carryover, overspending, edits", () => {
     snapshotMonth(0);
 
     // Month 1
-    cy.get("[data-cy=month-next]").click();
+    cy.get("[data-cy=month-next]").filter(':visible').first().click();
     setAssigned(fromItem, 50);
     setAssigned(targetItem, 40);
     snapshotMonth(1);
 
     // Month 2
-    cy.get("[data-cy=month-next]").click();
+    cy.get("[data-cy=month-next]").filter(':visible').first().click();
     setAssigned(fromItem, 30);
     setAssigned(targetItem, 10);
     snapshotMonth(2);
@@ -369,7 +299,9 @@ describe("Multi-month behaviour – carryover, overspending, edits", () => {
           if (delBtn.length) {
             cy.wrap(delBtn).first().click();
           } else {
-            cy.wrap($row).rightclick();
+            cy.budgetRightClick(
+              `tr[data-cy="category-row"][data-item="${fromItem}"]`
+            );
             cy.get("[data-cy='category-delete']").first().click({ force: true });
           }
 
@@ -385,13 +317,9 @@ describe("Multi-month behaviour – carryover, overspending, edits", () => {
       }
     );
 
-    let rtaAfterDelete;
-
-    cy.get("[data-cy=ready-to-assign]")
-      .invoke("text")
-      .then((txt) => {
-        rtaAfterDelete = parseCurrency(txt);
-      });
+    cy.getReadyToAssignValue().then((value) => {
+      cy.wrap(value).as("rtaAfterDelete");
+    });
 
     // 3️⃣ Now walk back through months and assert:
     //   - fromItem no longer exists in ANY month
@@ -399,8 +327,8 @@ describe("Multi-month behaviour – carryover, overspending, edits", () => {
     //   - RTA unchanged per month
 
     // Go back to Month 0
-    cy.get("[data-cy=month-prev]").click();
-    cy.get("[data-cy=month-prev]").click();
+    cy.get("[data-cy=month-prev]").filter(':visible').first().click();
+    cy.get("[data-cy=month-prev]").filter(':visible').first().click();
 
     const assertMonth = (idx: number) => {
       // fromItem removed
@@ -409,9 +337,13 @@ describe("Multi-month behaviour – carryover, overspending, edits", () => {
       ).should("not.exist");
 
       // targetItem available = old target + old from
-      cy.get(
-        `tr[data-cy="category-row"][data-item="${targetItem}"] [data-cy="item-available"]`
-      )
+      cy.budgetRow(group, targetItem)
+        .find("[data-cy=item-available]")
+        .first()
+        .should(($el) => {
+          const value = parseCurrency($el.text());
+          expect(value, "available should be numeric").to.not.be.NaN;
+        })
         .invoke("text")
         .then((txt) => {
           const availAfter = parseCurrency(txt);
@@ -426,23 +358,22 @@ describe("Multi-month behaviour – carryover, overspending, edits", () => {
         });
 
       // RTA unchanged in that month
-      cy.get("[data-cy=ready-to-assign]")
-        .invoke("text")
-        .then((txt) => {
-          const rtaAfter = parseCurrency(txt);
+      cy.getReadyToAssignValue().then((rtaAfter) => {
+        cy.get<number>("@rtaAfterDelete").then((rtaAfterDelete) => {
           expect(rtaAfter, `Month ${idx} RTA should be unchanged by category reassignment`).to.eq(rtaAfterDelete);
         });
+      });
     };
 
     // Month 0
     assertMonth(0);
 
     // Month 1
-    cy.get("[data-cy=month-next]").click();
+    cy.get("[data-cy=month-next]").filter(':visible').first().click();
     assertMonth(1);
 
     // Month 2
-    cy.get("[data-cy=month-next]").click();
+    cy.get("[data-cy=month-next]").filter(':visible').first().click();
     assertMonth(2);
   });
 
@@ -452,18 +383,11 @@ describe("Multi-month behaviour – carryover, overspending, edits", () => {
     const itemName = "Stress Cat";
 
     const assignInCurrentMonth = (value: number) => {
-      cy.get(
-        `[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"]`
-      ).within(() => {
-        cy.get('[data-cy="assigned-display"]').click();
-        cy.get('[data-cy="assigned-input"]').clear().type(`${value}{enter}`);
-      });
+      cy.setAssignedValue(groupName, itemName, value);
     };
 
     const assertAvailableEquals = (expected: number) => {
-      cy.get(
-        `[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"]`
-      ).within(() => {
+      cy.budgetRow(groupName, itemName).within(() => {
         cy.get("[data-cy=item-available]")
           .invoke("text")
           .then((txt) => expect(parseCurrency(txt)).to.eq(expected));
@@ -525,20 +449,27 @@ describe("Multi-month behaviour – carryover, overspending, edits", () => {
     const oldItem = "Old Cat";
     const newItem = "New Cat";
     const amount = 40;
-    const readySelector = "[data-cy=ready-to-assign]";
-
     const rowSelectorOld = (g: string, i: string) =>
       `tr[data-cy="category-row"][data-category="${g}"][data-item="${i}"]`;
     const rowSelectorNew = rowSelectorOld;
+    const parseCurrencySafe = (text: string) => {
+      const value = parseCurrency(text);
+      return Number.isNaN(value) ? 0 : value;
+    };
 
     const snapshotMonth = (key: string) => {
       // key: e.g. "m1_before", "m2_after"
+      cy.get("[data-cy=month-label]")
+        .invoke("text")
+        .then((label) => {
+          cy.log(`Snapshot ${key} (month: ${label.trim()})`);
+        });
       cy.get(
         `${rowSelectorOld(groupName, oldItem)} [data-cy="item-available"]`
       )
         .invoke("text")
         .then((txt) => {
-          cy.wrap(parseCurrency(txt)).as(`${key}_oldAvail`);
+          cy.wrap(parseCurrencySafe(txt)).as(`${key}_oldAvail`);
         });
 
       cy.get(
@@ -546,76 +477,20 @@ describe("Multi-month behaviour – carryover, overspending, edits", () => {
       )
         .invoke("text")
         .then((txt) => {
-          cy.wrap(parseCurrency(txt)).as(`${key}_newAvail`);
+          cy.wrap(parseCurrencySafe(txt)).as(`${key}_newAvail`);
         });
 
-      cy.get(readySelector)
-        .invoke("text")
-        .then((txt) => {
-          cy.wrap(parseCurrency(txt)).as(`${key}_rta`);
-        });
+      cy.getReadyToAssignValue().then((value) => {
+        cy.wrap(value).as(`${key}_rta`);
+      });
     };
 
     // 1️⃣ Month 1 – create categories + spend in Old Cat
     visitBudget();
 
-    cy.get("[data-cy=add-category-group-button]").click();
-    cy.get("[data-cy=add-category-group-input]").clear().type(groupName);
-    cy.get("[data-cy=add-category-group-submit]").click();
-
-    // Add Old Cat
-    cy.get(
-      `tr[data-cy="category-group-row"][data-category="${groupName}"]`
-    )
-      .first()
-      .trigger("mouseover");
-
-    cy.get(
-      `tr[data-cy="category-group-row"][data-category="${groupName}"] [data-cy="group-add-item-button"]`
-    )
-      .filter(":visible")
-      .first()
-      .then(($btn) => {
-        if ($btn.length) {
-          cy.wrap($btn).click();
-        } else {
-          cy.get(
-            `tr[data-cy="category-group-row"][data-category="${groupName}"] [data-cy="group-add-item-button"]`
-          )
-            .first()
-            .click({ force: true });
-        }
-      });
-
-    cy.get("[data-cy=add-item-input]").type(oldItem);
-    cy.get("[data-cy=add-item-submit]").click();
-
-    // Add New Cat
-    cy.get(
-      `tr[data-cy="category-group-row"][data-category="${groupName}"]`
-    )
-      .first()
-      .trigger("mouseover");
-
-    cy.get(
-      `tr[data-cy="category-group-row"][data-category="${groupName}"] [data-cy="group-add-item-button"]`
-    )
-      .filter(":visible")
-      .first()
-      .then(($btn) => {
-        if ($btn.length) {
-          cy.wrap($btn).click();
-        } else {
-          cy.get(
-            `tr[data-cy="category-group-row"][data-category="${groupName}"] [data-cy="group-add-item-button"]`
-          )
-            .first()
-            .click({ force: true });
-        }
-      });
-
-    cy.get("[data-cy=add-item-input]").type(newItem);
-    cy.get("[data-cy=add-item-submit]").click();
+    cy.createCategoryGroup(groupName);
+    cy.createCategoryItem(groupName, oldItem);
+    cy.createCategoryItem(groupName, newItem);
 
     // Create a Month 1 transaction in Old Cat
     visitAccount(accounts.checking.id, accounts.checking.name);
@@ -633,23 +508,31 @@ describe("Multi-month behaviour – carryover, overspending, edits", () => {
     // 2️⃣ Snapshot BEFORE – Months 1, 2, 3
     visitBudget();
     snapshotMonth("m1_before");
+    getCurrentMonthLabel().as("dh_m1_label");
 
     // Month 2
-    cy.get("[data-cy=month-next]").click();
+    cy.get("@dh_m1_label").then((oldLabel: any) => {
+      goToNextMonth();
+      cy.get("[data-cy=month-label]").should("not.contain.text", oldLabel);
+    });
     snapshotMonth("m2_before");
+    getCurrentMonthLabel().as("dh_m2_label");
 
     // Month 3
-    cy.get("[data-cy=month-next]").click();
+    cy.get("@dh_m2_label").then((oldLabel: any) => {
+      goToNextMonth();
+      cy.get("[data-cy=month-label]").should("not.contain.text", oldLabel);
+    });
     snapshotMonth("m3_before");
 
     // 3️⃣ Go back to Month 1 and change the transaction from Old Cat → New Cat
-    cy.get("[data-cy=month-prev]").click(); // back to Month 2
-    cy.get("[data-cy=month-prev]").click(); // back to Month 1
+    cy.get("[data-cy=month-prev]").filter(':visible').first().click(); // back to Month 2
+    cy.get("[data-cy=month-prev]").filter(':visible').first().click(); // back to Month 1
 
     visitAccount(accounts.checking.id, accounts.checking.name);
 
     cy.get("[data-cy=transaction-row]").first().as("txRow");
-    cy.get("@txRow").rightclick();
+    cy.get("@txRow").first().scrollIntoView().rightclick();
     cy.get("[data-cy=context-edit-transaction]").click();
     cy.get("[data-cy=transaction-form-row-edit]").as("editForm");
 
@@ -660,16 +543,22 @@ describe("Multi-month behaviour – carryover, overspending, edits", () => {
     // 4️⃣ Snapshot AFTER – Months 1, 2, 3
     visitBudget();
     snapshotMonth("m1_after");
+    getCurrentMonthLabel().as("dh_m1_after_label");
 
-    cy.get("[data-cy=month-next]").click();
+    cy.get("@dh_m1_after_label").then((oldLabel: any) => {
+      goToNextMonth();
+      cy.get("[data-cy=month-label]").should("not.contain.text", oldLabel);
+    });
     snapshotMonth("m2_after");
+    getCurrentMonthLabel().as("dh_m2_after_label");
 
-    cy.get("[data-cy=month-next]").click();
+    cy.get("@dh_m2_after_label").then((oldLabel: any) => {
+      goToNextMonth();
+      cy.get("[data-cy=month-label]").should("not.contain.text", oldLabel);
+    });
     snapshotMonth("m3_after");
 
-    const months = ["m1", "m2", "m3"];
-
-    months.forEach((m, index) => {
+    cy.wrap(["m1", "m2", "m3"]).each((m, index) => {
       // Only month 1 should actually see the +/- amount at the category level.
       // Months 2 and 3 keep category available at 0; the impact is in RTA only.
       const delta = index === 0 ? amount : 0;

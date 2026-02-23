@@ -93,15 +93,13 @@ describe("Transaction editing / mutation", () => {
     // Snapshot RTA & category states in budget
     visitBudget();
 
-    cy.get("[data-cy=ready-to-assign]")
-      .invoke("text")
-      .then((initialRTAText) => {
-        const initialRTA = parseCurrency(initialRTAText);
+    cy.getReadyToAssignValue().then((initialRTA) => {
 
         // Confirm initial category impact
         cy.get(
           `[data-cy="category-row"][data-category="${groupA}"][data-item="${itemA}"]`
         )
+          .first()
           .as("rowA")
           .within(() => {
             cy.get("[data-cy=item-activity]")
@@ -120,29 +118,11 @@ describe("Transaction editing / mutation", () => {
           });
 
         // Create Group B / Cat B in budget so it's a valid target (normalized selectors)
-        cy.get("[data-cy=add-category-group-button]").click();
-        cy.get("[data-cy=add-category-group-input]").type(groupB);
-        cy.get("[data-cy=add-category-group-submit]").click();
-
-        // Reveal add-item via hover; click first visible, fallback to forced click
-        cy.get(`tr[data-cy="category-group-row"][data-category="${groupB}"]`).first().trigger("mouseover");
-        cy.get(`[data-category="${groupB}"] [data-cy="group-add-item-button"]`)
-          .filter(":visible")
-          .first()
-          .then(($btn) => {
-            if ($btn.length) {
-              cy.wrap($btn).click();
-            } else {
-              cy.get(`[data-category="${groupB}"] [data-cy="group-add-item-button"]`).first().click({ force: true });
-            }
-          });
-
-        cy.get("[data-cy=add-item-input]").type(itemB);
-        cy.get("[data-cy=add-item-submit]").click();
+        cy.createCategory(groupB, itemB);
 
         cy.get(
           `[data-cy="category-row"][data-category="${groupB}"][data-item="${itemB}"]`
-        ).as("rowB");
+        ).first().as("rowB");
 
         // Now go back to Checking and edit the transaction's category
         visitAccount(accounts.checking.id, accounts.checking.name);
@@ -153,7 +133,7 @@ describe("Transaction editing / mutation", () => {
           .as("txId");
 
   // Open edit mode via context menu
-  cy.get("@createdTxRow").rightclick();
+  cy.get("@createdTxRow").first().scrollIntoView().rightclick();
   cy.get('[data-cy=context-edit-transaction]').click();
   cy.get('[data-cy=transaction-form-row-edit]').as('editForm');
 
@@ -169,7 +149,7 @@ describe("Transaction editing / mutation", () => {
         // Back to budget: Old category should be reset, new category carries activity
         visitBudget();
 
-        cy.get("@rowA").within(() => {
+        cy.get("@rowA").first().within(() => {
           cy.get("[data-cy=item-activity]")
             .invoke("text")
             .then((txt) => {
@@ -185,7 +165,7 @@ describe("Transaction editing / mutation", () => {
             });
         });
 
-        cy.get("@rowB").within(() => {
+        cy.get("@rowB").first().within(() => {
           cy.get("[data-cy=item-activity]")
             .invoke("text")
             .then((txt) => {
@@ -202,12 +182,9 @@ describe("Transaction editing / mutation", () => {
         });
 
         // RTA should be unchanged by moving money between categories
-        cy.get("[data-cy=ready-to-assign]")
-          .invoke("text")
-          .then((finalRTAText) => {
-            const finalRTA = parseCurrency(finalRTAText);
-            expect(finalRTA).to.eq(initialRTA);
-          });
+        cy.getReadyToAssignValue().then((finalRTA) => {
+          expect(finalRTA).to.eq(initialRTA);
+        });
       });
   });
 
@@ -242,6 +219,7 @@ describe("Transaction editing / mutation", () => {
     cy.get(
       `[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"]`
     )
+      .first()
       .as("row")
       .within(() => {
         cy.get("[data-cy=item-activity]")
@@ -264,7 +242,7 @@ describe("Transaction editing / mutation", () => {
 
     cy.get("[data-cy=transaction-row]").first().as("txRow");
 
-  cy.get("@txRow").rightclick();
+  cy.get("@txRow").first().scrollIntoView().rightclick();
   cy.get('[data-cy=context-edit-transaction]').click();
   cy.get('[data-cy=transaction-form-row-edit]').as('editForm');
 
@@ -288,7 +266,7 @@ describe("Transaction editing / mutation", () => {
     // Budget category should reflect edited amount
     visitBudget();
 
-    cy.get("@row").within(() => {
+    cy.get("@row").first().within(() => {
       cy.get("[data-cy=item-activity]")
         .invoke("text")
         .then((txt) => {
@@ -325,6 +303,7 @@ describe("Transaction editing / mutation", () => {
     cy.get(
       `[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"]`
     )
+      .first()
       .as("row")
       .within(() => {
         cy.get("[data-cy=item-activity]")
@@ -347,7 +326,7 @@ describe("Transaction editing / mutation", () => {
 
     cy.get("[data-cy=transaction-row]").first().as("txRow");
 
-  cy.get("@txRow").rightclick();
+  cy.get("@txRow").first().scrollIntoView().rightclick();
   cy.get('[data-cy=context-edit-transaction]').click();
   cy.get('[data-cy=transaction-form-row-edit]').as('editForm');
 
@@ -365,7 +344,7 @@ describe("Transaction editing / mutation", () => {
     // Budget: category should be cleared of activity/available
     visitBudget();
 
-    cy.get("@row").within(() => {
+    cy.get("@row").first().within(() => {
       cy.get("[data-cy=item-activity]")
         .invoke("text")
         .then((txt) => {
@@ -429,7 +408,7 @@ describe("Transaction editing / mutation", () => {
     cy.get("[data-cy=transaction-row]").first().as("transferRow");
 
     // Edit payee to Amex (convert to CC payment)
-  cy.get("@transferRow").rightclick();
+  cy.get("@transferRow").first().scrollIntoView().rightclick();
   cy.get('[data-cy=context-edit-transaction]').click();
   cy.get('[data-cy=transaction-form-row-edit]').as('editForm');
     cy.get("@editForm")
@@ -445,6 +424,7 @@ describe("Transaction editing / mutation", () => {
     cy.get(
       `[data-cy="category-row"][data-category="Credit Card Payments"][data-item="${accounts.amex.name}"]`
     )
+      .first()
       .as("amexPaymentRow")
       .within(() => {
         cy.get("[data-cy=item-available]")
@@ -501,6 +481,7 @@ describe("Transaction editing / mutation", () => {
     cy.get(
       `[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"]`
     )
+      .first()
       .as("row")
       .within(() => {
         cy.get("[data-cy=item-activity]")
@@ -530,7 +511,7 @@ describe("Transaction editing / mutation", () => {
     // Edit transaction: flip sign to +amount (refund)
     cy.get("[data-cy=transaction-row]").first().as("txRow");
 
-    cy.get("@txRow").rightclick();
+    cy.get("@txRow").first().scrollIntoView().rightclick();
     cy.get('[data-cy=context-edit-transaction]').click();
     cy.get('[data-cy=transaction-form-row-edit]').as('editForm');
 
@@ -551,7 +532,7 @@ describe("Transaction editing / mutation", () => {
 
     // Budget category: activity & available should now be +amount
     visitBudget();
-    cy.get("@row").within(() => {
+    cy.get("@row").first().within(() => {
       cy.get("[data-cy=item-activity]")
         .invoke("text")
         .then((txt) => {
@@ -574,68 +555,12 @@ describe("Transaction editing / mutation", () => {
   const itemB = "Category B";
   const amount = 40;
 
-  const readySelector = "[data-cy=ready-to-assign]";
-
   // 1️⃣ Ensure group + Category A & B exist
   visitBudget();
 
-  cy.get("[data-cy=add-category-group-button]").click();
-  cy.get("[data-cy=add-category-group-input]").clear().type(groupName);
-  cy.get("[data-cy=add-category-group-submit]").click();
-
-  // Add Category A
-  cy.get(
-    `tr[data-cy="category-group-row"][data-category="${groupName}"]`
-  )
-    .first()
-    .trigger("mouseover");
-
-  cy.get(
-    `tr[data-cy="category-group-row"][data-category="${groupName}"] [data-cy="group-add-item-button"]`
-  )
-    .filter(":visible")
-    .first()
-    .then(($btn) => {
-      if ($btn.length) {
-        cy.wrap($btn).click();
-      } else {
-        cy.get(
-          `tr[data-cy="category-group-row"][data-category="${groupName}"] [data-cy="group-add-item-button"]`
-        )
-          .first()
-          .click({ force: true });
-      }
-    });
-
-  cy.get("[data-cy=add-item-input]").type(itemA);
-  cy.get("[data-cy=add-item-submit]").click();
-
-  // Add Category B
-  cy.get(
-    `tr[data-cy="category-group-row"][data-category="${groupName}"]`
-  )
-    .first()
-    .trigger("mouseover");
-
-  cy.get(
-    `tr[data-cy="category-group-row"][data-category="${groupName}"] [data-cy="group-add-item-button"]`
-  )
-    .filter(":visible")
-    .first()
-    .then(($btn) => {
-      if ($btn.length) {
-        cy.wrap($btn).click();
-      } else {
-        cy.get(
-          `tr[data-cy="category-group-row"][data-category="${groupName}"] [data-cy="group-add-item-button"]`
-        )
-          .first()
-          .click({ force: true });
-      }
-    });
-
-  cy.get("[data-cy=add-item-input]").type(itemB);
-  cy.get("[data-cy=add-item-submit]").click();
+  cy.createCategoryGroup(groupName);
+  cy.createCategoryItem(groupName, itemA);
+  cy.createCategoryItem(groupName, itemB);
 
   // 2️⃣ Create a checking transaction in Category A
   visitAccount(accounts.checking.id, accounts.checking.name);
@@ -656,6 +581,7 @@ describe("Transaction editing / mutation", () => {
   cy.get(
     `[data-cy="category-row"][data-category="${groupName}"][data-item="${itemA}"]`
   )
+    .first()
     .as("rowA")
     .within(() => {
       cy.get("[data-cy=item-activity]")
@@ -674,6 +600,7 @@ describe("Transaction editing / mutation", () => {
   cy.get(
     `[data-cy="category-row"][data-category="${groupName}"][data-item="${itemB}"]`
   )
+    .first()
     .as("rowB")
     .within(() => {
       cy.get("[data-cy=item-activity]")
@@ -689,17 +616,15 @@ describe("Transaction editing / mutation", () => {
         );
     });
 
-  cy.get(readySelector)
-    .invoke("text")
-    .then((txt) =>
-      cy.wrap(parseCurrency(txt)).as("rtaBefore")
-    );
+  cy.getReadyToAssignValue().then((value) =>
+    cy.wrap(value).as("rtaBefore")
+  );
 
   // 4️⃣ Edit the transaction: move from Category A → Category B
   visitAccount(accounts.checking.id, accounts.checking.name);
 
   cy.get("[data-cy=transaction-row]").first().as("txRow");
-  cy.get("@txRow").rightclick();
+  cy.get("@txRow").first().scrollIntoView().rightclick();
   cy.get("[data-cy=context-edit-transaction]").click();
   cy.get("[data-cy=transaction-form-row-edit]").as("editForm");
 
@@ -710,7 +635,7 @@ describe("Transaction editing / mutation", () => {
   // 5️⃣ Snapshot budget state AFTER category change
   visitBudget();
 
-  cy.get("@rowA").within(() => {
+  cy.get("@rowA").first().within(() => {
     cy.get("[data-cy=item-activity]")
       .invoke("text")
       .then((txt) =>
@@ -724,7 +649,7 @@ describe("Transaction editing / mutation", () => {
       );
   });
 
-  cy.get("@rowB").within(() => {
+  cy.get("@rowB").first().within(() => {
     cy.get("[data-cy=item-activity]")
       .invoke("text")
       .then((txt) =>
@@ -738,11 +663,9 @@ describe("Transaction editing / mutation", () => {
       );
   });
 
-  cy.get(readySelector)
-    .invoke("text")
-    .then((txt) =>
-      cy.wrap(parseCurrency(txt)).as("rtaAfter")
-    );
+  cy.getReadyToAssignValue().then((value) =>
+    cy.wrap(value).as("rtaAfter")
+  );
 
   // 6️⃣ Assertions – activity/available moved, RTA stable
   cy.get<number>("@aActivityBefore").then((aActBefore) => {

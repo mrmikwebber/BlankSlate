@@ -371,6 +371,12 @@ export default function BudgetTable() {
   }, []);
 
   const handleInputChange = useCallback((categoryName, itemName, value) => {
+    console.log("[AssignedInput] handleInputChange", {
+      categoryName,
+      itemName,
+      value,
+      month: currentMonth,
+    });
     // Capture previous state for undo
     const previousState = budgetData[currentMonth];
     const oldItem = previousState?.categories

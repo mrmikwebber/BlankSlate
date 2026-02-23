@@ -4,6 +4,23 @@ import { BUDGET_URL } from "../support/testConstants";
 
 const parseCurrency = (text: string) => Number(text.replace(/[^0-9.-]/g, ""));
 
+const getVisibleBudgetTable = () => cy.getVisibleBudgetTable();
+
+const clickAssignedDisplay = (groupName: string, itemName: string) =>
+  getVisibleBudgetTable()
+    .find(
+      `[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"] [data-cy=assigned-display]`
+    )
+    .first()
+    .click();
+
+const getAssignedInput = (groupName: string, itemName: string) =>
+  getVisibleBudgetTable()
+    .find(
+      `[data-cy=assigned-input][data-category="${groupName}"][data-item="${itemName}"]`
+    )
+    .first();
+
 const visitBudget = () => {
   cy.visit(BUDGET_URL);
   cy.get("[data-cy=budget-table]").should("exist");
@@ -17,26 +34,9 @@ describe("Budget base logic", () => {
 
   // Helper: create a fresh category with zero activity/assigned for clean math
   const createFreshCategory = (groupName: string, itemName: string) => {
-    cy.get("[data-cy=add-category-group-button]").click();
-    cy.get("[data-cy=add-category-group-input]").type(groupName);
-    cy.get("[data-cy=add-category-group-submit]").click();
+    cy.createCategory(groupName, itemName);
 
-    // Reveal the add-item button with hover; prefer the first visible button, fallback to forced click
-    cy.get(`tr[data-cy="category-group-row"][data-category="${groupName}"]`).first().trigger("mouseover");
-    cy.get(`[data-category="${groupName}"] [data-cy="group-add-item-button"]`)
-      .filter(":visible")
-      .first()
-      .then(($btn) => {
-        if ($btn.length) {
-          cy.wrap($btn).click();
-        } else {
-          cy.get(`[data-category="${groupName}"] [data-cy="group-add-item-button"]`).first().click({ force: true });
-        }
-      });
-    cy.get("[data-cy=add-item-input]").type(itemName);
-    cy.get("[data-cy=add-item-submit]").click();
-
-    cy.get(`[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"]`)
+    cy.budgetRow(groupName, itemName)
       .should("exist")
       .within(() => {
         cy.get("[data-cy=assigned-display]").should("contain.text", "$0");
@@ -52,17 +52,18 @@ describe("Budget base logic", () => {
 
     createFreshCategory(groupName, itemName);
 
-    cy.get("[data-cy=ready-to-assign]")
-      .invoke("text")
-      .then((rtaText) => {
-        const initialRTA = parseCurrency(rtaText);
+    cy.getReadyToAssignValue().then((initialRTA) => {
 
-        cy.get(`[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"] [data-cy=assigned-display]`).click();
-        cy.get(`[data-cy=assigned-input][data-category="${groupName}"][data-item="${itemName}"]`)
+        clickAssignedDisplay(groupName, itemName);
+        getAssignedInput(groupName, itemName)
           .clear()
           .type(String(amount) + "{enter}");
 
-        cy.get(`[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"]`).within(() => {
+        cy.budgetFind(
+          `[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"]`
+        )
+          .first()
+          .within(() => {
           cy.get("[data-cy=assigned-display]")
             .invoke("text")
             .then((txt) => {
@@ -77,12 +78,9 @@ describe("Budget base logic", () => {
             });
         });
 
-        cy.get("[data-cy=ready-to-assign]")
-          .invoke("text")
-          .then((finalRtaText) => {
-            const finalRTA = parseCurrency(finalRtaText);
-            expect(finalRTA).to.eq(initialRTA - amount);
-          });
+        cy.getReadyToAssignValue().then((finalRTA) => {
+          expect(finalRTA).to.eq(initialRTA - amount);
+        });
       });
   });
 
@@ -94,22 +92,23 @@ describe("Budget base logic", () => {
 
     createFreshCategory(groupName, itemName);
 
-    cy.get(`[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"] [data-cy=assigned-display]`).click();
-    cy.get(`[data-cy=assigned-input][data-category="${groupName}"][data-item="${itemName}"]`)
+    clickAssignedDisplay(groupName, itemName);
+    getAssignedInput(groupName, itemName)
       .clear()
       .type(String(initialAssign) + "{enter}");
 
-    cy.get("[data-cy=ready-to-assign]")
-      .invoke("text")
-      .then((midRtaText) => {
-        const midRTA = parseCurrency(midRtaText);
+    cy.getReadyToAssignValue().then((midRTA) => {
 
-        cy.get(`[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"] [data-cy=assigned-display]`).click();
-        cy.get(`[data-cy=assigned-input][data-category="${groupName}"][data-item="${itemName}"]`)
+        clickAssignedDisplay(groupName, itemName);
+        getAssignedInput(groupName, itemName)
           .clear()
           .type(String(reduceTo) + "{enter}");
 
-        cy.get(`[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"]`).within(() => {
+        cy.budgetFind(
+          `[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"]`
+        )
+          .first()
+          .within(() => {
           cy.get("[data-cy=assigned-display]")
             .invoke("text")
             .then((txt) => {
@@ -125,12 +124,9 @@ describe("Budget base logic", () => {
         });
 
         const delta = initialAssign - reduceTo;
-        cy.get("[data-cy=ready-to-assign]")
-          .invoke("text")
-          .then((finalRtaText) => {
-            const finalRTA = parseCurrency(finalRtaText);
-            expect(finalRTA).to.eq(midRTA + delta);
-          });
+        cy.getReadyToAssignValue().then((finalRTA) => {
+          expect(finalRTA).to.eq(midRTA + delta);
+        });
       });
   });
 
@@ -139,22 +135,28 @@ describe("Budget base logic", () => {
     const itemName = "Test Category C";
     createFreshCategory(groupName, itemName);
 
-    cy.get(`[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"] [data-cy=assigned-display]`).click();
-    cy.get(`[data-cy=assigned-input][data-category="${groupName}"][data-item="${itemName}"]`)
+    clickAssignedDisplay(groupName, itemName);
+    getAssignedInput(groupName, itemName)
       .clear()
       .type("10+5-3{enter}");
-    cy.get(`[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"] [data-cy=assigned-display]`)
+    cy.budgetFind(
+      `[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"] [data-cy=assigned-display]`
+    )
+      .first()
       .invoke("text")
       .then((txt) => {
         const assigned = parseCurrency(txt);
         expect(assigned).to.eq(12);
       });
 
-    cy.get(`[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"] [data-cy=assigned-display]`).click();
-    cy.get(`[data-cy=assigned-input][data-category="${groupName}"][data-item="${itemName}"]`)
+    clickAssignedDisplay(groupName, itemName);
+    getAssignedInput(groupName, itemName)
       .clear()
       .type("not a number{enter}");
-    cy.get(`[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"] [data-cy=assigned-display]`)
+    cy.budgetFind(
+      `[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"] [data-cy=assigned-display]`
+    )
+      .first()
       .invoke("text")
       .then((txt) => {
         const assigned = parseCurrency(txt);
@@ -170,52 +172,46 @@ describe("Budget base logic", () => {
     createFreshCategory(groupA, catA);
     createFreshCategory(groupB, catB);
 
-    cy.get(`[data-cy="category-row"][data-category="${groupA}"][data-item="${catA}"] [data-cy=assigned-display]`).click();
-    cy.get(`[data-cy=assigned-input][data-category="${groupA}"][data-item="${catA}"]`)
+    clickAssignedDisplay(groupA, catA);
+    getAssignedInput(groupA, catA)
       .clear()
       .type("100{enter}");
-    cy.get(`[data-cy="category-row"][data-category="${groupB}"][data-item="${catB}"] [data-cy=assigned-display]`).click();
-    cy.get(`[data-cy=assigned-input][data-category="${groupB}"][data-item="${catB}"]`)
+    clickAssignedDisplay(groupB, catB);
+    getAssignedInput(groupB, catB)
       .clear()
       .type("50{enter}");
 
-    cy.get("[data-cy=ready-to-assign]")
-      .invoke("text")
-      .then((rtaText) => {
-        const initialRTA = parseCurrency(rtaText);
+    cy.getReadyToAssignValue().then((initialRTA) => {
         let sumAssigned = 0;
-        cy.get("[data-cy=category-row]").each(($row) => {
+        cy.budgetFind("[data-cy=category-row]").each(($row) => {
           const assignedText = $row.find("[data-cy=assigned-display]").text();
           sumAssigned += parseCurrency(assignedText);
         });
         const totalInitial = initialRTA + sumAssigned;
 
-        cy.get(`[data-cy="category-row"][data-category="${groupA}"][data-item="${catA}"] [data-cy=assigned-display]`).click();
-        cy.get(`[data-cy=assigned-input][data-category="${groupA}"][data-item="${catA}"]`)
+        clickAssignedDisplay(groupA, catA);
+        getAssignedInput(groupA, catA)
           .clear()
           .type("70{enter}");
         
           cy.wait(500);
 
-        cy.get(`[data-cy="category-row"][data-category="${groupB}"][data-item="${catB}"] [data-cy=assigned-display]`).click();
-        cy.get(`[data-cy=assigned-input][data-category="${groupB}"][data-item="${catB}"]`)
+        clickAssignedDisplay(groupB, catB);
+        getAssignedInput(groupB, catB)
           .clear()
           .type("80{enter}");
 
 cy.wait(500);
 
-        cy.get("[data-cy=ready-to-assign]")
-          .invoke("text")
-          .then((finalRtaText) => {
-            const finalRTA = parseCurrency(finalRtaText);
-            let finalSumAssigned = 0;
-            cy.get("[data-cy=category-row]").each(($row) => {
-              const assignedText = $row.find("[data-cy=assigned-display]").text();
-              finalSumAssigned += parseCurrency(assignedText);
-            });
-            const totalFinal = finalRTA + finalSumAssigned;
-            expect(totalFinal).to.eq(totalInitial);
+        cy.getReadyToAssignValue().then((finalRTA) => {
+          let finalSumAssigned = 0;
+          cy.budgetFind("[data-cy=category-row]").each(($row) => {
+            const assignedText = $row.find("[data-cy=assigned-display]").text();
+            finalSumAssigned += parseCurrency(assignedText);
           });
+          const totalFinal = finalRTA + finalSumAssigned;
+          expect(totalFinal).to.eq(totalInitial);
+        });
       });
   });
 
@@ -226,24 +222,29 @@ cy.wait(500);
     createFreshCategory(groupName, catSource);
     createFreshCategory(groupName, catTarget);
 
-    cy.get(`[data-cy="category-row"][data-category="${groupName}"][data-item="${catSource}"] [data-cy=assigned-display]`).click();
-    cy.get(`[data-cy=assigned-input][data-category="${groupName}"][data-item="${catSource}"]`)
+    clickAssignedDisplay(groupName, catSource);
+    getAssignedInput(groupName, catSource)
       .clear()
       .type("75{enter}");
 
-    cy.get(`[data-cy="category-row"][data-category="${groupName}"][data-item="${catTarget}"] [data-cy=assigned-display]`)
+    cy.budgetFind(
+      `[data-cy="category-row"][data-category="${groupName}"][data-item="${catTarget}"] [data-cy=assigned-display]`
+    )
+      .first()
       .invoke("text")
       .then((targetAssignedTxt) => {
         const targetAssignedBefore = parseCurrency(targetAssignedTxt);
-        cy.get(`[data-cy="category-row"][data-category="${groupName}"][data-item="${catTarget}"] [data-cy=item-available]`)
+        cy.budgetFind(
+          `[data-cy="category-row"][data-category="${groupName}"][data-item="${catTarget}"] [data-cy=item-available]`
+        )
+          .first()
           .invoke("text")
           .then((targetAvailTxt) => {
             const targetAvailBefore = parseCurrency(targetAvailTxt);
-            cy.get("[data-cy=ready-to-assign]")
-              .invoke("text")
-              .then((rtaText) => {
-                const initialRTA = parseCurrency(rtaText);
-                cy.get(`[data-cy="category-row"][data-category="${groupName}"][data-item="${catSource}"]`).rightclick();
+            cy.getReadyToAssignValue().then((initialRTA) => {
+                cy.budgetRightClick(
+                  `[data-cy="category-row"][data-category="${groupName}"][data-item="${catSource}"]`
+                );
                 cy.get("[data-cy=category-context-menu]")
                   .should("be.visible")
                   .within(() => {
@@ -252,13 +253,14 @@ cy.wait(500);
                 cy.get("[data-cy=reassign-target-select]").select(catTarget);
                 cy.get("[data-cy=reassign-confirm]").click();
                 cy.get(`[data-cy="category-row"][data-category="${groupName}"][data-item="${catSource}"]`).should("not.exist");
-                cy.get("[data-cy=ready-to-assign]")
-                  .invoke("text")
-                  .then((finalRtaText) => {
-                    const finalRTA = parseCurrency(finalRtaText);
-                    expect(finalRTA).to.eq(initialRTA);
-                  });
-                cy.get(`[data-cy="category-row"][data-category="${groupName}"][data-item="${catTarget}"]`).within(() => {
+                cy.getReadyToAssignValue().then((finalRTA) => {
+                  expect(finalRTA).to.eq(initialRTA);
+                });
+                cy.budgetFind(
+                  `[data-cy="category-row"][data-category="${groupName}"][data-item="${catTarget}"]`
+                )
+                  .first()
+                  .within(() => {
                   cy.get("[data-cy=assigned-display]")
                     .invoke("text")
                     .then((txt) => {

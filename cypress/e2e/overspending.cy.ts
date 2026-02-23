@@ -26,34 +26,27 @@ const visitBudget = () => {
 };
 
 const addGroupAndItem = (groupName: string, itemName: string) => {
-  cy.get("[data-cy=add-category-group-button]").click();
-  cy.get("[data-cy=add-category-group-input]").clear().type(groupName);
-  cy.get("[data-cy=add-category-group-submit]").click();
-
-  cy.get(
-    `tr[data-cy="category-group-row"][data-category="${groupName}"]`
-  )
-    .first()
-    .trigger("mouseover");
-
-  cy.get(
-    `tr[data-cy="category-group-row"][data-category="${groupName}"] [data-cy="group-add-item-button"]`
-  )
-    .filter(":visible")
-    .first()
-    .click({ force: true });
-
-  cy.get("[data-cy=add-item-input]").clear().type(itemName);
-  cy.get("[data-cy=add-item-submit]").click();
-
-  cy.get(
-    `[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"]`
-  ).should("exist");
+  cy.createCategory(groupName, itemName);
 };
 
 const visitAccount = (id: string, expectedName: string) => {
   cy.visit(`/accounts/${id}`);
   cy.get("[data-cy=account-name]").should("contain.text", expectedName);
+};
+
+const selectFilter = (filterName: string) => {
+  cy.get(`[data-cy=filter-${filterName}]`)
+    .filter(":visible")
+    .first()
+    .click({ force: true })
+    .should("have.class", "bg-primary");
+};
+
+const expectNotVisibleInBudget = (selector: string) => {
+  cy.getVisibleBudgetTable().then(($table) => {
+    const visibleCount = $table.find(selector).filter(":visible").length;
+    expect(visibleCount, `Expected ${selector} to be not visible`).to.eq(0);
+  });
 };
 
 describe("Overspending & filters", () => {
@@ -82,10 +75,7 @@ describe("Overspending & filters", () => {
 
     // Snapshot Ready To Assign before the purchase
     visitBudget();
-    cy.get("[data-cy=ready-to-assign]")
-      .invoke("text")
-      .then((initialRTAText) => {
-        const initialRTA = parseCurrency(initialRTAText);
+    cy.getReadyToAssignValue().then((initialRTA) => {
 
         // Make a purchase from CHECKING on a brand new category
         visitAccount(accounts.checking.id, accounts.checking.name);
@@ -118,6 +108,7 @@ describe("Overspending & filters", () => {
         cy.get(
           `[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"]`
         )
+          .first()
           .as("overspentRow")
           .within(() => {
             cy.get("[data-cy=assigned-display]")
@@ -143,12 +134,9 @@ describe("Overspending & filters", () => {
           });
 
         // RTA unchanged by spending
-        cy.get("[data-cy=ready-to-assign]")
-          .invoke("text")
-          .then((finalRTAText) => {
-            const finalRTA = parseCurrency(finalRTAText);
-            expect(finalRTA).to.eq(initialRTA);
-          });
+        cy.getReadyToAssignValue().then((finalRTA) => {
+          expect(finalRTA).to.eq(initialRTA);
+        });
       });
   });
 
@@ -170,18 +158,16 @@ describe("Overspending & filters", () => {
     // Snapshot RTA + CC payment category available
     visitBudget();
 
-    cy.get("[data-cy=ready-to-assign]")
-      .invoke("text")
-      .then((initialRTAText) => {
-        const initialRTA = parseCurrency(initialRTAText);
+    cy.getReadyToAssignValue().then((initialRTA) => {
 
         // Read initial CC Payment available without scoping navigation inside .within
-        cy.get(
-          `[data-cy="category-row"][data-category="Credit Card Payments"][data-item="${ccPaymentItemName}"]`
-        ).as("ccPaymentRow");
-
-        cy.get("@ccPaymentRow")
+        cy.budgetRow("Credit Card Payments", ccPaymentItemName)
           .find("[data-cy=item-available]")
+          .first()
+          .should(($el) => {
+            const value = parseCurrency($el.text());
+            expect(value, "CC payment available should be numeric").to.not.be.NaN;
+          })
           .invoke("text")
           .then((initialCCAvailText) => {
             const initialCCAvail = parseCurrency(initialCCAvailText);
@@ -217,46 +203,41 @@ describe("Overspending & filters", () => {
             visitBudget();
 
             // New category should show overspending
-            cy.get(
-              `[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"]`
-            )
-              .as("creditOverspentRow");
-
-            cy.get("@creditOverspentRow").find("[data-cy=assigned-display]")
-              .invoke("text")
-              .then((txt) => {
-                const assigned = parseCurrency(txt);
+            cy.budgetRow(groupName, itemName)
+              .find("[data-cy=assigned-display]")
+              .first()
+              .should(($el) => {
+                const assigned = parseCurrency($el.text());
                 expect(assigned).to.eq(0);
               });
 
-            cy.get("@creditOverspentRow").find("[data-cy=item-activity]")
-              .invoke("text")
-              .then((txt) => {
-                const activity = parseCurrency(txt);
+            cy.budgetRow(groupName, itemName)
+              .find("[data-cy=item-activity]")
+              .first()
+              .should(($el) => {
+                const activity = parseCurrency($el.text());
                 expect(activity).to.eq(-amount);
               });
 
-            cy.get("@creditOverspentRow").find("[data-cy=item-available]")
-              .invoke("text")
-              .then((txt) => {
-                const available = parseCurrency(txt);
+            cy.budgetRow(groupName, itemName)
+              .find("[data-cy=item-available]")
+              .first()
+              .should(($el) => {
+                const available = parseCurrency($el.text());
                 expect(available).to.eq(-amount);
               });
 
             // RTA unchanged by spending
-            cy.get("[data-cy=ready-to-assign]")
-              .invoke("text")
-              .then((finalRTAText) => {
-                const finalRTA = parseCurrency(finalRTAText);
-                expect(finalRTA).to.eq(initialRTA);
-              });
+            cy.getReadyToAssignValue().then((finalRTA) => {
+              expect(finalRTA).to.eq(initialRTA);
+            });
 
             // CC Payment bucket should not change from purchases
-            cy.get("@ccPaymentRow")
+            cy.budgetRow("Credit Card Payments", ccPaymentItemName)
               .find("[data-cy=item-available]")
-              .invoke("text")
-              .then((finalCCAvailText) => {
-                const finalCCAvail = parseCurrency(finalCCAvailText);
+              .first()
+              .should(($el) => {
+                const finalCCAvail = parseCurrency($el.text());
                 expect(finalCCAvail).to.eq(initialCCAvail);
               });
           });
@@ -279,30 +260,16 @@ describe("Overspending & filters", () => {
     visitBudget();
 
     // Create a new group + category via budget UI
-    cy.get("[data-cy=add-category-group-button]").click();
-    cy.get("[data-cy=add-category-group-input]").type(groupName);
-    cy.get("[data-cy=add-category-group-submit]").click();
-
-    // Reveal add-item via hover; click first visible, fallback to forced click
-    cy.get(`tr[data-cy="category-group-row"][data-category="${groupName}"]`).first().trigger("mouseover");
-    cy.get(`[data-category="${groupName}"] [data-cy="group-add-item-button"]`)
-      .filter(":visible")
-      .first()
-      .then(($btn) => {
-        if ($btn.length) {
-          cy.wrap($btn).click();
-        } else {
-          cy.get(`[data-category="${groupName}"] [data-cy="group-add-item-button"]`).first().click({ force: true });
-        }
-      });
-
-    cy.get("[data-cy=add-item-input]").type(itemName);
-    cy.get("[data-cy=add-item-submit]").click();
+    cy.createCategory(groupName, itemName);
 
     const categorySelector = `[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"]`;
 
     // Open InlineTargetEditor by clicking the category name (avoid NotesPopover)
-    cy.get(categorySelector).find('[data-cy="category-item-name"] span').first().click();
+    cy.budgetFind(categorySelector)
+      .find('[data-cy="category-item-name"] span')
+      .first()
+      .scrollIntoView()
+      .click();
 
     // Inside inline target editor: set a simple "amount needed" target.
     // Adjust these selectors to match your InlineTargetEditor.
@@ -310,54 +277,36 @@ describe("Overspending & filters", () => {
     cy.get("[data-cy=target-save]").click();
 
     // 3a) UNDERFUNDED: assigned = 40 < 100
-    cy.get(`${categorySelector} [data-cy=assigned-display]`).click();
-    cy.get(
-      `[data-cy=assigned-input][data-category="${groupName}"][data-item="${itemName}"]`
-    )
-      .clear()
-      .type("40")
-      .blur();
+    cy.setAssignedValue(groupName, itemName, 40);
 
     // Underfunded filter should show this category
-    cy.contains("button", "Underfunded").click();
+    selectFilter("underfunded");
 
-    cy.get(categorySelector).should("exist");
+    cy.budgetFind(categorySelector).should("exist");
 
     // Overfunded filter should NOT show it yet
-    cy.contains("button", "Overfunded").click();
-    cy.get(categorySelector).should("not.exist");
+    selectFilter("overfunded");
+    expectNotVisibleInBudget(categorySelector);
 
     // 3b) EXACTLY funded: assigned = 100 => not under or over
-    cy.contains("button", "All").click();
-    cy.get(`${categorySelector} [data-cy=assigned-display]`).click();
-    cy.get(
-      `[data-cy=assigned-input][data-category="${groupName}"][data-item="${itemName}"]`
-    )
-      .clear()
-      .type("100")
-      .blur();
+    selectFilter("all");
+    cy.setAssignedValue(groupName, itemName, 100);
 
-    cy.contains("button", "Underfunded").click();
-    cy.get(categorySelector).should("not.exist");
+    selectFilter("underfunded");
+    expectNotVisibleInBudget(categorySelector);
 
-    cy.contains("button", "Overfunded").click();
-    cy.get(categorySelector).should("not.exist");
+    selectFilter("overfunded");
+    expectNotVisibleInBudget(categorySelector);
 
     // 3c) OVERFUNDED: assigned = 150 > 100
-    cy.contains("button", "All").click();
-    cy.get(`${categorySelector} [data-cy=assigned-display]`).click();
-    cy.get(
-      `[data-cy=assigned-input][data-category="${groupName}"][data-item="${itemName}"]`
-    )
-      .clear()
-      .type("150")
-      .blur();
+    selectFilter("all");
+    cy.setAssignedValue(groupName, itemName, 150);
 
-    cy.contains("button", "Overfunded").click();
-    cy.get(categorySelector).should("exist");
+    selectFilter("overfunded");
+    cy.budgetFind(categorySelector).should("exist");
 
-    cy.contains("button", "Underfunded").click();
-    cy.get(categorySelector).should("not.exist");
+    selectFilter("underfunded");
+    expectNotVisibleInBudget(categorySelector);
   });
 
   it("does not treat negative assigned as cash overspending", () => {
@@ -367,35 +316,22 @@ describe("Overspending & filters", () => {
 
     visitBudget();
 
-    cy.get("[data-cy=ready-to-assign]")
-      .invoke("text")
-      .then((initialText) => {
-        const initialRta = parseCurrency(initialText);
+    cy.getReadyToAssignValue().then((initialRta) => {
 
-        cy.get("[data-cy=month-prev]").click();
+        cy.get("[data-cy=month-prev]").filter(':visible').first().click();
 
         addGroupAndItem(groupName, itemName);
 
-        cy.get(
-          `[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"]`
-        ).within(() => {
-          cy.get("[data-cy=assigned-display]").click();
-          cy.get("[data-cy=assigned-input]")
-            .clear()
-            .type(`${assignAmount}{enter}`);
+        cy.setAssignedValue(groupName, itemName, assignAmount);
+
+        cy.get("[data-cy=month-next]").filter(':visible').first().click();
+
+        cy.getReadyToAssignValue().then((finalRta) => {
+          expect(
+            finalRta,
+            "RTA should increase by the negative assignment amount"
+          ).to.eq(initialRta - assignAmount);
         });
-
-        cy.get("[data-cy=month-next]").click();
-
-        cy.get("[data-cy=ready-to-assign]")
-          .invoke("text")
-          .then((finalText) => {
-            const finalRta = parseCurrency(finalText);
-            expect(
-              finalRta,
-              "RTA should increase by the negative assignment amount"
-            ).to.eq(initialRta - assignAmount);
-          });
       });
   });
 });
