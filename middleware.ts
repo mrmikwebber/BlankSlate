@@ -7,6 +7,17 @@ const RATE_LIMIT_MAX = 100; // max requests per IP per window
 // In-memory store; per-node and reset on deploy. Good enough for basic abuse protection.
 const ipHits = new Map<string, number[]>();
 
+// Periodically sweep entries whose timestamps have all fallen outside the window.
+let lastPruneTime = 0;
+function pruneStaleEntries(now: number, windowStart: number) {
+  for (const [key, timestamps] of ipHits) {
+    if (timestamps.every((ts) => ts <= windowStart)) {
+      ipHits.delete(key);
+    }
+  }
+  lastPruneTime = now;
+}
+
 const isApiPath = (path: string) => path.startsWith("/api/");
 const isStaticPath = (path: string) =>
   path.startsWith("/_next") ||
@@ -30,6 +41,12 @@ export function middleware(req: NextRequest) {
 
   const now = Date.now();
   const windowStart = now - RATE_LIMIT_WINDOW_MS;
+
+  // Prune fully-expired entries once per window to prevent unbounded map growth.
+  if (now - lastPruneTime > RATE_LIMIT_WINDOW_MS) {
+    pruneStaleEntries(now, windowStart);
+  }
+
   const ip = getClientIp(req);
 
   const hits = ipHits.get(ip) || [];
