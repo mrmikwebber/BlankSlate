@@ -56,14 +56,14 @@ useGlobalKeyboardShortcuts({
 ```
 
 ### Budget Page Keyboard Shortcuts
-- Ctrl+N opens an account selector to add a transaction to any account
+- Alt+N opens an account selector to add a transaction to any account
 - Ctrl+F cycles through filters: All → Money Available → Overspent → etc.
 - Ctrl+M opens the Move Money modal for the first category with available funds
 - Arrow keys navigate between months
 - ? opens the keyboard shortcuts help dialog
 
 ### Account Details Page Keyboard Shortcuts
-- Ctrl+N opens the Add Transaction form (quick access to that specific account)
+- Alt+N opens the Add Transaction form (quick access to that specific account)
 - Arrow keys navigate between transactions
 
 ### Help Modal
