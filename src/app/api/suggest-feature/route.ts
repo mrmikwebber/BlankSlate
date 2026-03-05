@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
+import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 
 const GITHUB_REPO = process.env.GITHUB_REPO; // e.g., "owner/repo"
 const GITHUB_ISSUE_TOKEN = process.env.GITHUB_ISSUE_TOKEN; // token with repo:issues scope
@@ -15,6 +17,17 @@ function getClientIp(req: Request): string {
 }
 
 export async function POST(req: Request) {
+  // Require an authenticated session
+  const supabase = createRouteHandlerClient({ cookies });
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   // Check suggestion-specific rate limit
   const now = Date.now();
   const windowStart = now - SUGGESTION_RATE_LIMIT_WINDOW_MS;
