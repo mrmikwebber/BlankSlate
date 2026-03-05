@@ -1,8 +1,6 @@
 import { useState, useEffect, memo, useCallback, useRef } from "react";
 import { evaluate } from "mathjs";
 import { formatToUSD } from "../utils/formatToUSD";
-import { TableCell } from "@/components/ui/table";
-import { Input } from "@/components/ui/input";
 
 interface EditableAssignedProps {
   categoryName: string;

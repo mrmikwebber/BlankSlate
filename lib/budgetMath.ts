@@ -2,7 +2,7 @@
 import { format, isSameMonth, parseISO, subMonths } from "date-fns";
 
 const DEBUG_RTA = process.env.NEXT_PUBLIC_DEBUG_RTA === "true";
-const rtaLog = (...args: any[]) => {
+const rtaLog = (...args: unknown[]) => {
   if (DEBUG_RTA) console.log("[RTA]", ...args);
 };
 

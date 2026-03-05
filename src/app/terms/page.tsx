@@ -11,7 +11,7 @@ export default function TermsPage() {
 
       <section className="mt-6 space-y-4 text-neutral-800 dark:text-neutral-200">
         <p>
-          Welcome to BlankSlate. By accessing or using our application, you agree to these Terms of Service ("Terms"). If you do not agree, you may not use the service.
+          Welcome to BlankSlate. By accessing or using our application, you agree to these Terms of Service (&quot;Terms&quot;). If you do not agree, you may not use the service.
         </p>
         <h2 className="mt-6 text-lg font-semibold">1. Accounts & Eligibility</h2>
         <p>
@@ -35,7 +35,7 @@ export default function TermsPage() {
         </p>
         <h2 className="mt-6 text-lg font-semibold">6. Disclaimers</h2>
         <p>
-          The service is provided on an "AS IS" and "AS AVAILABLE" basis without warranties of any kind. We do not guarantee that the service will be uninterrupted, secure, or error‑free.
+          The service is provided on an &quot;AS IS&quot; and &quot;AS AVAILABLE&quot; basis without warranties of any kind. We do not guarantee that the service will be uninterrupted, secure, or error‑free.
         </p>
         <h2 className="mt-6 text-lg font-semibold">7. Limitation of Liability</h2>
         <p>

@@ -10,6 +10,16 @@ type PortUserPayload = {
   replaceExisting?: boolean;
 };
 
+const omitKeys = (
+  row: Record<string, unknown>,
+  keys: string[]
+): Record<string, unknown> => {
+  const keySet = new Set(keys);
+  return Object.fromEntries(
+    Object.entries(row).filter(([key]) => !keySet.has(key))
+  );
+};
+
 const chunkArray = <T,>(items: T[], size: number): T[][] => {
   const chunks: T[][] = [];
   for (let i = 0; i < items.length; i += size) {
@@ -158,7 +168,9 @@ export async function POST(req: Request) {
   const accountIdMap = new Map<string, string>();
 
   for (const account of sourceAccounts) {
-    const { id: sourceId, user_id: _userId, ...accountPayload } = account as any;
+    const accountRow = account as Record<string, unknown>;
+    const sourceId = accountRow.id;
+    const accountPayload = omitKeys(accountRow, ["id", "user_id"]);
     const { data: inserted, error: insertError } = await adminClient
       .from("accounts")
       .insert({ ...accountPayload, user_id: targetUserId })
@@ -176,13 +188,15 @@ export async function POST(req: Request) {
   }
 
   if (sourceTransactions.length > 0) {
-    const txPayload = [] as any[];
+    const txPayload: Record<string, unknown>[] = [];
     for (const tx of sourceTransactions) {
-      const { id: _txId, user_id: _userId, account_id, ...txBody } = tx as any;
-      const newAccountId = accountIdMap.get(String(account_id));
+      const txRow = tx as Record<string, unknown>;
+      const accountId = txRow.account_id;
+      const txBody = omitKeys(txRow, ["id", "user_id", "account_id"]);
+      const newAccountId = accountIdMap.get(String(accountId));
       if (!newAccountId) {
         return NextResponse.json(
-          { error: `Missing account mapping for account_id ${account_id}` },
+          { error: `Missing account mapping for account_id ${accountId}` },
           { status: 500 }
         );
       }
@@ -208,7 +222,8 @@ export async function POST(req: Request) {
 
   if (sourceBudgets.length > 0) {
     const budgetPayload = sourceBudgets.map((row) => {
-      const { id: _id, user_id: _userId, ...rest } = row as any;
+      const budgetRow = row as Record<string, unknown>;
+      const rest = omitKeys(budgetRow, ["id", "user_id"]);
       return { ...rest, user_id: targetUserId };
     });
 
@@ -227,7 +242,8 @@ export async function POST(req: Request) {
 
   if (sourcePayees.length > 0) {
     const payeePayload = sourcePayees.map((row) => {
-      const { id: _id, user_id: _userId, ...rest } = row as any;
+      const payeeRow = row as Record<string, unknown>;
+      const rest = omitKeys(payeeRow, ["id", "user_id"]);
       return { ...rest, user_id: targetUserId };
     });
 

@@ -13,6 +13,23 @@ interface Props {
   onSelectAccount?: (accountId: number | null) => void;
 }
 
+type SavedPayeeLike = { name?: string | null };
+
+type CategoryOptionGroup = {
+  name?: string;
+  categoryItems?: Array<{ name?: string | null }>;
+};
+
+type DisplayTransaction = {
+  id: number;
+  date?: string;
+  payee?: string;
+  category?: string | null;
+  balance?: number;
+  accountId: number;
+  accountName: string;
+};
+
 export default function MobileTransactionsTab({
   selectedAccountId,
   onSelectAccount,
@@ -38,6 +55,7 @@ export default function MobileTransactionsTab({
   const [editingTxId, setEditingTxId] = useState<number | null>(null);
   const [swipedTxId, setSwipedTxId] = useState<number | null>(null);
   const [swipeX, setSwipeX] = useState(0);
+  const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const [isTypingPayee, setIsTypingPayee] = useState(false);
   const [isTypingCategory, setIsTypingCategory] = useState(false);
 
@@ -115,8 +133,8 @@ export default function MobileTransactionsTab({
         .filter((a) => a.id !== formAccountId)
         .map((acc) => ({ type: "account" as const, accountName: acc.name, label: getPreviewLabel(acc.name) })),
       ...savedPayees
-        .filter((p: any) => typeof p?.name === "string" && p.name.trim() !== "")
-        .map((p: any) => ({ type: "payee" as const, accountName: null, label: p.name })),
+        .filter((p: SavedPayeeLike) => typeof p?.name === "string" && p.name.trim() !== "")
+        .map((p: SavedPayeeLike) => ({ type: "payee" as const, accountName: null, label: p.name as string })),
     ],
     [accounts, formAccountId, getPreviewLabel, savedPayees]
   );
@@ -126,9 +144,9 @@ export default function MobileTransactionsTab({
     options.push({ label: "Ready to Assign", value: "Ready to Assign" });
 
     const month = budgetData?.[currentMonth];
-    month?.categories?.forEach((group: any) => {
+    month?.categories?.forEach((group: CategoryOptionGroup) => {
       if (group?.name === "Credit Card Payments") {
-        group?.categoryItems?.forEach((item: any) => {
+        group?.categoryItems?.forEach((item: { name?: string | null }) => {
           const name = item?.name;
           if (typeof name === "string" && name.trim() !== "") {
             const acc = accounts.find((a) => a.name === name && a.type === "credit");
@@ -141,7 +159,7 @@ export default function MobileTransactionsTab({
           }
         });
       } else {
-        group?.categoryItems?.forEach((item: any) => {
+        group?.categoryItems?.forEach((item: { name?: string | null }) => {
           const name = item?.name;
           if (typeof name === "string" && name.trim() !== "") {
             options.push({ label: name, value: name });
@@ -154,11 +172,11 @@ export default function MobileTransactionsTab({
 
   const categoryGroupNames = useMemo(() => {
     const month = budgetData?.[currentMonth];
-    return month?.categories?.map((g: any) => g.name) ?? [];
+    return month?.categories?.map((g: CategoryOptionGroup) => g.name ?? "").filter(Boolean) ?? [];
   }, [budgetData, currentMonth]);
 
   const displayedTransactions = useMemo(() => {
-    const transactions: any[] = [];
+    const transactions: DisplayTransaction[] = [];
 
     const sourceAccounts = selectedAccount
       ? [selectedAccount]
@@ -170,7 +188,7 @@ export default function MobileTransactionsTab({
           ...tx,
           accountId: account.id,
           accountName: account.name,
-        });
+        } as DisplayTransaction);
       });
     });
 
@@ -196,7 +214,7 @@ export default function MobileTransactionsTab({
     setFormDate(new Date().toISOString().slice(0, 10));
   };
 
-  const beginEdit = (tx: any) => {
+  const beginEdit = (tx: DisplayTransaction) => {
     setEditingTxId(tx.id);
     setFormAccountId(tx.accountId ?? null);
     setPayeeInput(tx.payee ?? "");
@@ -212,9 +230,10 @@ export default function MobileTransactionsTab({
     const payeeName = selectedPayeeAccountName || payeeInput.trim();
     if (!formAccountId || !payeeName || !formAmount) return;
 
-    // Normalize account id to number when possible
+    // Normalize account id to number
     const formAccountIdNum = Number(formAccountId);
-    const accountIdForTx = Number.isNaN(formAccountIdNum) ? formAccountId : formAccountIdNum;
+    if (Number.isNaN(formAccountIdNum)) return;
+    const accountIdForTx = formAccountIdNum;
 
     const amountNum = Number(formAmount);
     if (Number.isNaN(amountNum) || amountNum <= 0) return;
@@ -278,10 +297,10 @@ export default function MobileTransactionsTab({
 
     if (editingTxId) {
       // ✏️ Editing existing transaction
-      await editTransaction(accountIdForTx as any, editingTxId, txPayload);
+      await editTransaction(accountIdForTx, editingTxId, txPayload);
     } else {
       // ➕ Creating new transaction
-      await addTransaction(accountIdForTx as any, txPayload);
+      await addTransaction(accountIdForTx, txPayload);
 
       if (!isTransfer && upsertPayee) {
         await upsertPayee(payeeName);
@@ -431,7 +450,7 @@ export default function MobileTransactionsTab({
                               setPayeeDropdownOpen(false);
                             }}
                           >
-                            ➕ Create "{payeeInput}"
+                                ➕ Create &quot;{payeeInput}&quot;
                           </button>
                         )}
                     </div>
@@ -749,7 +768,7 @@ export default function MobileTransactionsTab({
                             setPayeeDropdownOpen(false);
                           }}
                         >
-                          ➕ Create "{payeeInput}"
+                          ➕ Create &quot;{payeeInput}&quot;
                         </button>
                       )}
                   </div>
@@ -937,16 +956,17 @@ export default function MobileTransactionsTab({
                 const touch = e.touches[0];
                 setSwipedTxId(tx.id);
                 setSwipeX(0);
-                (e.currentTarget as any)._startX = touch.clientX;
+                setTouchStartX(touch.clientX);
               }}
               onTouchMove={(e) => {
                 if (swipedTxId !== tx.id) return;
                 const touch = e.touches[0];
-                const startX = (e.currentTarget as any)._startX || touch.clientX;
+                const startX = touchStartX ?? touch.clientX;
                 const deltaX = touch.clientX - startX;
                 setSwipeX(Math.max(-150, Math.min(150, deltaX)));
               }}
               onTouchEnd={() => {
+                setTouchStartX(null);
                 if (Math.abs(swipeX) < 50) {
                   setSwipeX(0);
                   setSwipedTxId(null);

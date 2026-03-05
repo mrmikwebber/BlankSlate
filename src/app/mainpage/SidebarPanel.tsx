@@ -1,8 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { useAccountContext } from "@/app/context/AccountContext";
-import { useBudgetContext } from "../context/BudgetContext";
 
 import AccountCardCompact from "./AccountCardCompact";
 import AddAccountModal from "./AddAccountModal";
@@ -17,7 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 
-import { Plus, GripVertical } from "lucide-react";
+import { Plus } from "lucide-react";
 
 export default function SidebarPanel() {
   const [showModal, setShowModal] = useState(false);

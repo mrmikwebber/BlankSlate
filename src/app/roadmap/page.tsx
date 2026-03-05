@@ -335,7 +335,7 @@ export default function RoadmapPage() {
             Product Roadmap
           </h1>
           <p className="text-slate-600 dark:text-slate-400 max-w-2xl">
-            See what we're building next. Hover over any feature to learn more about the details.
+            See what we&apos;re building next. Hover over any feature to learn more about the details.
           </p>
         </div>
       </div>
@@ -444,7 +444,7 @@ export default function RoadmapPage() {
               }}
               className="text-teal-600 dark:text-teal-400 hover:underline"
             >
-              Use the "Suggest Feature" button in the navbar
+              Use the &quot;Suggest Feature&quot; button in the navbar
             </Link>
           </p>
         </div>

@@ -47,10 +47,10 @@ export async function POST(req: Request) {
     );
   }
 
-  let payload: any;
+  let payload: Record<string, unknown>;
   try {
     payload = await req.json();
-  } catch (err) {
+  } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 

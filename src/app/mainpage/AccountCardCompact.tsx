@@ -55,16 +55,15 @@ export default function AccountCardCompact({
     0;
 
   const isNegative = computedBalance < 0;
-  const issuerLabel = formatIssuer((account as any).issuer);
+  const issuerLabel = formatIssuer(account.issuer);
 
   const transactions = account.transactions ?? [];
   const transactionCount = transactions.length;
   const lastTx = transactionCount > 0 ? transactions[transactionCount - 1] : null;
 
   let lastDate: string | null = null;
-  if (lastTx && (lastTx as any).date) {
-    const raw = (lastTx as any).date;
-    const d = typeof raw === "string" ? new Date(raw) : raw;
+  if (lastTx?.date) {
+    const d = new Date(lastTx.date);
     if (!isNaN(d.getTime())) {
       lastDate = d.toLocaleDateString();
     }

@@ -5,7 +5,7 @@ interface CategoryItem {
   assigned: number;
   activity: number;
   available: number;
-  target?: any;
+  target?: Record<string, unknown>;
 }
 
 interface CategoryGroup {

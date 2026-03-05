@@ -373,8 +373,9 @@ export default function Navbar() {
                       setBugActual("");
                       setBugContact("");
                     }
-                  } catch (err: any) {
-                    setBugError(err?.message || "Failed to submit bug");
+                  } catch (err: unknown) {
+                    const message = err instanceof Error ? err.message : "Failed to submit bug";
+                    setBugError(message);
                   } finally {
                     setBugSubmitting(false);
                   }
@@ -400,7 +401,7 @@ export default function Navbar() {
           >
             <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100">Suggest a Feature</h2>
             <p className="text-sm text-slate-600 dark:text-slate-300">
-              Have an idea? This will create a GitHub issue labeled as "Pending Features" for review.
+              Have an idea? This will create a GitHub issue labeled as &quot;Pending Features&quot; for review.
             </p>
 
             <div className="space-y-3">
@@ -497,8 +498,9 @@ export default function Navbar() {
                       setSuggestionUseCase("");
                       setSuggestionContact("");
                     }
-                  } catch (err: any) {
-                    setSuggestionError(err?.message || "Failed to submit suggestion");
+                  } catch (err: unknown) {
+                    const message = err instanceof Error ? err.message : "Failed to submit suggestion";
+                    setSuggestionError(message);
                   } finally {
                     setSuggestionSubmitting(false);
                   }

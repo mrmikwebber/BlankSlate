@@ -5,7 +5,7 @@ import { Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { useAccountContext } from "../context/AccountContext";
 import { useBudgetContext } from "../context/BudgetContext";
 import { formatToUSD } from "../utils/formatToUSD";
-import { isSameMonth, parseISO, parse, format } from "date-fns";
+import { isSameMonth, parseISO, parse } from "date-fns";
 
 const PieChart = dynamic(
   () => import("recharts").then((recharts) => recharts.PieChart),

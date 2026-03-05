@@ -12,7 +12,7 @@ export default function PortUserDataPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<Record<string, unknown> | null>(null);
 
   const adminEmails = useMemo(
     () => normalizeAdminList(process.env.NEXT_PUBLIC_ADMIN_EMAILS),
@@ -75,8 +75,10 @@ export default function PortUserDataPage() {
         setSuccess("User data ported successfully.");
         setResult(json);
       }
-    } catch (err: any) {
-      setError(err?.message || "Failed to port user data.");
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Failed to port user data.";
+      setError(message);
     } finally {
       setSubmitting(false);
     }

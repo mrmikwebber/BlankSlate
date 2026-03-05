@@ -1,5 +1,4 @@
-import { useState, useEffect } from "react";
-import { createPortal } from "react-dom";
+import { useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -17,13 +16,19 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-const AddAccountModal = ({ onAddAccount, onClose, isOpen = true }) => {
+interface AddAccountModalProps {
+  onAddAccount: (account: Record<string, unknown>) => void;
+  onClose: () => void;
+  isOpen?: boolean;
+}
+
+const AddAccountModal = ({ onAddAccount, onClose, isOpen = true }: AddAccountModalProps) => {
   const [name, setName] = useState("");
   const [type, setType] = useState("debit");
   const [issuer, setIssuer] = useState("visa");
   const [balance, setBalance] = useState("");
 
-  const handleSubmit = (e) => {
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!name || isNaN(parseFloat(balance))) return;
 
@@ -38,7 +43,7 @@ const AddAccountModal = ({ onAddAccount, onClose, isOpen = true }) => {
     onClose(); 
   };
 
-  const handleOpenChange = (open) => {
+  const handleOpenChange = (open: boolean) => {
     if (!open) {
       onClose();
     }

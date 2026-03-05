@@ -5,8 +5,6 @@ import AddCategoryButton from "./AddCategoryButton";
 import EditableAssigned from "./EditableAssigned";
 import InlineTransactionRow from "./InlineTransactionRow";
 import MonthNav from "./MonthNav";
-import KeyboardShortcuts from "./KeyboardShortcuts";
-import { useGlobalKeyboardShortcuts } from "../hooks/useGlobalKeyboardShortcuts";
 import { useBudgetContext } from "../context/BudgetContext";
 import { getTargetStatus } from "../utils/getTargetStatus";
 import { createPortal } from "react-dom";
@@ -37,16 +35,14 @@ import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardHeader,
-  CardTitle,
   CardContent,
 } from "@/components/ui/card";
 import { ChevronDown, ChevronRight, GripVertical, Plus, RotateCcw, RotateCw, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Separator } from "@/components/ui/separator";
 import { YnabImportDialog } from "./YnabImportDialog";
 
 const DEBUG_RTA = process.env.NEXT_PUBLIC_DEBUG_RTA === "true";
-const rtaLog = (...args: any[]) => {
+const rtaLog = (...args: unknown[]) => {
   if (DEBUG_RTA) console.log("[RTA]", ...args);
 };
 
@@ -57,8 +53,6 @@ export default function BudgetTable() {
     setBudgetData,
     getDisplayedRta,
     rtaCarryByMonth,
-    globalRTA,
-    deficitBeyond,
     rtaStartMonth,
     setIsDirty,
     addCategoryGroup,
@@ -97,7 +91,6 @@ export default function BudgetTable() {
     "Underfunded",
     "Snoozed",
   ];
-  const [selectedCategory, setSelectedCategory] = useState("");
   const [inlineEditorCategory, setInlineEditorCategory] = useState<
     string | null
   >(null);
@@ -166,7 +159,6 @@ export default function BudgetTable() {
   const [moveToCategory, setMoveToCategory] = useState<string>("");
   const [sourceAvailable, setSourceAvailable] = useState<number>(0);
   const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
-  const [filterDropdownRef, setFilterDropdownRef] = useState<HTMLDivElement | null>(null);
   const [showAddTransactionModal, setShowAddTransactionModal] = useState(false);
   const [selectedAccountForTransaction, setSelectedAccountForTransaction] = useState<number | null>(null);
 
@@ -715,7 +707,7 @@ export default function BudgetTable() {
     const isMovingFromRTA = moveToCategory === "RTA";
     
     // Find source category if not moving from RTA
-    let sourceCategory: any = null;
+    let sourceCategory: { assigned?: number } | null = null;
     let fromGroup = "";
     let fromItem = "";
     
@@ -1303,7 +1295,7 @@ export default function BudgetTable() {
               onClick={(e) => e.stopPropagation()}
             >
               <h2 className="text-base font-semibold">
-                Move Money to "{moveMoneyModal.toItem}"
+                Move Money to &quot;{moveMoneyModal.toItem}&quot;
               </h2>
 
               <div className="space-y-3">

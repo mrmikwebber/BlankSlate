@@ -3,11 +3,10 @@ import React from "react";
 import { addMonths, format, parse, subMonths } from "date-fns";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useBudgetContext } from "../context/BudgetContext";
-import { formatToUSD } from "../utils/formatToUSD";
 import { useAccountContext } from "../context/AccountContext";
 
 const MonthNav = () => {
-  const { currentMonth, updateMonth, budgetData } = useBudgetContext();
+  const { currentMonth, updateMonth } = useBudgetContext();
   const { accounts } = useAccountContext();
 
   const formattedMonth = useMemo(() => {

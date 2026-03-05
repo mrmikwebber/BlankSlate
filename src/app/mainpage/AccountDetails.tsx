@@ -2,7 +2,7 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { useAccountContext } from "@/app/context/AccountContext";
+import { Transaction, useAccountContext } from "@/app/context/AccountContext";
 import { useUndoRedo } from "@/app/context/UndoRedoContext";
 import { supabase } from "@/utils/supabaseClient";
 import { parseISO, format } from "date-fns";
@@ -10,12 +10,6 @@ import InlineTransactionRow from "./InlineTransactionRow";
 import KeyboardShortcuts from "./KeyboardShortcuts";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
@@ -48,7 +42,7 @@ export default function AccountDetails() {
   const [editingTransactionId, setEditingTransactionId] = useState<
     number | null
   >(null);
-  const [editedTransaction, setEditedTransaction] = useState<any>(null);
+  const [editedTransaction, setEditedTransaction] = useState<Transaction | null>(null);
   const [isEditingAccountName, setIsEditingAccountName] = useState(false);
   const [newAccountName, setNewAccountName] = useState<string | undefined>();
   const [selectedTxId, setSelectedTxId] = useState<number | null>(null);
@@ -99,7 +93,7 @@ export default function AccountDetails() {
     };
   }, []);
 
-  const startEdit = (tx: any) => {
+  const startEdit = (tx: Transaction) => {
     setEditedTransaction(tx);
     setEditingTransactionId(tx.id);
     setShowForm(false);
@@ -152,7 +146,13 @@ export default function AccountDetails() {
       undo: async () => {
         // Re-insert all deleted transactions
         for (const tx of deletedTransactions) {
-          const { id, ...txData } = tx;
+          const txData = {
+            date: tx.date,
+            payee: tx.payee,
+            category: tx.category,
+            category_group: tx.category_group,
+            balance: tx.balance,
+          };
           const { data: restoredData, error } = await supabase.from("transactions").insert([
             {
               ...txData,
@@ -231,7 +231,7 @@ export default function AccountDetails() {
 
   const categoryLabel = useMemo(
     () =>
-      (tx: any) => {
+      (tx: Transaction) => {
         if (tx.payee && (tx.payee.startsWith("Transfer") || tx.payee.startsWith("Payment"))) {
           return tx.payee;
         }

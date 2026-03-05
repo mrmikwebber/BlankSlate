@@ -3,11 +3,9 @@ import type { KeyboardEvent } from "react";
 import { useBudgetContext } from "@/app/context/BudgetContext";
 import { useAccountContext, Transaction } from "@/app/context/AccountContext";
 import { format } from "date-fns";
-import { supabase } from "@/utils/supabaseClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { Plus, Minus } from "lucide-react";
 
 export default function InlineTransactionRow({
   accountId,
@@ -28,8 +26,6 @@ export default function InlineTransactionRow({
   const {
     budgetData,
     currentMonth,
-    refreshAccounts,
-    addCategoryGroup,
     addItemToCategory,
   } = useBudgetContext();
 
@@ -62,8 +58,7 @@ export default function InlineTransactionRow({
     const matches = payeeLabel.match(/(?:Transfer|Payment) (?:to|from) (.+)/);
     return matches ? matches[1] : payeeLabel;
   };
-  const [newPayeeMode, setNewPayeeMode] = useState(false);
-  const [newPayeeName, setNewPayeeName] = useState("");
+  const [newPayeeMode] = useState(false);
   const [transferPayee, setTransferPayee] = useState(
     isEdit && initialData ? extractPayeeName(initialData.payee) : ""
   );
@@ -94,8 +89,6 @@ export default function InlineTransactionRow({
   const amountInputRef = useRef<HTMLInputElement | null>(null);
   const newCategoryInputRef = useRef<HTMLInputElement | null>(null);
   const newCategoryGroupInputRef = useRef<HTMLInputElement | null>(null);
-  const payeeTypeaheadRef = useRef({ buffer: "", lastTime: 0 });
-  const categoryTypeaheadRef = useRef({ buffer: "", lastTime: 0 });
   const payeeInputRef = useRef<HTMLInputElement | null>(null);
   const categoryInputRef = useRef<HTMLInputElement | null>(null);
   const [payeeDropdownPos, setPayeeDropdownPos] = useState({ top: 0, left: 0, width: 0 });
@@ -472,90 +465,6 @@ export default function InlineTransactionRow({
 
   };
 
-  // Build one dropdown: bold group headers, selectable items
-  const categorySelectValue =
-    selectedGroup === "Ready to Assign"
-      ? "RTA::RTA"
-      : selectedGroup && selectedItem
-        ? `${selectedGroup}::${selectedItem}`
-        : "";
-
-  const categoryOptions = [
-    { kind: "option" as const, value: "RTA::RTA", label: "Ready to Assign" },
-    // NEW: add new category entry at the top
-    {
-      kind: "option" as const,
-      value: "__new_category__",
-      label: "➕ Add New Category...",
-    },
-    ...categoryGroups.flatMap((group) => [
-      {
-        kind: "header" as const,
-        key: `header-${group.name}`,
-        label: group.name,
-      },
-      ...group.categoryItems.map((item) => ({
-        kind: "option" as const,
-        value: `${group.name}::${item.name}`,
-        label: item.name,
-      })),
-    ]),
-  ];
-
-  const payeeTypeaheadOptions = [
-    // transfers (accounts)
-    ...transferTargets.map((acc) => ({
-      value: acc.name,
-      label: getPreviewLabel(acc.name),
-    })),
-    // saved payees (string payee names)
-    ...allPayees.map((p) => ({
-      value: p,
-      label: p,
-    })),
-  ];
-
-  const categoryTypeaheadOptions = categoryOptions
-    .filter(
-      (opt) => opt.kind === "option" && opt.value !== "__new_category__"
-    )
-    .map((opt) => ({
-      value: opt.value,
-      label: opt.label,
-    }));
-
-  const handleTypeahead = (
-    e: KeyboardEvent,
-    ref: React.MutableRefObject<{ buffer: string; lastTime: number }>,
-    options: { value: string; label: string }[],
-    onMatch: (value: string) => void
-  ) => {
-    // Let Enter/Escape/etc be handled elsewhere
-    if (e.key.length !== 1 || e.metaKey || e.ctrlKey || e.altKey) return;
-
-    const now = Date.now();
-    const timeoutMs = 600; // reset buffer if you pause typing
-
-    let { buffer, lastTime } = ref.current;
-    if (now - lastTime > timeoutMs) {
-      buffer = e.key;
-    } else {
-      buffer += e.key;
-    }
-
-    ref.current = { buffer, lastTime: now };
-
-    const search = buffer.toLowerCase();
-    const match = options.find((opt) =>
-      opt.label.toLowerCase().includes(search)
-    );
-
-    if (match) {
-      e.preventDefault();
-      onMatch(match.value);
-    }
-  };
-
   // PAYEE suggestions: accounts (transfers) + saved payees
   const payeeSuggestions = [
     ...transferTargets.map((acc) => ({
@@ -693,7 +602,7 @@ export default function InlineTransactionRow({
                 setPayeeSelectedIndex(0);
               }
             }}
-            onBlur={(e) => {
+            onBlur={() => {
               // Delay to allow click on dropdown item
               setTimeout(() => {
                 setPayeeDropdownOpen(false);
@@ -733,7 +642,7 @@ export default function InlineTransactionRow({
                   )}
                   {payeeSuggestions
                     .filter((s) => s.type === "account")
-                    .map((suggestion, idx) => {
+                    .map((suggestion) => {
                       const actualIndex = payeeSuggestions.findIndex((s) => s.accountName === suggestion.accountName && s.type === "account");
                       const isSelected = actualIndex === payeeSelectedIndex;
                       return (

@@ -39,8 +39,8 @@ export function YnabImportDialog({ open, onOpenChange }: YnabImportDialogProps) 
       onOpenChange(false);
       setRegisterFile(null);
       setPlanFile(null);
-    } catch (err: any) {
-      const message = err?.message || "Import failed";
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Import failed";
       setError(message);
       toast({
         title: "Import failed",

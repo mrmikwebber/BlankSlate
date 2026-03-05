@@ -3,7 +3,6 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { SpeedInsights } from "@vercel/speed-insights/next"
 import "./globals.css";
 import Navbar from "./navigation/navbar";
-import Link from "next/link";
 import CookieConsent from "../components/ui/CookieConsent";
 import { AccountProvider } from "./context/AccountContext";
 import { BudgetProvider } from "./context/BudgetContext";

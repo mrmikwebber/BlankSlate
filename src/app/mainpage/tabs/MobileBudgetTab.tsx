@@ -3,12 +3,9 @@
 import { useBudgetContext } from "@/app/context/BudgetContext";
 import { formatToUSD } from "@/app/utils/formatToUSD";
 import { getTargetStatus } from "@/app/utils/getTargetStatus";
-import { useAccountContext } from "@/app/context/AccountContext";
 import MonthNav from "../MonthNav";
 import {
   Card,
-  CardHeader,
-  CardTitle,
   CardContent,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +22,29 @@ import {
 } from "@/components/ui/dialog";
 
 type SelectedItem = { groupName: string; itemName: string };
+
+type MobileCategoryItem = {
+  name: string;
+  assigned: number;
+  activity: number;
+  available: number;
+};
+
+type MobileCategoryGroup = {
+  name: string;
+  categoryItems: MobileCategoryItem[];
+};
+
+type MobileMonthData = {
+  categories: MobileCategoryGroup[];
+};
+
+type MobileBudgetDataMap = Record<string, MobileMonthData>;
+
+type RecentChangeEntry = {
+  description: string;
+  timestamp: string;
+};
 
 export default function MobileBudgetTab() {
   const {
@@ -56,7 +76,7 @@ export default function MobileBudgetTab() {
     setEditAssigned("");
   };
 
-  const handleCardTouch = (e: React.TouchEvent, groupName: string, itemName: string, assigned: number) => {
+  const handleCardTouch = (e: React.TouchEvent) => {
     const touch = e.touches[0];
     setTouchStart({ x: touch.clientX, y: touch.clientY });
   };
@@ -84,11 +104,11 @@ export default function MobileBudgetTab() {
     const { groupName, itemName } = selectedItem;
 
     // Same math as BudgetTable.handleInputChange
-    setBudgetData((prev: any) => {
+    setBudgetData((prev: MobileBudgetDataMap) => {
       const updated = { ...prev };
 
-      const updatedCategories = updated[currentMonth]?.categories.map((category: any) => {
-        const updatedItems = category.categoryItems.map((item: any) => {
+      const updatedCategories = updated[currentMonth]?.categories.map((category: MobileCategoryGroup) => {
+        const updatedItems = category.categoryItems.map((item: MobileCategoryItem) => {
           if (category.name !== groupName || item.name !== itemName) return item;
 
           const itemActivity = calculateActivityForMonth(currentMonth, item.name, groupName);
@@ -104,10 +124,10 @@ export default function MobileBudgetTab() {
       updated[currentMonth] = { ...updated[currentMonth], categories: updatedCategories };
 
       // Recalc CC payments like BudgetTable
-      const updatedCategoriesWithCreditCards = updated[currentMonth].categories.map((category: any) => {
+      const updatedCategoriesWithCreditCards = updated[currentMonth].categories.map((category: MobileCategoryGroup) => {
         if (category.name !== "Credit Card Payments") return category;
 
-        const updatedItems = category.categoryItems.map((item: any) => {
+        const updatedItems = category.categoryItems.map((item: MobileCategoryItem) => {
           const activity = calculateCreditCardAccountActivity(currentMonth, item.name, updated);
           const cumulative = getCumulativeAvailable(updated, item.name, category.name);
           const available = item.assigned + activity + Math.max(cumulative, 0);
@@ -123,7 +143,7 @@ export default function MobileBudgetTab() {
     });
 
     setIsDirty?.(true);
-    setRecentChanges?.((prev: any[]) => [
+    setRecentChanges?.((prev: RecentChangeEntry[]) => [
       ...(prev || []).slice(-9),
       {
         description: `Assigned $${nextAssigned} to '${itemName}' in '${groupName}'`,
@@ -229,7 +249,7 @@ export default function MobileBudgetTab() {
                   <Card 
                     key={item.name} 
                     className="shadow-none border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 select-none"
-                    onTouchStart={(e) => handleCardTouch(e, group.name, item.name, item.assigned)}
+                    onTouchStart={(e) => handleCardTouch(e)}
                     onTouchEnd={(e) => handleCardTouchEnd(e, group.name, item.name, item.assigned)}
                   >
                     <CardContent className="pt-3">
@@ -309,8 +329,8 @@ export default function MobileBudgetTab() {
           </div>
 
           {selectedItem && (() => {
-            const group = budgetData[currentMonth]?.categories?.find((g: any) => g.name === selectedItem.groupName);
-            const item = group?.categoryItems?.find((i: any) => i.name === selectedItem.itemName);
+            const group = budgetData[currentMonth]?.categories?.find((g: MobileCategoryGroup) => g.name === selectedItem.groupName);
+            const item = group?.categoryItems?.find((i: MobileCategoryItem) => i.name === selectedItem.itemName);
             const status = item ? getTargetStatus(item) : null;
 
             return (

@@ -37,10 +37,10 @@ interface AccountContextType {
 interface AccountContextType {
   accounts: Account[];
   recentTransactions: Transaction[];
-  addTransaction: (accountId, transaction) => void;
-  addTransactionWithMirror: (accountId: number, transaction: any, mirrorAccountId: number, mirrorTransaction: any) => Promise<void>;
-  addAccount: (newAccount) => void;
-  setAccounts: (accounts) => void;
+  addTransaction: (accountId: number, transaction: Record<string, unknown>) => void;
+  addTransactionWithMirror: (accountId: number, transaction: Record<string, unknown>, mirrorAccountId: number, mirrorTransaction: Record<string, unknown>) => Promise<void>;
+  addAccount: (newAccount: Record<string, unknown>) => void;
+  setAccounts: (accounts: Account[]) => void;
   deleteAccount: (accountId: number) => void;
   deleteTransaction: (accountId: number, transactionId: number) => void;
   deleteTransactionWithMirror: (accountId: number, transactionId: number) => void;
@@ -256,9 +256,9 @@ const upsertPayee = async (name: string) => {
 
   const addTransactionWithMirror = async (
     accountId: number,
-    transaction: any,
+    transaction: Record<string, unknown>,
     mirrorAccountId: number,
-    mirrorTransaction: any
+    mirrorTransaction: Record<string, unknown>
   ) => {
     // Insert both transactions
     const { data: data1, error: error1 } = await supabase.from("transactions").insert([
@@ -545,8 +545,6 @@ const upsertPayee = async (name: string) => {
         },
         undo: async () => {
           if (deletedTransaction) {
-            // Omit database-generated fields
-            const { id, created_at, updated_at, ...transactionData } = deletedTransaction as any;
             const { data: restoreData, error: insertError } = await supabase.from("transactions").insert([
               {
                 date: deletedTransaction.date,

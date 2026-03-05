@@ -24,7 +24,7 @@ import { useUndoRedo } from "./UndoRedoContext";
 import { parseYnabPlan, parseYnabRegister } from "@/lib/ynabImport";
 
 const DEBUG_RTA = process.env.NEXT_PUBLIC_DEBUG_RTA === "true";
-const rtaLog = (...args: any[]) => {
+const rtaLog = (...args: unknown[]) => {
   if (DEBUG_RTA) console.log("[RTA]", ...args);
 };
 
@@ -89,7 +89,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
   const sandboxBaselineRef = useRef<Record<string, BudgetData> | null>(null);
   const sandboxBaselineMonthRef = useRef<string | null>(null);
   const previousBudgetSnapshotRef = useRef<Record<string, BudgetData> | null>(null);
-  const previousAccountsSnapshotRef = useRef<any[] | null>(null);
+  const previousAccountsSnapshotRef = useRef<unknown[] | null>(null);
   const importedAccountIdsRef = useRef<string[]>([]);
   const importedBudgetMonthsRef = useRef<string[]>([]);
   const dirtyMonths = useRef<Set<string>>(new Set());
@@ -354,7 +354,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
     setAccounts(data);
   };
 
-  const _saveBudget = async (month, data) => {
+  const _saveBudget = async (month: string, data: BudgetData) => {
     if (sandboxMode) return;
     if (!user?.id) {
       console.error("No user ID found. Not saving budget.");
@@ -504,6 +504,8 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
 
     return creditCardPayments;
   };
+
+  void calculateCreditCardPayments;
 
   const categoryKey = (groupName: string, itemName: string) =>
     `${groupName}::${itemName}`;
@@ -755,6 +757,8 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
       };
     });
   };
+
+  void applyCreditCardPaymentsToBudget;
 
   useEffect(() => {
     if (sandboxMode) return;
@@ -1709,6 +1713,8 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
 
     return inflowMonths.sort()[0] ?? null;
   };
+
+  void getFirstInflowMonth;
 
   const calculateLocalReadyToAssign = (
     month: string,
