@@ -16,6 +16,9 @@ type Activity = {
   type: string;
   timestamp?: string;
   description?: string;
+  payee?: string;
+  category?: string;
+  balance?: number;
 };
 
 export default function ActivitySidebar({ page, orientation = "vertical" }: ActivitySidebarProps) {

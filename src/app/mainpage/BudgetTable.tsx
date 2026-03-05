@@ -11,6 +11,7 @@ import { createPortal } from "react-dom";
 import InlineTargetEditor from "./TargetInlineEditor";
 import { useAccountContext } from "../context/AccountContext";
 import { useUndoRedo } from "../context/UndoRedoContext";
+import { useGlobalKeyboardShortcuts } from "../hooks/useGlobalKeyboardShortcuts";
 import { NotesPopover } from "@/components/ui/NotesPopover";
 import { subMonths, format, parse } from "date-fns";
 import {

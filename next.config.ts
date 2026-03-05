@@ -14,7 +14,7 @@ base-uri 'self';
 
 const nextConfig: NextConfig = {
   eslint: {
-    ignoreDuringBuilds: true,
+    ignoreDuringBuilds: false,
   },
   async headers() {
     return [

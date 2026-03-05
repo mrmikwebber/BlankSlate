@@ -1,5 +1,13 @@
 "use client"
-import { createContext, useContext, useEffect, useState, useMemo } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useMemo,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 import { useAuth } from "./AuthContext";
 import { supabase } from "@/utils/supabaseClient";
 import { useUndoRedo } from "./UndoRedoContext";
@@ -40,7 +48,7 @@ interface AccountContextType {
   addTransaction: (accountId: number, transaction: Record<string, unknown>) => void;
   addTransactionWithMirror: (accountId: number, transaction: Record<string, unknown>, mirrorAccountId: number, mirrorTransaction: Record<string, unknown>) => Promise<void>;
   addAccount: (newAccount: Record<string, unknown>) => void;
-  setAccounts: (accounts: Account[]) => void;
+  setAccounts: Dispatch<SetStateAction<Account[]>>;
   deleteAccount: (accountId: number) => void;
   deleteTransaction: (accountId: number, transactionId: number) => void;
   deleteTransactionWithMirror: (accountId: number, transactionId: number) => void;

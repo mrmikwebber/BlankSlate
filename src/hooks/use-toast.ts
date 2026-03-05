@@ -126,6 +126,10 @@ const listeners: Array<(state: State) => void> = []
 
 let memoryState: State = { toasts: [] }
 
+function genId() {
+  return Math.random().toString(36).substr(2, 9)
+}
+
 function dispatch(action: Action) {
   memoryState = reducer(memoryState, action)
   listeners.forEach((listener) => {

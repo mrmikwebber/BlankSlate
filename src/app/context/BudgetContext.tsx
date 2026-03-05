@@ -19,7 +19,7 @@ import {
 } from "date-fns";
 import { useAuth } from "./AuthContext";
 import { supabase } from "@/utils/supabaseClient";
-import { useAccountContext } from "./AccountContext";
+import { useAccountContext, type Account } from "./AccountContext";
 import { useUndoRedo } from "./UndoRedoContext";
 import { parseYnabPlan, parseYnabRegister } from "@/lib/ynabImport";
 
@@ -89,7 +89,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
   const sandboxBaselineRef = useRef<Record<string, BudgetData> | null>(null);
   const sandboxBaselineMonthRef = useRef<string | null>(null);
   const previousBudgetSnapshotRef = useRef<Record<string, BudgetData> | null>(null);
-  const previousAccountsSnapshotRef = useRef<unknown[] | null>(null);
+  const previousAccountsSnapshotRef = useRef<Account[] | null>(null);
   const importedAccountIdsRef = useRef<string[]>([]);
   const importedBudgetMonthsRef = useRef<string[]>([]);
   const dirtyMonths = useRef<Set<string>>(new Set());
@@ -1326,7 +1326,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
         (cat) => cat.categoryItems.some((item) => item.name === targetItemName)
       )?.name;
 
-      setAccounts((prevAccounts) =>
+      setAccounts((prevAccounts: typeof accounts) =>
         prevAccounts.map((account) => ({
           ...account,
           transactions: account.transactions.map((tx) => {
