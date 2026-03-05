@@ -1,8 +1,6 @@
-import { useState, useEffect, memo, useCallback } from "react";
+import { useState, useEffect, memo, useCallback, useRef } from "react";
 import { evaluate } from "mathjs";
 import { formatToUSD } from "../utils/formatToUSD";
-import { TableCell } from "@/components/ui/table";
-import { Input } from "@/components/ui/input";
 
 interface EditableAssignedProps {
   categoryName: string;
@@ -23,25 +21,66 @@ const EditableAssigned = memo(({
 }: EditableAssignedProps) => {
   const [isEditing, setIsEditing] = useState(false);
   const [inputValue, setInputValue] = useState((item.assigned ?? 0).toString());
+  const saveLockRef = useRef(false);
+  const skipBlurRef = useRef(false);
 
-  const handleSave = useCallback(() => {
+  const handleSave = useCallback((source: "enter" | "blur" | "unknown" = "unknown") => {
+    console.log("[AssignedInput] save:start", {
+      categoryName,
+      itemName,
+      source,
+      inputValue,
+      isEditing,
+      saveLocked: saveLockRef.current,
+      skipBlur: skipBlurRef.current,
+    });
+    if (saveLockRef.current) return;
+    saveLockRef.current = true;
+    setTimeout(() => {
+      saveLockRef.current = false;
+    }, 200);
+
     try {
-      const evaluatedValue = evaluate(inputValue);
+      // Remove commas before evaluation
+      const cleanedValue = inputValue.replace(/,/g, '');
+      const evaluatedValue = evaluate(cleanedValue);
       const parsedValue = parseFloat(evaluatedValue as string);
 
       if (isNaN(parsedValue)) {
+        console.log("[AssignedInput] save:parsed", {
+          categoryName,
+          itemName,
+          source,
+          cleanedValue,
+          parsedValue: 0,
+          reason: "nan",
+        });
         handleInputChange(categoryName, itemName, 0);
       } else {
+        console.log("[AssignedInput] save:parsed", {
+          categoryName,
+          itemName,
+          source,
+          cleanedValue,
+          parsedValue,
+        });
         handleInputChange(categoryName, itemName, parsedValue);
       }
 
       setIsEditing(false);
     } catch (error) {
+      console.log("[AssignedInput] save:error", {
+        categoryName,
+        itemName,
+        source,
+        inputValue,
+        error,
+      });
       handleInputChange(categoryName, itemName, 0);
       setIsEditing(false);
       console.error(error);
     }
-  }, [categoryName, itemName, inputValue, handleInputChange]);
+  }, [categoryName, itemName, inputValue, handleInputChange, isEditing]);
 
   useEffect(() => {
     if (!isEditing) {
@@ -67,9 +106,19 @@ const EditableAssigned = memo(({
             autoFocus
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
-            onBlur={handleSave}
+            onBlur={() => {
+              if (skipBlurRef.current) {
+                skipBlurRef.current = false;
+                return;
+              }
+              handleSave("blur");
+            }}
             onKeyDown={(e) => {
-              if (e.key === "Enter") handleSave();
+              if (e.key === "Enter") {
+                e.preventDefault();
+                skipBlurRef.current = true;
+                handleSave("enter");
+              }
               if (e.key === "Escape") setIsEditing(false);
             }}
             className="w-full h-7 px-2 text-right font-mono text-sm border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"

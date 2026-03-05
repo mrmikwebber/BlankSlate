@@ -24,13 +24,7 @@ describe("Undo/Redo Functionality", () => {
                 .should("contain", "$0.00");
 
             // Assign budget to Rent
-            cy.get('tr[data-cy="category-row"][data-category="Bills"][data-item="Rent"]')
-                .find('[data-cy="assigned-display"]')
-                .click();
-
-            cy.get('input[data-cy="assigned-input"][data-category="Bills"][data-item="Rent"]')
-                .clear()
-                .type("1000{enter}");
+            cy.setAssignedValue("Bills", "Rent", 1000);
 
             // Verify assignment
             cy.get('tr[data-cy="category-row"][data-category="Bills"][data-item="Rent"]')
@@ -58,28 +52,13 @@ describe("Undo/Redo Functionality", () => {
 
         it("should undo multiple budget assignments in sequence", () => {
             // Assign to Rent
-            cy.get('tr[data-cy="category-row"][data-category="Bills"][data-item="Rent"]')
-                .find('[data-cy="assigned-display"]')
-                .click();
-            cy.get('input[data-cy="assigned-input"][data-category="Bills"][data-item="Rent"]')
-                .clear()
-                .type("1000{enter}");
+            cy.setAssignedValue("Bills", "Rent", 1000);
 
             // Assign to Electricity
-            cy.get('tr[data-cy="category-row"][data-category="Bills"][data-item="Electricity"]')
-                .find('[data-cy="assigned-display"]')
-                .click();
-            cy.get('input[data-cy="assigned-input"][data-category="Bills"][data-item="Electricity"]')
-                .clear()
-                .type("200{enter}");
+            cy.setAssignedValue("Bills", "Electricity", 200);
 
             // Assign to Water
-            cy.get('tr[data-cy="category-row"][data-category="Bills"][data-item="Water"]')
-                .find('[data-cy="assigned-display"]')
-                .click();
-            cy.get('input[data-cy="assigned-input"][data-category="Bills"][data-item="Water"]')
-                .clear()
-                .type("100{enter}");
+            cy.setAssignedValue("Bills", "Water", 100);
 
             // Undo Water assignment
             cy.get("body").type("{ctrl}z");
@@ -107,9 +86,7 @@ describe("Undo/Redo Functionality", () => {
     describe("Category Group Undo/Redo", () => {
         it("should undo and redo adding a category group", () => {
             // Add new category group
-            cy.get('[data-cy="add-category-group-button"]').click();
-            cy.get('[data-cy="add-category-group-input"]').type("Entertainment");
-            cy.get('[data-cy="add-category-group-submit"]').click();
+            cy.createCategoryGroup("Entertainment");
 
             // Verify group was added
             cy.get('tr[data-cy="category-group-row"][data-category="Entertainment"]').should("exist");
@@ -131,13 +108,15 @@ describe("Undo/Redo Functionality", () => {
 
         it("should undo and redo deleting a category group", () => {
             // First add a category group so we have something to delete
-            cy.get('[data-cy="add-category-group-button"]').click();
-            cy.get('[data-cy="add-category-group-input"]').type("Entertainment");
-            cy.get('[data-cy="add-category-group-submit"]').click();
+            cy.createCategoryGroup("Entertainment");
             cy.wait(300);
 
             // Right-click to open context menu
-            cy.get('[data-cy="group-name"][data-category="Entertainment"]')
+            cy.budgetFind('tr[data-cy="category-group-row"][data-category="Entertainment"]')
+                .first()
+                .scrollIntoView()
+                .find('[data-cy="group-name"]')
+                .first()
                 .rightclick();
 
             // Delete the group
@@ -168,15 +147,7 @@ describe("Undo/Redo Functionality", () => {
             const itemName = "Internet";
 
             // Hover over group and click add item
-            cy.get(`tr[data-cy="category-group-row"][data-category="${groupName}"]`).trigger("mouseover");
-            cy.get(`[data-category="${groupName}"] [data-cy="group-add-item-button"]`)
-                .filter(":visible")
-                .first()
-                .click();
-
-            // Add the new item
-            cy.get('[data-cy="add-item-input"]').type(itemName);
-            cy.get('[data-cy="add-item-submit"]').click();
+            cy.createCategoryItem(groupName, itemName);
             cy.wait(300);
 
             // Verify item was added
@@ -199,8 +170,7 @@ describe("Undo/Redo Functionality", () => {
 
         it("should undo and redo deleting a category item", () => {
             // Right-click on a category item to open context menu
-            cy.get('tr[data-cy="category-row"][data-category="Bills"][data-item="Water"]')
-                .rightclick();
+            cy.budgetRightClick('tr[data-cy="category-row"][data-category="Bills"][data-item="Water"]');
 
             // Delete the category
             cy.get('[data-cy="category-delete"][data-category="Bills"][data-item="Water"]').click();
@@ -233,7 +203,11 @@ describe("Undo/Redo Functionality", () => {
             const itemName = "Rent";
 
             // Click on the category name to open target editor (not the assigned field)
-            cy.get(`tr[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"] td:first-child`)
+            cy.budgetFind(`tr[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"]`)
+                .first()
+                .scrollIntoView()
+                .find('td')
+                .first()
                 .click();
 
             // Wait for inline editor to appear
@@ -314,6 +288,7 @@ describe("Undo/Redo Functionality", () => {
             // Add a transaction first
             cy.get('[data-cy="add-transaction-button"]').click();
             cy.selectPayee("Delete Me");
+            cy.get('[data-cy="tx-item-select"]').should('be.visible').click();
             cy.selectCategory("Bills::Rent");
             cy.get('[data-cy="tx-sign-toggle"]').click();
             cy.get('[data-cy="tx-amount-input"]').type("250");
@@ -325,7 +300,7 @@ describe("Undo/Redo Functionality", () => {
                 const txId = $row.attr("data-txid");
 
                 // Right-click to delete
-                cy.get(`tr[data-cy="transaction-row"][data-txid="${txId}"]`).rightclick();
+                cy.rightClickFirst(`tr[data-cy="transaction-row"][data-txid="${txId}"]`);
                 cy.get("button").contains("Delete").click();
                 cy.wait(300);
 
@@ -375,7 +350,7 @@ describe("Undo/Redo Functionality", () => {
                 cy.get('tr[data-cy="transaction-row"]').eq(-1).find('input[type="checkbox"]').check();
 
                 // Right-click to open bulk context menu
-                cy.get('tr[data-cy="transaction-row"]').eq(-1).rightclick();
+                cy.get('tr[data-cy="transaction-row"]').eq(-1).scrollIntoView().rightclick();
                 cy.get("button").contains("Delete").click();
                 cy.wait(300);
 
@@ -402,12 +377,7 @@ describe("Undo/Redo Functionality", () => {
     describe("Activity Sidebar Undo/Redo Buttons", () => {
         it("should show undo button when action is available", () => {
             // Make a change
-            cy.get('tr[data-cy="category-row"][data-category="Bills"][data-item="Rent"]')
-                .find('[data-cy="assigned-display"]')
-                .click();
-            cy.get('input[data-cy="assigned-input"][data-category="Bills"][data-item="Rent"]')
-                .clear()
-                .type("500{enter}");
+            cy.setAssignedValue("Bills", "Rent", 500);
             cy.wait(300);
 
             // Check that undo button exists and is enabled
@@ -422,12 +392,7 @@ describe("Undo/Redo Functionality", () => {
 
         it("should show redo button after undo", () => {
             // Make a change
-            cy.get('tr[data-cy="category-row"][data-category="Bills"][data-item="Rent"]')
-                .find('[data-cy="assigned-display"]')
-                .click();
-            cy.get('input[data-cy="assigned-input"][data-category="Bills"][data-item="Rent"]')
-                .clear()
-                .type("500{enter}");
+            cy.setAssignedValue("Bills", "Rent", 500);
             cy.wait(300);
 
             // Undo
@@ -440,16 +405,11 @@ describe("Undo/Redo Functionality", () => {
 
         it("should allow clicking undo/redo buttons directly", () => {
             // Make a change
-            cy.get('tr[data-cy="category-row"][data-category="Bills"][data-item="Rent"]')
-                .find('[data-cy="assigned-display"]')
-                .click();
-            cy.get('input[data-cy="assigned-input"][data-category="Bills"][data-item="Rent"]')
-                .clear()
-                .type("750{enter}");
+            cy.setAssignedValue("Bills", "Rent", 750);
             cy.wait(300);
 
             // Click undo button
-            cy.get('[data-cy="undo-button"]').click();
+            cy.get('[data-cy="undo-button"]').filter(':visible').first().click();
             cy.wait(300);
 
             // Verify undo worked
@@ -458,7 +418,7 @@ describe("Undo/Redo Functionality", () => {
                 .should("contain", "$0.00");
 
             // Click redo button
-            cy.get('[data-cy="redo-button"]').click();
+            cy.get('[data-cy="redo-button"]').filter(':visible').first().click();
             cy.wait(300);
 
             // Verify redo worked
@@ -471,28 +431,15 @@ describe("Undo/Redo Functionality", () => {
     describe("Complex Undo/Redo Scenarios", () => {
         it("should maintain undo stack integrity across different operation types", () => {
             // 1. Assign budget
-            cy.get('tr[data-cy="category-row"][data-category="Bills"][data-item="Rent"]')
-                .find('[data-cy="assigned-display"]')
-                .click();
-            cy.get('input[data-cy="assigned-input"][data-category="Bills"][data-item="Rent"]')
-                .clear()
-                .type("1000{enter}");
+            cy.setAssignedValue("Bills", "Rent", 1000);
             cy.wait(300);
 
             // 2. Add category group
-            cy.get('[data-cy="add-category-group-button"]').click();
-            cy.get('[data-cy="add-category-group-input"]').type("Fun");
-            cy.get('[data-cy="add-category-group-submit"]').click();
+            cy.createCategoryGroup("Fun");
             cy.wait(300);
 
             // 3. Add category item
-            cy.get('tr[data-cy="category-group-row"][data-category="Fun"]').trigger("mouseover");
-            cy.get('[data-category="Fun"] [data-cy="group-add-item-button"]')
-                .filter(":visible")
-                .first()
-                .click();
-            cy.get('[data-cy="add-item-input"]').type("Movies");
-            cy.get('[data-cy="add-item-submit"]').click();
+            cy.createCategoryItem("Fun", "Movies");
             cy.wait(300);
 
             // Now undo in reverse order
@@ -531,12 +478,7 @@ describe("Undo/Redo Functionality", () => {
 
         it("should clear redo stack when new action is performed after undo", () => {
             // Make first change
-            cy.get('tr[data-cy="category-row"][data-category="Bills"][data-item="Rent"]')
-                .find('[data-cy="assigned-display"]')
-                .click();
-            cy.get('input[data-cy="assigned-input"][data-category="Bills"][data-item="Rent"]')
-                .clear()
-                .type("1000{enter}");
+            cy.setAssignedValue("Bills", "Rent", 1000);
             cy.wait(300);
 
             // Undo it
@@ -544,12 +486,7 @@ describe("Undo/Redo Functionality", () => {
             cy.wait(300);
 
             // Make a different change
-            cy.get('tr[data-cy="category-row"][data-category="Bills"][data-item="Electricity"]')
-                .find('[data-cy="assigned-display"]')
-                .click();
-            cy.get('input[data-cy="assigned-input"][data-category="Bills"][data-item="Electricity"]')
-                .clear()
-                .type("200{enter}");
+            cy.setAssignedValue("Bills", "Electricity", 200);
             cy.wait(300);
 
             // Try to redo - should not restore Rent assignment

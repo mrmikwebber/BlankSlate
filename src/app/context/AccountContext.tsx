@@ -1,5 +1,13 @@
 "use client"
-import { createContext, useContext, useEffect, useState, useMemo } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useMemo,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 import { useAuth } from "./AuthContext";
 import { supabase } from "@/utils/supabaseClient";
 import { useUndoRedo } from "./UndoRedoContext";
@@ -37,10 +45,10 @@ interface AccountContextType {
 interface AccountContextType {
   accounts: Account[];
   recentTransactions: Transaction[];
-  addTransaction: (accountId, transaction) => void;
-  addTransactionWithMirror: (accountId: number, transaction: any, mirrorAccountId: number, mirrorTransaction: any) => Promise<void>;
-  addAccount: (newAccount) => void;
-  setAccounts: (accounts) => void;
+  addTransaction: (accountId: number, transaction: Record<string, unknown>) => void;
+  addTransactionWithMirror: (accountId: number, transaction: Record<string, unknown>, mirrorAccountId: number, mirrorTransaction: Record<string, unknown>) => Promise<void>;
+  addAccount: (newAccount: Record<string, unknown>) => void;
+  setAccounts: Dispatch<SetStateAction<Account[]>>;
   deleteAccount: (accountId: number) => void;
   deleteTransaction: (accountId: number, transactionId: number) => void;
   deleteTransactionWithMirror: (accountId: number, transactionId: number) => void;
@@ -256,9 +264,9 @@ const upsertPayee = async (name: string) => {
 
   const addTransactionWithMirror = async (
     accountId: number,
-    transaction: any,
+    transaction: Record<string, unknown>,
     mirrorAccountId: number,
-    mirrorTransaction: any
+    mirrorTransaction: Record<string, unknown>
   ) => {
     // Insert both transactions
     const { data: data1, error: error1 } = await supabase.from("transactions").insert([
@@ -425,7 +433,7 @@ const upsertPayee = async (name: string) => {
 
   const defaultTransaction = {
     date: new Date().toISOString(),
-    payee: "Initial Balance",
+    payee: "Starting Balance",
     category: "Ready to Assign",
     category_group: "Ready to Assign",
     balance: 0,
@@ -464,8 +472,12 @@ const upsertPayee = async (name: string) => {
     }
 
     const currentAccountId = data[0].id;
+    const isCredit = account.type === "credit";
     const newTransaction = {
       ...defaultTransaction,
+      payee: "Starting Balance",
+      category: isCredit ? "Category Not Needed" : "Ready to Assign",
+      category_group: isCredit ? null : "Ready to Assign",
       balance: account.balance,
     }
     const generatedTransaction = await addTransaction(currentAccountId, newTransaction, true);
@@ -541,8 +553,6 @@ const upsertPayee = async (name: string) => {
         },
         undo: async () => {
           if (deletedTransaction) {
-            // Omit database-generated fields
-            const { id, created_at, updated_at, ...transactionData } = deletedTransaction as any;
             const { data: restoreData, error: insertError } = await supabase.from("transactions").insert([
               {
                 date: deletedTransaction.date,

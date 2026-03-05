@@ -383,9 +383,7 @@ describe("Debit & credit transactions - UI only", () => {
         const createdTxId = Number(txId);
 
         // Right-click to open context menu and delete it
-        cy.get("[data-cy=transaction-row]")
-          .first()
-          .rightclick();
+        cy.rightClickFirst("[data-cy=transaction-row]");
         cy.wait(150);
 
         cy.get("[data-cy=tx-context-menu]")

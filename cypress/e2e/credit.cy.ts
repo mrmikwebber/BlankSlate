@@ -26,9 +26,12 @@ describe("Credit Card Payments behaviour", () => {
 
   it("shows Credit Card Payments with Payment label and matching totals", () => {
     // Group row has the 'Payment - $X' label in the last column
-    cy.get(
+    cy.budgetFind(
       `[data-cy="category-group-row"][data-category="${CREDIT_CARD_GROUP_NAME}"]`
-    ).within(() => {
+    )
+      .first()
+      .scrollIntoView()
+      .within(() => {
       // Second column (data-cy="available-display") is raw sum of item.available
       cy.get('[data-cy="available-display"]')
         .invoke("text")
@@ -81,16 +84,19 @@ describe("Credit Card Payments behaviour", () => {
     });
 
     // Pick the first CC item row
-    cy.get(
+    cy.budgetFind(
       `[data-cy="category-row"][data-category="${CREDIT_CARD_GROUP_NAME}"]`
     )
       .first()
+      .scrollIntoView()
       .then(($row) => {
         const itemName = $row.attr("data-item");
         expect(itemName).to.exist;
 
         // Right-click to open category context menu
-        cy.wrap($row).rightclick();
+        cy.budgetRightClick(
+          `[data-cy="category-row"][data-category="${CREDIT_CARD_GROUP_NAME}"][data-item="${itemName}"]`
+        );
 
         // Context menu should appear and show the "Cannot delete" message instead of a Delete button
         cy.get('[data-cy="category-context-menu"]')
@@ -111,10 +117,11 @@ describe("Credit Card Payments behaviour", () => {
     });
 
     // Work with the first CC item row
-    cy.get(
+    cy.budgetFind(
       `[data-cy="category-row"][data-category="${CREDIT_CARD_GROUP_NAME}"]`
     )
       .first()
+      .scrollIntoView()
       .then(($row) => {
         const itemName = $row.attr("data-item");
         expect(itemName).to.exist;
@@ -129,11 +136,12 @@ describe("Credit Card Payments behaviour", () => {
             );
 
             // Click assigned display to enter edit mode
-            cy.wrap($row)
-              .find(
-                `[data-cy="assigned-display"][data-item="${itemName}"][data-category="${CREDIT_CARD_GROUP_NAME}"]`
-              )
-              .click();
+            cy.budgetFind(
+              `[data-cy="assigned-display"][data-item="${itemName}"][data-category="${CREDIT_CARD_GROUP_NAME}"]`
+            )
+              .first()
+              .scrollIntoView()
+              .click({ force: true });
 
             // Type a new assigned value (e.g. 100)
             cy.get(
@@ -162,10 +170,7 @@ describe("Credit Card Payments behaviour", () => {
 
   it("keeps Ready to Assign consistent when changing a credit card payment assigned amount", () => {
     // Snapshot Ready to Assign
-    cy.get('[data-cy="ready-to-assign"]')
-      .invoke("text")
-      .then((initialRtaText) => {
-        const initialRta = Number(initialRtaText.replace(/[^\d.-]/g, ""));
+    cy.getReadyToAssignValue().then((initialRta) => {
 
         // Expand CC group
         cy.get(
@@ -175,19 +180,21 @@ describe("Credit Card Payments behaviour", () => {
         });
 
         // Choose first credit card payment item and change its assigned amount
-        cy.get(
+        cy.budgetFind(
           `[data-cy="category-row"][data-category="${CREDIT_CARD_GROUP_NAME}"]`
         )
           .first()
+          .scrollIntoView()
           .then(($row) => {
             const itemName = $row.attr("data-item");
             expect(itemName).to.exist;
 
-            cy.wrap($row)
-              .find(
-                `[data-cy="assigned-display"][data-item="${itemName}"][data-category="${CREDIT_CARD_GROUP_NAME}"]`
-              )
-              .click();
+            cy.budgetFind(
+              `[data-cy="assigned-display"][data-item="${itemName}"][data-category="${CREDIT_CARD_GROUP_NAME}"]`
+            )
+              .first()
+              .scrollIntoView()
+              .click({ force: true });
 
             cy.get(
               `[data-cy="assigned-input"][data-category="${CREDIT_CARD_GROUP_NAME}"][data-item="${itemName}"]`
@@ -197,21 +204,9 @@ describe("Credit Card Payments behaviour", () => {
               .blur();
           });
 
-        // Ready to Assign should update according to your calculateReadyToAssign logic,
-        // but never become NaN or disappear.
-        cy.get('[data-cy="ready-to-assign"]')
-          .invoke("text")
-          .should((updatedRtaText) => {
-            const updatedRta = Number(
-              updatedRtaText.replace(/[^\d.-]/g, "")
-            );
-
-            // At minimum, it should be a finite number
+          cy.getReadyToAssignValue().then((updatedRta) => {
             expect(updatedRta).to.satisfy((n: number) => Number.isFinite(n));
-
-            // If you want, you can assert it decreased by 50, depending on your desired behavior:
             expect(updatedRta).to.eq(initialRta - 50);
-            // For now we just ensure it changed or stayed logically valid.
           });
       });
   });

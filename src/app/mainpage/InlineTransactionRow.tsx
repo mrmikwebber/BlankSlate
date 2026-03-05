@@ -3,10 +3,9 @@ import type { KeyboardEvent } from "react";
 import { useBudgetContext } from "@/app/context/BudgetContext";
 import { useAccountContext, Transaction } from "@/app/context/AccountContext";
 import { format } from "date-fns";
-import { supabase } from "@/utils/supabaseClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Minus } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export default function InlineTransactionRow({
   accountId,
@@ -27,8 +26,6 @@ export default function InlineTransactionRow({
   const {
     budgetData,
     currentMonth,
-    refreshAccounts,
-    addCategoryGroup,
     addItemToCategory,
   } = useBudgetContext();
 
@@ -61,8 +58,7 @@ export default function InlineTransactionRow({
     const matches = payeeLabel.match(/(?:Transfer|Payment) (?:to|from) (.+)/);
     return matches ? matches[1] : payeeLabel;
   };
-  const [newPayeeMode, setNewPayeeMode] = useState(false);
-  const [newPayeeName, setNewPayeeName] = useState("");
+  const [newPayeeMode] = useState(false);
   const [transferPayee, setTransferPayee] = useState(
     isEdit && initialData ? extractPayeeName(initialData.payee) : ""
   );
@@ -80,6 +76,8 @@ export default function InlineTransactionRow({
   const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
   const [isTypingPayee, setIsTypingPayee] = useState(false);
   const [isTypingCategory, setIsTypingCategory] = useState(false);
+  const [payeeSelectedIndex, setPayeeSelectedIndex] = useState(0);
+  const [categorySelectedIndex, setCategorySelectedIndex] = useState(0);
 
 
 
@@ -91,8 +89,6 @@ export default function InlineTransactionRow({
   const amountInputRef = useRef<HTMLInputElement | null>(null);
   const newCategoryInputRef = useRef<HTMLInputElement | null>(null);
   const newCategoryGroupInputRef = useRef<HTMLInputElement | null>(null);
-  const payeeTypeaheadRef = useRef({ buffer: "", lastTime: 0 });
-  const categoryTypeaheadRef = useRef({ buffer: "", lastTime: 0 });
   const payeeInputRef = useRef<HTMLInputElement | null>(null);
   const categoryInputRef = useRef<HTMLInputElement | null>(null);
   const [payeeDropdownPos, setPayeeDropdownPos] = useState({ top: 0, left: 0, width: 0 });
@@ -109,7 +105,7 @@ export default function InlineTransactionRow({
   const crossTypeTransfer =
     thisAccount && otherAccount && thisAccount.type !== otherAccount.type;
 
-  const categoryGroups = budgetData[currentMonth].categories;
+  const categoryGroups = budgetData?.[currentMonth]?.categories ?? [];
 
 
 
@@ -241,6 +237,15 @@ export default function InlineTransactionRow({
       }
     }
   };
+
+  // Calculate if category is required (outside handleSubmit so it can be used in render)
+  const needsCategory =
+    !selectedPayeeAccountName &&
+    !transferPayee &&
+    !sameTypeTransfer &&
+    selectedGroup !== "Ready to Assign" &&
+    (!selectedGroup || !selectedItem) &&
+    !newCategoryMode;
 
   const handleSubmit = async () => {
     const payeeName = selectedPayeeAccountName || transferPayee || payeeInput.trim();
@@ -460,90 +465,6 @@ export default function InlineTransactionRow({
 
   };
 
-  // Build one dropdown: bold group headers, selectable items
-  const categorySelectValue =
-    selectedGroup === "Ready to Assign"
-      ? "RTA::RTA"
-      : selectedGroup && selectedItem
-        ? `${selectedGroup}::${selectedItem}`
-        : "";
-
-  const categoryOptions = [
-    { kind: "option" as const, value: "RTA::RTA", label: "Ready to Assign" },
-    // NEW: add new category entry at the top
-    {
-      kind: "option" as const,
-      value: "__new_category__",
-      label: "➕ Add New Category...",
-    },
-    ...categoryGroups.flatMap((group) => [
-      {
-        kind: "header" as const,
-        key: `header-${group.name}`,
-        label: group.name,
-      },
-      ...group.categoryItems.map((item) => ({
-        kind: "option" as const,
-        value: `${group.name}::${item.name}`,
-        label: item.name,
-      })),
-    ]),
-  ];
-
-  const payeeTypeaheadOptions = [
-    // transfers (accounts)
-    ...transferTargets.map((acc) => ({
-      value: acc.name,
-      label: getPreviewLabel(acc.name),
-    })),
-    // saved payees (string payee names)
-    ...allPayees.map((p) => ({
-      value: p,
-      label: p,
-    })),
-  ];
-
-  const categoryTypeaheadOptions = categoryOptions
-    .filter(
-      (opt) => opt.kind === "option" && opt.value !== "__new_category__"
-    )
-    .map((opt) => ({
-      value: opt.value,
-      label: opt.label,
-    }));
-
-  const handleTypeahead = (
-    e: KeyboardEvent,
-    ref: React.MutableRefObject<{ buffer: string; lastTime: number }>,
-    options: { value: string; label: string }[],
-    onMatch: (value: string) => void
-  ) => {
-    // Let Enter/Escape/etc be handled elsewhere
-    if (e.key.length !== 1 || e.metaKey || e.ctrlKey || e.altKey) return;
-
-    const now = Date.now();
-    const timeoutMs = 600; // reset buffer if you pause typing
-
-    let { buffer, lastTime } = ref.current;
-    if (now - lastTime > timeoutMs) {
-      buffer = e.key;
-    } else {
-      buffer += e.key;
-    }
-
-    ref.current = { buffer, lastTime: now };
-
-    const search = buffer.toLowerCase();
-    const match = options.find((opt) =>
-      opt.label.toLowerCase().includes(search)
-    );
-
-    if (match) {
-      e.preventDefault();
-      onMatch(match.value);
-    }
-  };
-
   // PAYEE suggestions: accounts (transfers) + saved payees
   const payeeSuggestions = [
     ...transferTargets.map((acc) => ({
@@ -615,6 +536,7 @@ export default function InlineTransactionRow({
             onChange={(e) => {
               setPayeeInput(e.target.value);
               setIsTypingPayee(true);
+              setPayeeSelectedIndex(0);
               if (payeeInputRef.current) {
                 const rect = payeeInputRef.current.getBoundingClientRect();
                 setPayeeDropdownPos({ top: rect.bottom, left: rect.left, width: rect.width });
@@ -632,7 +554,7 @@ export default function InlineTransactionRow({
               if (e.key === "Enter") {
                 e.preventDefault();
                 if (payeeSuggestions.length > 0) {
-                  const match = payeeSuggestions[0];
+                  const match = payeeSuggestions[payeeSelectedIndex] || payeeSuggestions[0];
                   setIsTypingPayee(false);
                   if (match.type === "account") {
                     setTransferPayee(match.accountName);
@@ -670,10 +592,17 @@ export default function InlineTransactionRow({
                 onCancel?.();
               } else if (e.key === "ArrowDown" && payeeDropdownOpen) {
                 e.preventDefault();
-                // Could add keyboard navigation here
+                setPayeeSelectedIndex((prev) => Math.min(prev + 1, payeeSuggestions.length - 1));
+              } else if (e.key === "ArrowUp" && payeeDropdownOpen) {
+                e.preventDefault();
+                setPayeeSelectedIndex((prev) => Math.max(prev - 1, 0));
+              } else if (e.key === "ArrowDown" && !payeeDropdownOpen) {
+                e.preventDefault();
+                setPayeeDropdownOpen(true);
+                setPayeeSelectedIndex(0);
               }
             }}
-            onBlur={(e) => {
+            onBlur={() => {
               // Delay to allow click on dropdown item
               setTimeout(() => {
                 setPayeeDropdownOpen(false);
@@ -713,32 +642,40 @@ export default function InlineTransactionRow({
                   )}
                   {payeeSuggestions
                     .filter((s) => s.type === "account")
-                    .map((suggestion) => (
-                      <div
-                        key={suggestion.accountName}
-                        className="px-3 py-2 hover:bg-teal-50 dark:hover:bg-teal-950 cursor-pointer text-sm text-slate-700 dark:text-slate-300"
-                        onClick={() => {
-                          setIsTypingPayee(false);
-                          setTransferPayee(suggestion.accountName!);
-                          setSelectedPayeeAccountName(suggestion.accountName!);
-                          const acc = accounts.find((a) => a.name === suggestion.accountName);
-                          if (acc?.type === "credit") {
-                            setSelectedGroup("Credit Card Payments");
-                            setSelectedItem(acc.name);
-                            setCategoryInput(acc.name);
-                            setIsTypingCategory(false);
-                          } else {
-                            setSelectedGroup("");
-                            setSelectedItem("");
-                            setCategoryInput("");
-                          }
-                          setPayeeInput(suggestion.label);
-                          setPayeeDropdownOpen(false);
-                        }}
-                      >
-                        {suggestion.label}
-                      </div>
-                    ))}
+                    .map((suggestion) => {
+                      const actualIndex = payeeSuggestions.findIndex((s) => s.accountName === suggestion.accountName && s.type === "account");
+                      const isSelected = actualIndex === payeeSelectedIndex;
+                      return (
+                        <div
+                          key={suggestion.accountName}
+                          className={`px-3 py-2 cursor-pointer text-sm ${
+                            isSelected
+                              ? "bg-teal-100 dark:bg-teal-900 text-slate-900 dark:text-slate-100 font-medium"
+                              : "hover:bg-teal-50 dark:hover:bg-teal-950 text-slate-700 dark:text-slate-300"
+                          }`}
+                          onClick={() => {
+                            setIsTypingPayee(false);
+                            setTransferPayee(suggestion.accountName!);
+                            setSelectedPayeeAccountName(suggestion.accountName!);
+                            const acc = accounts.find((a) => a.name === suggestion.accountName);
+                            if (acc?.type === "credit") {
+                              setSelectedGroup("Credit Card Payments");
+                              setSelectedItem(acc.name);
+                              setCategoryInput(acc.name);
+                              setIsTypingCategory(false);
+                            } else {
+                              setSelectedGroup("");
+                              setSelectedItem("");
+                              setCategoryInput("");
+                            }
+                            setPayeeInput(suggestion.label);
+                            setPayeeDropdownOpen(false);
+                          }}
+                        >
+                          {suggestion.label}
+                        </div>
+                      );
+                    })}
                   {payeeSuggestions.some((s) => s.type === "payee") && (
                     <div className="px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
                       Saved Payees
@@ -746,24 +683,32 @@ export default function InlineTransactionRow({
                   )}
                   {payeeSuggestions
                     .filter((s) => s.type === "payee")
-                    .map((suggestion) => (
-                      <div
-                        key={suggestion.label}
-                        className="px-3 py-2 hover:bg-teal-50 dark:hover:bg-teal-950 cursor-pointer text-sm text-slate-700 dark:text-slate-300"
-                        onClick={() => {
-                          setIsTypingPayee(false);
-                          setTransferPayee(suggestion.label);
-                          setSelectedPayeeAccountName(null);
-                          setSelectedGroup("");
-                          setSelectedItem("");
-                          setCategoryInput("");
-                          setPayeeInput(suggestion.label);
-                          setPayeeDropdownOpen(false);
-                        }}
-                      >
-                        {suggestion.label}
-                      </div>
-                    ))}
+                    .map((suggestion) => {
+                      const actualIndex = payeeSuggestions.findIndex((s) => s.label === suggestion.label && s.type === "payee");
+                      const isSelected = actualIndex === payeeSelectedIndex;
+                      return (
+                        <div
+                          key={suggestion.label}
+                          className={`px-3 py-2 cursor-pointer text-sm ${
+                            isSelected
+                              ? "bg-teal-100 dark:bg-teal-900 text-slate-900 dark:text-slate-100 font-medium"
+                              : "hover:bg-teal-50 dark:hover:bg-teal-950 text-slate-700 dark:text-slate-300"
+                          }`}
+                          onClick={() => {
+                            setIsTypingPayee(false);
+                            setTransferPayee(suggestion.label);
+                            setSelectedPayeeAccountName(null);
+                            setSelectedGroup("");
+                            setSelectedItem("");
+                            setCategoryInput("");
+                            setPayeeInput(suggestion.label);
+                            setPayeeDropdownOpen(false);
+                          }}
+                        >
+                          {suggestion.label}
+                        </div>
+                      );
+                    })}
                   {payeeInput && (
                     <div
                       className="px-3 py-2 hover:bg-teal-50 dark:hover:bg-teal-950 cursor-pointer text-sm border-t border-slate-200 dark:border-slate-700 text-teal-600 dark:text-teal-400 font-medium"
@@ -876,11 +821,15 @@ export default function InlineTransactionRow({
               data-cy="tx-item-select"
               type="text"
               placeholder="Select or type category..."
-              className="h-9 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100 dark:placeholder-slate-500 focus-visible:ring-teal-500 dark:focus-visible:ring-teal-600"
+              className={cn(
+                "h-9 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100 dark:placeholder-slate-500 focus-visible:ring-teal-500 dark:focus-visible:ring-teal-600",
+                needsCategory && "border-red-400 focus-visible:ring-red-500"
+              )}
               value={categoryInput}
               onChange={(e) => {
                 setCategoryInput(e.target.value);
                 setIsTypingCategory(true);
+                setCategorySelectedIndex(0);
                 // Only clear payee if it was a credit card payment and category changed
                 if (isTypingCategory && selectedPayeeAccountName) {
                   const acc = accounts.find((a) => a.name === selectedPayeeAccountName);
@@ -907,7 +856,7 @@ export default function InlineTransactionRow({
                 if (e.key === "Enter") {
                   e.preventDefault();
                   if (categorySuggestions.length > 0) {
-                    const match = categorySuggestions[0];
+                    const match = categorySuggestions[categorySelectedIndex] || categorySuggestions[0];
                     setIsTypingCategory(false);
                     setSelectedGroup(match.groupName);
                     setSelectedItem(match.itemName);
@@ -946,6 +895,16 @@ export default function InlineTransactionRow({
                   e.preventDefault();
                   setCategoryDropdownOpen(false);
                   onCancel?.();
+                } else if (e.key === "ArrowDown" && categoryDropdownOpen) {
+                  e.preventDefault();
+                  setCategorySelectedIndex((prev) => Math.min(prev + 1, categorySuggestions.length - 1));
+                } else if (e.key === "ArrowUp" && categoryDropdownOpen) {
+                  e.preventDefault();
+                  setCategorySelectedIndex((prev) => Math.max(prev - 1, 0));
+                } else if (e.key === "ArrowDown" && !categoryDropdownOpen) {
+                  e.preventDefault();
+                  setCategoryDropdownOpen(true);
+                  setCategorySelectedIndex(0);
                 }
               }}
               onBlur={() => {
@@ -981,7 +940,11 @@ export default function InlineTransactionRow({
                   <>
                     {(categoryInput === "" || "ready to assign".includes(categoryInput.toLowerCase())) && (
                       <div
-                        className="px-3 py-2 hover:bg-teal-50 dark:hover:bg-teal-950 cursor-pointer text-sm font-semibold text-slate-700 dark:text-slate-300"
+                        className={`px-3 py-2 cursor-pointer text-sm font-semibold ${
+                          categorySelectedIndex === 0
+                            ? "bg-teal-100 dark:bg-teal-900 text-slate-900 dark:text-slate-100"
+                            : "hover:bg-teal-50 dark:hover:bg-teal-950 text-slate-700 dark:text-slate-300"
+                        }`}
                         onClick={() => {
                           setSelectedGroup("Ready to Assign");
                           setSelectedItem("");
@@ -995,6 +958,10 @@ export default function InlineTransactionRow({
                     {categorySuggestions.map((suggestion, idx) => {
                       const prevGroup = idx > 0 ? categorySuggestions[idx - 1].groupName : null;
                       const showHeader = suggestion.groupName !== prevGroup;
+                      // Index in the rendered list (accounting for "Ready to Assign" if visible)
+                      const readyToAssignOffset = (categoryInput === "" || "ready to assign".includes(categoryInput.toLowerCase())) ? 1 : 0;
+                      const itemIndex = readyToAssignOffset + idx;
+                      const isSelected = itemIndex === categorySelectedIndex;
                       return (
                         <div key={`${suggestion.groupName}::${suggestion.itemName}`}>
                           {showHeader && (
@@ -1003,7 +970,11 @@ export default function InlineTransactionRow({
                             </div>
                           )}
                           <div
-                            className="px-3 py-2 hover:bg-teal-50 dark:hover:bg-teal-950 cursor-pointer text-sm pl-6 text-slate-700 dark:text-slate-300"
+                            className={`px-3 py-2 cursor-pointer text-sm pl-6 ${
+                              isSelected
+                                ? "bg-teal-100 dark:bg-teal-900 text-slate-900 dark:text-slate-100 font-medium"
+                                : "hover:bg-teal-50 dark:hover:bg-teal-950 text-slate-700 dark:text-slate-300"
+                            }`}
                             onClick={() => {
                               setIsTypingCategory(false);
                               setSelectedGroup(suggestion.groupName);
@@ -1052,6 +1023,10 @@ export default function InlineTransactionRow({
             )}
           </div>
         )}
+
+        {needsCategory && !categoryDropdownOpen && (
+          <></>
+        )}
       </td>
 
 
@@ -1088,6 +1063,7 @@ export default function InlineTransactionRow({
             onClick={() => void handleSubmit()}
             size="sm"
             className="h-9"
+            disabled={needsCategory || !payeeInput.trim() || !amount}
           >
             Save
           </Button>

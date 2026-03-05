@@ -6,11 +6,20 @@ import { useAccountContext } from "@/app/context/AccountContext";
 import { formatDistanceToNow } from "date-fns";
 import { Card, CardContent } from "@/components/ui/card";
 
+type Activity = {
+  type: string;
+  timestamp?: string;
+  description?: string;
+  payee?: string;
+  category?: string;
+  balance?: number;
+};
+
 export default function MobileActivityTab() {
   const { recentChanges } = useBudgetContext();
   const { recentTransactions } = useAccountContext();
 
-  const [activity, setActivity] = useState<any[]>([]);
+  const [activity, setActivity] = useState<Activity[]>([]);
 
   useEffect(() => {
     const merged = [

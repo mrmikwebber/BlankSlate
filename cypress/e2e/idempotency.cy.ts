@@ -7,14 +7,6 @@ const monthLabel = '[data-cy="month-label"]';
 const monthPrev = '[data-cy="month-prev"]';
 const monthNext = '[data-cy="month-next"]';
 
-const addGroupButton = '[data-cy="add-category-group-button"]';
-const addGroupInput = '[data-cy="add-category-group-input"]';
-const addGroupSubmit = '[data-cy="add-category-group-submit"]';
-
-const addItemInput = '[data-cy="add-item-input"]';
-const addItemSubmit = '[data-cy="add-item-submit"]';
-const groupAddItemButton = '[data-cy="group-add-item-button"]';
-
 interface SeededAccount {
   id: string;
   name: string;
@@ -58,36 +50,15 @@ describe("Budget month idempotency", () => {
 
     // --- Setup: create a dedicated test group + item and assign a value ---
 
-    // Add new group
-    cy.get(addGroupButton).click();
-    cy.get(addGroupInput).clear().type(groupName);
-    cy.get(addGroupSubmit).click();
-
-    // Add new item under that group (hover pattern per SELECTORS.md)
-    cy.get(`tr[data-cy="category-group-row"][data-category="${groupName}"]`)
-      .trigger("mouseover");
-    cy.get(
-      `tr[data-cy="category-group-row"][data-category="${groupName}"] ${groupAddItemButton}`
-    )
-      .filter(":visible")
-      .first()
-      .click({ force: true });
-
-    cy.get(addItemInput).clear().type(itemName);
-    cy.get(addItemSubmit).click();
+    cy.createCategory(groupName, itemName);
 
     const rowSel = categoryRowSelector(groupName, itemName);
 
     // Set assigned value
-    cy.get(rowSel).within(() => {
-      cy.get('span[data-cy="assigned-display"]').click();
-      cy.get('input[data-cy="assigned-input"]')
-        .clear()
-        .type("123.45{enter}");
-    });
+    cy.setAssignedValue(groupName, itemName, 123.45);
 
     // Snapshot the numbers for this category
-    cy.get(rowSel).within(() => {
+    cy.budgetFind(rowSel).first().within(() => {
       cy.get('span[data-cy="assigned-display"]')
         .invoke("text")
         .as("assignedBefore");
@@ -103,24 +74,24 @@ describe("Budget month idempotency", () => {
 
     cy.get("@currentMonthLabel").then((label) => {
       // Go to previous and back
-      cy.get(monthPrev).click();
-      cy.get(monthNext).click();
+      cy.get(monthPrev).filter(':visible').first().click();
+      cy.get(monthNext).filter(':visible').first().click();
       cy.get(monthLabel).should("have.text", label);
 
       // Go to next and back
-      cy.get(monthNext).click();
-      cy.get(monthPrev).click();
+      cy.get(monthNext).filter(':visible').first().click();
+      cy.get(monthPrev).filter(':visible').first().click();
       cy.get(monthLabel).should("have.text", label);
 
       // One more bounce for good measure
-      cy.get(monthPrev).click();
-      cy.get(monthNext).click();
+      cy.get(monthPrev).filter(':visible').first().click();
+      cy.get(monthNext).filter(':visible').first().click();
       cy.get(monthLabel).should("have.text", label);
     });
 
     // --- Assert: the numbers for that category are unchanged ---
 
-    cy.get(rowSel).within(() => {
+    cy.budgetFind(rowSel).first().within(() => {
       cy.get('span[data-cy="assigned-display"]')
         .invoke("text")
         .then((assignedAfter) => {
@@ -152,42 +123,22 @@ it("keeps newly-created next month stable when revisited multiple times", () => 
   const itemName = "Idempotent Next-Month Item";
 
   // 1️⃣ Create a group + item in whatever month we start on
-  cy.get(addGroupButton).click();
-  cy.get(addGroupInput).clear().type(groupName);
-  cy.get(addGroupSubmit).click();
-
-  cy.get(
-    `tr[data-cy="category-group-row"][data-category="${groupName}"]`
-  ).trigger("mouseover");
-  cy.get(
-    `tr[data-cy="category-group-row"][data-category="${groupName}"] ${groupAddItemButton}`
-  )
-    .filter(":visible")
-    .first()
-    .click({ force: true });
-
-  cy.get(addItemInput).clear().type(itemName);
-  cy.get(addItemSubmit).click();
+  cy.createCategory(groupName, itemName);
 
   const rowInitial = categoryRowSelector(groupName, itemName);
 
   // Assign something in the starting month to create potential carryover
-  cy.get(rowInitial).within(() => {
-    cy.get('span[data-cy="assigned-display"]').click();
-    cy.get('input[data-cy="assigned-input"]')
-      .clear()
-      .type("50{enter}");
-  });
+  cy.setAssignedValue(groupName, itemName, 50);
 
   // 2️⃣ Go to the NEXT month (this is where your month-creation logic runs)
-  cy.get(monthNext).click();
+  cy.get(monthNext).filter(':visible').first().click();
 
   const rowNext = categoryRowSelector(groupName, itemName);
 
   // Snapshot the label and numbers in the next month
   cy.get(monthLabel).invoke("text").as("nextMonthLabelBefore");
 
-  cy.get(rowNext).within(() => {
+  cy.budgetFind(rowNext).first().within(() => {
     cy.get('span[data-cy="assigned-display"]')
       .invoke("text")
       .as("assignedNextBefore");
@@ -200,11 +151,11 @@ it("keeps newly-created next month stable when revisited multiple times", () => 
   });
 
   // 3️⃣ Bounce away and back a few times (prev/next cycles)
-  cy.get(monthPrev).click();
-  cy.get(monthNext).click();
+  cy.get(monthPrev).filter(':visible').first().click();
+  cy.get(monthNext).filter(':visible').first().click();
 
-  cy.get(monthPrev).click();
-  cy.get(monthNext).click();
+  cy.get(monthPrev).filter(':visible').first().click();
+  cy.get(monthNext).filter(':visible').first().click();
 
   // 4️⃣ Assert: we're still on the same next-month label
   cy.get(monthLabel)
@@ -216,7 +167,7 @@ it("keeps newly-created next month stable when revisited multiple times", () => 
     });
 
   // 5️⃣ Assert: numbers in that next month did not change
-  cy.get(rowNext).within(() => {
+  cy.budgetFind(rowNext).first().within(() => {
     cy.get('span[data-cy="assigned-display"]')
       .invoke("text")
       .then((assignedAfter) => {

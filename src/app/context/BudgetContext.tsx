@@ -6,6 +6,7 @@ import {
   useEffect,
   useRef,
   useCallback,
+  useMemo,
 } from "react";
 import {
   differenceInCalendarMonths,
@@ -18,8 +19,14 @@ import {
 } from "date-fns";
 import { useAuth } from "./AuthContext";
 import { supabase } from "@/utils/supabaseClient";
-import { useAccountContext } from "./AccountContext";
+import { useAccountContext, type Account } from "./AccountContext";
 import { useUndoRedo } from "./UndoRedoContext";
+import { parseYnabPlan, parseYnabRegister } from "@/lib/ynabImport";
+
+const DEBUG_RTA = process.env.NEXT_PUBLIC_DEBUG_RTA === "true";
+const rtaLog = (...args: unknown[]) => {
+  if (DEBUG_RTA) console.log("[RTA]", ...args);
+};
 
 const getPreviousMonth = (month: string) => {
   return format(subMonths(parseISO(`${month}-01`), 1), "yyyy-MM");
@@ -78,8 +85,13 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
   const [isDirty, setIsDirty] = useState(false);
   const [recentChanges, setRecentChanges] = useState([]);
   const [sandboxMode, setSandboxMode] = useState(false);
+  const [importPending, setImportPending] = useState(false);
   const sandboxBaselineRef = useRef<Record<string, BudgetData> | null>(null);
   const sandboxBaselineMonthRef = useRef<string | null>(null);
+  const previousBudgetSnapshotRef = useRef<Record<string, BudgetData> | null>(null);
+  const previousAccountsSnapshotRef = useRef<Account[] | null>(null);
+  const importedAccountIdsRef = useRef<string[]>([]);
+  const importedBudgetMonthsRef = useRef<string[]>([]);
   const dirtyMonths = useRef<Set<string>>(new Set());
   const { user } = useAuth() || { user: null };
   const { registerAction, clearHistory } = useUndoRedo();
@@ -111,6 +123,14 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
   ];
 
   const { accounts, setAccounts } = useAccountContext();
+
+  const chunkArray = <T,>(items: T[], size: number): T[][] => {
+    const chunks: T[][] = [];
+    for (let i = 0; i < items.length; i += size) {
+      chunks.push(items.slice(i, i + size));
+    }
+    return chunks;
+  };
 
   // Helper: Update or add a note to a category group
   const updateCategoryGroupNote = useCallback(
@@ -334,7 +354,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
     setAccounts(data);
   };
 
-  const _saveBudget = async (month, data) => {
+  const _saveBudget = async (month: string, data: BudgetData) => {
     if (sandboxMode) return;
     if (!user?.id) {
       console.error("No user ID found. Not saving budget.");
@@ -484,6 +504,8 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
 
     return creditCardPayments;
   };
+
+  void calculateCreditCardPayments;
 
   const categoryKey = (groupName: string, itemName: string) =>
     `${groupName}::${itemName}`;
@@ -735,6 +757,8 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
       };
     });
   };
+
+  void applyCreditCardPaymentsToBudget;
 
   useEffect(() => {
     if (sandboxMode) return;
@@ -1205,68 +1229,85 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
       if (hasReassignedRef.current) return;
       hasReassignedRef.current = true;
 
-      const { itemName } = context;
+      const { itemName, categoryName } = context;
 
       setBudgetData((prev) => {
         const updated = { ...prev };
+
+        const currentMonthTargetGroup = updated[currentMonth]?.categories.find(
+          (cat) => cat.categoryItems.some((item) => item.name === targetItemName)
+        )?.name;
 
         for (const monthKey of Object.keys(updated)) {
           const monthData = updated[monthKey];
           if (!monthData) continue;
 
           let monthChanged = false;
+          let fromAssignedDelta = 0;
+          let fromActivityDelta = 0;
 
-          const newCategories = monthData.categories.map((cat) => {
-            let fromAssignedDelta = 0;
-            let fromActivityDelta = 0;
+          let newCategories = monthData.categories.map((cat) => {
+            if (cat.name !== categoryName) return cat;
 
-            const newItems: CategoryItem[] = [];
+            const newItems = cat.categoryItems.filter((item) => {
+              if (item.name !== itemName) return true;
 
-            // First pass: remove the fromItem in this month and accumulate its values
-            for (const item of cat.categoryItems) {
-              if (item.name === itemName) {
-                fromAssignedDelta += item.assigned || 0;
-                fromActivityDelta += item.activity || 0;
-                monthChanged = true;
-                continue; // drop this item
-              }
-              newItems.push(item);
-            }
-
-            // If nothing to move from this category in this month, just return as-is
-            if (fromAssignedDelta === 0 && fromActivityDelta === 0) {
-              return { ...cat, categoryItems: newItems };
-            }
-
-            // Second pass: apply the deltas to the target item in THIS month
-            const idx = newItems.findIndex((i) => i.name === targetItemName);
-
-            if (idx !== -1) {
-              const target = newItems[idx];
-              const newAssigned = (target.assigned || 0) + fromAssignedDelta;
-              const newActivity = (target.activity || 0) + fromActivityDelta;
-
-              newItems[idx] = {
-                ...target,
-                assigned: newAssigned,
-                activity: newActivity,
-                available: newAssigned + newActivity,
-              };
-            } else {
-              // If target item somehow doesn't exist in this category for this month,
-              // we can either create it, or just ignore. For now, we create it.
-              const newAssigned = fromAssignedDelta;
-              const newActivity = fromActivityDelta;
-              newItems.push({
-                name: targetItemName,
-                assigned: newAssigned,
-                activity: newActivity,
-                available: newAssigned + newActivity,
-              });
-            }
+              fromAssignedDelta += item.assigned || 0;
+              fromActivityDelta += item.activity || 0;
+              monthChanged = true;
+              return false;
+            });
 
             return { ...cat, categoryItems: newItems };
           });
+
+          if (fromAssignedDelta !== 0 || fromActivityDelta !== 0) {
+            const targetGroupName =
+              monthData.categories.find((cat) =>
+                cat.categoryItems.some((item) => item.name === targetItemName)
+              )?.name ?? currentMonthTargetGroup;
+
+            if (targetGroupName) {
+              newCategories = newCategories.map((cat) => {
+                if (cat.name !== targetGroupName) return cat;
+
+                const idx = cat.categoryItems.findIndex(
+                  (i) => i.name === targetItemName
+                );
+
+                if (idx === -1) {
+                  const newAssigned = fromAssignedDelta;
+                  const newActivity = fromActivityDelta;
+                  return {
+                    ...cat,
+                    categoryItems: [
+                      ...cat.categoryItems,
+                      {
+                        name: targetItemName,
+                        assigned: newAssigned,
+                        activity: newActivity,
+                        available: newAssigned + newActivity,
+                      },
+                    ],
+                  };
+                }
+
+                const target = cat.categoryItems[idx];
+                const newAssigned = (target.assigned || 0) + fromAssignedDelta;
+                const newActivity = (target.activity || 0) + fromActivityDelta;
+                const updatedItems = [...cat.categoryItems];
+                updatedItems[idx] = {
+                  ...target,
+                  assigned: newAssigned,
+                  activity: newActivity,
+                  available: newAssigned + newActivity,
+                };
+
+                return { ...cat, categoryItems: updatedItems };
+              });
+              monthChanged = true;
+            }
+          }
 
           if (monthChanged) {
             updated[monthKey] = {
@@ -1285,7 +1326,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
         (cat) => cat.categoryItems.some((item) => item.name === targetItemName)
       )?.name;
 
-      setAccounts((prevAccounts) =>
+      setAccounts((prevAccounts: typeof accounts) =>
         prevAccounts.map((account) => ({
           ...account,
           transactions: account.transactions.map((tx) => {
@@ -1673,14 +1714,141 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
     return inflowMonths.sort()[0] ?? null;
   };
 
-  const calculateReadyToAssign = (month: string, data): number => {
+  void getFirstInflowMonth;
+
+  const calculateLocalReadyToAssign = (
+    month: string,
+    data,
+    accountsToUse = accounts
+  ): number => {
     const allMonths = Object.keys(data).sort();
     const currentIndex = allMonths.indexOf(month);
     if (currentIndex === -1) return 0;
 
+    const inflowUpTo = allMonths.slice(0, currentIndex + 1).reduce((sum, m) => {
+      const inflow = accountsToUse
+        .filter((acc) => acc.type === "debit")
+        .flatMap((acc) => acc.transactions)
+        .filter(
+          (tx) =>
+            tx.date &&
+            isSameMonth(
+              format(parseISO(tx.date), "yyyy-MM"),
+              format(parseISO(m), "yyyy-MM")
+            ) &&
+            tx.balance > 0 &&
+            tx.category === "Ready to Assign"
+        )
+        .reduce((s, tx) => s + tx.balance, 0);
+
+      return sum + inflow;
+    }, 0);
+
+    const totalAssigned = allMonths.slice(0, currentIndex + 1).reduce((sum, m) => {
+      const assigned = data[m]?.categories?.reduce(
+        (catSum, cat) =>
+          catSum +
+          cat.categoryItems.reduce(
+            (itemSum, item) => itemSum + (item.assigned || 0),
+            0
+          ),
+        0
+      );
+      return sum + (assigned || 0);
+    }, 0);
+
+    let totalCashOverspending = 0;
+    const cashOverspendEntries: Array<{
+      month: string;
+      categoryGroup: string;
+      item: string;
+      assigned: number;
+      debitSpending: number;
+      envelopeBefore: number;
+      cashOverspend: number;
+    }> = [];
+    const envelope = new Map<string, number>();
+    const pastMonths = allMonths.slice(0, currentIndex);
+
+    for (const m of pastMonths) {
+      const monthCategories = data[m]?.categories || [];
+      const debitSpendingMap = new Map<string, number>();
+
+      for (const acc of accountsToUse.filter((a) => a.type === "debit")) {
+        for (const tx of acc.transactions) {
+          if (!tx.date || tx.balance >= 0) continue;
+
+          const txMonth = format(parseISO(tx.date), "yyyy-MM");
+          const mMonth = format(parseISO(`${m}-01`), "yyyy-MM");
+          if (!isSameMonth(txMonth, mMonth)) continue;
+
+          const groupName = tx.category_group || "";
+          const itemName = tx.category;
+          if (!itemName) continue;
+
+          const key = categoryKey(groupName, itemName);
+          const current = debitSpendingMap.get(key) || 0;
+          debitSpendingMap.set(key, current + Math.abs(tx.balance));
+        }
+      }
+
+      for (const category of monthCategories) {
+        if (category.name === "Credit Card Payments") continue;
+
+        for (const item of category.categoryItems) {
+          if (item.name === "Ready to Assign") continue;
+
+          const key = categoryKey(category.name, item.name);
+          const assigned = item.assigned || 0;
+          const assignedForOverspend = Math.max(0, assigned);
+
+          const prevEnv = envelope.get(key) || 0;
+          const envelopeBefore = prevEnv + assignedForOverspend;
+
+          const debitSpending = debitSpendingMap.get(key) || 0;
+
+          if (debitSpending <= envelopeBefore) {
+            envelope.set(key, envelopeBefore - debitSpending);
+          } else {
+            const cashOverspend = debitSpending - envelopeBefore;
+            totalCashOverspending += cashOverspend;
+            envelope.set(key, 0);
+            cashOverspendEntries.push({
+              month: m,
+              categoryGroup: category.name,
+              item: item.name,
+              assigned,
+              debitSpending,
+              envelopeBefore,
+              cashOverspend,
+            });
+          }
+        }
+      }
+    }
+
+    if (totalCashOverspending > 0) {
+      rtaLog("BudgetContext:local-cash-overspending", {
+        month,
+        totalCashOverspending,
+        entries: cashOverspendEntries,
+      });
+    }
+
+    return inflowUpTo - totalAssigned - totalCashOverspending;
+  };
+
+  const calculateReadyToAssign = (month: string, data, accountsToUse = accounts): number => {
+    const allMonths = Object.keys(data).sort();
+    const currentIndex = allMonths.indexOf(month);
+    if (currentIndex === -1) {
+      rtaLog("calculateReadyToAssign: month not found", { month });
+      return 0;
+    }
+
     // 1️⃣ Inflows up to and including `month`
     const inflowUpTo = allMonths.slice(0, currentIndex + 1).reduce((sum, m) => {
-      const inflow = accounts
+      const inflow = accountsToUse
         .filter((acc) => acc.type === "debit")
         .flatMap((acc) => acc.transactions)
         .filter(
@@ -1712,8 +1880,54 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
       return sum + (assigned || 0);
     }, 0);
 
+    if (DEBUG_RTA) {
+      const assignedByMonth = Object.keys(data).reduce<Record<string, number>>(
+        (map, m) => {
+          const assigned = data[m]?.categories?.reduce(
+            (catSum, cat) =>
+              catSum +
+              cat.categoryItems.reduce(
+                (itemSum, item) => itemSum + (item.assigned || 0),
+                0
+              ),
+            0
+          );
+          map[m] = assigned || 0;
+          return map;
+        },
+        {}
+      );
+
+      const assignedItemsCurrent = (data[month]?.categories || [])
+        .flatMap((cat) =>
+          cat.categoryItems
+            .filter((item) => (item.assigned || 0) !== 0)
+            .map((item) => ({
+              group: cat.name,
+              item: item.name,
+              assigned: item.assigned || 0,
+            }))
+        );
+
+      rtaLog("calculateReadyToAssign:assigned-breakdown", {
+        month,
+        totalAssigned,
+        assignedByMonth,
+        assignedItemsCurrent,
+      });
+    }
+
     // 3️⃣ Total cash overspending from ALL *past* months (cash accounts only)
     let totalCashOverspending = 0;
+    const cashOverspendEntries: Array<{
+      month: string;
+      categoryGroup: string;
+      item: string;
+      assigned: number;
+      debitSpending: number;
+      envelopeBefore: number;
+      cashOverspend: number;
+    }> = [];
 
     // Envelope balance per (group, item)
     const envelope = new Map<string, number>();
@@ -1723,10 +1937,15 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
     for (const m of pastMonths) {
       const monthCategories = data[m]?.categories || [];
 
+      rtaLog("BudgetContext:cash-overspending:month-start", {
+        month: m,
+        categories: monthCategories.length,
+      });
+
       // Precompute debit spending per (group,item) for this month
       const debitSpendingMap = new Map<string, number>();
 
-      for (const acc of accounts.filter((a) => a.type === "debit")) {
+      for (const acc of accountsToUse.filter((a) => a.type === "debit")) {
         for (const tx of acc.transactions) {
           if (!tx.date || tx.balance >= 0) continue;
 
@@ -1754,9 +1973,10 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
 
           const key = categoryKey(category.name, item.name);
           const assigned = item.assigned || 0;
+          const assignedForOverspend = Math.max(0, assigned);
 
           const prevEnv = envelope.get(key) || 0;
-          const envelopeBefore = prevEnv + assigned;
+          const envelopeBefore = prevEnv + assignedForOverspend;
 
           const debitSpending = debitSpendingMap.get(key) || 0;
 
@@ -1768,28 +1988,147 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
             const cashOverspend = debitSpending - envelopeBefore;
             totalCashOverspending += cashOverspend;
             envelope.set(key, 0);
+            rtaLog("BudgetContext:cash-overspending:item", {
+              month: m,
+              categoryGroup: category.name,
+              item: item.name,
+              assigned,
+              assignedForOverspend,
+              debitSpending,
+              envelopeBefore,
+              cashOverspend,
+              totalCashOverspending,
+            });
+            cashOverspendEntries.push({
+              month: m,
+              categoryGroup: category.name,
+              item: item.name,
+              assigned,
+              debitSpending,
+              envelopeBefore,
+              cashOverspend,
+            });
           }
         }
       }
     }
 
+    if (totalCashOverspending > 0) {
+      rtaLog("BudgetContext:global-cash-overspending", {
+        month,
+        totalCashOverspending,
+        entries: cashOverspendEntries,
+        currentMonth,
+      });
+    }
+
     // 4️⃣ Final RTA
-    return inflowUpTo - totalAssigned - totalCashOverspending;
+    const result = inflowUpTo - totalAssigned - totalCashOverspending;
+    rtaLog("calculateReadyToAssign", {
+      month,
+      inflowUpTo,
+      totalAssigned,
+      totalCashOverspending,
+      result,
+      months: allMonths.length,
+      accounts: accountsToUse.length,
+    });
+    return result;
 
   };
 
+  const rtaDisplayState = useMemo(() => {
+    const months = Object.keys(budgetData).sort();
+    if (months.length === 0) {
+      return {
+        rtaByMonth: {},
+        carryByMonth: {},
+        globalRTA: 0,
+        deficitBeyond: 0,
+        startMonth: null,
+      };
+    }
 
-  const refreshAllReadyToAssign = (data = budgetData) => {
+    const startMonth = months.includes(currentMonth)
+      ? currentMonth
+      : months[0];
+    const startIndex = months.indexOf(startMonth);
+
+    const localRtaByMonth: Record<string, number> = {};
+    for (const month of months) {
+      localRtaByMonth[month] = calculateLocalReadyToAssign(
+        month,
+        budgetData,
+        accounts
+      );
+    }
+
+    const latestMonth = months[months.length - 1];
+    const globalRTA = calculateReadyToAssign(latestMonth, budgetData, accounts);
+
+    // Carry should only affect months after the current view month.
+    let carry = 0;
+    const rtaByMonth: Record<string, number> = {};
+    const carryByMonth: Record<string, number> = {};
+
+    months.forEach((month, idx) => {
+      const local = localRtaByMonth[month] ?? 0;
+
+      if (idx < startIndex) {
+        rtaByMonth[month] = local;
+        carryByMonth[month] = 0;
+        return;
+      }
+
+      if (idx === startIndex) {
+        const startCarry = Math.min(0, globalRTA - local);
+        const display = local + startCarry;
+        rtaByMonth[month] = display;
+        carryByMonth[month] = 0;
+        carry = Math.min(0, display);
+        return;
+      }
+
+      carryByMonth[month] = carry;
+      const display = local + carry;
+      rtaByMonth[month] = display;
+      carry = Math.min(0, display);
+    });
+
+    const deficitBeyond = carry < 0 ? Math.abs(carry) : 0;
+
+    return {
+      rtaByMonth,
+      carryByMonth,
+      globalRTA,
+      deficitBeyond,
+      startMonth,
+    };
+  }, [budgetData, accounts, currentMonth]);
+
+
+  const refreshAllReadyToAssign = (data = budgetData, accountsOverride = null) => {
+    const accountsToUse = accountsOverride || accounts;
     const updated = { ...data };
     const sortedMonths = Object.keys(updated).sort();
 
+    rtaLog("refreshAllReadyToAssign:start", {
+      months: sortedMonths,
+      accounts: accountsToUse.length,
+    });
+
     for (const month of sortedMonths) {
-      updated[month].ready_to_assign = calculateReadyToAssign(month, data);
+      const rta = calculateReadyToAssign(month, data, accountsToUse);
+      updated[month].ready_to_assign = rta;
+      rtaLog("refreshAllReadyToAssign:month", { month, rta });
       dirtyMonths.current.add(month);
     }
 
     setBudgetData(updated);
     setIsDirty(true);
+    rtaLog("refreshAllReadyToAssign:done", {
+      updatedMonths: sortedMonths.length,
+    });
   };
 
   const calculateCreditCardAccountActivity = useCallback((
@@ -1931,6 +2270,288 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
     return filteredAccounts.reduce((sum, tx) => sum + tx.balance, 0);
   }, [accounts]);
 
+  const importYnabData = useCallback(
+    async (registerFile: File, planFile: File) => {
+      if (!user?.id) throw new Error("Please sign in before importing.");
+      if (!registerFile || !planFile)
+        throw new Error("Both Register and Plan CSV files are required.");
+
+      // Snapshot the current state before importing
+      previousBudgetSnapshotRef.current = JSON.parse(JSON.stringify(budgetData));
+      previousAccountsSnapshotRef.current = JSON.parse(JSON.stringify(accounts));
+      
+      // Clear previous import tracking
+      importedAccountIdsRef.current = [];
+      importedBudgetMonthsRef.current = [];
+
+      // Delete ALL existing accounts and budget data for complete replacement
+      const { error: deleteAccountsError } = await supabase
+        .from("accounts")
+        .delete()
+        .eq("user_id", user.id);
+
+      if (deleteAccountsError) {
+        throw new Error(`Failed to clear existing accounts: ${deleteAccountsError.message}`);
+      }
+
+      const { error: deleteBudgetError } = await supabase
+        .from("budget_data")
+        .delete()
+        .eq("user_id", user.id);
+
+      if (deleteBudgetError) {
+        throw new Error(`Failed to clear existing budget data: ${deleteBudgetError.message}`);
+      }
+
+      const [registerText, planText] = await Promise.all([
+        registerFile.text(),
+        planFile.text(),
+      ]);
+
+      const registerParsed = parseYnabRegister(registerText);
+      const planParsed = parseYnabPlan(planText);
+      
+      // Import payees
+      if (registerParsed.payees && registerParsed.payees.length > 0) {
+        const payeePayload = registerParsed.payees.map((payeeName) => ({
+          user_id: user.id,
+          name: payeeName,
+          last_used_at: new Date().toISOString(),
+        }));
+
+        for (const chunk of chunkArray(payeePayload, 100)) {
+          const { error: payeeError } = await supabase
+            .from("transaction_payees")
+            .upsert(chunk, { onConflict: "user_id,name" });
+
+          if (payeeError) {
+            console.error("Failed to import payees:", payeeError.message);
+            // Don't throw - payees are nice to have but not critical
+          }
+        }
+      }
+      
+      for (const account of registerParsed.accounts) {
+        const { data: createdAccount, error: accountError } = await supabase
+          .from("accounts")
+          .insert({
+            name: account.name,
+            type: account.type,
+            issuer: account.issuer,
+            balance: 0,
+            user_id: user.id,
+          })
+          .select()
+          .single();
+
+        if (accountError || !createdAccount) {
+          throw new Error(
+            `Failed to create account '${account.name}': ${accountError?.message ?? "unknown error"}`
+          );
+        }
+
+        // Track the created account ID for potential undo
+        importedAccountIdsRef.current.push(createdAccount.id);
+
+        const txPayload = account.transactions.map((tx) => ({
+          user_id: user.id,
+          account_id: createdAccount.id,
+          date: tx.date,
+          payee: tx.payee,
+          category: tx.category,
+          category_group: tx.category_group,
+          balance: tx.balance,
+        }));
+
+        for (const chunk of chunkArray(txPayload, 100)) {
+          const { error: txError } = await supabase
+            .from("transactions")
+            .insert(chunk);
+          if (txError) {
+            throw new Error(
+              `Failed to import transactions for '${account.name}': ${txError.message}`
+            );
+          }
+        }
+      }
+
+      for (const [month, data] of Object.entries(planParsed.budgetData)) {
+        const { error: budgetError } = await supabase
+          .from("budget_data")
+          .upsert(
+            {
+              user_id: user.id,
+              month,
+              data: { categories: data.categories },
+              assignable_money: data.assignable_money ?? 0,
+              ready_to_assign: data.ready_to_assign ?? 0,
+            },
+            { onConflict: "user_id,month" }
+          );
+
+        if (budgetError) {
+          throw new Error(
+            `Failed to save budget for ${month}: ${budgetError.message}`
+          );
+        }
+        
+        // Track the imported budget month for potential undo
+        importedBudgetMonthsRef.current.push(month);
+      }
+
+      // Fetch the refreshed accounts directly instead of waiting for context update
+      const { data: refreshedAccountsData, error: fetchError } = await supabase
+        .from("accounts")
+        .select("*, transactions(*)")
+        .order("date", { foreignTable: "transactions", ascending: true });
+
+      if (fetchError) {
+        console.error("Error fetching accounts after import:", fetchError);
+      }
+
+      // Update accounts in context
+      if (refreshedAccountsData) {
+        setAccounts(refreshedAccountsData);
+      }
+
+      // Recalculate activity and available for all months based on imported transactions
+      const recalculatedBudget = { ...planParsed.budgetData };
+      
+      // Use the freshly fetched accounts for calculation, falling back to context accounts if fetch failed
+      const accountsForCalculation = refreshedAccountsData || accounts;
+      
+      for (const [month, monthData] of Object.entries(recalculatedBudget)) {
+        const updatedCategories = monthData.categories.map((category) => {
+          const updatedItems = category.categoryItems.map((item) => {
+            // Recalculate activity based on imported transactions
+            // Query transactions from the freshly fetched accounts data
+            const filteredTransactions = accountsForCalculation
+              .flatMap((account) => account.transactions || [])
+              .filter((tx) => {
+                if (!tx.date) return false;
+                const txMonth = format(parseISO(tx.date), "yyyy-MM");
+                const convertedMonth = format(parseISO(month), "yyyy-MM");
+                const sameMonth = isSameMonth(txMonth, convertedMonth);
+                const categoryMatch = tx.category === item.name;
+                const groupMatch = tx.category_group === category.name;
+                return sameMonth && categoryMatch && groupMatch;
+              });
+            
+            const activity = filteredTransactions.reduce((sum, tx) => sum + tx.balance, 0);
+            
+            // For credit card payments, use special calculation
+            let available = item.available;
+            if (category.name === "Credit Card Payments") {
+              const ccActivity = calculateCreditCardAccountActivity(month, item.name, recalculatedBudget);
+              available = (item.assigned || 0) + ccActivity;
+            } else {
+              // For regular categories, available = cumulative assigned + activity
+              const cumulativeAvailable = getCumulativeAvailable(recalculatedBudget, item.name, category.name);
+              available = cumulativeAvailable + activity + (item.assigned || 0);
+            }
+            
+            return {
+              ...item,
+              activity,
+              available,
+            };
+          });
+          
+          return {
+            ...category,
+            categoryItems: updatedItems,
+          };
+        });
+        
+        recalculatedBudget[month] = {
+          ...monthData,
+          categories: updatedCategories,
+        };
+      }
+
+      setBudgetData(recalculatedBudget);
+      refreshAllReadyToAssign(recalculatedBudget, refreshedAccountsData || accounts);
+      const latest = getLatestMonth(recalculatedBudget);
+      if (latest) setCurrentMonth(latest);
+
+      // Set import pending state instead of immediately finalizing
+      setImportPending(true);
+
+      return {
+        accounts: registerParsed.accounts.length,
+        transactions: registerParsed.transactionCount,
+        months: planParsed.monthCount,
+      };
+    },
+    [user?.id, refreshAccounts, refreshAllReadyToAssign, clearHistory, calculateActivityForMonth, calculateCreditCardAccountActivity, getCumulativeAvailable]
+  );
+
+  const confirmImport = useCallback(async () => {
+    if (!importPending) return;
+    
+    // Finalize the import
+    dirtyMonths.current.clear();
+    setIsDirty(false);
+    setRecentChanges([]);
+    clearHistory();
+    lastSaved.current = null;
+    setImportPending(false);
+    
+    // Clear snapshots
+    previousBudgetSnapshotRef.current = null;
+    previousAccountsSnapshotRef.current = null;
+  }, [importPending, clearHistory]);
+
+  const undoImport = useCallback(async () => {
+    if (!importPending) return;
+    
+    try {
+      // Delete imported accounts from Supabase (cascades to transactions)
+      for (const accountId of importedAccountIdsRef.current) {
+        const { error: deleteError } = await supabase
+          .from("accounts")
+          .delete()
+          .eq("id", accountId);
+        
+        if (deleteError) {
+          console.error(`Failed to delete account ${accountId}:`, deleteError);
+        }
+      }
+      
+      // Delete imported budget months from Supabase
+      if (user?.id) {
+        for (const month of importedBudgetMonthsRef.current) {
+          const { error: deleteError } = await supabase
+            .from("budget_data")
+            .delete()
+            .eq("user_id", user.id)
+            .eq("month", month);
+          
+          if (deleteError) {
+            console.error(`Failed to delete budget month ${month}:`, deleteError);
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error during undo import cleanup:", error);
+    }
+    
+    // Restore from snapshots
+    if (previousBudgetSnapshotRef.current) {
+      setBudgetData(previousBudgetSnapshotRef.current);
+    }
+    if (previousAccountsSnapshotRef.current) {
+      setAccounts(previousAccountsSnapshotRef.current);
+    }
+    
+    setImportPending(false);
+    
+    // Clear snapshots and tracking
+    previousBudgetSnapshotRef.current = null;
+    previousAccountsSnapshotRef.current = null;
+    importedAccountIdsRef.current = [];
+    importedBudgetMonthsRef.current = [];
+  }, [importPending, setAccounts, user?.id]);
 
   const isBeforeMonth = (monthA: string, monthB: string): boolean => {
     return new Date(monthA) < new Date(monthB);
@@ -2373,6 +2994,14 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
         budgetData,
         setBudgetData,
         currentMonth,
+        getDisplayedRta: (month: string) =>
+          rtaDisplayState.rtaByMonth?.[month] ??
+          budgetData?.[month]?.ready_to_assign ??
+          0,
+        rtaCarryByMonth: rtaDisplayState.carryByMonth,
+        globalRTA: rtaDisplayState.globalRTA,
+        deficitBeyond: rtaDisplayState.deficitBeyond,
+        rtaStartMonth: rtaDisplayState.startMonth,
         updateMonth,
         addItemToCategory,
         addCategoryGroup,
@@ -2402,6 +3031,10 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
         sandboxMode,
         enterSandbox,
         exitSandbox,
+        importYnabData,
+        importPending,
+        confirmImport,
+        undoImport,
       }}
     >
       {children}

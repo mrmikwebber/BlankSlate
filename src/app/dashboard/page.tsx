@@ -4,14 +4,16 @@ import { useAuth } from "../context/AuthContext";
 import { useRouter } from "next/navigation";
 import { useUndoRedoShortcuts } from "../hooks/useUndoRedoShortcuts";
 import BudgetTable from "../mainpage/BudgetTable";
+import TotalSpendingTile from "../mainpage/totalSpendingTile";
 // ActivitySidebar removed per request
 import SidebarPanel from "../mainpage/SidebarPanel";
 import MobileDashboardShell from "../mainpage/MobileDashboardShell";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function Home() {
   const { session, loading } = useAuth();
   const router = useRouter();
-  
+
   // Enable undo/redo shortcuts
   useUndoRedoShortcuts();
 
@@ -31,20 +33,59 @@ export default function Home() {
 
   return (
     <>
-      {/* Mobile Layout - Hidden on md and up */}
+      {/* Mobile Layout - Hidden on md and up (< 768px) */}
       <div className="md:hidden h-[calc(100vh-76px)]">
         <MobileDashboardShell />
       </div>
 
-      {/* Desktop Layout - Hidden below md */}
-      <div className="hidden md:flex h-[calc(100vh-76px)] overflow-hidden flex-col">
-        <div className="m-4 grid grid-cols-1 lg:grid-cols-[22%_78%] gap-3 w-full h-full min-h-0">
+      {/* Tablet Layout - Visible from md to xl (768px - 1279px) */}
+      <div className="hidden md:flex xl:hidden h-[calc(100vh-76px)] overflow-hidden flex-col p-4">
+        <div className="flex flex-col gap-3 min-w-0">
+          {/* Sidebar on top for tablets and medium desktops */}
+          <div className="bg-zinc-100 dark:bg-slate-900 p-4 rounded-md drop-shadow-md dark:drop-shadow-lg overflow-hidden">
+            <SidebarPanel />
+          </div>
+
+          {/* Tabbed interface for tablets and medium desktops */}
+          <div className="bg-zinc-100 dark:bg-slate-900 rounded-md drop-shadow-md dark:drop-shadow-lg flex-1 min-h-0 min-w-0 flex flex-col overflow-hidden">
+            <Tabs defaultValue="budget" className="w-full h-full flex flex-col min-h-0 min-w-0 overflow-hidden">
+              <TabsList className="m-4 mb-0 flex-shrink-0">
+                <TabsTrigger value="budget">Budget</TabsTrigger>
+                <TabsTrigger value="insights">Insights</TabsTrigger>
+              </TabsList>
+              <TabsContent value="budget" className="mt-0 flex-1 min-h-0 min-w-0 overflow-auto">
+                <div className="h-full w-full min-w-0">
+                  <BudgetTable />
+                </div>
+              </TabsContent>
+              <TabsContent value="insights" className="mt-0 flex-1 min-h-0 min-w-0 overflow-auto">
+                <TotalSpendingTile />
+              </TabsContent>
+            </Tabs>
+          </div>
+        </div>
+      </div>
+
+      {/* Desktop Layout - Hidden below xl (≥ 1280px) */}
+      <div className="hidden xl:flex h-[calc(100vh-76px)] overflow-hidden flex-col p-4">
+        <div className="grid grid-cols-[22%_78%] gap-3 h-full min-h-0 min-w-0">
           <div className="bg-zinc-100 dark:bg-slate-900 p-4 rounded-md drop-shadow-md dark:drop-shadow-lg h-full overflow-auto">
             <SidebarPanel />
           </div>
 
-          <div className="bg-zinc-100 dark:bg-slate-900 pl-4 pr-8 py-4 rounded-md drop-shadow-md dark:drop-shadow-lg h-full min-h-0 flex">
-            <BudgetTable />
+          <div className="bg-zinc-100 dark:bg-slate-900 rounded-md drop-shadow-md dark:drop-shadow-lg h-full min-h-0 min-w-0 flex flex-col overflow-hidden">
+            <Tabs defaultValue="budget" className="w-full h-full flex flex-col min-h-0 min-w-0 overflow-hidden">
+              <TabsList className="m-4 mb-0 flex-shrink-0">
+                <TabsTrigger value="budget">Budget</TabsTrigger>
+                <TabsTrigger value="insights">Insights</TabsTrigger>
+              </TabsList>
+              <TabsContent value="budget" className="mt-0 flex-1 min-h-0 min-w-0 p-4 pt-4 overflow-auto">
+                <BudgetTable />
+              </TabsContent>
+              <TabsContent value="insights" className="mt-0 flex-1 min-h-0 min-w-0 overflow-auto">
+                <TotalSpendingTile />
+              </TabsContent>
+            </Tabs>
           </div>
         </div>
       </div>

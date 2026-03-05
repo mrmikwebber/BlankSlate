@@ -3,14 +3,15 @@ import { useState, useEffect, useMemo, Fragment, useRef, useCallback } from "rea
 import { formatToUSD } from "../utils/formatToUSD";
 import AddCategoryButton from "./AddCategoryButton";
 import EditableAssigned from "./EditableAssigned";
+import InlineTransactionRow from "./InlineTransactionRow";
 import MonthNav from "./MonthNav";
-import KeyboardShortcuts from "./KeyboardShortcuts";
 import { useBudgetContext } from "../context/BudgetContext";
 import { getTargetStatus } from "../utils/getTargetStatus";
 import { createPortal } from "react-dom";
 import InlineTargetEditor from "./TargetInlineEditor";
 import { useAccountContext } from "../context/AccountContext";
 import { useUndoRedo } from "../context/UndoRedoContext";
+import { useGlobalKeyboardShortcuts } from "../hooks/useGlobalKeyboardShortcuts";
 import { NotesPopover } from "@/components/ui/NotesPopover";
 import { subMonths, format, parse } from "date-fns";
 import {
@@ -21,24 +22,39 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardHeader,
-  CardTitle,
   CardContent,
 } from "@/components/ui/card";
 import { ChevronDown, ChevronRight, GripVertical, Plus, RotateCcw, RotateCw, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Separator } from "@/components/ui/separator";
+import { YnabImportDialog } from "./YnabImportDialog";
+
+const DEBUG_RTA = process.env.NEXT_PUBLIC_DEBUG_RTA === "true";
+const rtaLog = (...args: unknown[]) => {
+  if (DEBUG_RTA) console.log("[RTA]", ...args);
+};
 
 export default function BudgetTable() {
   const {
     currentMonth,
     budgetData,
     setBudgetData,
+    getDisplayedRta,
+    rtaCarryByMonth,
+    rtaStartMonth,
     setIsDirty,
     addCategoryGroup,
     addItemToCategory,
@@ -60,12 +76,13 @@ export default function BudgetTable() {
     enterSandbox,
     exitSandbox,
     setCategorySnooze,
+    importPending,
+    confirmImport,
+    undoImport,
+    updateMonth,
   } = useBudgetContext();
-
   const { accounts } = useAccountContext();
   const { registerAction, undo, redo, canUndo, canRedo, undoDescription, redoDescription } = useUndoRedo();
-
-  console.count("BudgetTable render");
 
   const FILTERS = [
     "All",
@@ -75,7 +92,6 @@ export default function BudgetTable() {
     "Underfunded",
     "Snoozed",
   ];
-  const [selectedCategory, setSelectedCategory] = useState("");
   const [inlineEditorCategory, setInlineEditorCategory] = useState<
     string | null
   >(null);
@@ -87,6 +103,7 @@ export default function BudgetTable() {
     item: string;
   } | null>(null);
   const [newCategoryName, setNewCategoryName] = useState("");
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
 
   const [newItem, setNewItem] = useState({
     name: "",
@@ -142,6 +159,9 @@ export default function BudgetTable() {
   const [moveAmount, setMoveAmount] = useState<number>(0);
   const [moveToCategory, setMoveToCategory] = useState<string>("");
   const [sourceAvailable, setSourceAvailable] = useState<number>(0);
+  const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
+  const [showAddTransactionModal, setShowAddTransactionModal] = useState(false);
+  const [selectedAccountForTransaction, setSelectedAccountForTransaction] = useState<number | null>(null);
 
   const addItemRef = useRef<HTMLDivElement | null>(null);
 
@@ -159,6 +179,66 @@ export default function BudgetTable() {
     if (!budgetData[prevMonthKey]) return 0;
     return calculateActivityForMonth(prevMonthKey, itemName, groupName) || 0;
   }, [budgetData, prevMonthKey, calculateActivityForMonth]);
+
+  const overspentCategoriesCount = useMemo(() => {
+    if (!budgetData || !currentMonth || !budgetData[currentMonth]) return 0;
+    return budgetData[currentMonth].categories.reduce((count, group) => {
+      return count + group.categoryItems.filter(item => item.available < 0).length;
+    }, 0);
+  }, [budgetData, currentMonth]);
+
+  const displayedRta = useMemo(() => {
+    return getDisplayedRta ? getDisplayedRta(currentMonth) : (budgetData[currentMonth]?.ready_to_assign ?? 0);
+  }, [getDisplayedRta, currentMonth, budgetData]);
+
+  const currentCarry = rtaCarryByMonth?.[currentMonth] ?? 0;
+  const showCarryNote = currentCarry < 0 && currentMonth !== rtaStartMonth;
+
+  const openMoveMoneyModal = useCallback(() => {
+    if (!budgetData || !currentMonth) return;
+    const categories = budgetData[currentMonth]?.categories || [];
+    for (const group of categories) {
+      for (const item of group.categoryItems) {
+        if (item.available > 0) {
+          setMoveMoneyModal({
+            toGroup: group.name,
+            toItem: item.name,
+            available: item.available,
+          });
+          setMoveAmount(0);
+          setMoveToCategory("");
+          setSourceAvailable(item.available);
+          return;
+        }
+      }
+    }
+  }, [budgetData, currentMonth]);
+
+  useEffect(() => {
+    if (!budgetData || !currentMonth || !budgetData[currentMonth]) return;
+
+    const monthData = budgetData[currentMonth];
+    const totalAssigned = monthData.categories.reduce(
+      (sum, group) =>
+        sum + group.categoryItems.reduce((s, item) => s + (item.assigned || 0), 0),
+      0
+    );
+
+    const totalAvailable = monthData.categories.reduce(
+      (sum, group) =>
+        sum + group.categoryItems.reduce((s, item) => s + (item.available || 0), 0),
+      0
+    );
+
+    rtaLog("BudgetTable:month-summary", {
+      month: currentMonth,
+      readyToAssign: displayedRta,
+      totalAssigned,
+      totalAvailable,
+      overspentCategoriesCount,
+      categories: monthData.categories.length,
+    });
+  }, [budgetData, currentMonth, overspentCategoriesCount, displayedRta]);
 
   const getPreviousAssigned = useCallback((groupName: string, itemName: string): number => {
     if (!budgetData || !prevMonthKey) return 0;
@@ -284,11 +364,26 @@ export default function BudgetTable() {
   }, []);
 
   const handleInputChange = useCallback((categoryName, itemName, value) => {
+    console.log("[AssignedInput] handleInputChange", {
+      categoryName,
+      itemName,
+      value,
+      month: currentMonth,
+    });
     // Capture previous state for undo
     const previousState = budgetData[currentMonth];
-    const oldValue = previousState?.categories
+    const oldItem = previousState?.categories
       .flatMap((c) => c.categoryItems)
-      .find((item) => item.name === itemName)?.assigned ?? 0;
+      .find((item) => item.name === itemName);
+    const oldValue = oldItem?.assigned ?? 0;
+    const oldActivity = oldItem?.activity ?? 0;  // Capture the original activity too
+
+    console.log(`[handleInputChange] Capturing undo state for ${categoryName} > ${itemName}:`, {
+      oldValue,
+      oldActivity,
+      categoryName,
+      isCardPaymentGroup: categoryName === "Credit Card Payments",
+    });
 
     setBudgetData((prev) => {
       const updated = { ...prev };
@@ -301,7 +396,38 @@ export default function BudgetTable() {
           }
 
           const updatedItems = category.categoryItems.map((item) => {
-            // For the target category, update only the specific item
+            // CHECK CREDIT CARD PAYMENTS FIRST before regular categories
+            // For Credit Card Payments, DO NOT RECALCULATE when editing assigned
+            if (category.name === "Credit Card Payments") {
+              // If we're editing a credit card item's assigned value, update ONLY assigned and available
+              // DO NOT touch activity at all
+              if (categoryName === "Credit Card Payments" && item.name === itemName) {
+                const cumulative = getCumulativeAvailable(
+                  updated,
+                  item.name,
+                  category.name
+                );
+                // Use existing activity - never recalculate it on assignment changes
+                const available = value + item.activity + Math.max(cumulative, 0);
+
+                const result = {
+                  name: item.name,
+                  assigned: value,
+                  activity: item.activity,
+                  available: available,
+                  snoozed: item.snoozed,
+                  target: item.target,
+                  notes: item.notes,
+                  notes_history: item.notes_history,
+                };
+                return result;
+              }
+              
+              // For all other credit card items, return unchanged
+              return item;
+            }
+
+            // For regular categories (non-credit card), update only the specific item
             if (category.name === categoryName) {
               if (item.name !== itemName) return item;
 
@@ -325,27 +451,6 @@ export default function BudgetTable() {
               };
             }
 
-            // For Credit Card Payments, recalculate activity
-            if (category.name === "Credit Card Payments") {
-              const activity = calculateCreditCardAccountActivity(
-                currentMonth,
-                item.name,
-                updated
-              );
-              const cumulative = getCumulativeAvailable(
-                updated,
-                item.name,
-                category.name
-              );
-              const available = item.assigned + activity + Math.max(cumulative, 0);
-
-              return {
-                ...item,
-                activity,
-                available,
-              };
-            }
-
             return item;
           });
 
@@ -362,10 +467,13 @@ export default function BudgetTable() {
       return updated;
     });
 
+    console.log(`[handleInputChange] After setBudgetData, the state should have been updated`);
+
     // Register undo/redo action
     registerAction({
       description: `Assigned $${value} to '${itemName}' in '${categoryName}'`,
       execute: async () => {
+        console.log(`[handleInputChange.execute/redo] Reapplying ${categoryName} > ${itemName} with assigned=${value}`);
         // Re-apply the assignment for redo
         setBudgetData((prev) => {
           const updated = { ...prev };
@@ -376,7 +484,7 @@ export default function BudgetTable() {
               }
 
               const updatedItems = category.categoryItems.map((item) => {
-                if (category.name === categoryName && item.name === itemName) {
+                if (category.name === categoryName && item.name === itemName && category.name !== "Credit Card Payments") {
                   const itemActivity = calculateActivityForMonth(
                     currentMonth,
                     item.name,
@@ -398,23 +506,25 @@ export default function BudgetTable() {
                 }
 
                 if (category.name === "Credit Card Payments") {
-                  const activity = calculateCreditCardAccountActivity(
-                    currentMonth,
-                    item.name,
-                    updated
-                  );
-                  const cumulative = getCumulativeAvailable(
-                    updated,
-                    item.name,
-                    category.name
-                  );
-                  const available = item.assigned + activity + Math.max(cumulative, 0);
+                  // For redo of credit card assignments, preserve activity (don't recalculate)
+                  if (categoryName === "Credit Card Payments" && item.name === itemName) {
+                    const cumulative = getCumulativeAvailable(
+                      updated,
+                      item.name,
+                      category.name
+                    );
+                    const available = value + item.activity + Math.max(cumulative, 0);
 
-                  return {
-                    ...item,
-                    activity,
-                    available,
-                  };
+                    return {
+                      ...item,
+                      assigned: value,
+                      activity: item.activity,
+                      available,
+                    };
+                  }
+
+                  // For other credit card items, return unchanged
+                  return item;
                 }
 
                 return item;
@@ -443,7 +553,7 @@ export default function BudgetTable() {
               }
 
               const updatedItems = category.categoryItems.map((item) => {
-                if (category.name === categoryName && item.name === itemName) {
+                if (category.name === categoryName && item.name === itemName && category.name !== "Credit Card Payments") {
                   const itemActivity = calculateActivityForMonth(
                     currentMonth,
                     item.name,
@@ -465,23 +575,25 @@ export default function BudgetTable() {
                 }
 
                 if (category.name === "Credit Card Payments") {
-                  const activity = calculateCreditCardAccountActivity(
-                    currentMonth,
-                    item.name,
-                    updated
-                  );
-                  const cumulative = getCumulativeAvailable(
-                    updated,
-                    item.name,
-                    category.name
-                  );
-                  const available = item.assigned + activity + Math.max(cumulative, 0);
+                  // When undoing, restore the original activity (don't recalculate)
+                  if (categoryName === "Credit Card Payments" && item.name === itemName) {
+                    const cumulative = getCumulativeAvailable(
+                      updated,
+                      item.name,
+                      category.name
+                    );
+                    const available = oldValue + oldActivity + Math.max(cumulative, 0);
 
-                  return {
-                    ...item,
-                    activity,
-                    available,
-                  };
+                    return {
+                      ...item,
+                      assigned: oldValue,
+                      activity: oldActivity,
+                      available,
+                    };
+                  }
+
+                  // For other credit card items, return unchanged
+                  return item;
                 }
 
                 return item;
@@ -584,69 +696,138 @@ export default function BudgetTable() {
   const handleMoveMoney = useCallback(() => {
     if (!moveMoneyModal || !moveToCategory || moveAmount === 0) return;
 
-    const [fromGroup, fromItem] = moveToCategory.split("::");
     const toGroup = moveMoneyModal.toGroup;
     const toItem = moveMoneyModal.toItem;
-
-    const sourceCategory = budgetData[currentMonth]?.categories
-      .find((c) => c.name === fromGroup)?.categoryItems.find((i) => i.name === fromItem);
 
     const targetCategory = budgetData[currentMonth]?.categories
       .find((c) => c.name === toGroup)?.categoryItems.find((i) => i.name === toItem);
 
-    if (!sourceCategory || !targetCategory) return;
+    if (!targetCategory) return;
 
-    // --- REPLACE your const applyTransfer(...) + applyTransfer("forward") + registerAction(...) block with this ---
-
+    // Handle moving from RTA
+    const isMovingFromRTA = moveToCategory === "RTA";
+    
+    // Find source category if not moving from RTA
+    let sourceCategory: { assigned?: number } | null = null;
+    let fromGroup = "";
+    let fromItem = "";
+    
+    if (!isMovingFromRTA) {
+      // moveToCategory contains "GroupName::ItemName"
+      const [groupName, itemName] = moveToCategory.split("::");
+      fromGroup = groupName;
+      fromItem = itemName;
+      
+      sourceCategory = budgetData[currentMonth]?.categories
+        .find((c) => c.name === groupName)?.categoryItems.find((i) => i.name === itemName);
+      
+      if (!sourceCategory) return;
+    }
+    
     const transferAmount = Math.abs(moveAmount);
     if (transferAmount <= 0) return;
 
     // Capture the starting assigned values ONCE
-    const sourceStartAssigned = sourceCategory.assigned; // (fromGroup/fromItem)
-    const targetStartAssigned = targetCategory.assigned; // (toGroup/toItem)
+    const sourceStartAssigned = isMovingFromRTA 
+      ? displayedRta
+      : (sourceCategory?.assigned ?? 0);
+    const targetStartAssigned = targetCategory.assigned;
+
+    rtaLog("BudgetTable:move-money:init", {
+      month: currentMonth,
+      isMovingFromRTA,
+      fromGroup,
+      fromItem,
+      toGroup,
+      toItem,
+      transferAmount,
+      sourceStartAssigned,
+      targetStartAssigned,
+      rtaStart: displayedRta,
+    });
 
     const applyState = (mode: "applied" | "reverted") => {
-      const srcAssigned =
-        mode === "applied"
-          ? sourceStartAssigned - transferAmount
-          : sourceStartAssigned;
-
       const dstAssigned =
         mode === "applied"
           ? targetStartAssigned + transferAmount
           : targetStartAssigned;
 
+      rtaLog("BudgetTable:move-money:apply", {
+        mode,
+        dstAssigned,
+        sourceStartAssigned,
+        targetStartAssigned,
+      });
+
       setBudgetData((prev) => {
         const updated = { ...prev };
 
-        const updatedCategories = updated[currentMonth]?.categories.map((category) => {
-          const updatedItems = category.categoryItems.map((item) => {
-            if (category.name === fromGroup && item.name === fromItem) {
-              const itemActivity = calculateActivityForMonth(currentMonth, item.name, category.name);
-              const cumulative = getCumulativeAvailable(updated, item.name, category.name);
-              const available = srcAssigned + itemActivity + Math.max(cumulative, 0);
-              return { ...item, assigned: srcAssigned, available };
-            }
+        let updatedCategories = updated[currentMonth]?.categories || [];
 
-            if (category.name === toGroup && item.name === toItem) {
-              const itemActivity = calculateActivityForMonth(currentMonth, item.name, category.name);
-              const cumulative = getCumulativeAvailable(updated, item.name, category.name);
-              const available = dstAssigned + itemActivity + Math.max(cumulative, 0);
-              return { ...item, assigned: dstAssigned, available };
+        // If moving from a regular category, update its assigned
+        if (!isMovingFromRTA) {
+          const srcAssigned =
+            mode === "applied"
+              ? sourceStartAssigned - transferAmount
+              : sourceStartAssigned;
+
+          updatedCategories = updatedCategories.map((category) => {
+            const updatedItems = category.categoryItems.map((item) => {
+              if (category.name === fromGroup && item.name === fromItem) {
+                const itemActivity = calculateActivityForMonth(currentMonth, item.name, category.name);
+                const cumulative = getCumulativeAvailable(updated, item.name, category.name);
+                const available = srcAssigned + itemActivity + Math.max(cumulative, 0);
+                return { ...item, assigned: srcAssigned, available };
+              }
+
+              if (category.name === toGroup && item.name === toItem) {
+                const itemActivity = calculateActivityForMonth(currentMonth, item.name, category.name);
+                const cumulative = getCumulativeAvailable(updated, item.name, category.name);
+                const available = dstAssigned + itemActivity + Math.max(cumulative, 0);
+                return { ...item, assigned: dstAssigned, available };
+              }
+
+              if (category.name === "Credit Card Payments") {
+                const activity = calculateCreditCardAccountActivity(currentMonth, item.name, updated);
+                const cumulative = getCumulativeAvailable(updated, item.name, category.name);
+                const available = item.assigned + activity + Math.max(cumulative, 0);
+                return { ...item, activity, available };
+              }
+
+              return item;
+            });
+
+            return { ...category, categoryItems: updatedItems };
+          });
+        } else {
+          // Moving from RTA: only update target category
+          updatedCategories = updatedCategories.map((category) => {
+            if (category.name === toGroup) {
+              const updatedItems = category.categoryItems.map((item) => {
+                if (item.name === toItem) {
+                  const itemActivity = calculateActivityForMonth(currentMonth, item.name, category.name);
+                  const cumulative = getCumulativeAvailable(updated, item.name, category.name);
+                  const available = dstAssigned + itemActivity + Math.max(cumulative, 0);
+                  return { ...item, assigned: dstAssigned, available };
+                }
+                return item;
+              });
+              return { ...category, categoryItems: updatedItems };
             }
 
             if (category.name === "Credit Card Payments") {
-              const activity = calculateCreditCardAccountActivity(currentMonth, item.name, updated);
-              const cumulative = getCumulativeAvailable(updated, item.name, category.name);
-              const available = item.assigned + activity + Math.max(cumulative, 0);
-              return { ...item, activity, available };
+              const updatedItems = category.categoryItems.map((item) => {
+                const activity = calculateCreditCardAccountActivity(currentMonth, item.name, updated);
+                const cumulative = getCumulativeAvailable(updated, item.name, category.name);
+                const available = item.assigned + activity + Math.max(cumulative, 0);
+                return { ...item, activity, available };
+              });
+              return { ...category, categoryItems: updatedItems };
             }
 
-            return item;
+            return category;
           });
-
-          return { ...category, categoryItems: updatedItems };
-        });
+        }
 
         updated[currentMonth] = { ...updated[currentMonth], categories: updatedCategories };
         refreshAllReadyToAssign(updated);
@@ -656,6 +837,10 @@ export default function BudgetTable() {
 
     // Apply once now (still fine since registerAction doesn't auto-execute)
     applyState("applied");
+    rtaLog("BudgetTable:move-money:applied", {
+      month: currentMonth,
+      rtaAfterApply: displayedRta,
+    });
 
     registerAction({
       description: `Moved ${formatToUSD(transferAmount)} from '${fromItem}' to '${toItem}'`,
@@ -676,6 +861,7 @@ export default function BudgetTable() {
     setMoveMoneyModal(null);
     setMoveAmount(0);
     setMoveToCategory("");
+    rtaLog("BudgetTable:move-money:done", { month: currentMonth });
   }, [moveMoneyModal, moveToCategory, moveAmount, budgetData, currentMonth, setBudgetData, calculateActivityForMonth, getCumulativeAvailable, calculateCreditCardAccountActivity, refreshAllReadyToAssign, registerAction, setIsDirty, setRecentChanges]);
 
   // Get assigned amount from previous month
@@ -913,6 +1099,40 @@ export default function BudgetTable() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [categoryContext, handleQuickAssign]);
 
+  // Global keyboard shortcuts
+  useGlobalKeyboardShortcuts({
+    onAddTransaction: () => {
+      setShowAddTransactionModal(true);
+    },
+    onToggleFilter: () => {
+      // Cycle through filters
+      const currentIndex = FILTERS.indexOf(selectedFilter);
+      const nextIndex = (currentIndex + 1) % FILTERS.length;
+      setSelectedFilter(FILTERS[nextIndex]);
+    },
+    onMoveMoney: () => {
+      openMoveMoneyModal();
+    },
+    onNextMonth: () => {
+      const parsedDate = parse(`${currentMonth}-01`, "yyyy-MM-dd", new Date());
+      const nextMonthDate = new Date(parsedDate);
+      nextMonthDate.setMonth(nextMonthDate.getMonth() + 1);
+      const nextMonth = format(nextMonthDate, "yyyy-MM");
+      updateMonth(nextMonth, "forward", accounts);
+    },
+    onPrevMonth: () => {
+      const parsedDate = parse(`${currentMonth}-01`, "yyyy-MM-dd", new Date());
+      const prevMonthDate = new Date(parsedDate);
+      prevMonthDate.setMonth(prevMonthDate.getMonth() - 1);
+      const prevMonth = format(prevMonthDate, "yyyy-MM");
+      updateMonth(prevMonth, "backward", accounts);
+    },
+    onShowHelp: () => {
+      setShowShortcutsHelp(true);
+    },
+    enabled: !categoryContext && !moveMoneyModal && !groupContext && !categoryDeleteContext,
+  });
+
   return (
     <>
       {/* Group context menu */}
@@ -1076,7 +1296,7 @@ export default function BudgetTable() {
               onClick={(e) => e.stopPropagation()}
             >
               <h2 className="text-base font-semibold">
-                Move Money to "{moveMoneyModal.toItem}"
+                Move Money to &quot;{moveMoneyModal.toItem}&quot;
               </h2>
 
               <div className="space-y-3">
@@ -1105,6 +1325,15 @@ export default function BudgetTable() {
                         return;
                       }
 
+                      // Handle RTA special case
+                      if (value === "RTA") {
+                        const rtaBalance = displayedRta;
+                        setSourceAvailable(rtaBalance);
+                        const targetDeficit = moveMoneyModal.available < 0 ? Math.abs(moveMoneyModal.available) : rtaBalance;
+                        setMoveAmount(targetDeficit);
+                        return;
+                      }
+
                       const [srcGroup, srcItem] = value.split("::");
                       const source = budgetData[currentMonth]?.categories
                         .find((c) => c.name === srcGroup)?.categoryItems.find((i) => i.name === srcItem);
@@ -1117,6 +1346,9 @@ export default function BudgetTable() {
                     }}
                   >
                     <option value="">Select a category</option>
+                    <option value="RTA" className="font-semibold">
+                      Ready to Assign (Avail {formatToUSD(displayedRta || 0)})
+                    </option>
                     {budgetData[currentMonth]?.categories
                       .flatMap((cat) =>
                         cat.categoryItems
@@ -1151,7 +1383,7 @@ export default function BudgetTable() {
                       disabled={!moveToCategory}
                       onClick={() => setMoveAmount(Math.max(sourceAvailable, 0))}
                     >
-                      Use available ({formatToUSD(sourceAvailable)})
+                      Use available ({formatToUSD(Math.round(sourceAvailable * 100) / 100)})
                     </Button>
                     <Button
                       variant="outline"
@@ -1159,7 +1391,7 @@ export default function BudgetTable() {
                       disabled={moveMoneyModal.available >= 0 || !moveToCategory}
                       onClick={() => setMoveAmount(Math.abs(moveMoneyModal.available))}
                     >
-                      Cover deficit ({formatToUSD(Math.abs(moveMoneyModal.available))})
+                      Cover deficit ({formatToUSD(Math.round(Math.abs(moveMoneyModal.available) * 100) / 100)})
                     </Button>
                   </div>
                 </div>
@@ -1304,6 +1536,191 @@ export default function BudgetTable() {
           document.body
         )}
 
+      {/* Keyboard Shortcuts Help Modal */}
+      <Dialog open={showShortcutsHelp} onOpenChange={setShowShortcutsHelp}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Keyboard Shortcuts</DialogTitle>
+            <DialogDescription>
+              Speed up your budgeting with these keyboard shortcuts
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <h4 className="font-semibold text-sm mb-2 text-slate-700 dark:text-slate-300">Navigation</h4>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between items-center py-1">
+                  <span className="text-slate-600 dark:text-slate-400">Previous month</span>
+                  <kbd className="px-2 py-1 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded text-xs font-mono">←</kbd>
+                </div>
+                <div className="flex justify-between items-center py-1">
+                  <span className="text-slate-600 dark:text-slate-400">Next month</span>
+                  <kbd className="px-2 py-1 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded text-xs font-mono">→</kbd>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <h4 className="font-semibold text-sm mb-2 text-slate-700 dark:text-slate-300">Actions</h4>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between items-center py-1">
+                  <span className="text-slate-600 dark:text-slate-400">Toggle filters</span>
+                  <kbd className="px-2 py-1 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded text-xs font-mono">Ctrl+F</kbd>
+                </div>
+                <div className="flex justify-between items-center py-1">
+                  <span className="text-slate-600 dark:text-slate-400">Add transaction</span>
+                  <kbd className="px-2 py-1 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded text-xs font-mono">Alt+N</kbd>
+                </div>
+                <div className="flex justify-between items-center py-1">
+                  <span className="text-slate-600 dark:text-slate-400">Move money</span>
+                  <kbd className="px-2 py-1 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded text-xs font-mono">Ctrl+M</kbd>
+                </div>
+                <div className="flex justify-between items-center py-1">
+                  <span className="text-slate-600 dark:text-slate-400">Undo</span>
+                  <kbd className="px-2 py-1 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded text-xs font-mono">Ctrl+Z</kbd>
+                </div>
+                <div className="flex justify-between items-center py-1">
+                  <span className="text-slate-600 dark:text-slate-400">Redo</span>
+                  <kbd className="px-2 py-1 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded text-xs font-mono">Ctrl+Y</kbd>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <h4 className="font-semibold text-sm mb-2 text-slate-700 dark:text-slate-300">Quick Assign (Right-click menu)</h4>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between items-center py-1">
+                  <span className="text-slate-600 dark:text-slate-400">Set to last month</span>
+                  <kbd className="px-2 py-1 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded text-xs font-mono">L</kbd>
+                </div>
+                <div className="flex justify-between items-center py-1">
+                  <span className="text-slate-600 dark:text-slate-400">Set to 3-month average</span>
+                  <kbd className="px-2 py-1 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded text-xs font-mono">A</kbd>
+                </div>
+                <div className="flex justify-between items-center py-1">
+                  <span className="text-slate-600 dark:text-slate-400">Zero out</span>
+                  <kbd className="px-2 py-1 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded text-xs font-mono">Z</kbd>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <h4 className="font-semibold text-sm mb-2 text-slate-700 dark:text-slate-300">Help</h4>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between items-center py-1">
+                  <span className="text-slate-600 dark:text-slate-400">Show this dialog</span>
+                  <kbd className="px-2 py-1 bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded text-xs font-mono">?</kbd>
+                </div>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setShowShortcutsHelp(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Transaction Modal - Account Selection */}
+      <Dialog open={showAddTransactionModal && !selectedAccountForTransaction} onOpenChange={(open) => {
+        setShowAddTransactionModal(open);
+        if (!open) setSelectedAccountForTransaction(null);
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Transaction</DialogTitle>
+            <DialogDescription>
+              Select an account to add a transaction to
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 max-h-96 overflow-y-auto">
+            {accounts && accounts.length > 0 ? (
+              accounts.map((account) => (
+                <Button
+                  key={account.id}
+                  variant="outline"
+                  className="w-full justify-start text-left h-auto py-3 px-4"
+                  onClick={() => {
+                    setSelectedAccountForTransaction(account.id);
+                  }}
+                >
+                  <div className="flex flex-col gap-1">
+                    <span className="font-medium">{account.name}</span>
+                    <span className="text-xs text-slate-500">
+                      Balance: ${account.balance?.toFixed(2) || "0.00"}
+                    </span>
+                  </div>
+                </Button>
+              ))
+            ) : (
+              <p className="text-center text-slate-500 py-4">No accounts found</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => {
+              setShowAddTransactionModal(false);
+              setSelectedAccountForTransaction(null);
+            }}>
+              Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Transaction Inline Form - Shows after account is selected */}
+      {selectedAccountForTransaction && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-h-[90vh] w-[90vw] max-w-6xl flex flex-col border border-slate-200 dark:border-slate-700">
+            <div className="border-b border-slate-200 dark:border-slate-700 px-8 py-6 flex justify-between items-center bg-gradient-to-r from-slate-50 to-transparent dark:from-slate-800 dark:to-transparent rounded-t-2xl">
+              <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-50">Add Transaction to <span className="text-teal-600 dark:text-teal-400">{accounts.find(a => a.id === selectedAccountForTransaction)?.name}</span></h2>
+              <button
+                onClick={() => {
+                  setSelectedAccountForTransaction(null);
+                  setShowAddTransactionModal(false);
+                }}
+                className="text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 text-3xl leading-none transition-colors"
+              >
+                ×
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-8">
+              <div className="w-full overflow-x-auto">
+                <table className="w-full text-lg border-collapse">
+                  <thead className="bg-gradient-to-r from-slate-100 to-slate-50 dark:from-slate-800 dark:to-slate-900 sticky top-0 rounded-lg">
+                    <tr className="rounded-lg">
+                      <th className="border border-slate-200 dark:border-slate-700 px-6 py-5 text-left font-bold text-base text-slate-900 dark:text-slate-50">Date</th>
+                      <th className="border border-slate-200 dark:border-slate-700 px-6 py-5 text-left font-bold text-base text-slate-900 dark:text-slate-50">Payee</th>
+                      <th className="border border-slate-200 dark:border-slate-700 px-6 py-5 text-left font-bold text-base text-slate-900 dark:text-slate-50">Category</th>
+                      <th className="border border-slate-200 dark:border-slate-700 px-6 py-5 text-right font-bold text-base text-slate-900 dark:text-slate-50">Amount</th>
+                      <th className="border border-slate-200 dark:border-slate-700 px-6 py-5 text-center font-bold text-base text-slate-900 dark:text-slate-50">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="hover:bg-teal-50 dark:hover:bg-teal-950/20 h-24 transition-colors">
+                      <td colSpan={5} className="p-0">
+                        <InlineTransactionRow
+                          accountId={selectedAccountForTransaction}
+                          mode="add"
+                          autoFocus
+                          onCancel={() => {
+                            setSelectedAccountForTransaction(null);
+                            setShowAddTransactionModal(false);
+                          }}
+                          onSave={() => {
+                            setSelectedAccountForTransaction(null);
+                            setShowAddTransactionModal(false);
+                          }}
+                        />
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
       {/* Main card */}
       <Card className="flex flex-col w-full h-full min-h-0 overflow-hidden border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-950">
         <CardHeader className="pb-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
@@ -1335,21 +1752,38 @@ export default function BudgetTable() {
 
             {/* Top row: RTA + Month */}
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div data-cy="ready-to-assign" className="flex items-center gap-2">
-                <span className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                  Ready to Assign
-                </span>
-                <Badge
-                  variant="outline"
-                  className="text-base font-bold font-mono px-3 py-1 bg-teal-500 dark:bg-teal-600 text-white border-teal-500 dark:border-teal-600"
-                >
-                  {formatToUSD(budgetData[currentMonth]?.ready_to_assign || 0)}
-                </Badge>
+              <div className="flex items-center gap-3">
+                <div data-cy="ready-to-assign" className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                    Ready to Assign
+                  </span>
+                  <Badge
+                    variant="outline"
+                    className="text-base font-bold font-mono px-3 py-1 bg-teal-500 dark:bg-teal-600 text-white border-teal-500 dark:border-teal-600"
+                  >
+                    {formatToUSD(displayedRta || 0)}
+                  </Badge>
+                </div>
+                {showCarryNote && (
+                  <span className="text-xs text-amber-700 dark:text-amber-300">
+                    Reduced by {formatToUSD(Math.abs(currentCarry))} from prior months
+                  </span>
+                )}
+                {overspentCategoriesCount > 0 && (
+                  <Badge
+                    data-cy="overspent-indicator"
+                    variant="outline"
+                    className="text-xs font-medium px-2.5 py-1 bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-300 border-red-300 dark:border-red-700"
+                  >
+                    {overspentCategoriesCount} overspent
+                  </Badge>
+                )}
               </div>
               <div>
                 <MonthNav />
               </div>
             </div>
+
 
             {/* Toolbar: Filters + Add Group */}
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1400,6 +1834,40 @@ export default function BudgetTable() {
                 >
                   {sandboxMode ? "Exit sandbox" : "Sandbox mode"}
                 </Button>
+
+                <Button
+                  data-cy="ynab-import-button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setImportDialogOpen(true)}
+                  className="text-xs gap-2"
+                  style={{ display: importPending ? "none" : "inline-flex" }}
+                >
+                  Import CSV
+                </Button>
+
+                {importPending && (
+                  <div className="flex gap-2">
+                    <Button
+                      data-cy="confirm-import-button"
+                      variant="default"
+                      size="sm"
+                      onClick={confirmImport}
+                      className="text-xs gap-2 bg-green-600 hover:bg-green-700"
+                    >
+                      Confirm Import
+                    </Button>
+                    <Button
+                      data-cy="undo-import-button"
+                      variant="destructive"
+                      size="sm"
+                      onClick={undoImport}
+                      className="text-xs gap-2"
+                    >
+                      Undo Import
+                    </Button>
+                  </div>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <Button
@@ -1426,23 +1894,23 @@ export default function BudgetTable() {
                   <RotateCw className="h-4 w-4" />
                   Redo
                 </Button>
-                <KeyboardShortcuts
-                  page="budget"
-                  shortcuts={[
-                    { key: "Ctrl+Z / Cmd+Z", description: "Undo last action" },
-                    { key: "Ctrl+Y / Cmd+Shift+Z", description: "Redo last action" },
-                    { key: "L", description: "Set category to last month's assigned (right-click menu)" },
-                    { key: "A", description: "Set category to 3-month average (right-click menu)" },
-                    { key: "Z", description: "Zero out category (right-click menu)" },
-                  ]}
-                />
+                <Button
+                  data-cy="keyboard-shortcuts-button"
+                  onClick={() => setShowShortcutsHelp(true)}
+                  variant="outline"
+                  size="sm"
+                  title="Keyboard Shortcuts (press ? for help)"
+                  className="gap-1"
+                >
+                  ?
+                </Button>
                 <AddCategoryButton handleSubmit={addCategoryGroup} />
               </div>
             </div>
           </div>
         </CardHeader>
 
-        <CardContent className="px-0 pb-2 flex-1 flex flex-col min-h-0 gap-0">
+        <CardContent className="px-0 pb-2 flex-1 flex flex-col min-h-0 gap-0 overflow-hidden">
           <div className="w-full">
             <Table data-cy="budget-table-header" className="w-full table-fixed">
               <TableHeader className="bg-slate-100 dark:bg-slate-800">
@@ -2035,6 +2503,11 @@ export default function BudgetTable() {
           </div>
         </CardContent>
       </Card>
+
+        <YnabImportDialog
+          open={importDialogOpen}
+          onOpenChange={setImportDialogOpen}
+        />
     </>
   );
 }

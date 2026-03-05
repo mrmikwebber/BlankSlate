@@ -2,7 +2,7 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { useAccountContext } from "@/app/context/AccountContext";
+import { Transaction, useAccountContext } from "@/app/context/AccountContext";
 import { useUndoRedo } from "@/app/context/UndoRedoContext";
 import { supabase } from "@/utils/supabaseClient";
 import { parseISO, format } from "date-fns";
@@ -10,12 +10,6 @@ import InlineTransactionRow from "./InlineTransactionRow";
 import KeyboardShortcuts from "./KeyboardShortcuts";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
@@ -48,7 +42,7 @@ export default function AccountDetails() {
   const [editingTransactionId, setEditingTransactionId] = useState<
     number | null
   >(null);
-  const [editedTransaction, setEditedTransaction] = useState<any>(null);
+  const [editedTransaction, setEditedTransaction] = useState<Transaction | null>(null);
   const [isEditingAccountName, setIsEditingAccountName] = useState(false);
   const [newAccountName, setNewAccountName] = useState<string | undefined>();
   const [selectedTxId, setSelectedTxId] = useState<number | null>(null);
@@ -99,7 +93,7 @@ export default function AccountDetails() {
     };
   }, []);
 
-  const startEdit = (tx: any) => {
+  const startEdit = (tx: Transaction) => {
     setEditedTransaction(tx);
     setEditingTransactionId(tx.id);
     setShowForm(false);
@@ -152,7 +146,13 @@ export default function AccountDetails() {
       undo: async () => {
         // Re-insert all deleted transactions
         for (const tx of deletedTransactions) {
-          const { id, ...txData } = tx;
+          const txData = {
+            date: tx.date,
+            payee: tx.payee,
+            category: tx.category,
+            category_group: tx.category_group,
+            balance: tx.balance,
+          };
           const { data: restoredData, error } = await supabase.from("transactions").insert([
             {
               ...txData,
@@ -231,7 +231,7 @@ export default function AccountDetails() {
 
   const categoryLabel = useMemo(
     () =>
-      (tx: any) => {
+      (tx: Transaction) => {
         if (tx.payee && (tx.payee.startsWith("Transfer") || tx.payee.startsWith("Payment"))) {
           return tx.payee;
         }
@@ -248,7 +248,12 @@ export default function AccountDetails() {
 
     txs.sort((a, b) => {
       if (sortConfig.key === "date") {
-        return (new Date(a.date).getTime() - new Date(b.date).getTime()) * dir;
+        const dateCompare = (new Date(a.date).getTime() - new Date(b.date).getTime()) * dir;
+        // If dates are equal, sort by ID descending (newest first) for desc, or ascending for asc
+        if (dateCompare === 0) {
+          return dir === -1 ? b.id - a.id : a.id - b.id;
+        }
+        return dateCompare;
       }
       if (sortConfig.key === "payee") {
         return a.payee.localeCompare(b.payee) * dir;
@@ -359,8 +364,20 @@ export default function AccountDetails() {
       }
     };
 
+    // Alt+N to add transaction
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.altKey && (e.key === "n" || e.key === "N")) {
+        e.preventDefault();
+        setShowForm(true);
+      }
+    };
+
     window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    window.addEventListener("keydown", handleGlobalKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keydown", handleGlobalKeyDown);
+    };
   }, [account, selectedTxId, showForm, editingTransactionId, deleteTransactionWithMirror, sortedTransactions]);
 
   if (!account) {
@@ -668,11 +685,20 @@ export default function AccountDetails() {
                     {tx.payee}
                   </td>
                   <td className="px-4 py-3 truncate max-w-xs border-r border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 text-xs">
-                    {tx.payee && (tx.payee.startsWith("Transfer") || tx.payee.startsWith("Payment"))
-                      ? tx.payee
-                      : tx.category_group && tx.category
-                        ? `${tx.category_group}: ${tx.category}`
-                        : tx.category || tx.category_group || ""}
+                        {tx.payee && (tx.payee.startsWith("Transfer") || tx.payee.startsWith("Payment"))
+                          ? tx.payee
+                          : tx.category === "Ready to Assign" || tx.category_group === "Ready to Assign"
+                            ? "Ready to Assign"
+                            : tx.category === "Category Not Needed"
+                              ? "Category Not Needed"
+                              : tx.category_group && tx.category
+                                ? `${tx.category_group}: ${tx.category}`
+                                : (
+                                  <span className="inline-flex items-center gap-2 text-red-600 dark:text-red-400 font-semibold">
+                                    Uncategorized
+                                    <span className="text-[11px] uppercase tracking-wide bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-200 rounded px-1.5 py-0.5">Add category</span>
+                                  </span>
+                                )}
                   </td>
                   <td
                     data-cy="transaction-amount"

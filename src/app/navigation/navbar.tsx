@@ -6,10 +6,28 @@ import { useDarkMode } from "../context/DarkModeContext";
 import { supabase } from "../../utils/supabaseClient";
 import { createPortal } from "react-dom";
 import { Moon, Sun } from "lucide-react";
+import { isAdminUser, normalizeAdminList } from "@/lib/admin";
 
 export default function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
+  const [showBugModal, setShowBugModal] = useState(false);
+  const [showSuggestionModal, setShowSuggestionModal] = useState(false);
+  const [bugSubmitting, setBugSubmitting] = useState(false);
+  const [bugError, setBugError] = useState<string | null>(null);
+  const [bugSuccess, setBugSuccess] = useState<string | null>(null);
+  const [bugTitle, setBugTitle] = useState("");
+  const [bugSteps, setBugSteps] = useState("");
+  const [bugExpected, setBugExpected] = useState("");
+  const [bugActual, setBugActual] = useState("");
+  const [bugContact, setBugContact] = useState("");
+  const [suggestionSubmitting, setSuggestionSubmitting] = useState(false);
+  const [suggestionError, setSuggestionError] = useState<string | null>(null);
+  const [suggestionSuccess, setSuggestionSuccess] = useState<string | null>(null);
+  const [suggestionTitle, setSuggestionTitle] = useState("");
+  const [suggestionDescription, setSuggestionDescription] = useState("");
+  const [suggestionUseCase, setSuggestionUseCase] = useState("");
+  const [suggestionContact, setSuggestionContact] = useState("");
   const [isResetting, setIsResetting] = useState(false);
   const { isDarkMode, toggleDarkMode } = useDarkMode();
   const appVersion = process.env.NEXT_PUBLIC_APP_VERSION || "1.0.0";
@@ -30,6 +48,12 @@ export default function Navbar() {
   
   const { user, signOut } = useAuth();
   const name = user?.user_metadata?.first_name;
+  const adminEmails = normalizeAdminList(process.env.NEXT_PUBLIC_ADMIN_EMAILS);
+  const adminIds = normalizeAdminList(process.env.NEXT_PUBLIC_ADMIN_USER_IDS);
+  const isAdmin = isAdminUser(
+    { email: user?.email, id: user?.id },
+    { emails: adminEmails, ids: adminIds }
+  );
 
   const handleResetAccount = async () => {
     if (!user) return;
@@ -124,6 +148,9 @@ export default function Navbar() {
             {/* Compact links + user actions */}
             <ul className="flex flex-row items-center gap-3 m-0">
               <li>
+                <Link href="/roadmap" className="text-xs text-slate-700 dark:text-slate-300 hover:underline">Roadmap</Link>
+              </li>
+              <li>
                 <Link href="/legal" className="text-xs text-slate-700 dark:text-slate-300 hover:underline">Legal</Link>
               </li>
               <li>
@@ -141,11 +168,39 @@ export default function Navbar() {
                         <Moon className="h-4 w-4 text-slate-600" />
                       )}
                     </button>
+                    {isAdmin && (
+                      <Link
+                        href="/admin/port-user-data"
+                        className="px-3 py-1.5 rounded-md text-xs border border-teal-300 dark:border-teal-700 text-teal-800 dark:text-teal-300 bg-transparent hover:bg-teal-50 dark:hover:bg-teal-950 transition-colors"
+                      >
+                        Admin Tools
+                      </Link>
+                    )}
                     <button 
                       onClick={() => setShowResetModal(true)} 
                       className="px-3 py-1.5 rounded-md text-xs border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                     >
                       Reset Account
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowBugModal(true);
+                        setBugError(null);
+                        setBugSuccess(null);
+                      }}
+                      className="px-3 py-1.5 rounded-md text-xs border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300 bg-transparent hover:bg-amber-50 dark:hover:bg-amber-950 transition-colors"
+                    >
+                      Report Bug
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowSuggestionModal(true);
+                        setSuggestionError(null);
+                        setSuggestionSuccess(null);
+                      }}
+                      className="px-3 py-1.5 rounded-md text-xs border border-blue-300 dark:border-blue-700 text-blue-800 dark:text-blue-300 bg-transparent hover:bg-blue-50 dark:hover:bg-blue-950 transition-colors"
+                    >
+                      Suggest Feature
                     </button>
                     <button onClick={signOut} className="bg-teal-600 dark:bg-teal-700 hover:bg-teal-500 dark:hover:bg-teal-600 text-white px-5 py-1.5 rounded-md text-xs transition-colors">
                       Sign Out
@@ -197,6 +252,261 @@ export default function Navbar() {
                 disabled={isResetting}
               >
                 {isResetting ? 'Resetting...' : 'Yes, Reset Everything'}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Report Bug Modal */}
+      {showBugModal && createPortal(
+        <div 
+          className="fixed inset-0 bg-black/30 dark:bg-black/60 z-[10000] flex items-center justify-center"
+          onClick={() => setShowBugModal(false)}
+        >
+          <div 
+            className="bg-white dark:bg-slate-900 p-6 rounded-lg shadow-lg dark:shadow-xl w-full max-w-lg space-y-4 border dark:border-slate-700"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100">Report a Bug</h2>
+            <p className="text-sm text-slate-600 dark:text-slate-300">
+              This will open a GitHub issue in our tracker. Please include clear steps and what you expected vs. what you observed.
+            </p>
+
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <label className="text-xs text-slate-600 dark:text-slate-300">Title</label>
+                <input
+                  className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm"
+                  value={bugTitle}
+                  onChange={(e) => setBugTitle(e.target.value)}
+                  placeholder="Short summary"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-slate-600 dark:text-slate-300">Steps to reproduce</label>
+                <textarea
+                  className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm"
+                  rows={3}
+                  value={bugSteps}
+                  onChange={(e) => setBugSteps(e.target.value)}
+                  placeholder="1. ...
+2. ...
+3. ..."
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-slate-600 dark:text-slate-300">Expected</label>
+                <textarea
+                  className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm"
+                  rows={2}
+                  value={bugExpected}
+                  onChange={(e) => setBugExpected(e.target.value)}
+                  placeholder="What you expected to happen"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-slate-600 dark:text-slate-300">Actual</label>
+                <textarea
+                  className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm"
+                  rows={2}
+                  value={bugActual}
+                  onChange={(e) => setBugActual(e.target.value)}
+                  placeholder="What actually happened"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-slate-600 dark:text-slate-300">Contact (optional)</label>
+                <input
+                  className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm"
+                  value={bugContact}
+                  onChange={(e) => setBugContact(e.target.value)}
+                  placeholder="Email or handle for follow-up"
+                />
+              </div>
+            </div>
+
+            {bugError && <p className="text-sm text-red-600 dark:text-red-400">{bugError}</p>}
+            {bugSuccess && <p className="text-sm text-green-600 dark:text-green-400">{bugSuccess}</p>}
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-slate-700 hover:bg-gray-100 dark:hover:bg-slate-800 dark:text-slate-300 transition-colors"
+                onClick={() => setShowBugModal(false)}
+                disabled={bugSubmitting}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-4 py-2 text-sm rounded-md bg-amber-600 dark:bg-amber-700 text-white hover:bg-amber-700 dark:hover:bg-amber-600 disabled:opacity-50 transition-colors"
+                disabled={bugSubmitting || !bugTitle || !bugSteps || !bugExpected || !bugActual}
+                onClick={async () => {
+                  setBugError(null);
+                  setBugSuccess(null);
+                  setBugSubmitting(true);
+                  try {
+                    const res = await fetch("/api/report-bug", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        title: bugTitle,
+                        steps: bugSteps,
+                        expected: bugExpected,
+                        actual: bugActual,
+                        contact: bugContact,
+                        metadata: {
+                          userId: user?.id,
+                          appVersion,
+                          path: window.location.pathname,
+                        },
+                      }),
+                    });
+                    const json = await res.json();
+                    if (!res.ok) {
+                      setBugError(json?.error || "Failed to submit bug");
+                    } else {
+                      setBugSuccess("Bug reported! Thank you.");
+                      setBugTitle("");
+                      setBugSteps("");
+                      setBugExpected("");
+                      setBugActual("");
+                      setBugContact("");
+                    }
+                  } catch (err: unknown) {
+                    const message = err instanceof Error ? err.message : "Failed to submit bug";
+                    setBugError(message);
+                  } finally {
+                    setBugSubmitting(false);
+                  }
+                }}
+              >
+                {bugSubmitting ? "Submitting..." : "Submit Bug"}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Suggest Feature Modal */}
+      {showSuggestionModal && createPortal(
+        <div 
+          className="fixed inset-0 bg-black/30 dark:bg-black/60 z-[10000] flex items-center justify-center"
+          onClick={() => setShowSuggestionModal(false)}
+        >
+          <div 
+            className="bg-white dark:bg-slate-900 p-6 rounded-lg shadow-lg dark:shadow-xl w-full max-w-lg space-y-4 border dark:border-slate-700"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100">Suggest a Feature</h2>
+            <p className="text-sm text-slate-600 dark:text-slate-300">
+              Have an idea? This will create a GitHub issue labeled as &quot;Pending Features&quot; for review.
+            </p>
+
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <label className="text-xs text-slate-600 dark:text-slate-300">Feature Title</label>
+                <input
+                  className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm"
+                  value={suggestionTitle}
+                  onChange={(e) => setSuggestionTitle(e.target.value)}
+                  placeholder="Brief title for your feature"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs text-slate-600 dark:text-slate-300">Description</label>
+                <textarea
+                  className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm min-h-[80px]"
+                  value={suggestionDescription}
+                  onChange={(e) => setSuggestionDescription(e.target.value)}
+                  placeholder="Describe the feature you'd like to see"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs text-slate-600 dark:text-slate-300">Use Case</label>
+                <textarea
+                  className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm min-h-[60px]"
+                  value={suggestionUseCase}
+                  onChange={(e) => setSuggestionUseCase(e.target.value)}
+                  placeholder="How would this feature help you?"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs text-slate-600 dark:text-slate-300">Contact (Optional)</label>
+                <input
+                  className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm"
+                  value={suggestionContact}
+                  onChange={(e) => setSuggestionContact(e.target.value)}
+                  placeholder="Email or username for follow-up"
+                />
+              </div>
+
+              {suggestionError && (
+                <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
+                  <p className="text-sm text-red-600 dark:text-red-400">{suggestionError}</p>
+                </div>
+              )}
+
+              {suggestionSuccess && (
+                <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md">
+                  <p className="text-sm text-green-600 dark:text-green-400">{suggestionSuccess}</p>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                className="px-4 py-2 text-sm rounded-md border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 dark:text-slate-300"
+                onClick={() => setShowSuggestionModal(false)}
+                disabled={suggestionSubmitting}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-4 py-2 text-sm rounded-md bg-blue-600 dark:bg-blue-700 text-white hover:bg-blue-700 dark:hover:bg-blue-600 disabled:opacity-50"
+                disabled={suggestionSubmitting || !suggestionTitle || !suggestionDescription}
+                onClick={async () => {
+                  setSuggestionSubmitting(true);
+                  setSuggestionError(null);
+                  try {
+                    const res = await fetch("/api/suggest-feature", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        title: suggestionTitle,
+                        description: suggestionDescription,
+                        useCase: suggestionUseCase,
+                        contact: suggestionContact,
+                        metadata: {
+                          userId: user?.id,
+                          appVersion,
+                          path: window.location.pathname,
+                        },
+                      }),
+                    });
+                    const json = await res.json();
+                    if (!res.ok) {
+                      setSuggestionError(json?.error || "Failed to submit suggestion");
+                    } else {
+                      setSuggestionSuccess("Feature suggestion submitted! Thank you.");
+                      setSuggestionTitle("");
+                      setSuggestionDescription("");
+                      setSuggestionUseCase("");
+                      setSuggestionContact("");
+                    }
+                  } catch (err: unknown) {
+                    const message = err instanceof Error ? err.message : "Failed to submit suggestion";
+                    setSuggestionError(message);
+                  } finally {
+                    setSuggestionSubmitting(false);
+                  }
+                }}
+              >
+                {suggestionSubmitting ? "Submitting..." : "Submit Suggestion"}
               </button>
             </div>
           </div>

@@ -12,12 +12,21 @@ type ActivitySidebarProps = {
   orientation?: "vertical" | "horizontal";
 };
 
+type Activity = {
+  type: string;
+  timestamp?: string;
+  description?: string;
+  payee?: string;
+  category?: string;
+  balance?: number;
+};
+
 export default function ActivitySidebar({ page, orientation = "vertical" }: ActivitySidebarProps) {
   const { recentChanges } = useBudgetContext();
   const { recentTransactions } = useAccountContext();
   const { undo, redo, canUndo, canRedo, undoDescription, redoDescription } = useUndoRedo();
 
-  const [activity, setActivity] = useState<any[]>([]);
+  const [activity, setActivity] = useState<Activity[]>([]);
 
   const router = useRouter();
 

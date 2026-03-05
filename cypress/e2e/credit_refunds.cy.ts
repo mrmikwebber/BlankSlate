@@ -63,15 +63,12 @@ describe("Credit card refunds", () => {
     // 1. Snapshot RTA + CC payment category before anything
     visitBudget();
 
-    cy.get("[data-cy=ready-to-assign]")
-      .invoke("text")
-      .then((initialRTAText) => {
-        const initialRTA = parseCurrency(initialRTAText);
-
-        cy.get(
-          `[data-cy="category-row"][data-category="Credit Card Payments"][data-item="${ccPaymentItemName}"]`
-        )
-          .as("ccPaymentRow");
+    cy.getReadyToAssignValue().then((initialRTA) => {
+      cy.budgetFind(
+        `[data-cy="category-row"][data-category="Credit Card Payments"][data-item="${ccPaymentItemName}"]`
+      )
+        .first()
+        .as("ccPaymentRow");
 
         cy.get("@ccPaymentRow")
           .find("[data-cy=item-available]")
@@ -107,9 +104,10 @@ describe("Credit card refunds", () => {
             // 3. Check budget after purchase: overspent category + RTA unchanged
             visitBudget();
 
-            cy.get(
+            cy.budgetFind(
               `[data-cy="category-row"][data-category="${groupName}"][data-item="${itemName}"]`
             )
+              .first()
               .as("refundCategoryRow")
               .within(() => {
                 cy.get("[data-cy=item-activity]")
@@ -127,13 +125,9 @@ describe("Credit card refunds", () => {
                   });
               });
 
-            cy.get("[data-cy=ready-to-assign]")
-              .invoke("text")
-              .then((afterPurchaseRtaText) => {
-                const rtaAfterPurchase = parseCurrency(afterPurchaseRtaText);
-                // purchases from credit should not touch RTA
-                expect(rtaAfterPurchase).to.eq(initialRTA);
-              });
+            cy.getReadyToAssignValue().then((rtaAfterPurchase) => {
+              expect(rtaAfterPurchase).to.eq(initialRTA);
+            });
 
             cy.get("@ccPaymentRow")
               .find("[data-cy=item-available]")
@@ -171,7 +165,7 @@ describe("Credit card refunds", () => {
             // 5. Back to budget: category should be neutral again; RTA & CC payment untouched
             visitBudget();
 
-            cy.get("@refundCategoryRow").within(() => {
+            cy.get("@refundCategoryRow").first().within(() => {
               cy.get("[data-cy=item-activity]")
                 .invoke("text")
                 .then((txt) => {
@@ -187,12 +181,9 @@ describe("Credit card refunds", () => {
                 });
             });
 
-            cy.get("[data-cy=ready-to-assign]")
-              .invoke("text")
-              .then((finalRtaText) => {
-                const finalRTA = parseCurrency(finalRtaText);
-                expect(finalRTA).to.eq(initialRTA);
-              });
+            cy.getReadyToAssignValue().then((finalRTA) => {
+              expect(finalRTA).to.eq(initialRTA);
+            });
 
             cy.get("@ccPaymentRow")
               .find("[data-cy=item-available]")

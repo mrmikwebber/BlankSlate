@@ -37,7 +37,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   const signOut = async () => {
-    const { error } = await supabase.auth.signOut({ scope: 'local' });
+    // Use global scope to revoke the session on Supabase (invalidates refresh tokens)
+    const { error } = await supabase.auth.signOut({ scope: "global" });
     if (error) {
       console.error('Error signing out:', error.message);
     } else {

@@ -18,6 +18,17 @@ let accounts: SeededAccounts;
 const parseCurrency = (text: string) =>
   Number(text.replace(/[^0-9.-]/g, ""));
 
+const getVisibleCurrency = (selector: string) =>
+  cy
+    .budgetFind(selector)
+    .first()
+    .should(($el) => {
+      const value = parseCurrency($el.text());
+      expect(value, `Expected numeric value for ${selector}`).to.not.be.NaN;
+    })
+    .invoke("text")
+    .then((text) => parseCurrency(text));
+
 const visitAccount = (id: string, expectedName: string) => {
   cy.visit(`/accounts/${id}`);
   cy.get("[data-cy=account-name]").should("contain.text", expectedName);
@@ -27,6 +38,7 @@ const visitBudget = () => {
   cy.visit(BUDGET_URL);
   cy.get("[data-cy=budget-table]").should("exist");
 };
+
 
 describe("purchases, payments, transfers", () => {
   beforeEach(() => {
@@ -103,10 +115,7 @@ describe("purchases, payments, transfers", () => {
     visitBudget();
 
     // Capture Ready to Assign before/after by reloading once:
-    cy.get("[data-cy=ready-to-assign]")
-      .invoke("text")
-      .then((initialRTAText) => {
-        const initialRTA = parseCurrency(initialRTAText);
+    cy.getReadyToAssignValue().then((initialRTA) => {
 
         // Find Food & Dining / Restaurants row
         cy.get(
@@ -114,8 +123,9 @@ describe("purchases, payments, transfers", () => {
         ).should("exist");
 
         cy.get(
-          '[data-cy="category-row"][data-item="Restaurants"]'
+          '[data-cy="category-row"][data-category="Food & Dining"][data-item="Restaurants"]'
         )
+          .first()
           .as("restaurantsRow")
           .within(() => {
             // Activity should be -amount
@@ -136,12 +146,9 @@ describe("purchases, payments, transfers", () => {
           });
 
         // Ready-to-Assign should be unchanged by spending (only budget assignments affect RTA)
-        cy.get("[data-cy=ready-to-assign]")
-          .invoke("text")
-          .then((finalRTAText) => {
-            const finalRTA = parseCurrency(finalRTAText);
-            expect(finalRTA).to.eq(initialRTA);
-          });
+        cy.getReadyToAssignValue().then((finalRTA) => {
+          expect(finalRTA).to.eq(initialRTA);
+        });
       });
   });
 
@@ -160,19 +167,18 @@ describe("purchases, payments, transfers", () => {
     // 1. Snapshot budget: RTA and the CC payment category
     visitBudget();
 
-    cy.get("[data-cy=ready-to-assign]")
-      .invoke("text")
-      .then((initialRTAText) => {
-        const initialRTA = parseCurrency(initialRTAText);
+    cy.getReadyToAssignValue().then((initialRTA) => {
 
         // Narrow to the CC payment row and read initial available
-        cy.get('[data-cy="category-row"][data-item="' + accounts.amex.name + '"]')
+        cy.budgetFind(
+          `[data-cy="category-row"][data-category="Credit Card Payments"][data-item="${accounts.amex.name}"]`
+        )
+          .first()
           .as("ccPaymentRow");
 
-        cy.get("@ccPaymentRow").find("[data-cy=item-available]")
-          .invoke("text")
-          .then((initialAvailText) => {
-            const initialAvail = parseCurrency(initialAvailText);
+        getVisibleCurrency(
+          `[data-cy="category-row"][data-category="Credit Card Payments"][data-item="${accounts.amex.name}"] [data-cy=item-available]`
+        ).then((initialAvail) => {
 
             // 2. Make the payment from checking → credit account
             visitAccount(accounts.checking.id, accounts.checking.name);
@@ -198,19 +204,14 @@ describe("purchases, payments, transfers", () => {
             visitBudget();
 
             // Ready to Assign should remain unchanged
-            cy.get("[data-cy=ready-to-assign]")
-              .invoke("text")
-              .then((finalRTAText) => {
-                const finalRTA = parseCurrency(finalRTAText);
-                expect(finalRTA).to.eq(initialRTA);
-              });
+            cy.getReadyToAssignValue().then((finalRTA) => {
+              expect(finalRTA).to.eq(initialRTA);
+            });
 
             // CC Payment category available should move +amount toward zero (less negative)
-            cy.get('[data-cy="category-row"][data-item="' + accounts.amex.name + '"]')
-              .find("[data-cy=item-available]")
-              .invoke("text")
-              .then((finalAvailText) => {
-                const finalAvail = parseCurrency(finalAvailText);
+            getVisibleCurrency(
+              `[data-cy="category-row"][data-category="Credit Card Payments"][data-item="${accounts.amex.name}"] [data-cy=item-available]`
+            ).then((finalAvail) => {
 
                 // If initialAvail was negative, finalAvail should be closer to zero (higher)
                 // If it was zero, it should now be +amount (extra payment)
@@ -234,10 +235,7 @@ describe("purchases, payments, transfers", () => {
     // 1. Snapshot budget state: RTA + all categories
     visitBudget();
 
-    cy.get("[data-cy=ready-to-assign]")
-      .invoke("text")
-      .then((initialRTAText) => {
-        const initialRTA = parseCurrency(initialRTAText);
+    cy.getReadyToAssignValue().then((initialRTA) => {
 
         // Take a snapshot of all (group, item, activity, available)
         const beforeCategories: Record<
@@ -283,12 +281,9 @@ describe("purchases, payments, transfers", () => {
         // 3. Back to budget, verify NO category changes & same RTA
         visitBudget();
 
-        cy.get("[data-cy=ready-to-assign]")
-          .invoke("text")
-          .then((finalRTAText) => {
-            const finalRTA = parseCurrency(finalRTAText);
-            expect(finalRTA).to.eq(initialRTA);
-          });
+        cy.getReadyToAssignValue().then((finalRTA) => {
+          expect(finalRTA).to.eq(initialRTA);
+        });
 
         const afterCategories: Record<
           string,
