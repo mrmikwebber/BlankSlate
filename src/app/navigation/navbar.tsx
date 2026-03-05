@@ -6,7 +6,6 @@ import { useDarkMode } from "../context/DarkModeContext";
 import { supabase } from "../../utils/supabaseClient";
 import { createPortal } from "react-dom";
 import { Moon, Sun } from "lucide-react";
-import { isAdminUser, normalizeAdminList } from "@/lib/admin";
 
 export default function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -48,12 +47,21 @@ export default function Navbar() {
   
   const { user, signOut } = useAuth();
   const name = user?.user_metadata?.first_name;
-  const adminEmails = normalizeAdminList(process.env.NEXT_PUBLIC_ADMIN_EMAILS);
-  const adminIds = normalizeAdminList(process.env.NEXT_PUBLIC_ADMIN_USER_IDS);
-  const isAdmin = isAdminUser(
-    { email: user?.email, id: user?.id },
-    { emails: adminEmails, ids: adminIds }
-  );
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    if (!user) {
+      setIsAdmin(false);
+      return;
+    }
+    fetch("/api/admin/check")
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to check admin status");
+        return res.json();
+      })
+      .then((data) => setIsAdmin(Boolean(data?.isAdmin)))
+      .catch(() => setIsAdmin(false));
+  }, [user]);
 
   const handleResetAccount = async () => {
     if (!user) return;
