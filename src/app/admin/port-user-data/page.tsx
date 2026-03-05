@@ -1,8 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/app/context/AuthContext";
-import { isAdminUser, normalizeAdminList } from "@/lib/admin";
 
 export default function PortUserDataPage() {
   const { user, loading } = useAuth() || { user: null, loading: false };
@@ -14,21 +13,21 @@ export default function PortUserDataPage() {
   const [success, setSuccess] = useState<string | null>(null);
   const [result, setResult] = useState<any>(null);
 
-  const adminEmails = useMemo(
-    () => normalizeAdminList(process.env.NEXT_PUBLIC_ADMIN_EMAILS),
-    []
-  );
-  const adminIds = useMemo(
-    () => normalizeAdminList(process.env.NEXT_PUBLIC_ADMIN_USER_IDS),
-    []
-  );
+  const [isAdmin, setIsAdmin] = useState(false);
 
-  const isAdmin = useMemo(() => {
-    return isAdminUser(
-      { email: user?.email, id: user?.id },
-      { emails: adminEmails, ids: adminIds }
-    );
-  }, [user?.email, user?.id, adminEmails, adminIds]);
+  useEffect(() => {
+    if (!user) {
+      setIsAdmin(false);
+      return;
+    }
+    fetch("/api/admin/check")
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to check admin status");
+        return res.json();
+      })
+      .then((data) => setIsAdmin(Boolean(data?.isAdmin)))
+      .catch(() => setIsAdmin(false));
+  }, [user]);
 
   const submit = async () => {
     setError(null);
