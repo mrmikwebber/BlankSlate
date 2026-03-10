@@ -1752,18 +1752,20 @@ export default function BudgetTable() {
 
             {/* Top row: RTA + Month */}
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div data-cy="ready-to-assign" className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-slate-600 dark:text-slate-400">
+              <div className="flex items-center gap-3 flex-wrap">
+                <div data-cy="ready-to-assign" className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800">
+                  <span className="text-xs font-semibold text-teal-700 dark:text-teal-400 opacity-80">
                     Ready to Assign
                   </span>
-                  <Badge
-                    variant="outline"
-                    className="text-base font-bold font-mono px-3 py-1 bg-teal-500 dark:bg-teal-600 text-white border-teal-500 dark:border-teal-600"
-                  >
+                  <span className="font-mono text-sm font-bold text-teal-700 dark:text-teal-300">
                     {formatToUSD(displayedRta || 0)}
-                  </Badge>
+                  </span>
                 </div>
+                {!showCarryNote && overspentCategoriesCount === 0 && displayedRta > 0 && (
+                  <span className="text-xs text-slate-400 dark:text-slate-500 italic">
+                    Assign it all before the month ends.
+                  </span>
+                )}
                 {showCarryNote && (
                   <span className="text-xs text-amber-700 dark:text-amber-300">
                     Reduced by {formatToUSD(Math.abs(currentCarry))} from prior months
@@ -1787,17 +1789,19 @@ export default function BudgetTable() {
 
             {/* Toolbar: Filters + Add Group */}
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap items-center gap-1">
                 {FILTERS.map((filter) => (
                   <Button
                     key={filter}
                     data-cy={`filter-${filter.toLowerCase().replace(" ", "-")}`}
-                    variant={selectedFilter === filter ? "default" : "outline"}
+                    variant={selectedFilter === filter ? "secondary" : "ghost"}
                     size="sm"
                     onClick={() => setSelectedFilter(filter)}
                     className={cn(
-                      "text-xs",
-                      selectedFilter === filter && "dark:bg-teal-700 dark:text-white dark:hover:bg-teal-600"
+                      "text-xs h-7 px-2.5",
+                      selectedFilter === filter
+                        ? "bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-slate-100"
+                        : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
                     )}
                   >
                     {filter}
@@ -1924,7 +1928,7 @@ export default function BudgetTable() {
                   <TableHead className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">
                     Activity
                   </TableHead>
-                  <TableHead className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">
+                  <TableHead className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wide text-teal-600 dark:text-teal-400">
                     Available
                   </TableHead>
                 </TableRow>
