@@ -14,22 +14,12 @@ interface Props {
   disableNavigate?: boolean;
 }
 
-// Normalize issuer values from DB into nice labels
-function formatIssuer(issuer?: string | null): string | null {
-  if (!issuer) return null;
-  const n = issuer.toLowerCase().trim();
-
-  if (n.includes("amex") || n.includes("american express")) return "American Express";
-  if (n.includes("visa")) return "Visa";
-  if (n.includes("mastercard") || n.includes("master card") || n === "mc")
-    return "Mastercard";
-  if (n.includes("discover")) return "Discover";
-
-  // fallback: just capitalize first letter of each word
-  return issuer
-    .split(" ")
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(" ");
+function getAccountTypeLabel(type: string, name: string): string {
+  if (type === "credit") return "Credit card";
+  const upper = name.toUpperCase();
+  if (upper.includes("SAV")) return "Savings";
+  if (upper.includes("CHECK")) return "Checking";
+  return "Cash";
 }
 
 export default function AccountCardCompact({
@@ -55,7 +45,7 @@ export default function AccountCardCompact({
     0;
 
   const isNegative = computedBalance < 0;
-  const issuerLabel = formatIssuer(account.issuer);
+  const typeLabel = getAccountTypeLabel(account.type, account.name);
 
   const transactions = account.transactions ?? [];
   const transactionCount = transactions.length;
@@ -70,14 +60,7 @@ export default function AccountCardCompact({
   }
 
   const stripeColor =
-    issuerLabel === "Visa" ? "bg-blue-500" :
-      issuerLabel === "Mastercard" ? "bg-red-500" :
-        issuerLabel === "American Express" ? "bg-indigo-500" :
-          account.type === "debit" ? "bg-emerald-500" :
-            "bg-slate-400";
-
-  const accountKindLabel =
-    account.type === "credit" ? "Credit account" : "Cash account";
+    account.type === "credit" ? "bg-amber-400" : "bg-emerald-500";
 
   // Calculate this month's activity
   const now = new Date();
@@ -108,7 +91,7 @@ export default function AccountCardCompact({
       <div className="flex items-center justify-between px-3 py-2 relative">
         <div className="flex flex-col min-w-0 gap-0.5">
           <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">
-            {issuerLabel ?? accountKindLabel}
+            {typeLabel}
           </span>
           <h3 className="font-medium text-sm truncate text-slate-900 dark:text-slate-100">
             {account.name}
