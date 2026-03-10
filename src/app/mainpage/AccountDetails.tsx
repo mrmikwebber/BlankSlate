@@ -23,7 +23,7 @@ import { Plus, Edit2, Trash2, ArrowLeft } from "lucide-react";
 export default function AccountDetails() {
   const { id } = useParams();
   const router = useRouter();
-  const { accounts, addTransaction, deleteTransactionWithMirror, editAccountName, refreshSingleAccount } =
+  const { accounts, addTransaction, addTransactionWithMirror, deleteTransactionWithMirror, editAccountName, refreshSingleAccount } =
     useAccountContext();
   const { registerAction } = useUndoRedo();
 
@@ -395,19 +395,6 @@ export default function AccountDetails() {
           onClick={() => setContextMenu(null)}
         >
           <button
-            data-cy="context-delete-transaction"
-            onClick={() => {
-              deleteTransactionWithMirror(
-                contextMenu.accountId,
-                contextMenu.txId
-              );
-              setContextMenu(null);
-            }}
-            className="px-4 py-2.5 hover:bg-red-50 dark:hover:bg-red-950 text-red-600 dark:text-red-400 w-full text-left font-medium transition-colors"
-          >
-            Delete Transaction
-          </button>
-          <button
             data-cy="context-edit-transaction"
             onClick={() => {
               const transaction = account.transactions.find(
@@ -418,9 +405,54 @@ export default function AccountDetails() {
               }
               setContextMenu(null);
             }}
-            className="px-4 py-2.5 hover:bg-teal-50 dark:hover:bg-teal-950 text-teal-600 dark:text-teal-400 w-full text-left font-medium transition-colors border-t border-slate-200 dark:border-slate-700"
+            className="px-4 py-2.5 hover:bg-teal-50 dark:hover:bg-teal-950 text-teal-600 dark:text-teal-400 w-full text-left font-medium transition-colors"
           >
             Edit Transaction
+          </button>
+          <button
+            data-cy="context-duplicate-transaction"
+            onClick={() => {
+              const tx = account.transactions.find((t) => t.id === contextMenu.txId);
+              if (tx) {
+                const txData = { date: tx.date, payee: tx.payee, category: tx.category, category_group: tx.category_group, balance: tx.balance };
+                const transferMatch = tx.payee?.match(/^(Transfer|Payment) (to|from) (.+)/);
+                if (transferMatch) {
+                  const otherAccountName = transferMatch[3];
+                  const otherAccount = accounts.find((a) => a.name === otherAccountName);
+                  if (otherAccount) {
+                    // Find existing mirror to copy its data exactly
+                    const mirrorTx = otherAccount.transactions.find(
+                      (t) => t.date === tx.date && t.balance === -tx.balance && t.payee?.includes(account.name)
+                    );
+                    const mirrorData = mirrorTx
+                      ? { date: mirrorTx.date, payee: mirrorTx.payee, category: mirrorTx.category, category_group: mirrorTx.category_group, balance: mirrorTx.balance }
+                      : { date: tx.date, payee: `${transferMatch[1]} ${transferMatch[2] === "to" ? "from" : "to"} ${account.name}`, category: tx.category_group === "Credit Card Payments" ? account.name : null, category_group: tx.category_group ?? null, balance: -tx.balance };
+                    addTransactionWithMirror(account.id, txData, otherAccount.id, mirrorData);
+                  } else {
+                    addTransaction(account.id, txData);
+                  }
+                } else {
+                  addTransaction(account.id, txData);
+                }
+              }
+              setContextMenu(null);
+            }}
+            className="px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 w-full text-left font-medium transition-colors border-t border-slate-200 dark:border-slate-700"
+          >
+            Duplicate Transaction
+          </button>
+          <button
+            data-cy="context-delete-transaction"
+            onClick={() => {
+              deleteTransactionWithMirror(
+                contextMenu.accountId,
+                contextMenu.txId
+              );
+              setContextMenu(null);
+            }}
+            className="px-4 py-2.5 hover:bg-red-50 dark:hover:bg-red-950 text-red-600 dark:text-red-400 w-full text-left font-medium transition-colors border-t border-slate-200 dark:border-slate-700"
+          >
+            Delete Transaction
           </button>
         </div>
       )}

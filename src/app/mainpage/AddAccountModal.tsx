@@ -8,13 +8,6 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
 interface AddAccountModalProps {
   onAddAccount: (account: Record<string, unknown>) => void;
@@ -22,25 +15,35 @@ interface AddAccountModalProps {
   isOpen?: boolean;
 }
 
+type AccountSubtype = "checking" | "savings" | "credit";
+
+const SUBTYPES: { value: AccountSubtype; label: string; type: "debit" | "credit" }[] = [
+  { value: "checking", label: "Checking", type: "debit" },
+  { value: "savings", label: "Savings", type: "debit" },
+  { value: "credit", label: "Credit Card", type: "credit" },
+];
+
 const AddAccountModal = ({ onAddAccount, onClose, isOpen = true }: AddAccountModalProps) => {
   const [name, setName] = useState("");
-  const [type, setType] = useState("debit");
-  const [issuer, setIssuer] = useState("visa");
+  const [subtype, setSubtype] = useState<AccountSubtype>("checking");
   const [balance, setBalance] = useState("");
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!name || isNaN(parseFloat(balance))) return;
+    if (!name) return;
 
+    const parsedBalance = balance === "" ? 0 : parseFloat(balance);
+    if (isNaN(parsedBalance)) return;
+
+    const selected = SUBTYPES.find((s) => s.value === subtype)!;
     const newAccount = {
       name,
-      type,
-      issuer,
-      balance: type === 'credit' ? -1 * parseFloat(balance) : parseFloat(balance),
+      type: selected.type,
+      balance: selected.type === "credit" ? -1 * Math.abs(parsedBalance) : parsedBalance,
     };
 
     onAddAccount(newAccount);
-    onClose(); 
+    onClose();
   };
 
   const handleOpenChange = (open: boolean) => {
@@ -55,10 +58,10 @@ const AddAccountModal = ({ onAddAccount, onClose, isOpen = true }: AddAccountMod
         <DialogHeader>
           <DialogTitle className="dark:text-slate-100">Add New Account</DialogTitle>
           <DialogDescription className="dark:text-slate-400">
-            Create a new debit or credit account to track your finances.
+            Add a cash or credit account to track your finances.
           </DialogDescription>
         </DialogHeader>
-        
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
             <label htmlFor="account-name" className="text-sm font-medium text-slate-700 dark:text-slate-300">
@@ -76,35 +79,23 @@ const AddAccountModal = ({ onAddAccount, onClose, isOpen = true }: AddAccountMod
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="account-type" className="text-sm font-medium text-slate-700 dark:text-slate-300">
-              Account Type
-            </label>
-            <Select value={type} onValueChange={setType}>
-              <SelectTrigger id="account-type">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="debit">Debit</SelectItem>
-                <SelectItem value="credit">Credit</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <label htmlFor="account-issuer" className="text-sm font-medium text-slate-700 dark:text-slate-300">
-              Card Issuer
-            </label>
-            <Select value={issuer} onValueChange={setIssuer}>
-              <SelectTrigger id="account-issuer">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="visa">Visa</SelectItem>
-                <SelectItem value="amex">American Express</SelectItem>
-                <SelectItem value="discover">Discover</SelectItem>
-                <SelectItem value="mastercard">Mastercard</SelectItem>
-              </SelectContent>
-            </Select>
+            <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Account Type</p>
+            <div className="grid grid-cols-3 gap-2">
+              {SUBTYPES.map((s) => (
+                <button
+                  key={s.value}
+                  type="button"
+                  onClick={() => setSubtype(s.value)}
+                  className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                    subtype === s.value
+                      ? "border-teal-500 bg-teal-50 text-teal-700 dark:border-teal-600 dark:bg-teal-950/40 dark:text-teal-300"
+                      : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-slate-600"
+                  }`}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="space-y-2">
@@ -123,17 +114,10 @@ const AddAccountModal = ({ onAddAccount, onClose, isOpen = true }: AddAccountMod
           </div>
 
           <div className="flex justify-end gap-3 pt-4">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onClose}
-            >
+            <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button
-              type="submit"
-              className="bg-teal-600 hover:bg-teal-700"
-            >
+            <Button type="submit" className="bg-teal-600 hover:bg-teal-700">
               Add Account
             </Button>
           </div>

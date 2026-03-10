@@ -23,10 +23,11 @@ export default function SidebarPanel() {
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
-    accountId: string;
+    accountId: number;
   } | null>(null);
+  const [renaming, setRenaming] = useState<{ accountId: number; value: string } | null>(null);
 
-  const { accounts, addAccount, deleteAccount, reorderAccounts } = useAccountContext();
+  const { accounts, addAccount, deleteAccount, reorderAccounts, editAccountName } = useAccountContext();
   const [draggingId, setDraggingId] = useState<number | null>(null);
   const [dragOver, setDragOver] = useState<{
     id: number;
@@ -37,8 +38,8 @@ export default function SidebarPanel() {
     addAccount(newAccount);
   };
 
-  const handleDeleteAccount = (accountId: string) => {
-    deleteAccount(Number(accountId));
+  const handleDeleteAccount = (accountId: number) => {
+    deleteAccount(accountId);
   };
 
   useEffect(() => {
@@ -120,7 +121,7 @@ export default function SidebarPanel() {
               setContextMenu({
                 x: e.clientX,
                 y: e.clientY,
-                accountId: String(acc.id),
+                accountId: acc.id,
               });
             }}
           />
@@ -223,20 +224,64 @@ export default function SidebarPanel() {
       {contextMenu &&
         createPortal(
           <div
-            className="absolute bg-white border border-slate-200 rounded-md shadow-md z-50 text-xs"
+            className="absolute bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md shadow-md z-50 text-xs"
             style={{
               top: contextMenu.y - document.documentElement.scrollTop,
               left: contextMenu.x,
             }}
-            onClick={() => {
-              handleDeleteAccount(contextMenu.accountId);
-              setContextMenu(null);
-            }}
             onContextMenu={(e) => e.preventDefault()}
           >
-            <button className="px-3 py-2 w-full text-left hover:bg-red-50 text-red-600">
+            <button
+              className="px-3 py-2 w-full text-left hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300"
+              onClick={() => {
+                const acc = accounts.find((a) => a.id === contextMenu!.accountId);
+                setRenaming({ accountId: contextMenu!.accountId, value: acc?.name ?? "" });
+                setContextMenu(null);
+              }}
+            >
+              Rename account
+            </button>
+            <button
+              className="px-3 py-2 w-full text-left hover:bg-red-50 dark:hover:bg-red-950/30 text-red-600"
+              onClick={() => {
+                handleDeleteAccount(contextMenu!.accountId);
+                setContextMenu(null);
+              }}
+            >
               Delete account
             </button>
+          </div>,
+          document.body
+        )}
+
+      {renaming &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/30"
+            onClick={(e) => { if (e.target === e.currentTarget) setRenaming(null); }}
+          >
+            <form
+              className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg p-4 w-64 space-y-3"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const trimmed = renaming.value.trim();
+                if (trimmed) editAccountName(renaming.accountId, trimmed);
+                setRenaming(null);
+              }}
+            >
+              <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Rename account</p>
+              <input
+                className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-1.5 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                value={renaming.value}
+                autoFocus
+                onChange={(e) => setRenaming({ ...renaming, value: e.target.value })}
+                onKeyDown={(e) => { if (e.key === "Escape") setRenaming(null); }}
+              />
+              <div className="flex justify-end gap-2">
+                <button type="button" onClick={() => setRenaming(null)} className="px-3 py-1.5 text-xs rounded-md border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700">Cancel</button>
+                <button type="submit" className="px-3 py-1.5 text-xs rounded-md bg-teal-600 hover:bg-teal-700 text-white">Save</button>
+              </div>
+            </form>
           </div>,
           document.body
         )}

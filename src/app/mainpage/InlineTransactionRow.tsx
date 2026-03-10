@@ -44,8 +44,16 @@ export default function InlineTransactionRow({
   );
 
   // category group + item (backing state)
-  const [selectedGroup, setSelectedGroup] = useState("");
-  const [selectedItem, setSelectedItem] = useState("");
+  const [selectedGroup, setSelectedGroup] = useState(() => {
+    if (!isEdit || !initialData) return "";
+    if (initialData.category === "Ready to Assign" || initialData.category_group === "Ready to Assign") {
+      return "Ready to Assign";
+    }
+    return initialData.category_group || "";
+  });
+  const [selectedItem, setSelectedItem] = useState(
+    isEdit && initialData?.category && initialData.category !== "Ready to Assign" ? initialData.category : ""
+  );
 
   // "add new category" flow
   const [newCategoryMode, setNewCategoryMode] = useState(false);
@@ -70,9 +78,16 @@ export default function InlineTransactionRow({
   const [selectedPayeeAccountName, setSelectedPayeeAccountName] = useState<string | null>(null);
 
   // Category combobox (for normal mode, not "Add New Category")
-  const [categoryInput, setCategoryInput] = useState(
-    isEdit && initialData?.category ? initialData.category : ""
-  );
+  const [categoryInput, setCategoryInput] = useState(() => {
+    if (!isEdit || !initialData) return "";
+    if (initialData.category_group === "Ready to Assign" || initialData.category === "Ready to Assign") {
+      return "Ready to Assign";
+    }
+    if (initialData.category_group && initialData.category) {
+      return `${initialData.category_group} ▸ ${initialData.category}`;
+    }
+    return initialData.category || "";
+  });
   const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
   const [isTypingPayee, setIsTypingPayee] = useState(false);
   const [isTypingCategory, setIsTypingCategory] = useState(false);
@@ -112,6 +127,12 @@ export default function InlineTransactionRow({
   // when editing, initialize category from existing transaction
   useEffect(() => {
     if (mode === "edit" && initialData?.category) {
+      // Ready to Assign is not in categoryGroups — preserve it as-is
+      if (initialData.category === "Ready to Assign" || initialData.category_group === "Ready to Assign") {
+        setSelectedGroup("Ready to Assign");
+        setSelectedItem("");
+        return;
+      }
       const group = categoryGroups.find((catGroup) =>
         catGroup.categoryItems.some(
           (item) => item.name === initialData.category
@@ -121,10 +142,8 @@ export default function InlineTransactionRow({
       if (group) {
         setSelectedGroup(group.name);
         setSelectedItem(initialData.category);
-      } else {
-        setSelectedGroup("");
-        setSelectedItem("");
       }
+      // If not found in categoryGroups, keep the initialData values (set during useState init)
     }
   }, [mode, initialData, categoryGroups]);
 
@@ -291,6 +310,7 @@ export default function InlineTransactionRow({
     // Basic validation
     if (
       !amount ||
+      parseFloat(amount) === 0 ||
       !payeeName ||
       (!isTransfer &&
         !isSameType &&
@@ -520,7 +540,7 @@ export default function InlineTransactionRow({
           value={date}
           onChange={(e) => setDate(e.target.value)}
           onKeyDown={handleKeyDown}
-          className="h-9 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100 focus-visible:ring-teal-500 dark:focus-visible:ring-teal-600"
+          className="h-9 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100 focus-visible:ring-teal-500 dark:focus-visible:ring-teal-600 dark:[color-scheme:dark]"
         />
       </td>
 
@@ -1063,7 +1083,7 @@ export default function InlineTransactionRow({
             onClick={() => void handleSubmit()}
             size="sm"
             className="h-9"
-            disabled={needsCategory || !payeeInput.trim() || !amount}
+            disabled={needsCategory || !payeeInput.trim() || !amount || parseFloat(amount) === 0}
           >
             Save
           </Button>
