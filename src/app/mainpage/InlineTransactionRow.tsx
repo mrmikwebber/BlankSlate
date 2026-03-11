@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 import { useBudgetContext } from "@/app/context/BudgetContext";
 import { useAccountContext, Transaction } from "@/app/context/AccountContext";
-import { format } from "date-fns";
+import { format, formatDistanceToNow, parseISO } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -665,19 +665,19 @@ export default function InlineTransactionRow({
                     .map((suggestion) => {
                       const actualIndex = payeeSuggestions.findIndex((s) => s.accountName === suggestion.accountName && s.type === "account");
                       const isSelected = actualIndex === payeeSelectedIndex;
+                      const acc = accounts.find((a) => a.name === suggestion.accountName);
                       return (
                         <div
                           key={suggestion.accountName}
-                          className={`px-3 py-2 cursor-pointer text-sm ${
+                          className={`px-3 py-2 cursor-pointer ${
                             isSelected
-                              ? "bg-teal-100 dark:bg-teal-900 text-slate-900 dark:text-slate-100 font-medium"
-                              : "hover:bg-teal-50 dark:hover:bg-teal-950 text-slate-700 dark:text-slate-300"
+                              ? "bg-teal-100 dark:bg-teal-900"
+                              : "hover:bg-teal-50 dark:hover:bg-teal-950"
                           }`}
                           onClick={() => {
                             setIsTypingPayee(false);
                             setTransferPayee(suggestion.accountName!);
                             setSelectedPayeeAccountName(suggestion.accountName!);
-                            const acc = accounts.find((a) => a.name === suggestion.accountName);
                             if (acc?.type === "credit") {
                               setSelectedGroup("Credit Card Payments");
                               setSelectedItem(acc.name);
@@ -692,7 +692,23 @@ export default function InlineTransactionRow({
                             setPayeeDropdownOpen(false);
                           }}
                         >
-                          {suggestion.label}
+                          <div className="flex items-center justify-between gap-2">
+                            <span className={`text-sm ${isSelected ? "font-medium text-slate-900 dark:text-slate-100" : "text-slate-700 dark:text-slate-300"}`}>
+                              {suggestion.label}
+                            </span>
+                            <div className="flex items-center gap-1.5 flex-shrink-0">
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                                acc?.type === "credit"
+                                  ? "bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300"
+                                  : "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300"
+                              }`}>
+                                {acc?.type === "credit" ? "credit" : "checking"}
+                              </span>
+                              <span className={`text-[11px] font-mono ${(acc?.balance ?? 0) < 0 ? "text-red-500 dark:text-red-400" : "text-slate-500 dark:text-slate-400"}`}>
+                                {acc ? acc.balance.toLocaleString("en-US", { style: "currency", currency: "USD" }) : ""}
+                              </span>
+                            </div>
+                          </div>
                         </div>
                       );
                     })}
@@ -706,13 +722,14 @@ export default function InlineTransactionRow({
                     .map((suggestion) => {
                       const actualIndex = payeeSuggestions.findIndex((s) => s.label === suggestion.label && s.type === "payee");
                       const isSelected = actualIndex === payeeSelectedIndex;
+                      const savedPayee = savedPayees.find((p) => p.name === suggestion.label);
                       return (
                         <div
                           key={suggestion.label}
-                          className={`px-3 py-2 cursor-pointer text-sm ${
+                          className={`px-3 py-2 cursor-pointer ${
                             isSelected
-                              ? "bg-teal-100 dark:bg-teal-900 text-slate-900 dark:text-slate-100 font-medium"
-                              : "hover:bg-teal-50 dark:hover:bg-teal-950 text-slate-700 dark:text-slate-300"
+                              ? "bg-teal-100 dark:bg-teal-900"
+                              : "hover:bg-teal-50 dark:hover:bg-teal-950"
                           }`}
                           onClick={() => {
                             setIsTypingPayee(false);
@@ -725,7 +742,16 @@ export default function InlineTransactionRow({
                             setPayeeDropdownOpen(false);
                           }}
                         >
-                          {suggestion.label}
+                          <div className="flex items-center justify-between gap-2">
+                            <span className={`text-sm ${isSelected ? "font-medium text-slate-900 dark:text-slate-100" : "text-slate-700 dark:text-slate-300"}`}>
+                              {suggestion.label}
+                            </span>
+                            {savedPayee?.last_used_at && (
+                              <span className="text-[10px] text-slate-400 dark:text-slate-500 flex-shrink-0">
+                                {formatDistanceToNow(parseISO(savedPayee.last_used_at), { addSuffix: true })}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       );
                     })}
@@ -982,6 +1008,9 @@ export default function InlineTransactionRow({
                       const readyToAssignOffset = (categoryInput === "" || "ready to assign".includes(categoryInput.toLowerCase())) ? 1 : 0;
                       const itemIndex = readyToAssignOffset + idx;
                       const isSelected = itemIndex === categorySelectedIndex;
+                      const catGroup = categoryGroups.find((g) => g.name === suggestion.groupName);
+                      const catItem = catGroup?.categoryItems.find((i) => i.name === suggestion.itemName);
+                      const available = catItem?.available ?? 0;
                       return (
                         <div key={`${suggestion.groupName}::${suggestion.itemName}`}>
                           {showHeader && (
@@ -990,10 +1019,10 @@ export default function InlineTransactionRow({
                             </div>
                           )}
                           <div
-                            className={`px-3 py-2 cursor-pointer text-sm pl-6 ${
+                            className={`px-3 py-2 cursor-pointer pl-6 ${
                               isSelected
-                                ? "bg-teal-100 dark:bg-teal-900 text-slate-900 dark:text-slate-100 font-medium"
-                                : "hover:bg-teal-50 dark:hover:bg-teal-950 text-slate-700 dark:text-slate-300"
+                                ? "bg-teal-100 dark:bg-teal-900"
+                                : "hover:bg-teal-50 dark:hover:bg-teal-950"
                             }`}
                             onClick={() => {
                               setIsTypingCategory(false);
@@ -1020,7 +1049,20 @@ export default function InlineTransactionRow({
                               setCategoryDropdownOpen(false);
                             }}
                           >
-                            {suggestion.itemName}
+                            <div className="flex items-center justify-between gap-2">
+                              <span className={`text-sm ${isSelected ? "font-medium text-slate-900 dark:text-slate-100" : "text-slate-700 dark:text-slate-300"}`}>
+                                {suggestion.itemName}
+                              </span>
+                              <span className={`text-[11px] font-mono flex-shrink-0 ${
+                                available < 0
+                                  ? "text-red-500 dark:text-red-400"
+                                  : available === 0
+                                    ? "text-slate-400 dark:text-slate-500"
+                                    : "text-teal-600 dark:text-teal-400"
+                              }`}>
+                                {available.toLocaleString("en-US", { style: "currency", currency: "USD" })} left
+                              </span>
+                            </div>
                           </div>
                         </div>
                       );
