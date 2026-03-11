@@ -23,13 +23,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [plan, setPlan] = useState<UserPlan>("free");
 
   const fetchPlan = async (userId: string) => {
-    const { data } = await supabase
-      .from("user_profiles")
-      .select("plan")
-      .eq("id", userId)
-      .single();
-    if (data?.plan === "paid") setPlan("paid");
-    else setPlan("free");
+    try {
+      const { data, error } = await supabase
+        .from("user_profiles")
+        .select("plan")
+        .eq("id", userId)
+        .single();
+      if (data?.plan === "paid") setPlan("paid");
+      else setPlan("free");
+    } catch (e) {
+      console.error("[AuthContext] fetchPlan threw", e);
+      setPlan("free");
+    }
   };
 
   useEffect(() => {
@@ -37,7 +42,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const { data } = await supabase.auth.getSession();
       setSession(data.session);
       setUser(data.session?.user ?? null);
-      if (data.session?.user) await fetchPlan(data.session.user.id);
+      if (data.session?.user) fetchPlan(data.session.user.id);
       setLoading(false);
     };
 
@@ -47,7 +52,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setSession(session);
       setUser(session?.user ?? null);
       setIsRecoverySession(event === "PASSWORD_RECOVERY");
-      if (session?.user) await fetchPlan(session.user.id);
+      if (session?.user) fetchPlan(session.user.id);
       else setPlan("free");
     });
 

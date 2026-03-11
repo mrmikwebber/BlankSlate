@@ -364,12 +364,6 @@ export default function BudgetTable() {
   }, []);
 
   const handleInputChange = useCallback((categoryName, itemName, value) => {
-    console.log("[AssignedInput] handleInputChange", {
-      categoryName,
-      itemName,
-      value,
-      month: currentMonth,
-    });
     // Capture previous state for undo
     const previousState = budgetData[currentMonth];
     const oldItem = previousState?.categories
@@ -377,14 +371,6 @@ export default function BudgetTable() {
       .find((item) => item.name === itemName);
     const oldValue = oldItem?.assigned ?? 0;
     const oldActivity = oldItem?.activity ?? 0;  // Capture the original activity too
-
-    console.log(`[handleInputChange] Capturing undo state for ${categoryName} > ${itemName}:`, {
-      oldValue,
-      oldActivity,
-      categoryName,
-      isCardPaymentGroup: categoryName === "Credit Card Payments",
-    });
-
     setBudgetData((prev) => {
       const updated = { ...prev };
 
@@ -467,13 +453,10 @@ export default function BudgetTable() {
       return updated;
     });
 
-    console.log(`[handleInputChange] After setBudgetData, the state should have been updated`);
-
     // Register undo/redo action
     registerAction({
       description: `Assigned $${value} to '${itemName}' in '${categoryName}'`,
       execute: async () => {
-        console.log(`[handleInputChange.execute/redo] Reapplying ${categoryName} > ${itemName} with assigned=${value}`);
         // Re-apply the assignment for redo
         setBudgetData((prev) => {
           const updated = { ...prev };
