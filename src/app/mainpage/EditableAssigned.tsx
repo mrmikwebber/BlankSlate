@@ -25,15 +25,6 @@ const EditableAssigned = memo(({
   const skipBlurRef = useRef(false);
 
   const handleSave = useCallback((source: "enter" | "blur" | "unknown" = "unknown") => {
-    console.log("[AssignedInput] save:start", {
-      categoryName,
-      itemName,
-      source,
-      inputValue,
-      isEditing,
-      saveLocked: saveLockRef.current,
-      skipBlur: skipBlurRef.current,
-    });
     if (saveLockRef.current) return;
     saveLockRef.current = true;
     setTimeout(() => {
@@ -47,35 +38,13 @@ const EditableAssigned = memo(({
       const parsedValue = parseFloat(evaluatedValue as string);
 
       if (isNaN(parsedValue)) {
-        console.log("[AssignedInput] save:parsed", {
-          categoryName,
-          itemName,
-          source,
-          cleanedValue,
-          parsedValue: 0,
-          reason: "nan",
-        });
         handleInputChange(categoryName, itemName, 0);
       } else {
-        console.log("[AssignedInput] save:parsed", {
-          categoryName,
-          itemName,
-          source,
-          cleanedValue,
-          parsedValue,
-        });
         handleInputChange(categoryName, itemName, parsedValue);
       }
 
       setIsEditing(false);
     } catch (error) {
-      console.log("[AssignedInput] save:error", {
-        categoryName,
-        itemName,
-        source,
-        inputValue,
-        error,
-      });
       handleInputChange(categoryName, itemName, 0);
       setIsEditing(false);
       console.error(error);
