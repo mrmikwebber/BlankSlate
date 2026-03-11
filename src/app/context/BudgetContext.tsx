@@ -93,7 +93,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
   const importedAccountIdsRef = useRef<string[]>([]);
   const importedBudgetMonthsRef = useRef<string[]>([]);
   const dirtyMonths = useRef<Set<string>>(new Set());
-  const { user } = useAuth() || { user: null };
+  const { user, isRecoverySession } = useAuth() || { user: null, isRecoverySession: false };
   const { registerAction, clearHistory } = useUndoRedo();
   const [currentMonth, setCurrentMonth] = useState(
     format(new Date(), "yyyy-MM")
@@ -211,7 +211,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
   );
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || isRecoverySession) return;
 
     const fetchBudget = async () => {
       const { data, error } = await supabase

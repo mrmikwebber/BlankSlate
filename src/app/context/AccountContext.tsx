@@ -84,7 +84,7 @@ export const useAccountContext = () => {
 
 export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
-  const { user } = useAuth() || { user: null };
+  const { user, isRecoverySession } = useAuth() || { user: null, isRecoverySession: false };
   const { registerAction } = useUndoRedo();
 
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -132,7 +132,7 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return ordered;
   };
   useEffect(() => {
-    if (!user) return;
+    if (!user || isRecoverySession) return;
     const fetchAccounts = async () => {
       const { data, error } = await supabase
         .from("accounts")
