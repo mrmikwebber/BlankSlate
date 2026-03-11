@@ -18,12 +18,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Plus, Edit2, Trash2, ArrowLeft } from "lucide-react";
+import { Plus, Edit2, Trash2, ArrowLeft, CheckCircle2, Circle, Flag } from "lucide-react";
 
 export default function AccountDetails() {
   const { id } = useParams();
   const router = useRouter();
-  const { accounts, addTransaction, addTransactionWithMirror, deleteTransactionWithMirror, editAccountName, refreshSingleAccount } =
+  const { accounts, addTransaction, addTransactionWithMirror, deleteTransactionWithMirror, editAccountName, refreshSingleAccount, toggleCleared, toggleApproved, approveAll } =
     useAccountContext();
   const { registerAction } = useUndoRedo();
 
@@ -394,6 +394,20 @@ export default function AccountDetails() {
           style={{ top: contextMenu.y, left: contextMenu.x }}
           onClick={() => setContextMenu(null)}
         >
+          {(() => {
+            const ctxTx = account.transactions.find((t) => t.id === contextMenu.txId);
+            return !ctxTx?.approved ? (
+              <button
+                onClick={() => {
+                  void toggleApproved(contextMenu.accountId, contextMenu.txId);
+                  setContextMenu(null);
+                }}
+                className="px-4 py-2.5 hover:bg-amber-50 dark:hover:bg-amber-950 text-amber-600 dark:text-amber-400 w-full text-left font-medium transition-colors"
+              >
+                Approve Transaction
+              </button>
+            ) : null;
+          })()}
           <button
             data-cy="context-edit-transaction"
             onClick={() => {
@@ -536,6 +550,25 @@ export default function AccountDetails() {
         </div>
       </div>
 
+      {/* Unapproved banner */}
+      {(() => {
+        const unapprovedCount = account.transactions.filter((t) => !t.approved).length;
+        return unapprovedCount > 0 ? (
+          <div className="px-5 py-2 bg-amber-50 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-800 flex items-center justify-between">
+            <span className="text-xs font-medium text-amber-700 dark:text-amber-300 flex items-center gap-1.5">
+              <Flag className="h-3.5 w-3.5" />
+              {unapprovedCount} transaction{unapprovedCount !== 1 ? "s" : ""} need review
+            </span>
+            <button
+              onClick={() => void approveAll(account.id)}
+              className="text-xs font-medium text-amber-700 dark:text-amber-300 hover:text-amber-900 dark:hover:text-amber-100 underline underline-offset-2"
+            >
+              Approve all
+            </button>
+          </div>
+        ) : null;
+      })()}
+
       {/* Selection bar */}
       {selectedTxIds.size > 0 && (
         <div className="px-5 py-2 bg-blue-50 dark:bg-blue-950/40 border-b border-blue-100 dark:border-blue-900 flex items-center gap-3">
@@ -557,6 +590,12 @@ export default function AccountDetails() {
                   onChange={toggleSelectAll}
                   className="cursor-pointer"
                 />
+              </th>
+              <th className="px-3 py-2 text-center w-8 text-slate-400 dark:text-slate-500" title="Approved">
+                A
+              </th>
+              <th className="px-3 py-2 text-center w-8 text-slate-400 dark:text-slate-500" title="Cleared">
+                C
               </th>
               <th
                 className="px-3 py-2 text-left cursor-pointer select-none whitespace-nowrap"
@@ -626,9 +665,11 @@ export default function AccountDetails() {
                       ? "bg-blue-50 dark:bg-blue-950/40"
                       : selectedTxId === tx.id
                         ? "bg-teal-50 dark:bg-teal-950/40"
-                        : idx % 2 === 0
-                          ? "bg-white dark:bg-slate-950"
-                          : "bg-slate-50/60 dark:bg-slate-900/40"
+                        : !tx.approved
+                          ? "bg-amber-50/60 dark:bg-amber-950/20"
+                          : idx % 2 === 0
+                            ? "bg-white dark:bg-slate-950"
+                            : "bg-slate-50/60 dark:bg-slate-900/40"
                   } ${selectedTxId === tx.id ? "ring-1 ring-inset ring-teal-400 dark:ring-teal-600" : "hover:bg-slate-50 dark:hover:bg-slate-900"}`}
                   onClick={() => setSelectedTxId(tx.id)}
                   onDoubleClick={() => startEdit(tx)}
@@ -653,6 +694,26 @@ export default function AccountDetails() {
                       className="cursor-pointer"
                       onClick={(e) => e.stopPropagation()}
                     />
+                  </td>
+                  <td
+                    className="px-3 py-2.5 text-center"
+                    onClick={(e) => { e.stopPropagation(); void toggleApproved(account.id, tx.id); }}
+                    title={tx.approved ? "Approved — click to unapprove" : "Needs review — click to approve"}
+                  >
+                    {tx.approved
+                      ? <CheckCircle2 className="h-4 w-4 text-slate-300 dark:text-slate-600 mx-auto" />
+                      : <Flag className="h-4 w-4 text-amber-400 dark:text-amber-500 mx-auto" />
+                    }
+                  </td>
+                  <td
+                    className="px-3 py-2.5 text-center"
+                    onClick={(e) => { e.stopPropagation(); void toggleCleared(account.id, tx.id); }}
+                    title={tx.cleared ? "Cleared — click to uncleared" : "Uncleared — click to clear"}
+                  >
+                    {tx.cleared
+                      ? <CheckCircle2 className="h-4 w-4 text-teal-500 dark:text-teal-400 mx-auto" />
+                      : <Circle className="h-4 w-4 text-slate-300 dark:text-slate-600 mx-auto" />
+                    }
                   </td>
                   <td className="px-3 py-2.5 whitespace-nowrap text-[12px] text-slate-500 dark:text-slate-400">
                     {tx.date && format(parseISO(tx.date), "MMM d, yyyy")}

@@ -19,6 +19,8 @@ export interface Transaction {
   category_group: string;
   account: string;
   balance: number;
+  cleared: boolean;
+  approved: boolean;
 }
 
 export interface Account {
@@ -40,9 +42,13 @@ interface AccountContextType {
   // ...existing stuff
   savedPayees: SavedPayee[];
   upsertPayee: (name: string) => Promise<void>;
+  toggleCleared: (accountId: number, transactionId: number) => Promise<void>;
+  toggleApproved: (accountId: number, transactionId: number) => Promise<void>;
+  approveAll: (accountId: number) => Promise<void>;
 }
 
 interface AccountContextType {
+  toggleCleared: (accountId: number, transactionId: number) => Promise<void>;
   accounts: Account[];
   recentTransactions: Transaction[];
   addTransaction: (accountId: number, transaction: Record<string, unknown>) => void;
@@ -147,6 +153,32 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
 
     fetchAccounts();
+  }, [user]);
+
+  // Realtime: refresh an account whenever a transaction is inserted (e.g. via Teller webhook)
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel("transactions-insert")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "transactions",
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          const accountId = (payload.new as { account_id: number }).account_id;
+          if (accountId) refreshSingleAccount(accountId);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [user]);
 
   useEffect(() => {
@@ -383,6 +415,7 @@ const upsertPayee = async (name: string) => {
         category: updatedTransaction.category,
         category_group: updatedTransaction.category_group,
         balance: updatedTransaction.balance,
+        cleared: updatedTransaction.cleared ?? false,
       })
       .eq("id", transactionId)
       .eq("account_id", accountId);
@@ -409,6 +442,100 @@ const upsertPayee = async (name: string) => {
 
         return { ...account, transactions: updatedTransactions };
       })
+    );
+  };
+
+  const toggleCleared = async (accountId: number, transactionId: number) => {
+    const account = accounts.find((a) => a.id === accountId);
+    const tx = account?.transactions.find((t) => t.id === transactionId);
+    if (!tx) return;
+
+    const newCleared = !tx.cleared;
+
+    const { error } = await supabase
+      .from("transactions")
+      .update({ cleared: newCleared })
+      .eq("id", transactionId);
+
+    if (error) {
+      console.error("Failed to toggle cleared:", error);
+      return;
+    }
+
+    setAccounts((prev) =>
+      prev.map((acc) =>
+        acc.id !== accountId
+          ? acc
+          : {
+              ...acc,
+              transactions: acc.transactions.map((t) =>
+                t.id !== transactionId ? t : { ...t, cleared: newCleared }
+              ),
+            }
+      )
+    );
+  };
+
+  const toggleApproved = async (accountId: number, transactionId: number) => {
+    const account = accounts.find((a) => a.id === accountId);
+    const tx = account?.transactions.find((t) => t.id === transactionId);
+    if (!tx) return;
+
+    const newApproved = !tx.approved;
+
+    const { error } = await supabase
+      .from("transactions")
+      .update({ approved: newApproved })
+      .eq("id", transactionId);
+
+    if (error) {
+      console.error("Failed to toggle approved:", error);
+      return;
+    }
+
+    setAccounts((prev) =>
+      prev.map((acc) =>
+        acc.id !== accountId
+          ? acc
+          : {
+              ...acc,
+              transactions: acc.transactions.map((t) =>
+                t.id !== transactionId ? t : { ...t, approved: newApproved }
+              ),
+            }
+      )
+    );
+  };
+
+  const approveAll = async (accountId: number) => {
+    const account = accounts.find((a) => a.id === accountId);
+    if (!account) return;
+
+    const unapprovedIds = account.transactions
+      .filter((t) => !t.approved)
+      .map((t) => t.id);
+
+    if (unapprovedIds.length === 0) return;
+
+    const { error } = await supabase
+      .from("transactions")
+      .update({ approved: true })
+      .in("id", unapprovedIds);
+
+    if (error) {
+      console.error("Failed to approve all:", error);
+      return;
+    }
+
+    setAccounts((prev) =>
+      prev.map((acc) =>
+        acc.id !== accountId
+          ? acc
+          : {
+              ...acc,
+              transactions: acc.transactions.map((t) => ({ ...t, approved: true })),
+            }
+      )
     );
   };
 
@@ -741,6 +868,9 @@ const upsertPayee = async (name: string) => {
       deleteTransactionWithMirror,
       editTransaction,
       editAccountName,
+      toggleCleared,
+      toggleApproved,
+      approveAll,
       recentTransactions,
       savedPayees,
       upsertPayee,
