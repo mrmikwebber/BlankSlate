@@ -37,9 +37,9 @@ export default function RootLayout({
         <DarkModeProvider>
           <AuthProvider>
             <UndoRedoProvider>
-              <Navbar />
               <AccountProvider>
                 <BudgetProvider>
+                  <Navbar />
                   {children}
                 </BudgetProvider>
               </AccountProvider>
