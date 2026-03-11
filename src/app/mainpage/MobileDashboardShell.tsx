@@ -4,6 +4,7 @@ import { useState } from "react";
 import MobileTabBar from "./MobileTabBar";
 import MobileBudgetTab from "./tabs/MobileBudgetTab";
 import MobileAccountsTab from "./tabs/MobileAccountsTab";
+import MobileTransactionsTab from "./tabs/MobileTransactionsTab";
 import TotalSpendingTile from "./totalSpendingTile";
 
 export type TabType = "budget" | "accounts" | "insights" | "settings";
@@ -24,6 +25,12 @@ function SettingsTab() {
 
 export default function MobileDashboardShell() {
   const [activeTab, setActiveTab] = useState<TabType>("budget");
+  const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
+
+  const handleTabChange = (tab: TabType) => {
+    setActiveTab(tab);
+    if (tab !== "accounts") setSelectedAccountId(null);
+  };
 
   const renderTabContent = () => {
     switch (activeTab) {
@@ -36,7 +43,14 @@ export default function MobileDashboardShell() {
           </div>
         );
       case "accounts":
-        return <MobileAccountsTab />;
+        return selectedAccountId !== null ? (
+          <MobileTransactionsTab
+            accountId={selectedAccountId}
+            onBack={() => setSelectedAccountId(null)}
+          />
+        ) : (
+          <MobileAccountsTab onSelectAccount={setSelectedAccountId} />
+        );
       case "insights":
         return <TotalSpendingTile />;
       case "settings":
@@ -55,7 +69,7 @@ export default function MobileDashboardShell() {
 
       {/* Bottom tab bar */}
       <div className="flex-shrink-0 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-lg">
-        <MobileTabBar activeTab={activeTab} onTabChange={setActiveTab} />
+        <MobileTabBar activeTab={activeTab} onTabChange={handleTabChange} />
       </div>
     </div>
   );

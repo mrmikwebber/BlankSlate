@@ -1,6 +1,5 @@
 "use client";
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { useAccountContext } from "@/app/context/AccountContext";
 import { formatToUSD } from "@/app/utils/formatToUSD";
 import { cn } from "@/lib/utils";
@@ -23,9 +22,12 @@ function getAccountSubtype(acc: { type: string; name: string }): string {
   return "Cash";
 }
 
-export default function MobileAccountsTab() {
+interface Props {
+  onSelectAccount: (accountId: number) => void;
+}
+
+export default function MobileAccountsTab({ onSelectAccount }: Props) {
   const { accounts, addAccount } = useAccountContext();
-  const router = useRouter();
   const [showAddModal, setShowAddModal] = useState(false);
 
   const netWorth = useMemo(
@@ -55,7 +57,7 @@ export default function MobileAccountsTab() {
     return (
       <div
         key={acc.id}
-        onClick={() => router.push(`/accounts/${acc.id}`)}
+        onClick={() => onSelectAccount(acc.id)}
         className="flex items-center gap-3 px-5 py-3.5 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 cursor-pointer active:bg-slate-50 dark:active:bg-slate-800 min-h-[62px]"
       >
         {/* Icon chip */}

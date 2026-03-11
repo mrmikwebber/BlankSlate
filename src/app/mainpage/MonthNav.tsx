@@ -29,28 +29,26 @@ const MonthNav = () => {
   };
 
   return (
-    <div className="w-full px-8 py-4 border border-gray-300 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-900 shadow-sm dark:shadow-md">
-      <div className="flex justify-between items-center">
-        <button
-          data-cy="month-prev"
-          onClick={goToPreviousMonth}
-          className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-600 dark:text-slate-400 transition-colors"
-        >
-          <ChevronLeft size={22} />
-        </button>
+    <div className="flex items-center gap-0.5">
+      <button
+        data-cy="month-prev"
+        onClick={goToPreviousMonth}
+        className="h-6 w-6 flex items-center justify-center rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 transition-colors"
+      >
+        <ChevronLeft size={14} />
+      </button>
 
-        <span data-cy="month-label" className="text-lg font-semibold text-gray-800 dark:text-slate-100 tracking-wide">
-          {formattedMonth}
-        </span>
+      <span data-cy="month-label" className="text-[13px] font-semibold text-slate-700 dark:text-slate-200 tracking-wide px-1 min-w-[108px] text-center">
+        {formattedMonth}
+      </span>
 
-        <button
-          data-cy="month-next"
-          onClick={goToNextMonth}
-          className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-800 text-gray-600 dark:text-slate-400 transition-colors"
-        >
-          <ChevronRight size={22} />
-        </button>
-      </div>
+      <button
+        data-cy="month-next"
+        onClick={goToNextMonth}
+        className="h-6 w-6 flex items-center justify-center rounded hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 transition-colors"
+      >
+        <ChevronRight size={14} />
+      </button>
     </div>
   );
 };

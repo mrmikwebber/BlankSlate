@@ -1371,7 +1371,7 @@ export default function BudgetTable() {
                     data-cy="move-money-amount-input"
                     type="number"
                     step="0.01"
-                    value={moveAmount}
+                    value={moveAmount ? parseFloat(moveAmount.toFixed(2)) : ""}
                     onChange={(e) => setMoveAmount(parseFloat(e.target.value) || 0)}
                     className="w-full"
                     placeholder="Enter amount"
@@ -1723,8 +1723,8 @@ export default function BudgetTable() {
 
       {/* Main card */}
       <Card className="flex flex-col w-full h-full min-h-0 overflow-hidden border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-950">
-        <CardHeader className="pb-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
-          <div className="flex flex-col gap-4">
+        <CardHeader className="py-2.5 px-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
+          <div className="flex flex-col gap-2">
             {sandboxMode && (
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-amber-900 dark:border-amber-700 dark:bg-amber-900/40 dark:text-amber-100">
                 <div className="flex flex-col gap-1">
@@ -1751,13 +1751,13 @@ export default function BudgetTable() {
             )}
 
             {/* Top row: RTA + Month */}
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-3 flex-wrap">
-                <div data-cy="ready-to-assign" className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800">
-                  <span className="text-xs font-semibold text-teal-700 dark:text-teal-400 opacity-80">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <div data-cy="ready-to-assign" className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800">
+                  <span className="text-[11px] font-semibold text-teal-700 dark:text-teal-400 opacity-80">
                     Ready to Assign
                   </span>
-                  <span className="font-mono text-sm font-bold text-teal-700 dark:text-teal-300">
+                  <span className="font-mono text-[13px] font-bold text-teal-700 dark:text-teal-300">
                     {formatToUSD(displayedRta || 0)}
                   </span>
                 </div>
@@ -1787,9 +1787,9 @@ export default function BudgetTable() {
             </div>
 
 
-            {/* Toolbar: Filters + Add Group */}
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex flex-wrap items-center gap-1">
+            {/* Toolbar: Filters + Actions */}
+            <div className="flex flex-wrap items-center justify-between gap-1.5">
+              <div className="flex flex-wrap items-center gap-0.5">
                 {FILTERS.map((filter) => (
                   <Button
                     key={filter}
@@ -1798,7 +1798,7 @@ export default function BudgetTable() {
                     size="sm"
                     onClick={() => setSelectedFilter(filter)}
                     className={cn(
-                      "text-xs h-7 px-2.5",
+                      "text-[11px] h-6 px-2",
                       selectedFilter === filter
                         ? "bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-slate-100"
                         : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
@@ -1808,56 +1808,59 @@ export default function BudgetTable() {
                   </Button>
                 ))}
 
+                <div className="w-px h-4 bg-slate-200 dark:bg-slate-700 mx-0.5" />
+
                 <Button
                   data-cy="compare-toggle"
-                  variant={compareToLastMonth ? "default" : "outline"}
+                  variant={compareToLastMonth ? "default" : "ghost"}
                   size="sm"
                   onClick={() => setCompareToLastMonth((prev) => !prev)}
+                  title="Compare to last month"
                   className={cn(
-                    "text-xs gap-2",
+                    "h-6 w-6 p-0",
                     compareToLastMonth
                       ? "bg-teal-600 text-white hover:bg-teal-500 dark:bg-teal-700 dark:hover:bg-teal-600"
-                      : "dark:hover:bg-slate-800"
+                      : "text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"
                   )}
                 >
-                  <TrendingUp className="h-4 w-4" />
-                  Compare to last month
+                  <TrendingUp className="h-3.5 w-3.5" />
                 </Button>
 
                 <Button
                   data-cy="sandbox-toggle"
-                  variant={sandboxMode ? "destructive" : "outline"}
+                  variant={sandboxMode ? "destructive" : "ghost"}
                   size="sm"
                   onClick={() => (sandboxMode ? exitSandbox() : enterSandbox())}
+                  title={sandboxMode ? "Exit sandbox" : "Sandbox mode"}
                   className={cn(
-                    "text-xs gap-2",
+                    "text-[11px] h-6 px-2",
                     sandboxMode
                       ? "bg-amber-600 text-white hover:bg-amber-500 dark:bg-amber-700 dark:hover:bg-amber-600"
-                      : "dark:hover:bg-slate-800"
+                      : "text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"
                   )}
                 >
-                  {sandboxMode ? "Exit sandbox" : "Sandbox mode"}
+                  {sandboxMode ? "Exit sandbox" : "Sandbox"}
                 </Button>
 
                 <Button
                   data-cy="ynab-import-button"
-                  variant="outline"
+                  variant="ghost"
                   size="sm"
                   onClick={() => setImportDialogOpen(true)}
-                  className="text-xs gap-2"
+                  className="text-[11px] h-6 px-2 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"
                   style={{ display: importPending ? "none" : "inline-flex" }}
                 >
-                  Import CSV
+                  Import
                 </Button>
 
                 {importPending && (
-                  <div className="flex gap-2">
+                  <div className="flex gap-1">
                     <Button
                       data-cy="confirm-import-button"
                       variant="default"
                       size="sm"
                       onClick={confirmImport}
-                      className="text-xs gap-2 bg-green-600 hover:bg-green-700"
+                      className="text-[11px] h-6 px-2 bg-green-600 hover:bg-green-700"
                     >
                       Confirm Import
                     </Button>
@@ -1866,25 +1869,24 @@ export default function BudgetTable() {
                       variant="destructive"
                       size="sm"
                       onClick={undoImport}
-                      className="text-xs gap-2"
+                      className="text-[11px] h-6 px-2"
                     >
                       Undo Import
                     </Button>
                   </div>
                 )}
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1">
                 <Button
                   data-cy="undo-button"
                   onClick={undo}
                   disabled={!canUndo}
                   title={canUndo ? `Undo: ${undoDescription}` : "Nothing to undo"}
                   variant="outline"
-                  size="sm"
-                  className="gap-1"
+                  size="icon"
+                  className="h-6 w-6"
                 >
-                  <RotateCcw className="h-4 w-4" />
-                  Undo
+                  <RotateCcw className="h-3.5 w-3.5" />
                 </Button>
                 <Button
                   data-cy="redo-button"
@@ -1892,19 +1894,18 @@ export default function BudgetTable() {
                   disabled={!canRedo}
                   title={canRedo ? `Redo: ${redoDescription}` : "Nothing to redo"}
                   variant="outline"
-                  size="sm"
-                  className="gap-1"
+                  size="icon"
+                  className="h-6 w-6"
                 >
-                  <RotateCw className="h-4 w-4" />
-                  Redo
+                  <RotateCw className="h-3.5 w-3.5" />
                 </Button>
                 <Button
                   data-cy="keyboard-shortcuts-button"
                   onClick={() => setShowShortcutsHelp(true)}
                   variant="outline"
-                  size="sm"
+                  size="icon"
                   title="Keyboard Shortcuts (press ? for help)"
-                  className="gap-1"
+                  className="h-6 w-6 text-[11px]"
                 >
                   ?
                 </Button>
@@ -1919,16 +1920,16 @@ export default function BudgetTable() {
             <Table data-cy="budget-table-header" className="w-full table-fixed">
               <TableHeader className="bg-slate-100 dark:bg-slate-800">
                 <TableRow className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-b border-slate-200 dark:border-slate-700">
-                  <TableHead className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">
+                  <TableHead className="text-left px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">
                     Category
                   </TableHead>
-                  <TableHead className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">
+                  <TableHead className="text-right px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">
                     Assigned
                   </TableHead>
-                  <TableHead className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">
+                  <TableHead className="text-right px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">
                     Activity
                   </TableHead>
-                  <TableHead className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wide text-teal-600 dark:text-teal-400">
+                  <TableHead className="text-right px-3 py-2 text-xs font-semibold uppercase tracking-wide text-teal-600 dark:text-teal-400">
                     Available
                   </TableHead>
                 </TableRow>
@@ -2010,7 +2011,7 @@ export default function BudgetTable() {
                       }}
                     >
                       <TableCell
-                        className="p-4 align-middle"
+                        className="py-2.5 px-3 align-middle"
                         onContextMenu={(e) => {
                           e.preventDefault();
                           setGroupContext({
@@ -2118,7 +2119,7 @@ export default function BudgetTable() {
                         </div>
                       </TableCell>
                       <TableCell
-                        className="p-4 text-right text-sm font-medium"
+                        className="py-2.5 px-3 text-right text-sm font-medium"
                         data-cy="available-display"
                         data-category={group.name}
                       >
@@ -2129,7 +2130,7 @@ export default function BudgetTable() {
                           )
                         )}
                       </TableCell>
-                      <TableCell className="p-4 text-right text-sm font-medium">
+                      <TableCell className="py-2.5 px-3 text-right text-sm font-medium">
                         {formatToUSD(
                           group.categoryItems.reduce(
                             (sum, item) => sum + item.activity,
@@ -2137,7 +2138,7 @@ export default function BudgetTable() {
                           )
                         )}
                       </TableCell>
-                      <TableCell className="p-4 text-right text-sm font-medium">
+                      <TableCell className="py-2.5 px-3 text-right text-sm font-medium">
                         {group.name === "Credit Card Payments"
                           ? "Payment - " +
                           formatToUSD(
@@ -2301,7 +2302,7 @@ export default function BudgetTable() {
                               data-cy="category-item-name"
                               data-category={group.name}
                               data-item={item.name}
-                              className="p-4 align-middle"
+                              className="py-2 px-3 align-middle"
                               onClick={() => {
                                 setInlineEditorCategory((prev) =>
                                   prev === item.name ? null : item.name
@@ -2367,21 +2368,8 @@ export default function BudgetTable() {
                                   >
                                     <GripVertical className="h-3 w-3" />
                                   </span>
-                                  <div className="relative h-6 rounded-md px-1 flex-1">
-                                    {item.target && (
-                                      <div
-                                        className="absolute top-0 left-0 h-full bg-teal-500 dark:bg-teal-600 rounded-md"
-                                        style={{
-                                          width: `${Math.min(
-                                            (item.assigned /
-                                              item.target.amountNeeded) *
-                                            100,
-                                            100
-                                          )}%`,
-                                        }}
-                                      />
-                                    )}
-                                    <div className="relative z-10 px-2 flex items-center h-full gap-2">
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-1.5">
                                       <span className="font-medium truncate text-slate-800 dark:text-slate-200 text-sm">
                                         {item.name}
                                       </span>
@@ -2397,25 +2385,33 @@ export default function BudgetTable() {
                                           Snoozed
                                         </Badge>
                                       )}
+                                      {item.target && getTargetStatus(item).message && (
+                                        <div className={`px-1.5 py-0.5 rounded text-[10px] font-semibold whitespace-nowrap ${getTargetStatus(item).type === "overspent"
+                                          ? "bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-200"
+                                          : getTargetStatus(item).type === "funded"
+                                            ? "bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-200"
+                                            : getTargetStatus(item).type === "overfunded"
+                                              ? "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-200"
+                                              : getTargetStatus(item).type === "underfunded"
+                                                ? "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-200"
+                                                : "bg-slate-100 dark:bg-slate-800/40 text-slate-600 dark:text-slate-300"
+                                          }`}>
+                                          {getTargetStatus(item).type === "funded" && "✓ Funded"}
+                                          {getTargetStatus(item).type === "overfunded" && "↑ Overfunded"}
+                                          {getTargetStatus(item).type === "underfunded" && "↓ " + (item.target.amountNeeded - item.assigned > 0 ? formatToUSD(item.target.amountNeeded - item.assigned) + " left" : "")}
+                                          {getTargetStatus(item).type === "overspent" && "⚠ Overspent"}
+                                        </div>
+                                      )}
                                     </div>
+                                    {item.target && (
+                                      <div className="h-0.5 mt-1 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden">
+                                        <div
+                                          className="h-full bg-teal-500 dark:bg-teal-600 rounded-full"
+                                          style={{ width: `${Math.min((item.assigned / item.target.amountNeeded) * 100, 100)}%` }}
+                                        />
+                                      </div>
+                                    )}
                                   </div>
-                                  {item.target && getTargetStatus(item).message && (
-                                    <div className={`px-2 py-0.5 rounded text-[10px] font-semibold whitespace-nowrap ${getTargetStatus(item).type === "overspent"
-                                      ? "bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-200"
-                                      : getTargetStatus(item).type === "funded"
-                                        ? "bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-200"
-                                        : getTargetStatus(item).type === "overfunded"
-                                          ? "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-200"
-                                          : getTargetStatus(item).type === "underfunded"
-                                            ? "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-200"
-                                            : "bg-slate-100 dark:bg-slate-800/40 text-slate-600 dark:text-slate-300"
-                                      }`}>
-                                      {getTargetStatus(item).type === "funded" && "✓ Funded"}
-                                      {getTargetStatus(item).type === "overfunded" && "↑ Overfunded"}
-                                      {getTargetStatus(item).type === "underfunded" && "↓ " + (item.target.amountNeeded - item.assigned > 0 ? formatToUSD(item.target.amountNeeded - item.assigned) + " left" : "")}
-                                      {getTargetStatus(item).type === "overspent" && "⚠ Overspent"}
-                                    </div>
-                                  )}
                                 </div>
                               )}
                             </TableCell>
@@ -2432,7 +2428,7 @@ export default function BudgetTable() {
                             <TableCell
                               data-cy="item-activity"
                               data-item={item.name}
-                              className="p-4 text-right align-middle cursor-pointer font-mono font-medium"
+                              className="py-2 px-3 text-right align-middle cursor-pointer font-mono font-medium"
                               onClick={() => {
                                 setInlineEditorCategory((prev) =>
                                   prev === item.name ? null : item.name
@@ -2459,7 +2455,7 @@ export default function BudgetTable() {
                               data-cy="item-available"
                               data-item={item.name}
                               className={cn(
-                                "p-4 text-right align-middle font-mono text-sm font-semibold",
+                                "py-2 px-3 text-right align-middle font-mono text-sm font-semibold",
                                 item.available > 0
                                   ? "text-emerald-600"
                                   : item.available < 0
