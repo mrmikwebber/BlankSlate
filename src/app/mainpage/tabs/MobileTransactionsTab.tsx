@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useAccountContext } from "@/app/context/AccountContext";
 import { useBudgetContext } from "@/app/context/BudgetContext";
 import { format, parseISO } from "date-fns";
@@ -38,7 +38,7 @@ export default function MobileTransactionsTab({ accountId, onBack }: Props) {
     editTransaction,
     addTransactionWithMirror,
   } = useAccountContext();
-  const { budgetData, currentMonth, addItemToCategory } = useBudgetContext();
+  const { budgetData, currentMonth } = useBudgetContext();
 
   const account = useMemo(
     () => accounts.find((a) => a.id === accountId) ?? null,

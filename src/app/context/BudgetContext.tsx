@@ -2066,6 +2066,12 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
     const latestMonth = months[months.length - 1];
     const globalRTA = calculateReadyToAssign(latestMonth, budgetData, accounts);
 
+    // Use startMonth perspective for startCarry so that the current month's
+    // cash overspending is NOT counted as a "past" penalty — it is already
+    // reflected in each category's negative available balance.  Future-month
+    // deficits still propagate naturally through the carry loop below.
+    const startMonthRTA = calculateReadyToAssign(startMonth, budgetData, accounts);
+
     // Carry should only affect months after the current view month.
     let carry = 0;
     const rtaByMonth: Record<string, number> = {};
@@ -2081,7 +2087,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
       }
 
       if (idx === startIndex) {
-        const startCarry = Math.min(0, globalRTA - local);
+        const startCarry = Math.min(0, startMonthRTA - local);
         const display = local + startCarry;
         rtaByMonth[month] = display;
         carryByMonth[month] = 0;
