@@ -8,9 +8,17 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import TellerConnect from "@/components/TellerConnect";
+import { useAuth } from "@/app/context/AuthContext";
+import { Lock } from "lucide-react";
 
 interface AddAccountModalProps {
   onAddAccount: (account: Record<string, unknown>) => void;
@@ -28,6 +36,8 @@ const SUBTYPES: { value: AccountSubtype; label: string; type: "debit" | "credit"
 ];
 
 const AddAccountModal = ({ onAddAccount, onClose, isOpen = true }: AddAccountModalProps) => {
+  const { plan } = useAuth()!;
+  const isPaid = plan === "paid";
   const [mode, setMode] = useState<Mode>("choose");
   const [name, setName] = useState("");
   const [subtype, setSubtype] = useState<AccountSubtype>("checking");
@@ -90,18 +100,37 @@ const AddAccountModal = ({ onAddAccount, onClose, isOpen = true }: AddAccountMod
               </span>
             </button>
 
-            <button
-              type="button"
-              onClick={() => setMode("linked")}
-              className="flex flex-col items-start gap-1 rounded-xl border border-teal-200 bg-teal-50/50 p-4 text-left transition-colors hover:border-teal-300 hover:bg-teal-50 dark:border-teal-800 dark:bg-teal-950/30 dark:hover:border-teal-700"
-            >
-              <span className="text-sm font-semibold text-teal-800 dark:text-teal-300">
-                Linked Account
-              </span>
-              <span className="text-xs text-teal-600 dark:text-teal-400">
-                Sync from your bank automatically
-              </span>
-            </button>
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={() => isPaid && setMode("linked")}
+                    disabled={!isPaid}
+                    className={`relative flex flex-col items-start gap-1 rounded-xl border p-4 text-left transition-colors ${
+                      isPaid
+                        ? "border-teal-200 bg-teal-50/50 hover:border-teal-300 hover:bg-teal-50 dark:border-teal-800 dark:bg-teal-950/30 dark:hover:border-teal-700"
+                        : "cursor-not-allowed border-slate-200 bg-slate-50 opacity-60 dark:border-slate-700 dark:bg-slate-800/50"
+                    }`}
+                  >
+                    {!isPaid && (
+                      <Lock className="absolute right-3 top-3 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
+                    )}
+                    <span className={`text-sm font-semibold ${isPaid ? "text-teal-800 dark:text-teal-300" : "text-slate-500 dark:text-slate-400"}`}>
+                      Linked Account
+                    </span>
+                    <span className={`text-xs ${isPaid ? "text-teal-600 dark:text-teal-400" : "text-slate-400 dark:text-slate-500"}`}>
+                      Sync from your bank automatically
+                    </span>
+                  </button>
+                </TooltipTrigger>
+                {!isPaid && (
+                  <TooltipContent side="bottom">
+                    Upgrade to Pro to connect your bank automatically
+                  </TooltipContent>
+                )}
+              </Tooltip>
+            </TooltipProvider>
           </div>
         )}
 
