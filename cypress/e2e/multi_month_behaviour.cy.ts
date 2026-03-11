@@ -326,9 +326,15 @@ describe("Multi-month behaviour – carryover, overspending, edits", () => {
     //   - targetItem available = (previous target + previous from)
     //   - RTA unchanged per month
 
-    // Go back to Month 0
-    cy.get("[data-cy=month-prev]").filter(':visible').first().click();
-    cy.get("[data-cy=month-prev]").filter(':visible').first().click();
+    // Go back to Month 0 (wait for label to change at each step)
+    getCurrentMonthLabel().then((m2Label) => {
+      cy.get("[data-cy=month-prev]").filter(':visible').first().click();
+      cy.get("[data-cy=month-label]").should('not.contain.text', m2Label);
+    });
+    getCurrentMonthLabel().then((m1Label) => {
+      cy.get("[data-cy=month-prev]").filter(':visible').first().click();
+      cy.get("[data-cy=month-label]").should('not.contain.text', m1Label);
+    });
 
     const assertMonth = (idx: number) => {
       // fromItem removed
@@ -369,12 +375,18 @@ describe("Multi-month behaviour – carryover, overspending, edits", () => {
     assertMonth(0);
 
     // Month 1
-    cy.get("[data-cy=month-next]").filter(':visible').first().click();
-    assertMonth(1);
+    getCurrentMonthLabel().then((m0Label) => {
+      cy.get("[data-cy=month-next]").filter(':visible').first().click();
+      cy.get("[data-cy=month-label]").should('not.contain.text', m0Label);
+      assertMonth(1);
+    });
 
     // Month 2
-    cy.get("[data-cy=month-next]").filter(':visible').first().click();
-    assertMonth(2);
+    getCurrentMonthLabel().then((m1Label) => {
+      cy.get("[data-cy=month-next]").filter(':visible').first().click();
+      cy.get("[data-cy=month-label]").should('not.contain.text', m1Label);
+      assertMonth(2);
+    });
   });
 
 
@@ -507,6 +519,14 @@ describe("Multi-month behaviour – carryover, overspending, edits", () => {
 
     // 2️⃣ Snapshot BEFORE – Months 1, 2, 3
     visitBudget();
+    // Wait for the transaction activity to propagate into oldItem's available before snapshotting.
+    // Use .should($el => ...) directly so the full 10000ms timeout governs the retry loop.
+    cy.get(
+      `${rowSelectorOld(groupName, oldItem)} [data-cy="item-available"]`,
+      { timeout: 10000 }
+    ).should(($el) => {
+      expect(parseCurrencySafe($el.text())).to.not.eq(0);
+    });
     snapshotMonth("m1_before");
     getCurrentMonthLabel().as("dh_m1_label");
 
@@ -526,8 +546,14 @@ describe("Multi-month behaviour – carryover, overspending, edits", () => {
     snapshotMonth("m3_before");
 
     // 3️⃣ Go back to Month 1 and change the transaction from Old Cat → New Cat
-    cy.get("[data-cy=month-prev]").filter(':visible').first().click(); // back to Month 2
-    cy.get("[data-cy=month-prev]").filter(':visible').first().click(); // back to Month 1
+    getCurrentMonthLabel().then((m3Label) => {
+      cy.get("[data-cy=month-prev]").filter(':visible').first().click(); // back to Month 2
+      cy.get("[data-cy=month-label]").should("not.contain.text", m3Label);
+    });
+    getCurrentMonthLabel().then((m2Label) => {
+      cy.get("[data-cy=month-prev]").filter(':visible').first().click(); // back to Month 1
+      cy.get("[data-cy=month-label]").should("not.contain.text", m2Label);
+    });
 
     visitAccount(accounts.checking.id, accounts.checking.name);
 

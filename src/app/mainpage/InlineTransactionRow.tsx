@@ -537,6 +537,8 @@ export default function InlineTransactionRow({
     >
       {/* Empty checkbox cell to match the checkbox column */}
       <td className="px-2 py-2 border-r border-slate-200 dark:border-slate-700"></td>
+      {/* Empty approved cell to match the approved column */}
+      <td className="px-3 py-2 border-r border-slate-200 dark:border-slate-700"></td>
       {/* Cleared toggle */}
       <td
         className="px-3 py-2 text-center border-r border-slate-200 dark:border-slate-700 cursor-pointer"

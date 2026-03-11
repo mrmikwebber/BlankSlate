@@ -4,6 +4,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Transaction, useAccountContext } from "@/app/context/AccountContext";
 import { useUndoRedo } from "@/app/context/UndoRedoContext";
+import { useAuth } from "@/app/context/AuthContext";
 import { supabase } from "@/utils/supabaseClient";
 import { parseISO, format } from "date-fns";
 import InlineTransactionRow from "./InlineTransactionRow";
@@ -23,6 +24,7 @@ import { Plus, Edit2, Trash2, ArrowLeft, CheckCircle2, Circle, Flag } from "luci
 export default function AccountDetails() {
   const { id } = useParams();
   const router = useRouter();
+  const { user } = useAuth();
   const { accounts, addTransaction, addTransactionWithMirror, deleteTransactionWithMirror, editAccountName, refreshSingleAccount, toggleCleared, toggleApproved, approveAll } =
     useAccountContext();
   const { registerAction } = useUndoRedo();
@@ -157,6 +159,7 @@ export default function AccountDetails() {
             {
               ...txData,
               account_id: account.id,
+              user_id: user?.id,
             },
           ]).select();
 
