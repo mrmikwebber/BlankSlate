@@ -6,6 +6,7 @@ import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { CheckCircle2, Circle } from "lucide-react";
 
 export default function InlineTransactionRow({
   accountId,
@@ -41,6 +42,9 @@ export default function InlineTransactionRow({
   );
   const [isNegative, setIsNegative] = useState(
     isEdit && initialData ? initialData.balance < 0 : true
+  );
+  const [cleared, setCleared] = useState(
+    isEdit && initialData ? (initialData.cleared ?? false) : false
   );
 
   // category group + item (backing state)
@@ -367,6 +371,7 @@ export default function InlineTransactionRow({
       // for anything that's not "Ready to Assign", store the group
       category_group: isTransfer && !isCreditPayment ? null : isReadyToAssign ? null : effectiveGroup || null,
       balance,
+      cleared,
     };
 
     // Save payee to database if it's not a transfer
@@ -532,6 +537,17 @@ export default function InlineTransactionRow({
     >
       {/* Empty checkbox cell to match the checkbox column */}
       <td className="px-2 py-2 border-r border-slate-200 dark:border-slate-700"></td>
+      {/* Cleared toggle */}
+      <td
+        className="px-3 py-2 text-center border-r border-slate-200 dark:border-slate-700 cursor-pointer"
+        onClick={() => setCleared((prev) => !prev)}
+        title={cleared ? "Cleared — click to uncleared" : "Uncleared — click to clear"}
+      >
+        {cleared
+          ? <CheckCircle2 className="h-4 w-4 text-teal-500 dark:text-teal-400 mx-auto" />
+          : <Circle className="h-4 w-4 text-slate-300 dark:text-slate-600 mx-auto" />
+        }
+      </td>
       <td className="px-4 py-2 border-r border-slate-200 dark:border-slate-700">
         <Input
           ref={dateRef}
