@@ -385,7 +385,7 @@ export default function AccountDetails() {
   }
 
   return (
-    <div className="mx-auto p-8 relative bg-slate-50 dark:bg-slate-950 min-h-screen">
+    <div className="relative bg-white dark:bg-slate-950 min-h-screen">
       {/* Context menu */}
       {contextMenu && (
         <div
@@ -458,104 +458,58 @@ export default function AccountDetails() {
       )}
 
       {/* Header / balance */}
-      <div className="flex items-center justify-between gap-4 mb-6 pb-4 border-b border-slate-200 dark:border-slate-700">
-        <div className="flex items-start gap-3">
+      <div className="flex items-center justify-between gap-4 px-5 py-4 border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900">
+        <div className="flex items-center gap-3">
           <Button
             variant="ghost"
             size="icon"
             aria-label="Back"
             data-cy="account-back-button"
             onClick={() => router.push("/dashboard")}
-            className="mt-1"
+            className="h-8 w-8 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-100"
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
           {isEditingAccountName ? (
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               <Input
-                className="text-2xl font-bold border-b-2 border-primary focus-visible:ring-0 bg-transparent text-slate-800 h-auto px-0"
+                className="text-lg font-semibold border-b-2 border-teal-500 focus-visible:ring-0 bg-transparent text-slate-800 dark:text-slate-100 h-auto px-0"
                 value={newAccountName ?? ""}
                 onChange={(e) => setNewAccountName(e.target.value)}
               />
-              <Button
-                onClick={handleRenameAccount}
-                size="sm"
-              >
-                Save
-              </Button>
-              <Button
-                onClick={() => {
-                  setNewAccountName(account.name);
-                  setIsEditingAccountName(false);
-                }}
-                variant="outline"
-                size="sm"
-              >
-                Cancel
-              </Button>
+              <Button onClick={handleRenameAccount} size="sm" className="h-7 text-xs bg-teal-600 hover:bg-teal-700 text-white">Save</Button>
+              <Button onClick={() => { setNewAccountName(account.name); setIsEditingAccountName(false); }} variant="outline" size="sm" className="h-7 text-xs">Cancel</Button>
             </div>
           ) : (
-            <div>
-              <h1
-                className="text-2xl font-bold text-slate-800 dark:text-slate-100"
-                data-cy="account-name"
-              >{`${account.name}`}</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-[17px] font-semibold text-slate-900 dark:text-slate-100" data-cy="account-name">{account.name}</h1>
+              <Button onClick={() => setIsEditingAccountName(true)} variant="ghost" size="sm" className="h-6 w-6 p-0 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+                <Edit2 className="h-3 w-3" />
+              </Button>
             </div>
           )}
-
-          <p className="text-base text-slate-600 dark:text-slate-400 mt-2">
-            Balance:{" "}
+          <p className="text-[13px] text-slate-500 dark:text-slate-400 mt-0.5">
             <span
               data-cy="account-balance"
-              className={`font-bold font-mono text-lg ${accountBalance < 0 ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"
-                }`}
+              className={`font-mono font-semibold ${accountBalance < 0 ? "text-red-600 dark:text-red-400" : "text-teal-600 dark:text-teal-400"}`}
             >
-              {accountBalance.toLocaleString("en-US", {
-                style: "currency",
-                currency: "USD",
-              })}
+              {accountBalance.toLocaleString("en-US", { style: "currency", currency: "USD" })}
             </span>
+            {" "}balance
           </p>
-        </div>
+          </div>
         </div>
 
         <div className="flex items-center gap-2">
           <Button
-            onClick={() => {
-              setReconcileInput(accountBalance.toFixed(2));
-              setReconcileError(null);
-              setReconcileOpen(true);
-            }}
+            onClick={() => { setReconcileInput(accountBalance.toFixed(2)); setReconcileError(null); setReconcileOpen(true); }}
             variant="outline"
             size="sm"
+            className="text-xs h-8"
           >
-            Reconcile Balance
+            Reconcile
           </Button>
-          {!isEditingAccountName && (
-            <Button
-              onClick={() => setIsEditingAccountName(true)}
-              variant="ghost"
-              size="sm"
-            >
-              <Edit2 className="h-4 w-4 mr-2" />
-              Rename
-            </Button>
-          )}
-        </div>
-      </div>
-
-      {/* Transactions header + add button */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-4">
-          <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Transactions</h2>
-          {selectedTxIds.size > 0 && (
-            <span className="text-sm text-blue-600 font-medium">
-              {selectedTxIds.size} selected
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
           <KeyboardShortcuts
             page="accounts"
             shortcuts={[
@@ -573,21 +527,30 @@ export default function AccountDetails() {
               data-cy="add-transaction-button"
               onClick={() => setShowForm(true)}
               size="sm"
-              className="bg-teal-600 hover:bg-teal-700 text-white dark:bg-teal-700 dark:hover:bg-teal-600"
+              className="h-8 bg-teal-600 hover:bg-teal-700 text-white dark:bg-teal-700 dark:hover:bg-teal-600 text-xs"
             >
-              <Plus className="h-4 w-4 mr-2" />
-              Add Transaction
+              <Plus className="h-3.5 w-3.5 mr-1.5" />
+              Add
             </Button>
           )}
         </div>
       </div>
 
+      {/* Selection bar */}
+      {selectedTxIds.size > 0 && (
+        <div className="px-5 py-2 bg-blue-50 dark:bg-blue-950/40 border-b border-blue-100 dark:border-blue-900 flex items-center gap-3">
+          <span className="text-xs font-medium text-blue-700 dark:text-blue-300">
+            {selectedTxIds.size} selected
+          </span>
+        </div>
+      )}
+
       {/* Transactions table */}
-      <div className="rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm dark:shadow-md overflow-x-auto overflow-y-visible">
+      <div className="overflow-x-auto overflow-y-visible">
         <table className="w-full text-sm">
           <thead>
-            <tr className="bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-xs font-semibold border-b border-slate-300 dark:border-slate-700">
-              <th className="px-2 py-3 text-center border-r border-slate-200 dark:border-slate-700 w-10">
+            <tr className="bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 text-[11px] font-semibold uppercase tracking-wide border-b border-slate-200 dark:border-slate-800">
+              <th className="px-3 py-2 text-center w-9">
                 <input
                   type="checkbox"
                   checked={account.transactions.length > 0 && selectedTxIds.size === account.transactions.length}
@@ -596,35 +559,35 @@ export default function AccountDetails() {
                 />
               </th>
               <th
-                className="px-4 py-3 text-left border-r border-slate-200 dark:border-slate-700 cursor-pointer select-none"
+                className="px-3 py-2 text-left cursor-pointer select-none whitespace-nowrap"
                 onClick={() => toggleSort("date")}
               >
                 <span className="flex items-center gap-1">
-                  Date <span className="text-[10px] text-slate-500">{sortIndicator("date")}</span>
+                  Date <span className="text-[9px]">{sortIndicator("date")}</span>
                 </span>
               </th>
               <th
-                className="px-4 py-3 text-left border-r border-slate-200 dark:border-slate-700 cursor-pointer select-none"
+                className="px-3 py-2 text-left cursor-pointer select-none"
                 onClick={() => toggleSort("payee")}
               >
                 <span className="flex items-center gap-1">
-                  Payee <span className="text-[10px] text-slate-500">{sortIndicator("payee")}</span>
+                  Payee <span className="text-[9px]">{sortIndicator("payee")}</span>
                 </span>
               </th>
               <th
-                className="px-4 py-3 text-left border-r border-slate-200 dark:border-slate-700 cursor-pointer select-none"
+                className="px-3 py-2 text-left cursor-pointer select-none"
                 onClick={() => toggleSort("category")}
               >
                 <span className="flex items-center gap-1">
-                  Category <span className="text-[10px] text-slate-500">{sortIndicator("category")}</span>
+                  Category <span className="text-[9px]">{sortIndicator("category")}</span>
                 </span>
               </th>
               <th
-                className="px-4 py-3 text-right cursor-pointer select-none"
+                className="px-3 py-2 text-right cursor-pointer select-none"
                 onClick={() => toggleSort("amount")}
               >
                 <span className="flex items-center gap-1 justify-end">
-                  Amount <span className="text-[10px] text-slate-500">{sortIndicator("amount")}</span>
+                  Amount <span className="text-[9px]">{sortIndicator("amount")}</span>
                 </span>
               </th>
             </tr>
@@ -637,10 +600,7 @@ export default function AccountDetails() {
                 mode="add"
                 autoFocus
                 onCancel={() => setShowForm(false)}
-                onSave={() => {
-                  // keep open for rapid entry; close if you prefer:
-                  // setShowForm(false);
-                }}
+                onSave={() => {}}
               />
             )}
 
@@ -653,53 +613,38 @@ export default function AccountDetails() {
                   mode="edit"
                   autoFocus
                   initialData={editedTransaction ?? tx}
-                  onSave={() => {
-                    setEditingTransactionId(null);
-                    setEditedTransaction(null);
-                  }}
-                  onCancel={() => {
-                    setEditingTransactionId(null);
-                    setEditedTransaction(null);
-                  }}
+                  onSave={() => { setEditingTransactionId(null); setEditedTransaction(null); }}
+                  onCancel={() => { setEditingTransactionId(null); setEditedTransaction(null); }}
                 />
               ) : (
                 <tr
                   key={tx.id}
                   data-cy="transaction-row"
                   data-txid={tx.id}
-                  className={`transition-colors cursor-default border-b border-slate-200 dark:border-slate-700 ${idx % 2 === 0 ? "bg-white dark:bg-slate-900" : "bg-slate-50/50 dark:bg-slate-950"
-                    } ${selectedTxId === tx.id
-                      ? "ring-2 ring-teal-500 ring-inset bg-teal-50 dark:ring-teal-400 dark:bg-teal-950"
-                      : "hover:bg-slate-100 dark:hover:bg-slate-800"
-                    } ${selectedTxIds.has(tx.id) ? "bg-blue-50 dark:bg-blue-950" : ""}`}
+                  className={`transition-colors cursor-default border-b border-slate-100 dark:border-slate-800 ${
+                    selectedTxIds.has(tx.id)
+                      ? "bg-blue-50 dark:bg-blue-950/40"
+                      : selectedTxId === tx.id
+                        ? "bg-teal-50 dark:bg-teal-950/40"
+                        : idx % 2 === 0
+                          ? "bg-white dark:bg-slate-950"
+                          : "bg-slate-50/60 dark:bg-slate-900/40"
+                  } ${selectedTxId === tx.id ? "ring-1 ring-inset ring-teal-400 dark:ring-teal-600" : "hover:bg-slate-50 dark:hover:bg-slate-900"}`}
                   onClick={() => setSelectedTxId(tx.id)}
                   onDoubleClick={() => startEdit(tx)}
                   onContextMenu={(e) => {
                     e.preventDefault();
                     setSelectedTxId(tx.id);
-                    
-                    // Show bulk context menu if multiple transactions are selected
                     if (selectedTxIds.size > 0) {
-                      setBulkContextMenu({
-                        x: e.clientX,
-                        y: e.clientY,
-                      });
+                      setBulkContextMenu({ x: e.clientX, y: e.clientY });
                     } else {
-                      setContextMenu({
-                        x: e.clientX,
-                        y: e.clientY,
-                        txId: tx.id,
-                        accountId: account.id,
-                      });
+                      setContextMenu({ x: e.clientX, y: e.clientY, txId: tx.id, accountId: account.id });
                     }
                   }}
                 >
-                  <td 
-                    className="px-2 py-3 text-center border-r border-slate-200 dark:border-slate-700"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleTransactionSelection(tx.id);
-                    }}
+                  <td
+                    className="px-3 py-2.5 text-center"
+                    onClick={(e) => { e.stopPropagation(); toggleTransactionSelection(tx.id); }}
                   >
                     <input
                       type="checkbox"
@@ -709,38 +654,33 @@ export default function AccountDetails() {
                       onClick={(e) => e.stopPropagation()}
                     />
                   </td>
-                  <td className="px-4 py-3 whitespace-nowrap border-r border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300">
-                    {tx.date &&
-                      format(parseISO(tx.date), "MMM d, yyyy")}
+                  <td className="px-3 py-2.5 whitespace-nowrap text-[12px] text-slate-500 dark:text-slate-400">
+                    {tx.date && format(parseISO(tx.date), "MMM d, yyyy")}
                   </td>
-                  <td className="px-4 py-3 truncate max-w-xs border-r border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200">
+                  <td className="px-3 py-2.5 truncate max-w-xs text-[13px] font-medium text-slate-800 dark:text-slate-100">
                     {tx.payee}
                   </td>
-                  <td className="px-4 py-3 truncate max-w-xs border-r border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 text-xs">
-                        {tx.payee && (tx.payee.startsWith("Transfer") || tx.payee.startsWith("Payment"))
-                          ? tx.payee
-                          : tx.category === "Ready to Assign" || tx.category_group === "Ready to Assign"
-                            ? "Ready to Assign"
-                            : tx.category === "Category Not Needed"
-                              ? "Category Not Needed"
-                              : tx.category_group && tx.category
-                                ? `${tx.category_group}: ${tx.category}`
-                                : (
-                                  <span className="inline-flex items-center gap-2 text-red-600 dark:text-red-400 font-semibold">
-                                    Uncategorized
-                                    <span className="text-[11px] uppercase tracking-wide bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-200 rounded px-1.5 py-0.5">Add category</span>
-                                  </span>
-                                )}
+                  <td className="px-3 py-2.5 truncate max-w-xs text-[12px] text-slate-500 dark:text-slate-400">
+                    {tx.payee && (tx.payee.startsWith("Transfer") || tx.payee.startsWith("Payment"))
+                      ? <span className="text-slate-400 dark:text-slate-500 italic">{tx.payee}</span>
+                      : tx.category === "Ready to Assign" || tx.category_group === "Ready to Assign"
+                        ? "Ready to Assign"
+                        : tx.category === "Category Not Needed"
+                          ? "Category Not Needed"
+                          : tx.category_group && tx.category
+                            ? `${tx.category_group}: ${tx.category}`
+                            : (
+                              <span className="inline-flex items-center gap-1.5 text-red-500 dark:text-red-400">
+                                Uncategorized
+                                <span className="text-[10px] uppercase tracking-wide bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-300 rounded px-1 py-0.5">needs category</span>
+                              </span>
+                            )}
                   </td>
                   <td
                     data-cy="transaction-amount"
-                    className={`px-4 py-3 text-right font-bold font-mono ${tx.balance < 0 ? "text-red-600 dark:text-red-400" : "text-green-600 dark:text-green-400"
-                      }`}
+                    className={`px-3 py-2.5 text-right font-mono font-semibold text-[13px] ${tx.balance < 0 ? "text-red-600 dark:text-red-400" : "text-teal-600 dark:text-teal-400"}`}
                   >
-                    {tx.balance.toLocaleString("en-US", {
-                      style: "currency",
-                      currency: "USD",
-                    })}
+                    {tx.balance < 0 ? "−" : "+"}{Math.abs(tx.balance).toLocaleString("en-US", { style: "currency", currency: "USD" })}
                   </td>
                 </tr>
               )

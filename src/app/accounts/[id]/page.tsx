@@ -7,8 +7,8 @@ export default function AccountPage() {
   useUndoRedoShortcuts();
   
   return (
-    <div className="flex flex-col h-screen">
-      <div className="m-4 gap-3 w-screen">
+    <div className="flex flex-col h-screen overflow-hidden">
+      <div className="flex-1 overflow-auto">
         <AccountDetails />
       </div>
     </div>

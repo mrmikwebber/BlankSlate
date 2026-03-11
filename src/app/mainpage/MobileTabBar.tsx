@@ -1,7 +1,7 @@
 "use client";
 
 import { TabType } from "./MobileDashboardShell";
-import { BarChart3, PieChart, Activity, List } from "lucide-react";
+import { BarChart3, CreditCard, TrendingUp, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -9,17 +9,17 @@ interface Props {
   onTabChange: (tab: TabType) => void;
 }
 
-export default function MobileTabBar({ activeTab, onTabChange }: Props) {
-  const tabs: { id: TabType; label: string; icon: React.ReactNode }[] = [
-    { id: "overview", label: "Overview", icon: <PieChart className="w-5 h-5" /> },
-    { id: "budget", label: "Budget", icon: <BarChart3 className="w-5 h-5" /> },
-    { id: "activity", label: "Activity", icon: <Activity className="w-5 h-5" /> },
-    { id: "transactions", label: "Transactions", icon: <List className="w-5 h-5" /> },
-  ];
+const TABS: { id: TabType; label: string; icon: React.ReactNode }[] = [
+  { id: "budget",   label: "Budget",   icon: <BarChart3  className="w-5 h-5" /> },
+  { id: "accounts", label: "Accounts", icon: <CreditCard className="w-5 h-5" /> },
+  { id: "insights", label: "Insights", icon: <TrendingUp className="w-5 h-5" /> },
+  { id: "settings", label: "Settings", icon: <Settings   className="w-5 h-5" /> },
+];
 
+export default function MobileTabBar({ activeTab, onTabChange }: Props) {
   return (
     <div className="grid grid-cols-4 gap-0 safe-area-inset-bottom">
-      {tabs.map((tab) => (
+      {TABS.map((tab) => (
         <button
           key={tab.id}
           onClick={() => onTabChange(tab.id)}
