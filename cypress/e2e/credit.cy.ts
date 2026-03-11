@@ -22,6 +22,15 @@ describe("Credit Card Payments behaviour", () => {
       `[data-cy="category-row"][data-category="${CREDIT_CARD_GROUP_NAME}"]`,
       { timeout: 10000 }
     ).should("have.length.at.least", 1);
+
+    // Wait for the item to have a populated name (accounts + budget both loaded and CC items computed)
+    cy.get(
+      `[data-cy="category-row"][data-category="${CREDIT_CARD_GROUP_NAME}"]`,
+      { timeout: 10000 }
+    )
+      .first()
+      .invoke("attr", "data-item")
+      .should("not.be.empty");
   });
 
   it("shows Credit Card Payments with Payment label and matching totals", () => {

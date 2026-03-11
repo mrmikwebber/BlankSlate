@@ -155,6 +155,32 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
     fetchAccounts();
   }, [user]);
 
+  // Realtime: refresh an account whenever a transaction is inserted (e.g. via Teller webhook)
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel("transactions-insert")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "transactions",
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          const accountId = (payload.new as { account_id: number }).account_id;
+          if (accountId) refreshSingleAccount(accountId);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
+
   useEffect(() => {
   if (!user) {
     setSavedPayees([]);

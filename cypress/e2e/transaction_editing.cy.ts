@@ -366,16 +366,16 @@ describe("Transaction editing / mutation", () => {
       .first()
       .within(() => {
         // Columns: [0]=checkbox, [1]=date, [2]=payee, [3]=category, [4]=amount
-        cy.get("td").eq(2).should("contain.text", "Transfer to");
-        cy.get("td").eq(2).should("contain.text", accounts.savings.name);
+        cy.get("td").eq(4).should("contain.text", "Transfer to");
+        cy.get("td").eq(4).should("contain.text", accounts.savings.name);
       });
 
     visitAccount(accounts.savings.id, accounts.savings.name);
     cy.get("[data-cy=transaction-row]")
       .first()
       .within(() => {
-        cy.get("td").eq(2).should("contain.text", "Transfer from");
-        cy.get("td").eq(2).should("contain.text", accounts.checking.name);
+        cy.get("td").eq(4).should("contain.text", "Transfer from");
+        cy.get("td").eq(4).should("contain.text", accounts.checking.name);
       });
   });
 
@@ -458,8 +458,8 @@ describe("Transaction editing / mutation", () => {
     cy.get("[data-cy=transaction-row]")
       .first()
       .within(() => {
-        cy.get("td").eq(2).should("contain.text", "Payment from");
-        cy.get("td").eq(2).should("contain.text", accounts.checking.name);
+        cy.get("td").eq(4).should("contain.text", "Payment from");
+        cy.get("td").eq(4).should("contain.text", accounts.checking.name);
       });
   });
 

@@ -7,9 +7,14 @@ import { supabase } from "../../utils/supabaseClient";
 import { createPortal } from "react-dom";
 import { Moon, Sun } from "lucide-react";
 import { isAdminUser, normalizeAdminList } from "@/lib/admin";
+import dynamic from "next/dynamic";
+import { getDaysInMonth, getDate } from "date-fns";
+
+const MonthlyAuditModal = dynamic(() => import("../mainpage/MonthlyAuditModal"), { ssr: false });
 
 export default function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [showAuditModal, setShowAuditModal] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
   const [showBugModal, setShowBugModal] = useState(false);
   const [showSuggestionModal, setShowSuggestionModal] = useState(false);
@@ -31,6 +36,12 @@ export default function Navbar() {
   const [isResetting, setIsResetting] = useState(false);
   const { isDarkMode, toggleDarkMode } = useDarkMode();
   const appVersion = process.env.NEXT_PUBLIC_APP_VERSION || "1.0.0";
+
+  const isEndOfMonth = (() => {
+    const now = new Date();
+    const daysLeft = getDaysInMonth(now) - getDate(now);
+    return daysLeft <= 6;
+  })();
   
   useEffect(() => {
     const handleEscape = (e) => {
@@ -120,7 +131,17 @@ export default function Navbar() {
           </Link>
           <span className="hidden lg:inline text-[11px] text-slate-500 dark:text-slate-400">v{appVersion}</span>
 
-          <div className="lg:hidden">
+          <div className="lg:hidden flex items-center gap-2">
+            {user && isEndOfMonth && (
+              <button
+                onClick={() => setShowAuditModal(true)}
+                className="relative px-2.5 py-1 rounded-md text-xs border border-teal-400 dark:border-teal-500 text-teal-700 dark:text-teal-300 bg-transparent font-semibold audit-pulse"
+              >
+                Audit
+                <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-teal-400 animate-ping" />
+                <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-teal-500" />
+              </button>
+            )}
             <button
               className="relative ml-auto h-6 max-h-[40px] w-6 max-w-[40px] select-none rounded-lg text-center align-middle text-xs font-medium uppercase text-inherit transition-all hover:bg-transparent focus:bg-transparent active:bg-transparent disabled:pointer-events-none disabled:opacity-50 disabled:shadow-none"
               onClick={toggleMobileMenu}
@@ -176,8 +197,18 @@ export default function Navbar() {
                         Admin Tools
                       </Link>
                     )}
-                    <button 
-                      onClick={() => setShowResetModal(true)} 
+                    {isEndOfMonth && (
+                      <button
+                        onClick={() => setShowAuditModal(true)}
+                        className="relative px-3 py-1.5 rounded-md text-xs border border-teal-400 dark:border-teal-500 text-teal-700 dark:text-teal-300 bg-transparent hover:bg-teal-50 dark:hover:bg-teal-950 transition-colors font-semibold audit-pulse"
+                      >
+                        Monthly Audit
+                        <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-teal-400 animate-ping" />
+                        <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-teal-500" />
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setShowResetModal(true)}
                       className="px-3 py-1.5 rounded-md text-xs border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                     >
                       Reset Account
@@ -212,6 +243,11 @@ export default function Navbar() {
           </div>
         </div>
       </nav>
+
+      {/* Monthly Audit Modal */}
+      {showAuditModal && (
+        <MonthlyAuditModal onClose={() => setShowAuditModal(false)} />
+      )}
 
       {/* Reset Account Confirmation Modal */}
       {showResetModal && createPortal(
