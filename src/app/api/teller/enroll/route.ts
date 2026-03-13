@@ -3,8 +3,7 @@ import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import {
   getTellerAccounts,
-  getTellerTransactions,
-  toSignedBalance,
+  getTellerAccountBalance,
   guessIssuer,
 } from "@/lib/tellerClient";
 
@@ -22,9 +21,10 @@ export async function POST(req: Request) {
   const body = await req.json() as {
     accessToken: string;
     enrollmentId: string;
+    selectedAccountIds?: string[];
   };
 
-  const { accessToken, enrollmentId } = body;
+  const { accessToken, enrollmentId, selectedAccountIds } = body;
   if (!accessToken || !enrollmentId) {
     return NextResponse.json(
       { error: "accessToken and enrollmentId are required" },
@@ -44,7 +44,14 @@ export async function POST(req: Request) {
     );
   }
 
-  const openAccounts = tellerAccounts.filter((a) => a.status === "open");
+  let openAccounts = tellerAccounts.filter((a) => a.status === "open");
+
+  // If the caller specified which accounts to import, filter to those
+  if (selectedAccountIds && selectedAccountIds.length > 0) {
+    const selectedSet = new Set(selectedAccountIds);
+    openAccounts = openAccounts.filter((a) => selectedSet.has(a.id));
+  }
+
   const createdAccounts: { id: string; name: string }[] = [];
 
   for (const tellerAccount of openAccounts) {
@@ -54,7 +61,18 @@ export async function POST(req: Request) {
       tellerAccount.type === "credit" ? "credit" : "debit";
     const issuer = guessIssuer(institutionName);
 
-    // Create a BlankSlate account (no starting balance transaction — we'll sync real ones)
+    // Fetch current balance from Teller to use as starting balance
+    let startingBalance = 0;
+    try {
+      const tellerBalance = await getTellerAccountBalance(accessToken, tellerAccount.id);
+      const ledger = parseFloat(tellerBalance.ledger);
+      // Credit balances represent debt — store as negative, matching manual account behavior
+      startingBalance = accountType === "credit" ? -Math.abs(ledger) : ledger;
+    } catch (err) {
+      console.error("[teller/enroll] Failed to fetch balance for", tellerAccount.id, err);
+    }
+
+    // Create the BlankSlate account
     const { data: newAccount, error: accountError } = await supabase
       .from("accounts")
       .insert({
@@ -70,6 +88,27 @@ export async function POST(req: Request) {
     if (accountError || !newAccount) {
       console.error("[teller/enroll] Failed to create account:", accountError);
       continue;
+    }
+
+    // Create a "Starting Balance" transaction so the account opens at the right value
+    if (startingBalance !== 0) {
+      const { error: startingBalanceError } = await supabase
+        .from("transactions")
+        .insert({
+          user_id: user.id,
+          account_id: newAccount.id,
+          date: new Date().toISOString().split("T")[0],
+          payee: "Starting Balance",
+          category: accountType === "credit" ? "Category Not Needed" : "Ready to Assign",
+          category_group: accountType === "credit" ? "Category Not Needed" : "Ready to Assign",
+          balance: startingBalance,
+          cleared: true,
+          approved: true,
+        });
+
+      if (startingBalanceError) {
+        console.error("[teller/enroll] Failed to insert starting balance:", startingBalanceError);
+      }
     }
 
     // Save the enrollment record
@@ -90,51 +129,6 @@ export async function POST(req: Request) {
 
     if (enrollError) {
       console.error("[teller/enroll] Failed to save enrollment:", enrollError);
-    }
-
-    // Initial transaction sync
-    try {
-      const transactions = await getTellerTransactions(
-        accessToken,
-        tellerAccount.id
-      );
-
-      const synced = transactions.filter((t) => t.status === "posted" || t.status === "pending");
-
-      if (synced.length > 0) {
-        const rows = synced.map((t) => ({
-          user_id: user.id,
-          account_id: newAccount.id,
-          date: t.date,
-          payee: t.details?.counterparty?.name || t.description,
-          category: null,
-          category_group: null,
-          balance: toSignedBalance(t.amount, t.type),
-          teller_transaction_id: t.id,
-          cleared: t.status === "posted",
-        }));
-
-        const { error: txError } = await supabase
-          .from("transactions")
-          .upsert(rows, { onConflict: "teller_transaction_id", ignoreDuplicates: true });
-
-        if (txError) {
-          console.error("[teller/enroll] Failed to insert transactions:", txError);
-        }
-
-        // Store the most recent transaction ID for future webhook syncs
-        const lastId = synced[0].id; // Teller returns newest first
-        await supabase
-          .from("teller_enrollments")
-          .update({
-            last_teller_transaction_id: lastId,
-            last_synced_at: new Date().toISOString(),
-          })
-          .eq("user_id", user.id)
-          .eq("teller_account_id", tellerAccount.id);
-      }
-    } catch (err) {
-      console.error("[teller/enroll] Failed to sync transactions:", err);
     }
 
     createdAccounts.push({ id: newAccount.id, name: accountName });

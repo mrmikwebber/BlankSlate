@@ -100,6 +100,22 @@ export function getTellerAccounts(accessToken: string): Promise<TellerAccount[]>
   return tellerRequest<TellerAccount[]>("/accounts", accessToken);
 }
 
+export interface TellerBalance {
+  account_id: string;
+  ledger: string;
+  available: string;
+}
+
+export function getTellerAccountBalance(
+  accessToken: string,
+  tellerAccountId: string
+): Promise<TellerBalance> {
+  return tellerRequest<TellerBalance>(
+    `/accounts/${tellerAccountId}/balances`,
+    accessToken
+  );
+}
+
 export function getTellerTransactions(
   accessToken: string,
   tellerAccountId: string,
