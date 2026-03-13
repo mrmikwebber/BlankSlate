@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -29,6 +29,12 @@ interface AddAccountModalProps {
 type AccountSubtype = "checking" | "savings" | "credit";
 type Mode = "choose" | "manual" | "linked" | "select";
 
+interface TellerInstitution {
+  id: string;
+  name: string;
+  products: string[];
+}
+
 interface TellerAccountOption {
   id: string;
   name: string;
@@ -52,6 +58,21 @@ const AddAccountModal = ({ onAddAccount, onClose, isOpen = true }: AddAccountMod
   const [name, setName] = useState("");
   const [subtype, setSubtype] = useState<AccountSubtype>("checking");
   const [balance, setBalance] = useState("");
+
+  // Institution checker state
+  const [institutions, setInstitutions] = useState<TellerInstitution[]>([]);
+  const [institutionQuery, setInstitutionQuery] = useState("");
+  const [institutionOpen, setInstitutionOpen] = useState(false);
+  const institutionsFetchedRef = useRef(false);
+
+  useEffect(() => {
+    if (mode !== "linked" || institutionsFetchedRef.current) return;
+    institutionsFetchedRef.current = true;
+    fetch("https://api.teller.io/institutions")
+      .then((r) => r.json())
+      .then((data: TellerInstitution[]) => setInstitutions(data))
+      .catch(() => {/* silently ignore */});
+  }, [mode]);
 
   // Linked account selection state
   const [enrollment, setEnrollment] = useState<TellerEnrollmentData | null>(null);
@@ -92,6 +113,9 @@ const AddAccountModal = ({ onAddAccount, onClose, isOpen = true }: AddAccountMod
     setTellerAccounts([]);
     setSelectedIds(new Set());
     setLinkError(null);
+    setInstitutionQuery("");
+    setInstitutionOpen(false);
+    institutionsFetchedRef.current = false;
   };
 
   const handleEnrollmentReady = async (data: TellerEnrollmentData) => {
@@ -311,6 +335,70 @@ const AddAccountModal = ({ onAddAccount, onClose, isOpen = true }: AddAccountMod
               Click below to securely connect your bank. Your login credentials are never stored —
               the connection is handled by Teller.
             </p>
+
+            {/* Institution support checker */}
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700">
+              <button
+                type="button"
+                onClick={() => setInstitutionOpen((v) => !v)}
+                className="flex w-full items-center justify-between px-3 py-2 text-left text-xs font-medium text-slate-600 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+              >
+                <span>Check if your institution is supported</span>
+                <svg
+                  className={`h-3.5 w-3.5 transition-transform ${institutionOpen ? "rotate-180" : ""}`}
+                  viewBox="0 0 12 12"
+                  fill="none"
+                >
+                  <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+
+              {institutionOpen && (
+                <div className="border-t border-slate-200 dark:border-slate-700 px-3 pb-3 pt-2 space-y-2">
+                  <input
+                    type="text"
+                    placeholder="Search institution…"
+                    value={institutionQuery}
+                    onChange={(e) => setInstitutionQuery(e.target.value)}
+                    className="w-full rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 placeholder-slate-400 outline-none focus:border-teal-400 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-500"
+                  />
+                  <div className="max-h-36 overflow-y-auto space-y-1">
+                    {institutions.length === 0 ? (
+                      <p className="text-xs text-slate-400 dark:text-slate-500">Loading institutions…</p>
+                    ) : (
+                      institutions
+                        .filter((inst) =>
+                          inst.name.toLowerCase().includes(institutionQuery.toLowerCase())
+                        )
+                        .slice(0, 8)
+                        .map((inst) => (
+                          <div key={inst.id} className="flex items-center justify-between gap-2">
+                            <span className="text-xs font-medium text-slate-700 dark:text-slate-200 truncate">
+                              {inst.name}
+                            </span>
+                            <div className="flex flex-wrap gap-1 justify-end flex-shrink-0">
+                              {inst.products.map((p) => (
+                                <span
+                                  key={p}
+                                  className="rounded-full bg-teal-50 px-1.5 py-0.5 text-[10px] font-medium text-teal-700 dark:bg-teal-950/40 dark:text-teal-400"
+                                >
+                                  {p}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        ))
+                    )}
+                    {institutionQuery && institutions.length > 0 &&
+                      institutions.filter((i) => i.name.toLowerCase().includes(institutionQuery.toLowerCase())).length === 0 && (
+                        <p className="text-xs text-slate-400 dark:text-slate-500">No matching institutions found.</p>
+                      )
+                    }
+                  </div>
+                </div>
+              )}
+            </div>
+
             {loadingAccounts ? (
               <p className="text-sm text-slate-500 dark:text-slate-400">Loading accounts…</p>
             ) : (

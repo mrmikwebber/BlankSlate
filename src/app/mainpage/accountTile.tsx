@@ -86,7 +86,7 @@ export default function AccountTile({ account: initialAccount }) {
         )}
 
         <h2 className="mt-1 text-sm font-medium text-gray-800 truncate">
-          {account?.name}
+          {account?.name?.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())}
         </h2>
       </div>
 

@@ -24,7 +24,7 @@ export interface Transaction {
 }
 
 export interface Account {
-  id: number;
+  id: string | number;
   name: string;
   balance: number;
   transactions: Transaction[];
@@ -617,9 +617,20 @@ const upsertPayee = async (name: string) => {
   };
 
   const deleteAccount = async (accountId: number | string) => {
-    if (!accountId || accountId === 'NaN' || accountId.toString() === 'NaN') {
+    if (!accountId) {
       console.error("❌ Invalid account ID:", accountId);
       return;
+    }
+
+    // Revoke Teller enrollment if one exists (handles both Teller API + local DB cleanup)
+    try {
+      await fetch("/api/teller/disconnect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accountId }),
+      });
+    } catch {
+      // ignore — account deletion still proceeds
     }
 
     const { error } = await supabase
@@ -631,7 +642,8 @@ const upsertPayee = async (name: string) => {
       console.error("Failed to delete account:", error);
     } else {
       setAccounts((prev) => {
-        const next = prev.filter((acc) => acc.id !== accountId);
+        // eslint-disable-next-line eqeqeq
+        const next = prev.filter((acc) => acc.id != accountId);
         saveOrder(next.map((a) => a.id));
         return next;
       });

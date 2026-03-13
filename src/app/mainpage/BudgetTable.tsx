@@ -332,7 +332,11 @@ export default function BudgetTable() {
 
     const allCategories = budgetData[currentMonth]?.categories || [];
 
-    const orderedCategories = [...allCategories];
+    const orderedCategories = [...allCategories].sort((a, b) => {
+      if (a.name === "Credit Card Payments") return -1;
+      if (b.name === "Credit Card Payments") return 1;
+      return 0;
+    });
 
     return orderedCategories
       .map((category) => {
@@ -2354,7 +2358,9 @@ export default function BudgetTable() {
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-1.5">
                                       <span className="font-medium truncate text-slate-800 dark:text-slate-200 text-sm">
-                                        {item.name}
+                                        {group.name === "Credit Card Payments"
+                                          ? item.name.toLowerCase().replace(/\b\w/g, (c: string) => c.toUpperCase())
+                                          : item.name}
                                       </span>
                                       <NotesPopover
                                         currentNote={item.notes}

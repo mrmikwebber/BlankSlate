@@ -56,7 +56,7 @@ export async function POST(req: Request) {
 
   for (const tellerAccount of openAccounts) {
     const institutionName = tellerAccount.institution.name;
-    const accountName = `${institutionName} ${tellerAccount.subtype.replace(/_/g, " ")}`;
+    const accountName = tellerAccount.name || `${institutionName} ${tellerAccount.subtype.replace(/_/g, " ")}`;
     const accountType: "credit" | "debit" =
       tellerAccount.type === "credit" ? "credit" : "debit";
     const issuer = guessIssuer(institutionName);
