@@ -2337,6 +2337,8 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
         }
       }
       
+      const createdAccounts: { id: string; name: string; type: string }[] = [];
+
       for (const account of registerParsed.accounts) {
         const { data: createdAccount, error: accountError } = await supabase
           .from("accounts")
@@ -2358,6 +2360,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
 
         // Track the created account ID for potential undo
         importedAccountIdsRef.current.push(createdAccount.id);
+        createdAccounts.push({ id: createdAccount.id, name: createdAccount.name, type: createdAccount.type });
 
         const txPayload = account.transactions.map((tx) => ({
           user_id: user.id,
@@ -2487,6 +2490,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
         accounts: registerParsed.accounts.length,
         transactions: registerParsed.transactionCount,
         months: planParsed.monthCount,
+        createdAccounts,
       };
     },
     [user?.id, refreshAccounts, refreshAllReadyToAssign, clearHistory, calculateActivityForMonth, calculateCreditCardAccountActivity, getCumulativeAvailable]

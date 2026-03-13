@@ -66,9 +66,9 @@ const AddAccountModal = ({ onAddAccount, onClose, isOpen = true }: AddAccountMod
   const institutionsFetchedRef = useRef(false);
 
   useEffect(() => {
-    if (mode !== "linked" || institutionsFetchedRef.current) return;
+    if (mode !== "choose" || institutionsFetchedRef.current) return;
     institutionsFetchedRef.current = true;
-    fetch("https://api.teller.io/institutions")
+    fetch("/api/teller/institutions")
       .then((r) => r.json())
       .then((data: TellerInstitution[]) => setInstitutions(data))
       .catch(() => {/* silently ignore */});
@@ -211,51 +211,116 @@ const AddAccountModal = ({ onAddAccount, onClose, isOpen = true }: AddAccountMod
 
         {/* Mode selector */}
         {mode === "choose" && (
-          <div className="grid grid-cols-2 gap-3 pt-2">
-            <button
-              type="button"
-              onClick={() => setMode("manual")}
-              className="flex flex-col items-start gap-1 rounded-xl border border-slate-200 bg-white p-4 text-left transition-colors hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:hover:border-slate-600 dark:hover:bg-slate-700/60"
-            >
-              <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">
-                Manual Account
-              </span>
-              <span className="text-xs text-slate-500 dark:text-slate-400">
-                Enter transactions yourself
-              </span>
-            </button>
+          <div className="space-y-3 pt-2">
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setMode("manual")}
+                className="flex flex-col items-start gap-1 rounded-xl border border-slate-200 bg-white p-4 text-left transition-colors hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:hover:border-slate-600 dark:hover:bg-slate-700/60"
+              >
+                <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                  Manual Account
+                </span>
+                <span className="text-xs text-slate-500 dark:text-slate-400">
+                  Enter transactions yourself
+                </span>
+              </button>
 
-            <TooltipProvider delayDuration={200}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    onClick={() => isPaid && setMode("linked")}
-                    disabled={!isPaid}
-                    className={`relative flex flex-col items-start gap-1 rounded-xl border p-4 text-left transition-colors ${
-                      isPaid
-                        ? "border-teal-200 bg-teal-50/50 hover:border-teal-300 hover:bg-teal-50 dark:border-teal-800 dark:bg-teal-950/30 dark:hover:border-teal-700"
-                        : "cursor-not-allowed border-slate-200 bg-slate-50 opacity-60 dark:border-slate-700 dark:bg-slate-800/50"
-                    }`}
-                  >
-                    {!isPaid && (
-                      <Lock className="absolute right-3 top-3 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
+              <TooltipProvider delayDuration={200}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={() => isPaid && setMode("linked")}
+                      disabled={!isPaid}
+                      className={`relative flex flex-col items-start gap-1 rounded-xl border p-4 text-left transition-colors ${
+                        isPaid
+                          ? "border-teal-200 bg-teal-50/50 hover:border-teal-300 hover:bg-teal-50 dark:border-teal-800 dark:bg-teal-950/30 dark:hover:border-teal-700"
+                          : "cursor-not-allowed border-slate-200 bg-slate-50 opacity-60 dark:border-slate-700 dark:bg-slate-800/50"
+                      }`}
+                    >
+                      {!isPaid && (
+                        <Lock className="absolute right-3 top-3 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
+                      )}
+                      <span className={`text-sm font-semibold ${isPaid ? "text-teal-800 dark:text-teal-300" : "text-slate-500 dark:text-slate-400"}`}>
+                        Linked Account
+                      </span>
+                      <span className={`text-xs ${isPaid ? "text-teal-600 dark:text-teal-400" : "text-slate-400 dark:text-slate-500"}`}>
+                        Sync from your bank automatically
+                      </span>
+                    </button>
+                  </TooltipTrigger>
+                  {!isPaid && (
+                    <TooltipContent side="bottom">
+                      Upgrade to Pro to connect your bank automatically
+                    </TooltipContent>
+                  )}
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+
+            {/* Institution support checker */}
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700">
+              <button
+                type="button"
+                onClick={() => setInstitutionOpen((v) => !v)}
+                className="flex w-full items-center justify-between px-3 py-2 text-left text-xs font-medium text-slate-600 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+              >
+                <span>Check if your institution is supported</span>
+                <svg
+                  className={`h-3.5 w-3.5 transition-transform ${institutionOpen ? "rotate-180" : ""}`}
+                  viewBox="0 0 12 12"
+                  fill="none"
+                >
+                  <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+
+              {institutionOpen && (
+                <div className="border-t border-slate-200 dark:border-slate-700 px-3 pb-3 pt-2 space-y-2">
+                  <input
+                    type="text"
+                    placeholder="Search institution…"
+                    value={institutionQuery}
+                    onChange={(e) => setInstitutionQuery(e.target.value)}
+                    className="w-full rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 placeholder-slate-400 outline-none focus:border-teal-400 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-500"
+                  />
+                  <div className="max-h-36 overflow-y-auto space-y-1">
+                    {institutions.length === 0 ? (
+                      <p className="text-xs text-slate-400 dark:text-slate-500">Loading institutions…</p>
+                    ) : (
+                      institutions
+                        .filter((inst) =>
+                          inst.name.toLowerCase().includes(institutionQuery.toLowerCase())
+                        )
+                        .slice(0, 8)
+                        .map((inst) => (
+                          <div key={inst.id} className="flex items-start justify-between gap-2 min-w-0">
+                            <span className="text-xs font-medium text-slate-700 dark:text-slate-200 truncate shrink-0 max-w-[45%]">
+                              {inst.name}
+                            </span>
+                            <div className="flex flex-wrap gap-1 justify-end min-w-0">
+                              {inst.products.map((p) => (
+                                <span
+                                  key={p}
+                                  className="rounded-full bg-teal-50 px-1.5 py-0.5 text-[10px] font-medium text-teal-700 dark:bg-teal-950/40 dark:text-teal-400"
+                                >
+                                  {p}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        ))
                     )}
-                    <span className={`text-sm font-semibold ${isPaid ? "text-teal-800 dark:text-teal-300" : "text-slate-500 dark:text-slate-400"}`}>
-                      Linked Account
-                    </span>
-                    <span className={`text-xs ${isPaid ? "text-teal-600 dark:text-teal-400" : "text-slate-400 dark:text-slate-500"}`}>
-                      Sync from your bank automatically
-                    </span>
-                  </button>
-                </TooltipTrigger>
-                {!isPaid && (
-                  <TooltipContent side="bottom">
-                    Upgrade to Pro to connect your bank automatically
-                  </TooltipContent>
-                )}
-              </Tooltip>
-            </TooltipProvider>
+                    {institutionQuery && institutions.length > 0 &&
+                      institutions.filter((i) => i.name.toLowerCase().includes(institutionQuery.toLowerCase())).length === 0 && (
+                        <p className="text-xs text-slate-400 dark:text-slate-500">No matching institutions found.</p>
+                      )
+                    }
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -335,69 +400,6 @@ const AddAccountModal = ({ onAddAccount, onClose, isOpen = true }: AddAccountMod
               Click below to securely connect your bank. Your login credentials are never stored —
               the connection is handled by Teller.
             </p>
-
-            {/* Institution support checker */}
-            <div className="rounded-lg border border-slate-200 dark:border-slate-700">
-              <button
-                type="button"
-                onClick={() => setInstitutionOpen((v) => !v)}
-                className="flex w-full items-center justify-between px-3 py-2 text-left text-xs font-medium text-slate-600 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
-              >
-                <span>Check if your institution is supported</span>
-                <svg
-                  className={`h-3.5 w-3.5 transition-transform ${institutionOpen ? "rotate-180" : ""}`}
-                  viewBox="0 0 12 12"
-                  fill="none"
-                >
-                  <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </button>
-
-              {institutionOpen && (
-                <div className="border-t border-slate-200 dark:border-slate-700 px-3 pb-3 pt-2 space-y-2">
-                  <input
-                    type="text"
-                    placeholder="Search institution…"
-                    value={institutionQuery}
-                    onChange={(e) => setInstitutionQuery(e.target.value)}
-                    className="w-full rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 placeholder-slate-400 outline-none focus:border-teal-400 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-500"
-                  />
-                  <div className="max-h-36 overflow-y-auto space-y-1">
-                    {institutions.length === 0 ? (
-                      <p className="text-xs text-slate-400 dark:text-slate-500">Loading institutions…</p>
-                    ) : (
-                      institutions
-                        .filter((inst) =>
-                          inst.name.toLowerCase().includes(institutionQuery.toLowerCase())
-                        )
-                        .slice(0, 8)
-                        .map((inst) => (
-                          <div key={inst.id} className="flex items-center justify-between gap-2">
-                            <span className="text-xs font-medium text-slate-700 dark:text-slate-200 truncate">
-                              {inst.name}
-                            </span>
-                            <div className="flex flex-wrap gap-1 justify-end flex-shrink-0">
-                              {inst.products.map((p) => (
-                                <span
-                                  key={p}
-                                  className="rounded-full bg-teal-50 px-1.5 py-0.5 text-[10px] font-medium text-teal-700 dark:bg-teal-950/40 dark:text-teal-400"
-                                >
-                                  {p}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        ))
-                    )}
-                    {institutionQuery && institutions.length > 0 &&
-                      institutions.filter((i) => i.name.toLowerCase().includes(institutionQuery.toLowerCase())).length === 0 && (
-                        <p className="text-xs text-slate-400 dark:text-slate-500">No matching institutions found.</p>
-                      )
-                    }
-                  </div>
-                </div>
-              )}
-            </div>
 
             {loadingAccounts ? (
               <p className="text-sm text-slate-500 dark:text-slate-400">Loading accounts…</p>
