@@ -204,7 +204,7 @@ export function YnabImportDialog({ open, onOpenChange }: YnabImportDialogProps) 
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) handleClose(); }} modal={step !== "link" || loadingTeller}>
-      <DialogContent className="w-[96vw] max-w-lg">
+      <DialogContent className="w-[96vw] max-w-lg top-4 translate-y-0 sm:top-[50%] sm:translate-y-[-50%] max-h-[90dvh] overflow-y-auto">
         {step === "upload" && (
           <>
             <DialogHeader>

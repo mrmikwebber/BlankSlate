@@ -167,16 +167,11 @@ export default function Navbar() {
 
           <div className="hidden lg:block">
             {/* Compact links + user actions */}
-            <ul className="flex flex-row items-center gap-3 m-0">
-              <li>
+            {user && (
+              <div className="flex items-center gap-3">
                 <Link href="/roadmap" className="text-xs text-slate-700 dark:text-slate-300 hover:underline">Roadmap</Link>
-              </li>
-              <li>
                 <Link href="/legal" className="text-xs text-slate-700 dark:text-slate-300 hover:underline">Legal</Link>
-              </li>
-              <li>
-                {user && (
-                  <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2">
                     <p className="text-xs text-gray-600 dark:text-slate-400">Hello, {name || "User"}</p>
                     <button
                       onClick={toggleDarkMode}
@@ -236,10 +231,9 @@ export default function Navbar() {
                     <button onClick={signOut} className="bg-teal-600 dark:bg-teal-700 hover:bg-teal-500 dark:hover:bg-teal-600 text-white px-5 py-1.5 rounded-md text-xs transition-colors">
                       Sign Out
                     </button>
-                  </div>
-                )}
-              </li>
-            </ul>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </nav>
