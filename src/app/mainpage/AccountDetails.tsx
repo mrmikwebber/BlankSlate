@@ -19,7 +19,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Plus, Edit2, Trash2, ArrowLeft, CheckCircle2, Circle, Flag } from "lucide-react";
+import { Plus, Edit2, Trash2, ArrowLeft, CheckCircle2, Circle, Flag, RefreshCw } from "lucide-react";
 
 export default function AccountDetails() {
   const { id } = useParams();
@@ -56,6 +56,10 @@ export default function AccountDetails() {
   const [reconcileOpen, setReconcileOpen] = useState(false);
   const [reconcileInput, setReconcileInput] = useState("");
   const [reconcileError, setReconcileError] = useState<string | null>(null);
+
+  const [enrollment, setEnrollment] = useState<{ last_synced_at: string | null } | null | undefined>(undefined);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
 
   const account = accounts.find((acc) => acc.id.toString() === id);
   const accountBalance =
@@ -284,6 +288,54 @@ export default function AccountDetails() {
   const sortIndicator = (key: "date" | "payee" | "category" | "amount") => {
     if (sortConfig.key !== key) return "";
     return sortConfig.direction === "asc" ? "▲" : "▼";
+  };
+
+  // Fetch Teller enrollment status for this account
+  useEffect(() => {
+    if (!account) return;
+    setEnrollment(undefined);
+    supabase
+      .from("teller_enrollments")
+      .select("last_synced_at")
+      .eq("account_id", account.id)
+      .single()
+      .then(({ data }) => setEnrollment(data ?? null));
+  }, [account?.id]);
+
+  const handleSync = async () => {
+    if (!account || syncing) return;
+    setSyncing(true);
+    setSyncMessage(null);
+    try {
+      const res = await fetch("/api/teller/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accountId: account.id }),
+      });
+      const body = await res.json() as { synced?: number; error?: string };
+      if (!res.ok) {
+        setSyncMessage(body.error ?? "Sync failed");
+      } else {
+        setSyncMessage(body.synced === 0 ? "Already up to date" : `${body.synced} new transaction${body.synced !== 1 ? "s" : ""} added`);
+        setEnrollment({ last_synced_at: new Date().toISOString() });
+        await refreshSingleAccount(Number(account.id));
+      }
+    } catch {
+      setSyncMessage("Sync failed");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const syncCooldownLabel = (): string | null => {
+    if (!enrollment?.last_synced_at) return null;
+    const ms = Date.now() - new Date(enrollment.last_synced_at).getTime();
+    const msInHour = 60 * 60 * 1000;
+    if (ms < msInHour) {
+      const minutesLeft = Math.ceil((msInHour - ms) / 60000);
+      return `Available in ${minutesLeft}m`;
+    }
+    return null;
   };
 
   // Keyboard shortcuts
@@ -519,6 +571,27 @@ export default function AccountDetails() {
         </div>
 
         <div className="flex items-center gap-2">
+          {enrollment && (() => {
+            const cooldown = syncCooldownLabel();
+            return (
+              <div className="flex flex-col items-end gap-0.5">
+                <Button
+                  onClick={() => void handleSync()}
+                  disabled={syncing || !!cooldown}
+                  variant="outline"
+                  size="sm"
+                  className="text-xs h-8 gap-1.5"
+                  title={cooldown ?? "Sync bank transactions"}
+                >
+                  <RefreshCw className={`h-3 w-3 ${syncing ? "animate-spin" : ""}`} />
+                  {syncing ? "Syncing…" : cooldown ?? "Sync"}
+                </Button>
+                {syncMessage && (
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400">{syncMessage}</span>
+                )}
+              </div>
+            );
+          })()}
           <Button
             onClick={() => { setReconcileInput(accountBalance.toFixed(2)); setReconcileError(null); setReconcileOpen(true); }}
             variant="outline"
