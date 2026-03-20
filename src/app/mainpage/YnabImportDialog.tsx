@@ -109,6 +109,19 @@ export function YnabImportDialog({ open, onOpenChange }: YnabImportDialogProps) 
       setImporting(true);
       const summary = await importYnabData(registerFile, planFile);
       setImportedAccounts(summary.createdAccounts ?? []);
+      // Pre-populate dropdown with any Teller accounts that existed before import
+      if (summary.preservedEnrollments && summary.preservedEnrollments.length > 0) {
+        const preserved: TellerAccountSource[] = summary.preservedEnrollments.map((e) => ({
+          id: e.tellerAccountId,
+          label: `${e.institutionName} ${e.tellerAccountType.replace(/_/g, " ")}`,
+          subtype: e.tellerAccountType,
+          accountType: (e.tellerAccountType === "credit_card" || e.tellerAccountType === "credit") ? "credit" : "depository",
+          accessToken: e.accessToken,
+          enrollmentId: e.enrollmentId,
+          institutionName: e.institutionName,
+        }));
+        setTellerSources((prev) => mergeSources(prev, preserved));
+      }
       setStep("link");
       toast({
         title: "YNAB import complete",
@@ -222,7 +235,7 @@ export function YnabImportDialog({ open, onOpenChange }: YnabImportDialogProps) 
               <div className="text-sm text-red-900 dark:text-red-100">
                 <p className="font-bold mb-1">⚠️ This Will Replace Your Previous Budget</p>
                 <p className="text-xs opacity-90">
-                  Importing will completely replace your existing accounts, categories, and budget data.
+                  Importing will completely replace your existing accounts, categories, and budget data. Any Teller bank connections will be automatically restored.
                   <span className="block mt-1 italic text-red-700 dark:text-red-300">(Merge functionality coming soon)</span>
                 </p>
               </div>
@@ -276,6 +289,11 @@ export function YnabImportDialog({ open, onOpenChange }: YnabImportDialogProps) 
             </DialogHeader>
 
             <div className="space-y-3 py-2">
+              {tellerSources.length > 0 && (
+                <p className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-md px-3 py-2">
+                  Any previous Teller connections not assigned below will be lost.
+                </p>
+              )}
               {/* Existing + newly connected accounts dropdown table */}
               {loadingExisting ? (
                 <p className="text-sm text-slate-500 dark:text-slate-400">Loading existing connections…</p>
