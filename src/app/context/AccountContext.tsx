@@ -65,6 +65,7 @@ interface AccountContextType {
   ) => void;
   editAccountName: (accountId: number, newName: string) => void;
   refreshSingleAccount: (accountId: number) => void;
+  refetchAccounts: () => Promise<void>;
   reorderAccounts: (
     draggedId: number,
     targetId: number,
@@ -136,27 +137,27 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
     map.forEach((acc) => ordered.push(acc));
     return ordered;
   };
+  const fetchAccounts = async () => {
+    if (!user || isRecoverySession) return;
+    const { data, error } = await supabase
+      .from("accounts")
+      .select("*, transactions(*)")
+      .eq("user_id", user.id);
+
+    if (error) {
+      console.error("Error fetching accounts:", error);
+      return;
+    }
+
+    if (!error && data) {
+      const normalized = (data as unknown as Account[]).map((acc) => normalizeAccount(acc));
+      const ordered = applyOrder(normalized, loadOrder());
+      setAccounts(ordered);
+    }
+  };
+
   useEffect(() => {
     if (!user || isRecoverySession) return;
-    const fetchAccounts = async () => {
-      const { data, error } = await supabase
-        .from("accounts")
-        .select("*, transactions(*)")
-        .eq("user_id", user.id);
-
-      if (error) {
-        console.error("Error fetching accounts:", error);
-        return;
-      }
-
-      if (!error && data) {
-        const normalized = (data as unknown as Account[]).map((acc) => normalizeAccount(acc));
-        const ordered = applyOrder(normalized, loadOrder());
-        setAccounts(ordered);
-      }
-    };
-
-
     fetchAccounts();
   }, [user]);
 
@@ -892,6 +893,7 @@ const upsertPayee = async (name: string) => {
       savedPayees,
       upsertPayee,
       refreshSingleAccount,
+      refetchAccounts: fetchAccounts,
       reorderAccounts,
     }),
     [accounts, recentTransactions, savedPayees, reorderAccounts]
