@@ -116,9 +116,14 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   };
 
+  const toOrderedIds = (list: Account[]): number[] =>
+    list
+      .map((account) => Number(account.id))
+      .filter((id) => Number.isFinite(id));
+
   const applyOrder = (list: Account[], order: number[] | null) => {
     if (!order || order.length === 0) return list;
-    const map = new Map(list.map((a) => [a.id, a] as const));
+    const map = new Map(list.map((a) => [Number(a.id), a] as const));
     const ordered: Account[] = [];
     order.forEach((id) => {
       const acc = map.get(id);
@@ -611,7 +616,7 @@ const upsertPayee = async (name: string) => {
     
     setAccounts((prev) => {
       const next = [...prev, { ...account, id: currentAccountId, transactions: generatedTransaction }];
-      saveOrder(next.map((a) => a.id));
+      saveOrder(toOrderedIds(next));
       return next;
     });
   };
@@ -644,7 +649,7 @@ const upsertPayee = async (name: string) => {
       setAccounts((prev) => {
         // eslint-disable-next-line eqeqeq
         const next = prev.filter((acc) => acc.id != accountId);
-        saveOrder(next.map((a) => a.id));
+        saveOrder(toOrderedIds(next));
         return next;
       });
     }
@@ -754,7 +759,7 @@ const upsertPayee = async (name: string) => {
 
     // Delete mirror transaction if found
     if (mirrorTransaction && mirrorAccount) {
-      await deleteTransaction(mirrorAccount.id, mirrorTransaction.id, true);
+      await deleteTransaction(Number(mirrorAccount.id), mirrorTransaction.id, true);
     }
 
     // Register combined undo action for both deletions
@@ -770,7 +775,7 @@ const upsertPayee = async (name: string) => {
 
         if (currentMirrorId && mirrorAccount) {
           await supabase.from("transactions").delete().eq("id", currentMirrorId);
-          await refreshSingleAccount(mirrorAccount.id);
+          await refreshSingleAccount(Number(mirrorAccount.id));
         }
       },
       undo: async () => {
@@ -826,7 +831,7 @@ const upsertPayee = async (name: string) => {
     // Do not allow mixing credit/debit ordering across groups
     if (!dragged || !target || dragged.type !== target.type) return;
 
-    const previousOrder = accounts.map((a) => a.id);
+    const previousOrder = toOrderedIds(accounts);
 
     const reorderOnce = (list: Account[]) => {
       const fromIdx = list.findIndex((a) => a.id === draggedId);
@@ -846,7 +851,7 @@ const upsertPayee = async (name: string) => {
     const nextList = reorderOnce(accounts);
     if (nextList === accounts) return;
 
-    saveOrder(nextList.map((a) => a.id));
+    saveOrder(toOrderedIds(nextList));
     setAccounts(nextList);
 
     registerAction({
@@ -854,7 +859,7 @@ const upsertPayee = async (name: string) => {
       execute: async () => {
         setAccounts((prevRun) => {
           const updated = reorderOnce(prevRun);
-          saveOrder(updated.map((a) => a.id));
+          saveOrder(toOrderedIds(updated));
           return updated;
         });
       },
