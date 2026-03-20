@@ -35,11 +35,17 @@ interface TellerEnrollment {
   user: { id: string };
 }
 
-interface Props {
-  onConnected?: () => void;
+export interface TellerEnrollmentData {
+  accessToken: string;
+  enrollmentId: string;
 }
 
-export default function TellerConnect({ onConnected }: Props) {
+interface Props {
+  onConnected?: () => void;
+  onEnrollmentReady?: (data: TellerEnrollmentData) => void;
+}
+
+export default function TellerConnect({ onConnected, onEnrollmentReady }: Props) {
   const { setAccounts } = useAccountContext();
   const instanceRef = useRef<TellerConnectInstance | null>(null);
   const [loading, setLoading] = useState(false);
@@ -72,9 +78,22 @@ export default function TellerConnect({ onConnected }: Props) {
       environment,
       products: ["transactions"],
       onSuccess: async (enrollment) => {
+        console.log("[TellerConnect] onSuccess fired", enrollment);
         setLoading(true);
         setError(null);
 
+        // If a parent wants to handle account selection, hand off enrollment data
+        if (onEnrollmentReady) {
+          console.log("[TellerConnect] calling onEnrollmentReady");
+          onEnrollmentReady({
+            accessToken: enrollment.accessToken,
+            enrollmentId: enrollment.enrollment.id,
+          });
+          setLoading(false);
+          return;
+        }
+
+        // Legacy: auto-enroll all accounts
         try {
           const res = await fetch("/api/teller/enroll", {
             method: "POST",
@@ -90,10 +109,6 @@ export default function TellerConnect({ onConnected }: Props) {
             throw new Error(body.error ?? "Enrollment failed");
           }
 
-          // Refresh accounts list so new accounts appear immediately
-          // We reload the page context by re-fetching — the AccountContext
-          // will pick up the new accounts on next mount or we can trigger a refresh.
-          // Simplest: reload the page.
           onConnected?.();
           window.location.reload();
         } catch (err) {
@@ -106,7 +121,7 @@ export default function TellerConnect({ onConnected }: Props) {
         setError("Bank connection failed. Please try again.");
       },
     });
-  }, [scriptReady, appId, environment, onConnected, setAccounts]);
+  }, [scriptReady, appId, environment, onConnected, onEnrollmentReady, setAccounts]);
 
   const handleClick = () => {
     if (!appId) {

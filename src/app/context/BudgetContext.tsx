@@ -2290,6 +2290,48 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
       importedAccountIdsRef.current = [];
       importedBudgetMonthsRef.current = [];
 
+      // Save existing Teller enrollments keyed by account name so we can re-link after import.
+      // Two separate queries to avoid relying on FK join configuration.
+      const { data: existingEnrollmentData } = await supabase
+        .from("teller_enrollments")
+        .select("account_id, teller_account_id, access_token, enrollment_id, institution_name, teller_account_type, last_teller_transaction_id")
+        .eq("user_id", user.id);
+
+      type SavedEnrollment = {
+        accountName: string;
+        tellerAccountId: string;
+        accessToken: string;
+        enrollmentId: string;
+        institutionName: string;
+        tellerAccountType: string;
+        lastTellerTransactionId: string | null;
+      };
+      const savedEnrollments: SavedEnrollment[] = [];
+
+      if (existingEnrollmentData && existingEnrollmentData.length > 0) {
+        const accountIds = existingEnrollmentData.map((e) => e.account_id as string);
+        const { data: accountNameData } = await supabase
+          .from("accounts")
+          .select("id, name")
+          .in("id", accountIds);
+
+        const nameById = new Map((accountNameData ?? []).map((a) => [a.id as string, a.name as string]));
+
+        for (const e of existingEnrollmentData) {
+          const name = nameById.get(e.account_id as string);
+          if (!name) continue;
+          savedEnrollments.push({
+            accountName: name.toLowerCase(),
+            tellerAccountId: e.teller_account_id as string,
+            accessToken: e.access_token as string,
+            enrollmentId: e.enrollment_id as string,
+            institutionName: e.institution_name as string,
+            tellerAccountType: e.teller_account_type as string,
+            lastTellerTransactionId: e.last_teller_transaction_id as string | null,
+          });
+        }
+      }
+
       // Delete ALL existing accounts and budget data for complete replacement
       const { error: deleteAccountsError } = await supabase
         .from("accounts")
@@ -2337,6 +2379,8 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
         }
       }
       
+      const createdAccounts: { id: string; name: string; type: string }[] = [];
+
       for (const account of registerParsed.accounts) {
         const { data: createdAccount, error: accountError } = await supabase
           .from("accounts")
@@ -2358,6 +2402,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
 
         // Track the created account ID for potential undo
         importedAccountIdsRef.current.push(createdAccount.id);
+        createdAccounts.push({ id: createdAccount.id, name: createdAccount.name, type: createdAccount.type });
 
         const txPayload = account.transactions.map((tx) => ({
           user_id: user.id,
@@ -2487,6 +2532,8 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
         accounts: registerParsed.accounts.length,
         transactions: registerParsed.transactionCount,
         months: planParsed.monthCount,
+        createdAccounts,
+        preservedEnrollments: savedEnrollments,
       };
     },
     [user?.id, refreshAccounts, refreshAllReadyToAssign, clearHistory, calculateActivityForMonth, calculateCreditCardAccountActivity, getCumulativeAvailable]

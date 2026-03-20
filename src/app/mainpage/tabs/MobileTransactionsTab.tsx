@@ -198,7 +198,7 @@ export default function MobileTransactionsTab({ accountId, onBack }: Props) {
       const mirrorPayee = getMirrorPayeeLabel(otherAccount.name, balance);
       const mirrorCategory = isOtherCredit ? otherAccount.name : null;
       const mirrorGroup = isOtherCredit ? "Credit Card Payments" : null;
-      await addTransactionWithMirror(accountId, txPayload, otherAccount.id, {
+      await addTransactionWithMirror(accountId, txPayload, Number(otherAccount.id), {
         date: formDate,
         payee: mirrorPayee,
         category: mirrorCategory,

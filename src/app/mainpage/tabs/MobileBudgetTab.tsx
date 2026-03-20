@@ -3,7 +3,7 @@
 import { useBudgetContext } from "@/app/context/BudgetContext";
 import { formatToUSD } from "@/app/utils/formatToUSD";
 import MonthNav from "../MonthNav";
-import { ChevronDown, ChevronRight, Plus, X } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import {
@@ -38,6 +38,7 @@ export default function MobileBudgetTab() {
     currentMonth,
     budgetData,
     addItemToCategory,
+    addCategoryGroup,
     getCumulativeAvailable,
     setBudgetData,
     calculateActivityForMonth,
@@ -51,6 +52,8 @@ export default function MobileBudgetTab() {
   const [editAssigned, setEditAssigned] = useState("");
   const [addToGroup, setAddToGroup] = useState<string | null>(null);
   const [newItemName, setNewItemName] = useState("");
+  const [addGroupOpen, setAddGroupOpen] = useState(false);
+  const [newGroupName, setNewGroupName] = useState("");
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
   // Touch detection (tap vs scroll)
@@ -199,7 +202,7 @@ export default function MobileBudgetTab() {
   return (
     <div className="pb-6 text-slate-900 dark:text-slate-200">
       {/* Month Navigation */}
-      <div className="mb-3">
+      <div className="py-4 flex justify-center">
         <MonthNav />
       </div>
 
@@ -353,12 +356,21 @@ export default function MobileBudgetTab() {
         );
       })}
 
+      {/* Add group button */}
+      <button
+        onClick={() => { setAddGroupOpen(true); setNewGroupName(""); }}
+        className="w-full flex items-center gap-2 px-4 py-3 text-slate-400 dark:text-slate-500 text-[12px] hover:text-teal-600 dark:hover:text-teal-400 transition-colors border-b border-slate-100 dark:border-slate-800"
+      >
+        <Plus className="w-3.5 h-3.5" />
+        Add category group
+      </button>
+
       {/* ── Edit assigned sheet ── */}
       <Dialog
         open={Boolean(selectedItem)}
         onOpenChange={(o) => !o && setSelectedItem(null)}
       >
-        <DialogContent className="p-0 overflow-hidden max-w-none w-[96vw] sm:max-w-sm rounded-2xl bg-white dark:bg-slate-900 border-0 shadow-2xl">
+        <DialogContent className="p-0 overflow-hidden rounded-t-2xl sm:rounded-2xl bg-white dark:bg-slate-900 border-0 shadow-2xl left-0 bottom-0 top-auto translate-x-0 translate-y-0 w-full max-w-none sm:left-[50%] sm:bottom-auto sm:top-[50%] sm:translate-x-[-50%] sm:translate-y-[-50%] sm:w-[96vw] sm:max-w-sm max-h-[90dvh] overflow-y-auto">
           {/* Header */}
           <div className="flex items-start justify-between px-5 pt-5 pb-3 border-b border-slate-100 dark:border-slate-800">
             <div>
@@ -371,12 +383,6 @@ export default function MobileBudgetTab() {
                 {selectedItem?.groupName}
               </p>
             </div>
-            <button
-              onClick={() => setSelectedItem(null)}
-              className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 p-1"
-            >
-              <X className="w-4 h-4" />
-            </button>
           </div>
 
           <div className="px-5 py-4 space-y-4">
@@ -516,6 +522,48 @@ export default function MobileBudgetTab() {
                   });
                   setAddToGroup(null);
                   setNewItemName("");
+                }}
+              >
+                Add
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+      {/* ── Add category group dialog ── */}
+      <Dialog open={addGroupOpen} onOpenChange={(o) => !o && setAddGroupOpen(false)}>
+        <DialogContent className="max-w-none w-[96vw] sm:max-w-sm rounded-2xl bg-white dark:bg-slate-900">
+          <DialogHeader>
+            <DialogTitle className="text-[15px]">Add category group</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 pt-1">
+            <Input
+              value={newGroupName}
+              onChange={(e) => setNewGroupName(e.target.value)}
+              placeholder="Group name"
+              className="h-11"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  if (!newGroupName.trim()) return;
+                  addCategoryGroup(newGroupName.trim());
+                  setAddGroupOpen(false);
+                  setNewGroupName("");
+                }
+              }}
+            />
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1 dark:border-slate-700" onClick={() => setAddGroupOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                className="flex-1 bg-teal-600 dark:bg-teal-700 text-white hover:bg-teal-500 dark:hover:bg-teal-600"
+                onClick={() => {
+                  if (!newGroupName.trim()) return;
+                  addCategoryGroup(newGroupName.trim());
+                  setAddGroupOpen(false);
+                  setNewGroupName("");
                 }}
               >
                 Add

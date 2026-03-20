@@ -50,6 +50,7 @@ export default function AccountCardCompact({
   const transactions = account.transactions ?? [];
   const transactionCount = transactions.length;
   const lastTx = transactionCount > 0 ? transactions[transactionCount - 1] : null;
+  const pendingCount = transactions.filter((tx) => !tx.approved).length;
 
   let lastDate: string | null = null;
   if (lastTx?.date) {
@@ -94,7 +95,7 @@ export default function AccountCardCompact({
             {typeLabel}
           </span>
           <h3 className="font-medium text-sm truncate text-slate-900 dark:text-slate-100">
-            {account.name}
+            {account.name.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())}
           </h3>
         </div>
 
@@ -107,6 +108,11 @@ export default function AccountCardCompact({
           >
             {formatToUSD(computedBalance)}
           </p>
+          {pendingCount > 0 && (
+            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400 leading-none">
+              {pendingCount} pending
+            </span>
+          )}
         </div>
       </div>
 

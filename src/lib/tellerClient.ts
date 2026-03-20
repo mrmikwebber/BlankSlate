@@ -22,7 +22,8 @@ function basicAuth(accessToken: string): string {
 
 function tellerRequest<T>(
   path: string,
-  accessToken: string
+  accessToken: string,
+  method: "GET" | "DELETE" = "GET"
 ): Promise<T> {
   return new Promise((resolve, reject) => {
     const agent = getTellerAgent();
@@ -31,7 +32,7 @@ function tellerRequest<T>(
     const options: https.RequestOptions = {
       hostname: url.hostname,
       path: url.pathname + url.search,
-      method: "GET",
+      method,
       agent,
       headers: {
         Authorization: basicAuth(accessToken),
@@ -43,17 +44,16 @@ function tellerRequest<T>(
       let raw = "";
       res.on("data", (chunk) => (raw += chunk));
       res.on("end", () => {
+        if (res.statusCode && res.statusCode >= 400) {
+          reject(new Error(`Teller API error ${res.statusCode}: ${raw}`));
+          return;
+        }
+        if (!raw.trim()) {
+          resolve(undefined as T);
+          return;
+        }
         try {
-          const parsed = JSON.parse(raw) as T;
-          if (res.statusCode && res.statusCode >= 400) {
-            reject(
-              new Error(
-                `Teller API error ${res.statusCode}: ${raw}`
-              )
-            );
-          } else {
-            resolve(parsed);
-          }
+          resolve(JSON.parse(raw) as T);
         } catch {
           reject(new Error(`Failed to parse Teller response: ${raw}`));
         }
@@ -98,6 +98,29 @@ export interface TellerTransaction {
 
 export function getTellerAccounts(accessToken: string): Promise<TellerAccount[]> {
   return tellerRequest<TellerAccount[]>("/accounts", accessToken);
+}
+
+export function deleteTellerAccount(
+  accessToken: string,
+  tellerAccountId: string
+): Promise<void> {
+  return tellerRequest<void>(`/accounts/${tellerAccountId}`, accessToken, "DELETE");
+}
+
+export interface TellerBalance {
+  account_id: string;
+  ledger: string;
+  available: string;
+}
+
+export function getTellerAccountBalance(
+  accessToken: string,
+  tellerAccountId: string
+): Promise<TellerBalance> {
+  return tellerRequest<TellerBalance>(
+    `/accounts/${tellerAccountId}/balances`,
+    accessToken
+  );
 }
 
 export function getTellerTransactions(

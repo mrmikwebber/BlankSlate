@@ -24,7 +24,7 @@ const EditableAssigned = memo(({
   const saveLockRef = useRef(false);
   const skipBlurRef = useRef(false);
 
-  const handleSave = useCallback((source: "enter" | "blur" | "unknown" = "unknown") => {
+  const handleSave = useCallback(() => {
     if (saveLockRef.current) return;
     saveLockRef.current = true;
     setTimeout(() => {
@@ -80,13 +80,13 @@ const EditableAssigned = memo(({
                 skipBlurRef.current = false;
                 return;
               }
-              handleSave("blur");
+              handleSave();
             }}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 e.preventDefault();
                 skipBlurRef.current = true;
-                handleSave("enter");
+                handleSave();
               }
               if (e.key === "Escape") setIsEditing(false);
             }}

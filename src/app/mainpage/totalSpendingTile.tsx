@@ -612,7 +612,7 @@ const TotalSpendingTile = () => {
           {/* Headline pill — full width */}
           <div
             className={cn(
-              "flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold mb-3",
+              "flex flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2 rounded-lg text-sm font-semibold mb-3",
               spendingPace.isAhead
                 ? "bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-400"
                 : "bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-400"
@@ -627,45 +627,45 @@ const TotalSpendingTile = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
               </svg>
             )}
-            <span className="flex-1">
+            <span className="flex-1 min-w-0">
               {spendingPace.isAhead
                 ? `Spending ${spendingPace.pct.toFixed(0)}% more than usual`
                 : `Spending ${spendingPace.pct.toFixed(0)}% less than usual`}
             </span>
-            <span className="text-xs font-normal opacity-70">
+            <span className="text-xs font-normal opacity-70 flex-shrink-0">
               {spendingPace.isAhead ? `+${formatToUSD(Math.abs(spendingPace.diff))} over pace` : `${formatToUSD(Math.abs(spendingPace.diff))} under pace`}
             </span>
           </div>
 
           {/* 3-stat row */}
           <div className="grid grid-cols-3 gap-2 mb-3">
-            <div className="rounded-lg bg-slate-50 dark:bg-slate-800/50 px-3 py-2">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-0.5">Spent so far</p>
-              <p className="font-mono text-base font-semibold text-slate-800 dark:text-slate-100">
+            <div className="rounded-lg bg-slate-50 dark:bg-slate-800/50 px-2 py-2">
+              <p className="text-[9px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-0.5">Spent so far</p>
+              <p className="font-mono text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">
                 {formatToUSD(spendingPace.currentTotal)}
               </p>
-              <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">
-                avg {formatToUSD(spendingPace.avgAtThisPoint)} by now
+              <p className="text-[9px] text-slate-400 dark:text-slate-500 mt-0.5 truncate">
+                avg {formatToUSD(spendingPace.avgAtThisPoint)}
               </p>
             </div>
-            <div className="rounded-lg bg-slate-50 dark:bg-slate-800/50 px-3 py-2">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-0.5">Projected</p>
+            <div className="rounded-lg bg-slate-50 dark:bg-slate-800/50 px-2 py-2">
+              <p className="text-[9px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-0.5">Projected</p>
               <p className={cn(
-                "font-mono text-base font-semibold",
+                "font-mono text-sm font-semibold truncate",
                 spendingPace.projectedMonthTotal > spendingPace.avgMonthTotal
                   ? "text-red-600 dark:text-red-400"
                   : "text-teal-600 dark:text-teal-400"
               )}>
                 {formatToUSD(spendingPace.projectedMonthTotal)}
               </p>
-              <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">end of month</p>
+              <p className="text-[9px] text-slate-400 dark:text-slate-500 mt-0.5">end of month</p>
             </div>
-            <div className="rounded-lg bg-slate-50 dark:bg-slate-800/50 px-3 py-2">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-0.5">Avg month</p>
-              <p className="font-mono text-base font-semibold text-slate-600 dark:text-slate-300">
+            <div className="rounded-lg bg-slate-50 dark:bg-slate-800/50 px-2 py-2">
+              <p className="text-[9px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-0.5">Avg month</p>
+              <p className="font-mono text-sm font-semibold text-slate-600 dark:text-slate-300 truncate">
                 {formatToUSD(spendingPace.avgMonthTotal)}
               </p>
-              <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">historical avg</p>
+              <p className="text-[9px] text-slate-400 dark:text-slate-500 mt-0.5">historical avg</p>
             </div>
           </div>
 
@@ -1011,7 +1011,8 @@ const TotalSpendingTile = () => {
             </p>
             <span className="text-[11px] text-slate-400 dark:text-slate-500">{monthLabel}</span>
           </div>
-          <table className="w-full">
+          <div className="overflow-x-auto -mx-1 px-1">
+          <table className="w-full min-w-[420px]">
             <thead>
               <tr>
                 <th className="text-left text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 pb-2">
@@ -1069,6 +1070,7 @@ const TotalSpendingTile = () => {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 
