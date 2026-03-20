@@ -34,6 +34,19 @@ export async function POST(req: Request) {
     );
   }
 
+  // Rate limit: 1 sync per hour per account
+  if (enrollment.last_synced_at) {
+    const msSinceLastSync = Date.now() - new Date(enrollment.last_synced_at).getTime();
+    const msInHour = 60 * 60 * 1000;
+    if (msSinceLastSync < msInHour) {
+      const minutesLeft = Math.ceil((msInHour - msSinceLastSync) / 60000);
+      return NextResponse.json(
+        { error: `Sync available again in ${minutesLeft} minute${minutesLeft !== 1 ? "s" : ""}` },
+        { status: 429 }
+      );
+    }
+  }
+
   try {
     const transactions = await getTellerTransactions(
       enrollment.access_token,
