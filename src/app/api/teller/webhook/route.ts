@@ -13,9 +13,13 @@ interface TellerWebhookPayload {
   id: string;
   type: string;
   payload: {
+    // Teller sends flat fields, not a nested account object
+    account_id?: string;
+    enrollment_id?: string;
+    // Some older docs show a nested account — handle both
     account?: {
-      id: string;
-      enrollment_id: string;
+      id?: string;
+      enrollment_id?: string;
     };
     reason?: string;
   };
@@ -24,9 +28,13 @@ interface TellerWebhookPayload {
 export async function POST(req: Request) {
   const body = await req.json() as TellerWebhookPayload;
 
+  console.log("[teller/webhook] received:", JSON.stringify(body));
+
   // Handle enrollment disconnected
   if (body.type === "enrollment.disconnected") {
-    const enrollmentId = body.payload?.account?.enrollment_id;
+    const enrollmentId =
+      body.payload?.enrollment_id ??
+      body.payload?.account?.enrollment_id;
     if (enrollmentId) {
       const supabase = getServiceClient();
       await supabase
@@ -42,8 +50,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true });
   }
 
-  const tellerAccountId = body.payload?.account?.id;
+  const tellerAccountId =
+    body.payload?.account_id ??
+    body.payload?.account?.id;
+
   if (!tellerAccountId) {
+    console.error("[teller/webhook] Missing account id in payload:", JSON.stringify(body.payload));
     return NextResponse.json({ error: "Missing account id" }, { status: 400 });
   }
 
