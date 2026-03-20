@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import {
   getTellerAccounts,
   getTellerAccountBalance,
+  getTellerTransactions,
   guessIssuer,
 } from "@/lib/tellerClient";
 
@@ -61,6 +62,40 @@ export async function POST(req: Request) {
       tellerAccount.type === "credit" ? "credit" : "debit";
     const issuer = guessIssuer(institutionName);
 
+    // Check if this Teller account is already enrolled for this user
+    const { data: existingEnrollment } = await supabase
+      .from("teller_enrollments")
+      .select("account_id")
+      .eq("user_id", user.id)
+      .eq("teller_account_id", tellerAccount.id)
+      .single();
+
+    if (existingEnrollment) {
+      // Check if the linked BS account still exists
+      const { data: existingAccount } = await supabase
+        .from("accounts")
+        .select("id, name")
+        .eq("id", existingEnrollment.account_id)
+        .single();
+
+      if (existingAccount) {
+        // Account already exists — just refresh the enrollment credentials
+        await supabase
+          .from("teller_enrollments")
+          .update({
+            enrollment_id: enrollmentId,
+            access_token: accessToken,
+            last_synced_at: new Date().toISOString(),
+          })
+          .eq("user_id", user.id)
+          .eq("teller_account_id", tellerAccount.id);
+
+        createdAccounts.push({ id: existingAccount.id, name: existingAccount.name });
+        continue;
+      }
+      // Account was deleted — fall through to create a new one
+    }
+
     // Fetch current balance from Teller to use as starting balance
     let startingBalance = 0;
     try {
@@ -70,6 +105,16 @@ export async function POST(req: Request) {
       startingBalance = accountType === "credit" ? -Math.abs(ledger) : ledger;
     } catch (err) {
       console.error("[teller/enroll] Failed to fetch balance for", tellerAccount.id, err);
+    }
+
+    // Fetch most recent transaction ID to use as cursor (matches what the link route does)
+    let lastTellerTransactionId: string | null = null;
+    try {
+      const recentTx = await getTellerTransactions(accessToken, tellerAccount.id);
+      const firstPosted = recentTx.find((t) => t.status === "posted");
+      if (firstPosted) lastTellerTransactionId = firstPosted.id;
+    } catch {
+      // Non-fatal — webhook will sync all future transactions
     }
 
     // Create the BlankSlate account
@@ -123,6 +168,8 @@ export async function POST(req: Request) {
           institution_name: institutionName,
           teller_account_id: tellerAccount.id,
           teller_account_type: tellerAccount.subtype,
+          last_teller_transaction_id: lastTellerTransactionId,
+          last_synced_at: new Date().toISOString(),
         },
         { onConflict: "user_id,teller_account_id" }
       );

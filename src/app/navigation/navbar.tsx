@@ -99,14 +99,22 @@ export default function Navbar() {
       
       if (budgetError) throw budgetError;
       
+      // Delete teller enrollments
+      const { error: enrollmentsError } = await supabase
+        .from('teller_enrollments')
+        .delete()
+        .eq('user_id', userId);
+
+      if (enrollmentsError) throw enrollmentsError;
+
       // Delete accounts
       const { error: accountsError } = await supabase
         .from('accounts')
         .delete()
         .eq('user_id', userId);
-      
+
       if (accountsError) throw accountsError;
-      
+
       // Close modal and refresh the page to show clean state
       setShowResetModal(false);
       setIsResetting(false);

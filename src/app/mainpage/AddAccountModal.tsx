@@ -17,6 +17,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import TellerConnect, { TellerEnrollmentData } from "@/components/TellerConnect";
+import { useAccountContext } from "@/app/context/AccountContext";
 import { useAuth } from "@/app/context/AuthContext";
 import { Lock } from "lucide-react";
 
@@ -53,6 +54,7 @@ const SUBTYPES: { value: AccountSubtype; label: string; type: "debit" | "credit"
 
 const AddAccountModal = ({ onAddAccount, onClose, isOpen = true }: AddAccountModalProps) => {
   const { plan } = useAuth()!;
+  const { refetchAccounts } = useAccountContext();
   const isPaid = plan === "paid";
   const [mode, setMode] = useState<Mode>("choose");
   const [name, setName] = useState("");
@@ -180,8 +182,8 @@ const AddAccountModal = ({ onAddAccount, onClose, isOpen = true }: AddAccountMod
         throw new Error(body.error ?? "Enrollment failed");
       }
 
+      await refetchAccounts();
       onClose();
-      window.location.reload();
     } catch (err) {
       setLinkError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
