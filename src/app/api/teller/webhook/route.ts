@@ -71,10 +71,28 @@ export async function POST(req: Request) {
   const supabase = getServiceClient();
 
   // Look up ALL accounts for this enrollment (one row per account)
-  const { data: enrollments, error: enrollError } = await supabase
+  let { data: enrollments, error: enrollError } = await supabase
     .from("teller_enrollments")
     .select("*")
     .eq("enrollment_id", enrollmentId);
+
+  // Fallback: enrollment_id in DB may be stale — look up by teller_account_id instead
+  if (enrollError || !enrollments?.length) {
+    const tellerAccountIds = [
+      ...new Set(
+        (body.payload.transactions ?? [])
+          .map((t) => t.account_id)
+          .filter((id): id is string => !!id)
+      ),
+    ];
+
+    if (tellerAccountIds.length > 0) {
+      ({ data: enrollments, error: enrollError } = await supabase
+        .from("teller_enrollments")
+        .select("*")
+        .in("teller_account_id", tellerAccountIds));
+    }
+  }
 
   if (enrollError || !enrollments?.length) {
     console.error("[teller/webhook] No enrollments found for:", enrollmentId);
