@@ -50,7 +50,8 @@ export async function POST(req: Request) {
   try {
     const transactions = await getTellerTransactions(
       enrollment.access_token,
-      enrollment.teller_account_id
+      enrollment.teller_account_id,
+      enrollment.last_teller_transaction_id ?? undefined
     );
 
     const synced = transactions.filter((t) => t.status === "posted" || t.status === "pending");
