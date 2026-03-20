@@ -25,7 +25,7 @@ export default function AccountTile({ account: initialAccount }) {
 
   const confirmDelete = () => {
     if (account?.id) {
-      deleteAccount(account.id);
+      deleteAccount(Number(account.id));
     } else {
       console.error("❌ Account or account ID is undefined");
     }

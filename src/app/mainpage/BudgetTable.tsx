@@ -1627,7 +1627,7 @@ export default function BudgetTable() {
                   variant="outline"
                   className="w-full justify-start text-left h-auto py-3 px-4"
                   onClick={() => {
-                    setSelectedAccountForTransaction(account.id);
+                    setSelectedAccountForTransaction(Number(account.id));
                   }}
                 >
                   <div className="flex flex-col gap-1">

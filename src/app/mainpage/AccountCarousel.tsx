@@ -79,11 +79,11 @@ export default function AccountCarousel({ selectedAccountId, onSelect }: Props) 
                 <button
                   key={acc.id}
                   onClick={() => {
-                    onSelect?.(acc.id);
+                    onSelect?.(Number(acc.id));
                     setAccountDropdownOpen(false);
                   }}
                   className={`w-full text-left px-3 py-2 text-sm text-slate-800 dark:text-slate-200 ${
-                    selectedAccountId === acc.id
+                    selectedAccountId === Number(acc.id)
                       ? "bg-teal-50 dark:bg-teal-900/20"
                       : "hover:bg-teal-50 dark:hover:bg-teal-900/20"
                   }`}
@@ -136,17 +136,17 @@ export default function AccountCarousel({ selectedAccountId, onSelect }: Props) 
           <div
             key={account.id}
             className={`flex-shrink-0 w-72 snap-start transition ring-offset-2 ${
-              selectedAccountId === account.id
+              selectedAccountId === Number(account.id)
                 ? "ring-2 ring-teal-500 shadow-md"
                 : "hover:ring-1 hover:ring-slate-200"
             }`}
             role="button"
             tabIndex={0}
-            onClick={() => onSelect?.(account.id)}
+            onClick={() => onSelect?.(Number(account.id))}
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === " ") {
                 e.preventDefault();
-                onSelect?.(account.id);
+                onSelect?.(Number(account.id));
               }
             }}
           >
