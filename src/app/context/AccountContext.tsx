@@ -3,6 +3,7 @@ import {
   createContext,
   useContext,
   useEffect,
+  useRef,
   useState,
   useMemo,
   type Dispatch,
@@ -91,6 +92,7 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [savedPayees, setSavedPayees] = useState<SavedPayee[]>([]);
   const [recentTransactions, setRecentTransactions] = useState([]);
+  const fetchGenRef = useRef(0);
 
   const orderKey = useMemo(
     () => (user?.id ? `account-order:${user.id}` : null),
@@ -138,18 +140,30 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return ordered;
   };
   const fetchAccounts = async () => {
-    if (!user || isRecoverySession) return;
+    if (!user || isRecoverySession) {
+      console.log("[AccountContext] fetchAccounts skipped — user:", !!user, "isRecoverySession:", isRecoverySession);
+      return;
+    }
+    const gen = ++fetchGenRef.current;
+    console.log(`[AccountContext] fetchAccounts start — gen=${gen} user=${user.id}`);
+
     const { data, error } = await supabase
       .from("accounts")
       .select("*, transactions(*)")
       .eq("user_id", user.id);
 
-    if (error) {
-      console.error("Error fetching accounts:", error);
+    if (gen !== fetchGenRef.current) {
+      console.warn(`[AccountContext] fetchAccounts stale result dropped — gen=${gen} current=${fetchGenRef.current}`);
       return;
     }
 
-    if (!error && data) {
+    if (error) {
+      console.error("[AccountContext] fetchAccounts error:", error.message, error);
+      return;
+    }
+
+    console.log(`[AccountContext] fetchAccounts complete — gen=${gen} returned ${data?.length ?? 0} accounts:`, data?.map(a => `${a.id}:${a.name}`));
+    if (data) {
       const normalized = (data as unknown as Account[]).map((acc) => normalizeAccount(acc));
       const ordered = applyOrder(normalized, loadOrder());
       setAccounts(ordered);
@@ -157,6 +171,7 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   useEffect(() => {
+    console.log("[AccountContext] user changed — id:", user?.id ?? "null", "isRecoverySession:", isRecoverySession);
     if (!user || isRecoverySession) return;
     fetchAccounts();
   }, [user]);
@@ -573,6 +588,7 @@ const upsertPayee = async (name: string) => {
   }
 
   const refreshSingleAccount = async (accountId) => {
+    console.log("[AccountContext] refreshSingleAccount — accountId:", accountId);
     const { data, error } = await supabase
       .from("accounts")
       .select("*, transactions(*)")

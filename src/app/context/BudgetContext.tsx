@@ -342,6 +342,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
 
   const refreshAccounts = async () => {
     if (!user?.id) return;
+    console.log("[BudgetContext] refreshAccounts called — user:", user.id);
     const { data, error } = await supabase
       .from("accounts")
       .select("*, transactions(*)")
@@ -349,10 +350,11 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
       .order("date", { foreignTable: "transactions", ascending: true });
 
     if (error) {
-      console.error("Error refreshing accounts:", error);
+      console.error("[BudgetContext] refreshAccounts error:", error.message, error);
       return;
     }
 
+    console.log(`[BudgetContext] refreshAccounts complete — ${data?.length ?? 0} accounts:`, data?.map(a => `${a.id}:${a.name}`));
     setAccounts(data);
   };
 
