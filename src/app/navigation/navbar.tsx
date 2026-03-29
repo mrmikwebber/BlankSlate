@@ -5,7 +5,8 @@ import { useAuth } from "../context/AuthContext";
 import { useDarkMode } from "../context/DarkModeContext";
 import { supabase } from "../../utils/supabaseClient";
 import { createPortal } from "react-dom";
-import { Moon, Sun } from "lucide-react";
+import { Moon, Sun, User } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { isAdminUser, normalizeAdminList } from "@/lib/admin";
 import dynamic from "next/dynamic";
 import { getDaysInMonth, getDate } from "date-fns";
@@ -180,7 +181,43 @@ export default function Navbar() {
                 <Link href="/roadmap" className="text-xs text-slate-700 dark:text-slate-300 hover:underline">Roadmap</Link>
                 <Link href="/legal" className="text-xs text-slate-700 dark:text-slate-300 hover:underline">Legal</Link>
                 <div className="flex items-center gap-2">
-                    <p className="text-xs text-gray-600 dark:text-slate-400">Hello, {name || "User"}</p>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 transition-colors rounded px-1 py-0.5 hover:bg-slate-100 dark:hover:bg-slate-800">
+                          <User className="h-3.5 w-3.5" />
+                          <span>Hello, {name || "User"}</span>
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-64 p-4" align="end">
+                        <div className="flex items-center gap-3 mb-3">
+                          <div className="h-10 w-10 rounded-full bg-teal-100 dark:bg-teal-900/50 flex items-center justify-center shrink-0">
+                            <span className="text-sm font-semibold text-teal-700 dark:text-teal-300">
+                              {(user?.user_metadata?.first_name?.[0] ?? "") + (user?.user_metadata?.last_name?.[0] ?? "") || "?"}
+                            </span>
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">
+                              {[user?.user_metadata?.first_name, user?.user_metadata?.last_name].filter(Boolean).join(" ") || "—"}
+                            </p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{user?.email}</p>
+                          </div>
+                        </div>
+                        <div className="border-t border-slate-200 dark:border-slate-700 pt-3 space-y-1 text-xs text-slate-600 dark:text-slate-400">
+                          <div className="flex justify-between">
+                            <span className="font-medium">First name</span>
+                            <span>{user?.user_metadata?.first_name || "—"}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="font-medium">Last name</span>
+                            <span>{user?.user_metadata?.last_name || "—"}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="font-medium">Email</span>
+                            <span className="truncate ml-2 max-w-[140px] text-right">{user?.email || "—"}</span>
+                          </div>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
                     <button
                       onClick={toggleDarkMode}
                       className="p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"

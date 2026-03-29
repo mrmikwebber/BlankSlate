@@ -13,7 +13,7 @@ import { useAccountContext } from "../context/AccountContext";
 import { useUndoRedo } from "../context/UndoRedoContext";
 import { useGlobalKeyboardShortcuts } from "../hooks/useGlobalKeyboardShortcuts";
 import { NotesPopover } from "@/components/ui/NotesPopover";
-import { subMonths, format, parse } from "date-fns";
+import { subMonths, format, parse, parseISO } from "date-fns";
 import {
   Table,
   TableBody,
@@ -95,6 +95,10 @@ export default function BudgetTable() {
   const [inlineEditorCategory, setInlineEditorCategory] = useState<
     string | null
   >(null);
+  const [activityDetailModal, setActivityDetailModal] = useState<{
+    categoryName: string;
+    groupName: string;
+  } | null>(null);
   const [selectedTargetCategory, setSelectedTargetCategory] = useState("");
   const [editingGroup, setEditingGroup] = useState<string | null>(null);
   const [newGroupName, setNewGroupName] = useState<string>("");
@@ -2417,15 +2421,20 @@ export default function BudgetTable() {
                             <TableCell
                               data-cy="item-activity"
                               data-item={item.name}
-                              className="py-2 px-3 text-right align-middle cursor-pointer font-mono font-medium"
-                              onClick={() => {
-                                setInlineEditorCategory((prev) =>
-                                  prev === item.name ? null : item.name
-                                );
-                              }}
+                              className="py-2 px-3 text-right align-middle font-mono font-medium"
                             >
                               <div className="flex flex-col items-end gap-1">
-                                <span>{formatToUSD(item.activity || 0)}</span>
+                                {item.activity !== 0 ? (
+                                  <button
+                                    type="button"
+                                    className="rounded px-1 py-0.5 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 hover:bg-slate-200/80 dark:hover:bg-slate-700/60 font-mono font-medium text-sm"
+                                    onClick={() => setActivityDetailModal({ categoryName: item.name, groupName: group.name })}
+                                  >
+                                    <span className="underline decoration-dotted underline-offset-4">{formatToUSD(item.activity)}</span>
+                                  </button>
+                                ) : (
+                                  <span className="px-1 py-0.5 text-sm">{formatToUSD(0)}</span>
+                                )}
                                 {showCompare && (
                                   <span className={`text-[11px] font-semibold ${activityDelta > 0
                                     ? "text-emerald-600"
@@ -2452,25 +2461,59 @@ export default function BudgetTable() {
                                     : "text-slate-700"
                               )}
                             >
-                              <button
-                                type="button"
-                                data-cy="move-money-trigger"
-                                className="inline-flex items-center justify-end gap-1 rounded px-2 py-1 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-1 hover:bg-slate-200/80 dark:hover:bg-slate-700/60"
-                                onClick={() => {
-                                  setMoveMoneyModal({
-                                    toGroup: group.name,
-                                    toItem: item.name,
-                                    available: item.available,
-                                  });
-                                  setMoveAmount(item.available < 0 ? Math.abs(item.available) : 0);
-                                  setMoveToCategory("");
-                                  setSourceAvailable(0);
-                                }}
-                              >
-                                <span className="underline decoration-dotted underline-offset-4">
-                                  {formatToUSD(item.available || 0)}
-                                </span>
-                              </button>
+                              {(() => {
+                                let overspendType: "credit" | "debit" | "both" | null = null;
+                                if (item.available < 0) {
+                                  const selMonth = format(parse(currentMonth, "yyyy-MM", new Date()), "yyyy-MM");
+                                  let hasCredit = false, hasDebit = false;
+                                  for (const a of accounts) {
+                                    for (const tx of a.transactions) {
+                                      if (!tx.date) continue;
+                                      if (format(parseISO(tx.date), "yyyy-MM") !== selMonth) continue;
+                                      if (tx.category !== item.name || tx.category_group !== group.name) continue;
+                                      if (tx.balance < 0) {
+                                        if (a.type === "credit") hasCredit = true;
+                                        else hasDebit = true;
+                                      }
+                                    }
+                                  }
+                                  if (hasCredit && hasDebit) overspendType = "both";
+                                  else if (hasCredit) overspendType = "credit";
+                                  else if (hasDebit) overspendType = "debit";
+                                }
+                                return (
+                                  <div className="flex flex-col items-end gap-1">
+                                    <button
+                                      type="button"
+                                      data-cy="move-money-trigger"
+                                      className="inline-flex items-center justify-end gap-1 rounded px-2 py-1 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-1 hover:bg-slate-200/80 dark:hover:bg-slate-700/60"
+                                      onClick={() => {
+                                        setMoveMoneyModal({
+                                          toGroup: group.name,
+                                          toItem: item.name,
+                                          available: item.available,
+                                        });
+                                        setMoveAmount(item.available < 0 ? Math.abs(item.available) : 0);
+                                        setMoveToCategory("");
+                                        setSourceAvailable(0);
+                                      }}
+                                    >
+                                      <span className="underline decoration-dotted underline-offset-4">
+                                        {formatToUSD(item.available || 0)}
+                                      </span>
+                                    </button>
+                                    {overspendType === "credit" && (
+                                      <span className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400">CC</span>
+                                    )}
+                                    {overspendType === "debit" && (
+                                      <span className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400">Cash</span>
+                                    )}
+                                    {overspendType === "both" && (
+                                      <span className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400">CC + Cash</span>
+                                    )}
+                                  </div>
+                                );
+                              })()}
                             </TableCell>
                           </TableRow>
 
@@ -2497,6 +2540,63 @@ export default function BudgetTable() {
           open={importDialogOpen}
           onOpenChange={setImportDialogOpen}
         />
+
+        {/* Activity detail dialog */}
+        <Dialog open={!!activityDetailModal} onOpenChange={(open) => { if (!open) setActivityDetailModal(null); }}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>{activityDetailModal?.categoryName} — Activity</DialogTitle>
+              <DialogDescription>
+                Transactions in {currentMonth ? format(parse(currentMonth, "yyyy-MM", new Date()), "MMMM yyyy") : ""} that make up this amount.
+              </DialogDescription>
+            </DialogHeader>
+            {activityDetailModal && (() => {
+              const txs = accounts
+                .flatMap((a) => a.transactions)
+                .filter((tx) => {
+                  if (!tx.date) return false;
+                  const txMonth = format(parseISO(tx.date), "yyyy-MM");
+                  const selMonth = format(parse(currentMonth, "yyyy-MM", new Date()), "yyyy-MM");
+                  return (
+                    txMonth === selMonth &&
+                    tx.category === activityDetailModal.categoryName &&
+                    tx.category_group === activityDetailModal.groupName
+                  );
+                })
+                .sort((a, b) => b.date.localeCompare(a.date));
+
+              const total = txs.reduce((sum, tx) => sum + tx.balance, 0);
+
+              if (txs.length === 0) {
+                return <p className="text-sm text-slate-500 py-2">No transactions found.</p>;
+              }
+
+              return (
+                <div className="flex flex-col gap-2">
+                  <div className="max-h-80 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800 rounded border border-slate-200 dark:border-slate-700">
+                    {txs.map((tx) => (
+                      <div key={tx.id} className="flex items-center justify-between px-3 py-2 text-sm">
+                        <div className="flex flex-col min-w-0">
+                          <span className="font-medium truncate text-slate-900 dark:text-slate-100">{tx.payee}</span>
+                          <span className="text-xs text-slate-500">{format(parseISO(tx.date), "MMM d")}</span>
+                        </div>
+                        <span className={cn("font-mono font-medium ml-4 shrink-0", tx.balance < 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400")}>
+                          {formatToUSD(tx.balance)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex justify-between items-center px-1 pt-1 text-sm font-semibold">
+                    <span className="text-slate-600 dark:text-slate-400">Total</span>
+                    <span className={cn("font-mono", total < 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400")}>
+                      {formatToUSD(total)}
+                    </span>
+                  </div>
+                </div>
+              );
+            })()}
+          </DialogContent>
+        </Dialog>
     </>
   );
 }
