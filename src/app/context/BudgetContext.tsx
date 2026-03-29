@@ -341,9 +341,11 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
   }, [sandboxMode, currentMonth, clearHistory, setRecentChanges]);
 
   const refreshAccounts = async () => {
+    if (!user?.id) return;
     const { data, error } = await supabase
       .from("accounts")
       .select("*, transactions(*)")
+      .eq("user_id", user.id)
       .order("date", { foreignTable: "transactions", ascending: true });
 
     if (error) {
