@@ -30,6 +30,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -2454,35 +2459,78 @@ export default function BudgetTable() {
                               data-item={item.name}
                               className={cn(
                                 "py-2 px-3 text-right align-middle font-mono text-sm font-semibold",
-                                item.available > 0
+                                Math.round(item.available * 100) > 0
                                   ? "text-emerald-600"
-                                  : item.available < 0
+                                  : Math.round(item.available * 100) < 0
                                     ? "text-red-600"
                                     : "text-slate-700"
                               )}
                             >
                               {(() => {
+                                const availableCents = Math.round(item.available * 100);
                                 let overspendType: "credit" | "debit" | "both" | null = null;
-                                if (item.available < 0) {
+                                let ccAmount = 0, cashAmount = 0;
+                                if (availableCents < 0) {
                                   const selMonth = format(parse(currentMonth, "yyyy-MM", new Date()), "yyyy-MM");
-                                  let hasCredit = false, hasDebit = false;
                                   for (const a of accounts) {
                                     for (const tx of a.transactions) {
                                       if (!tx.date) continue;
                                       if (format(parseISO(tx.date), "yyyy-MM") !== selMonth) continue;
                                       if (tx.category !== item.name || tx.category_group !== group.name) continue;
                                       if (tx.balance < 0) {
-                                        if (a.type === "credit") hasCredit = true;
-                                        else hasDebit = true;
+                                        if (a.type === "credit") ccAmount += Math.abs(tx.balance);
+                                        else cashAmount += Math.abs(tx.balance);
                                       }
                                     }
                                   }
-                                  if (hasCredit && hasDebit) overspendType = "both";
-                                  else if (hasCredit) overspendType = "credit";
-                                  else if (hasDebit) overspendType = "debit";
+                                  if (ccAmount > 0 && cashAmount > 0) overspendType = "both";
+                                  else if (ccAmount > 0) overspendType = "credit";
+                                  else if (cashAmount > 0) overspendType = "debit";
                                 }
+
+                                const pillLabel = overspendType === "credit" ? "CC"
+                                  : overspendType === "debit" ? "Cash"
+                                  : overspendType === "both" ? "CC + Cash"
+                                  : null;
+                                const pillColors = overspendType === "credit"
+                                  ? "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400 hover:bg-amber-200 dark:hover:bg-amber-900/60"
+                                  : overspendType === "debit"
+                                  ? "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/60"
+                                  : "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400 hover:bg-orange-200 dark:hover:bg-orange-900/60";
+
                                 return (
-                                  <div className="flex flex-col items-end gap-1">
+                                  <div className="flex flex-row items-center justify-end gap-1.5">
+                                    {pillLabel && (
+                                      <Popover>
+                                        <PopoverTrigger asChild>
+                                          <button
+                                            type="button"
+                                            className={cn(
+                                              "text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full transition cursor-pointer",
+                                              pillColors
+                                            )}
+                                            onClick={(e) => e.stopPropagation()}
+                                          >
+                                            {pillLabel}
+                                          </button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-48 p-3" align="end">
+                                          <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">Overspend breakdown</p>
+                                          {ccAmount > 0 && (
+                                            <div className="flex items-center justify-between text-xs">
+                                              <span className="text-amber-700 dark:text-amber-400 font-medium">CC</span>
+                                              <span className="font-mono text-slate-700 dark:text-slate-300">{formatToUSD(ccAmount)}</span>
+                                            </div>
+                                          )}
+                                          {cashAmount > 0 && (
+                                            <div className="flex items-center justify-between text-xs mt-1">
+                                              <span className="text-red-700 dark:text-red-400 font-medium">Cash</span>
+                                              <span className="font-mono text-slate-700 dark:text-slate-300">{formatToUSD(cashAmount)}</span>
+                                            </div>
+                                          )}
+                                        </PopoverContent>
+                                      </Popover>
+                                    )}
                                     <button
                                       type="button"
                                       data-cy="move-money-trigger"
@@ -2493,7 +2541,7 @@ export default function BudgetTable() {
                                           toItem: item.name,
                                           available: item.available,
                                         });
-                                        setMoveAmount(item.available < 0 ? Math.abs(item.available) : 0);
+                                        setMoveAmount(availableCents < 0 ? Math.abs(item.available) : 0);
                                         setMoveToCategory("");
                                         setSourceAvailable(0);
                                       }}
@@ -2502,15 +2550,6 @@ export default function BudgetTable() {
                                         {formatToUSD(item.available || 0)}
                                       </span>
                                     </button>
-                                    {overspendType === "credit" && (
-                                      <span className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400">CC</span>
-                                    )}
-                                    {overspendType === "debit" && (
-                                      <span className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400">Cash</span>
-                                    )}
-                                    {overspendType === "both" && (
-                                      <span className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400">CC + Cash</span>
-                                    )}
                                   </div>
                                 );
                               })()}
@@ -2551,14 +2590,13 @@ export default function BudgetTable() {
               </DialogDescription>
             </DialogHeader>
             {activityDetailModal && (() => {
+              const selMonth = format(parse(currentMonth, "yyyy-MM", new Date()), "yyyy-MM");
               const txs = accounts
-                .flatMap((a) => a.transactions)
+                .flatMap((a) => a.transactions.map((tx) => ({ ...tx, accountName: a.name, accountType: a.type })))
                 .filter((tx) => {
                   if (!tx.date) return false;
-                  const txMonth = format(parseISO(tx.date), "yyyy-MM");
-                  const selMonth = format(parse(currentMonth, "yyyy-MM", new Date()), "yyyy-MM");
                   return (
-                    txMonth === selMonth &&
+                    format(parseISO(tx.date), "yyyy-MM") === selMonth &&
                     tx.category === activityDetailModal.categoryName &&
                     tx.category_group === activityDetailModal.groupName
                   );
@@ -2578,7 +2616,18 @@ export default function BudgetTable() {
                       <div key={tx.id} className="flex items-center justify-between px-3 py-2 text-sm">
                         <div className="flex flex-col min-w-0">
                           <span className="font-medium truncate text-slate-900 dark:text-slate-100">{tx.payee}</span>
-                          <span className="text-xs text-slate-500">{format(parseISO(tx.date), "MMM d")}</span>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <span className="text-xs text-slate-500">{format(parseISO(tx.date), "MMM d")}</span>
+                            <span className="text-slate-300 dark:text-slate-600">·</span>
+                            <span className={cn(
+                              "text-[10px] font-medium px-1.5 py-px rounded-full",
+                              tx.accountType === "credit"
+                                ? "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400"
+                                : "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300"
+                            )}>
+                              {tx.accountName}
+                            </span>
+                          </div>
                         </div>
                         <span className={cn("font-mono font-medium ml-4 shrink-0", tx.balance < 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400")}>
                           {formatToUSD(tx.balance)}
