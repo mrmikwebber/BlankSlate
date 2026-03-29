@@ -23,14 +23,14 @@ export default function SidebarPanel() {
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
-    accountId: number;
+    accountId: string | number;
   } | null>(null);
-  const [renaming, setRenaming] = useState<{ accountId: number; value: string } | null>(null);
+  const [renaming, setRenaming] = useState<{ accountId: string | number; value: string } | null>(null);
 
   const { accounts, addAccount, deleteAccount, reorderAccounts, editAccountName } = useAccountContext();
-  const [draggingId, setDraggingId] = useState<number | null>(null);
+  const [draggingId, setDraggingId] = useState<string | number | null>(null);
   const [dragOver, setDragOver] = useState<{
-    id: number;
+    id: string | number;
     position: "before" | "after";
   } | null>(null);
 
@@ -38,7 +38,7 @@ export default function SidebarPanel() {
     addAccount(newAccount);
   };
 
-  const handleDeleteAccount = (accountId: number) => {
+  const handleDeleteAccount = (accountId: string | number) => {
     deleteAccount(accountId);
   };
 

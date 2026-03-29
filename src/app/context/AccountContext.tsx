@@ -56,7 +56,7 @@ interface AccountContextType {
   addTransactionWithMirror: (accountId: number, transaction: Record<string, unknown>, mirrorAccountId: number, mirrorTransaction: Record<string, unknown>) => Promise<void>;
   addAccount: (newAccount: Record<string, unknown>) => void;
   setAccounts: Dispatch<SetStateAction<Account[]>>;
-  deleteAccount: (accountId: number) => void;
+  deleteAccount: (accountId: string | number) => void;
   deleteTransaction: (accountId: number, transactionId: number) => void;
   deleteTransactionWithMirror: (accountId: number, transactionId: number) => void;
   editTransaction: (
@@ -64,12 +64,12 @@ interface AccountContextType {
     transactionId: number,
     updatedTransaction: Partial<Transaction>
   ) => void;
-  editAccountName: (accountId: number, newName: string) => void;
+  editAccountName: (accountId: string | number, newName: string) => void;
   refreshSingleAccount: (accountId: number) => void;
   refetchAccounts: () => Promise<void>;
   reorderAccounts: (
-    draggedId: number,
-    targetId: number,
+    draggedId: string | number,
+    targetId: string | number,
     position?: "before" | "after"
   ) => void;
 }
@@ -99,18 +99,20 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
     [user?.id]
   );
 
-  const loadOrder = () => {
+  const loadOrder = (): string[] | null => {
     if (!orderKey || typeof window === "undefined") return null;
     try {
       const raw = window.localStorage.getItem(orderKey);
-      return raw ? (JSON.parse(raw) as number[]) : null;
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as (string | number)[];
+      return parsed.map(String);
     } catch (err) {
       console.warn("Failed to load account order", err);
       return null;
     }
   };
 
-  const saveOrder = (ids: number[]) => {
+  const saveOrder = (ids: string[]) => {
     if (!orderKey || typeof window === "undefined") return;
     try {
       window.localStorage.setItem(orderKey, JSON.stringify(ids));
@@ -119,24 +121,24 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   };
 
-  const toOrderedIds = (list: Account[]): number[] =>
-    list
-      .map((account) => Number(account.id))
-      .filter((id) => Number.isFinite(id));
+  const toOrderedIds = (list: Account[]): string[] =>
+    list.map((account) => String(account.id));
 
-  const applyOrder = (list: Account[], order: number[] | null) => {
+  const applyOrder = (list: Account[], order: string[] | null) => {
     if (!order || order.length === 0) return list;
-    const map = new Map(list.map((a) => [Number(a.id), a] as const));
+    const map = new Map(list.map((a) => [String(a.id), a] as const));
     const ordered: Account[] = [];
     order.forEach((id) => {
-      const acc = map.get(id);
+      const acc = map.get(String(id));
       if (acc) {
         ordered.push(acc);
-        map.delete(id);
+        map.delete(String(id));
       }
     });
-    // append any new accounts not yet in order
+    // append any new accounts not yet in order (includes migration case where
+    // old numeric IDs don't match UUID string IDs — all accounts fall through here)
     map.forEach((acc) => ordered.push(acc));
+    console.log(`[AccountContext] applyOrder — order.length=${order.length} matched=${ordered.length - (map.size > 0 ? 0 : 0)} total=${ordered.length}`);
     return ordered;
   };
   const fetchAccounts = async () => {
@@ -560,7 +562,7 @@ const upsertPayee = async (name: string) => {
     );
   };
 
-  const editAccountName = async (accountId: number, newName: string) => {
+  const editAccountName = async (accountId: string | number, newName: string) => {
     const { error } = await supabase
       .from("accounts")
       .update({ name: newName })
@@ -837,8 +839,8 @@ const upsertPayee = async (name: string) => {
   };
 
   const reorderAccounts = (
-    draggedId: number,
-    targetId: number,
+    draggedId: string | number,
+    targetId: string | number,
     position: "before" | "after" = "before"
   ) => {
     if (!draggedId || !targetId || draggedId === targetId) return;
