@@ -2514,20 +2514,40 @@ export default function BudgetTable() {
                                             {pillLabel}
                                           </button>
                                         </PopoverTrigger>
-                                        <PopoverContent className="w-48 p-3" align="end">
+                                        <PopoverContent className="w-56 p-3" align="end">
                                           <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2">Overspend breakdown</p>
-                                          {ccAmount > 0 && (
-                                            <div className="flex items-center justify-between text-xs">
-                                              <span className="text-amber-700 dark:text-amber-400 font-medium">CC</span>
-                                              <span className="font-mono text-slate-700 dark:text-slate-300">{formatToUSD(ccAmount)}</span>
-                                            </div>
-                                          )}
-                                          {cashAmount > 0 && (
-                                            <div className="flex items-center justify-between text-xs mt-1">
-                                              <span className="text-red-700 dark:text-red-400 font-medium">Cash</span>
-                                              <span className="font-mono text-slate-700 dark:text-slate-300">{formatToUSD(cashAmount)}</span>
-                                            </div>
-                                          )}
+                                          {(() => {
+                                            const totalUncovered = Math.abs(item.available);
+                                            const ccUncovered = Math.min(ccAmount, totalUncovered);
+                                            const cashUncovered = Math.max(0, totalUncovered - ccUncovered);
+                                            return (
+                                              <>
+                                                <div className="grid grid-cols-[auto_1fr_1fr] gap-x-3 gap-y-1 text-xs items-center">
+                                                  <span className="text-slate-400 dark:text-slate-500 font-medium" />
+                                                  <span className="text-right text-slate-400 dark:text-slate-500 font-medium">Spent</span>
+                                                  <span className="text-right text-slate-400 dark:text-slate-500 font-medium">Still owed</span>
+                                                  {cashAmount > 0 && (
+                                                    <>
+                                                      <span className="text-red-700 dark:text-red-400 font-medium">Cash</span>
+                                                      <span className="font-mono text-right text-slate-700 dark:text-slate-300">-{formatToUSD(cashAmount)}</span>
+                                                      <span className={cn("font-mono text-right", cashUncovered > 0 ? "text-red-600 dark:text-red-400" : "text-slate-400 dark:text-slate-500")}>
+                                                        {cashUncovered > 0 ? `-${formatToUSD(cashUncovered)}` : "—"}
+                                                      </span>
+                                                    </>
+                                                  )}
+                                                  {ccAmount > 0 && (
+                                                    <>
+                                                      <span className="text-amber-700 dark:text-amber-400 font-medium">CC</span>
+                                                      <span className="font-mono text-right text-slate-700 dark:text-slate-300">-{formatToUSD(ccAmount)}</span>
+                                                      <span className={cn("font-mono text-right", ccUncovered > 0 ? "text-amber-600 dark:text-amber-400" : "text-slate-400 dark:text-slate-500")}>
+                                                        {ccUncovered > 0 ? `-${formatToUSD(ccUncovered)}` : "—"}
+                                                      </span>
+                                                    </>
+                                                  )}
+                                                </div>
+                                              </>
+                                            );
+                                          })()}
                                         </PopoverContent>
                                       </Popover>
                                     )}
