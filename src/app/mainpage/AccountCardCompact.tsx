@@ -6,12 +6,14 @@ import { formatToUSD } from "@/app/utils/formatToUSD";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { redirect } from "next/navigation";
+import { WifiOff } from "lucide-react";
 
 interface Props {
   account: Account;
   onClick?: (id: string) => void;
   onContextMenu?: (e: React.MouseEvent<HTMLDivElement>) => void;
   disableNavigate?: boolean;
+  variant?: "card" | "row";
 }
 
 function getAccountTypeLabel(type: string, name: string): string {
@@ -27,15 +29,14 @@ export default function AccountCardCompact({
   onClick,
   onContextMenu,
   disableNavigate,
+  variant = "card",
 }: Props) {
   const handleNavigate = () => {
     if (onClick) {
       onClick(String(account.id));
       return;
     }
-
     if (disableNavigate) return;
-
     redirect(`/accounts/${account?.id}`);
   };
 
@@ -45,33 +46,75 @@ export default function AccountCardCompact({
     0;
 
   const isNegative = computedBalance < 0;
-  const typeLabel = getAccountTypeLabel(account.type, account.name);
-
   const transactions = account.transactions ?? [];
+  const pendingCount = transactions.filter((tx) => !tx.approved).length;
+
+  // ── Row variant ──────────────────────────────────────────────────────────────
+  if (variant === "row") {
+    const dotColor = account.tellerDisconnected
+      ? "bg-red-400 dark:bg-red-500"
+      : account.type === "credit"
+      ? "bg-amber-400"
+      : "bg-emerald-500";
+
+    return (
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={handleNavigate}
+        onContextMenu={onContextMenu}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") handleNavigate(); }}
+        className="flex items-center gap-2.5 px-2 py-1.5 rounded-md cursor-pointer transition-colors hover:bg-slate-100 dark:hover:bg-slate-800 group"
+      >
+        {/* Type dot */}
+        <span className={cn("h-2 w-2 rounded-full flex-shrink-0", dotColor)} />
+
+        {/* Name */}
+        <span className="flex-1 min-w-0 text-sm text-slate-800 dark:text-slate-100 truncate">
+          {account.name.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())}
+        </span>
+
+        {/* Status indicators */}
+        {account.tellerDisconnected && (
+          <WifiOff className="h-3 w-3 text-red-400 dark:text-red-500 flex-shrink-0" />
+        )}
+        {!account.tellerDisconnected && pendingCount > 0 && (
+          <span className="text-[10px] font-semibold text-amber-600 dark:text-amber-400 flex-shrink-0 tabular-nums">
+            {pendingCount}
+          </span>
+        )}
+
+        {/* Balance */}
+        <span
+          className={cn(
+            "text-sm font-semibold font-mono flex-shrink-0 tabular-nums",
+            isNegative ? "text-red-600 dark:text-red-400" : "text-slate-700 dark:text-slate-200"
+          )}
+        >
+          {formatToUSD(computedBalance)}
+        </span>
+      </div>
+    );
+  }
+
+  // ── Card variant (carousel / default) ────────────────────────────────────────
+  const typeLabel = getAccountTypeLabel(account.type, account.name);
   const transactionCount = transactions.length;
   const lastTx = transactionCount > 0 ? transactions[transactionCount - 1] : null;
-  const pendingCount = transactions.filter((tx) => !tx.approved).length;
 
   let lastDate: string | null = null;
   if (lastTx?.date) {
     const d = new Date(lastTx.date);
-    if (!isNaN(d.getTime())) {
-      lastDate = d.toLocaleDateString();
-    }
+    if (!isNaN(d.getTime())) lastDate = d.toLocaleDateString();
   }
 
-  const stripeColor =
-    account.type === "credit" ? "bg-amber-400" : "bg-emerald-500";
+  const stripeColor = account.type === "credit" ? "bg-amber-400" : "bg-emerald-500";
 
-  // Calculate this month's activity
   const now = new Date();
-  const currentMonth = now.getMonth();
-  const currentYear = now.getFullYear();
-  
   const monthActivity = transactions
     .filter((tx) => {
       const txDate = new Date(tx.date);
-      return txDate.getMonth() === currentMonth && txDate.getFullYear() === currentYear;
+      return txDate.getMonth() === now.getMonth() && txDate.getFullYear() === now.getFullYear();
     })
     .reduce((sum, tx) => sum + tx.balance, 0);
 
@@ -85,10 +128,8 @@ export default function AccountCardCompact({
         isNegative && "border-red-200 dark:border-red-900/50 bg-red-50/40 dark:bg-red-950/20 hover:border-red-300 dark:hover:border-red-800"
       )}
     >
-      {/* Colored stripe */}
       <div className={cn("absolute left-0 top-0 bottom-0 w-1", stripeColor)} />
-      
-      {/* Top row – condensed */}
+
       <div className="flex items-center justify-between px-3 py-2 relative">
         <div className="flex flex-col min-w-0 gap-0.5">
           <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">
@@ -100,12 +141,10 @@ export default function AccountCardCompact({
         </div>
 
         <div className="flex flex-col items-end gap-1">
-          <p
-            className={cn(
-              "text-base font-semibold font-mono leading-none",
-              isNegative ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"
-            )}
-          >
+          <p className={cn(
+            "text-base font-semibold font-mono leading-none",
+            isNegative ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"
+          )}>
             {formatToUSD(computedBalance)}
           </p>
           {account.tellerDisconnected ? (
@@ -120,7 +159,6 @@ export default function AccountCardCompact({
         </div>
       </div>
 
-      {/* Hover details – still envelope-y, but compact */}
       <div className="px-3 pb-2 mb-1 overflow-hidden max-h-0 opacity-0 group-hover:max-h-20 group-hover:opacity-100 transition-all duration-150 ease-out">
         <div className="border-t border-slate-200 dark:border-slate-700 pt-2 mt-1 flex flex-col gap-1 text-[11px] text-slate-600 dark:text-slate-400">
           <div className="flex justify-between">

@@ -1749,14 +1749,6 @@ export default function BudgetTable() {
             {/* Top row: RTA + Month */}
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2 flex-wrap">
-                <div data-cy="ready-to-assign" className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800">
-                  <span className="text-[11px] font-semibold text-teal-700 dark:text-teal-400 opacity-80">
-                    Ready to Assign
-                  </span>
-                  <span className="font-mono text-[13px] font-bold text-teal-700 dark:text-teal-300">
-                    {formatToUSD(displayedRta || 0)}
-                  </span>
-                </div>
                 {!showCarryNote && overspentCategoriesCount === 0 && displayedRta > 0 && (
                   <span className="text-xs text-slate-400 dark:text-slate-500 italic">
                     Assign it all before the month ends.

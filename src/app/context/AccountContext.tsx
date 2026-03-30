@@ -170,11 +170,13 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const normalized = (data as unknown as Account[]).map((acc) => normalizeAccount(acc));
 
       // Fetch disconnected Teller enrollments to show reconnect prompts
-      const { data: disconnectedEnrollments } = await supabase
+      const { data: disconnectedEnrollments, error: disconnectedError } = await supabase
         .from("teller_enrollments")
         .select("account_id")
         .eq("user_id", user.id)
         .eq("teller_status", "disconnected");
+
+      console.log("[AccountContext] disconnected enrollments query →", { disconnectedEnrollments, disconnectedError });
 
       const disconnectedIds = new Set(
         (disconnectedEnrollments ?? []).map((e: { account_id: string }) => String(e.account_id))
@@ -184,6 +186,8 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
         ...acc,
         tellerDisconnected: disconnectedIds.has(String(acc.id)),
       }));
+
+      console.log("[AccountContext] accounts with teller status →", withStatus.map(a => ({ id: a.id, name: a.name, tellerDisconnected: a.tellerDisconnected })));
 
       const ordered = applyOrder(withStatus, loadOrder());
       setAccounts(ordered);

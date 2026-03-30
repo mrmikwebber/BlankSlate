@@ -48,14 +48,14 @@ export async function POST(req: Request) {
       // Continue — still clean up locally
     }
 
-    // Delete local enrollment record
+    // Soft-delete local enrollment record
     const { error: deleteError } = await supabase
       .from("teller_enrollments")
-      .delete()
+      .update({ is_archived: true, teller_status: "disconnected" })
       .eq("account_id", accountId)
       .eq("user_id", user.id);
 
-    console.log("[teller/disconnect] local enrollment deleted, error:", deleteError?.message ?? null);
+    console.log("[teller/disconnect] local enrollment archived, error:", deleteError?.message ?? null);
   } else {
     console.log("[teller/disconnect] no enrollment found, skipping Teller revocation");
   }

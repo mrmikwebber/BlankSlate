@@ -8,7 +8,6 @@ import TotalSpendingTile from "../mainpage/totalSpendingTile";
 import SidebarPanel from "../mainpage/SidebarPanel";
 import MobileDashboardShell from "../mainpage/MobileDashboardShell";
 import TabletRail, { TabletView } from "../mainpage/TabletRail";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function Home() {
   const { session, loading } = useAuth();
@@ -17,6 +16,7 @@ export default function Home() {
   useUndoRedoShortcuts();
 
   const [tabletView, setTabletView] = useState<TabletView>("budget");
+  const [desktopView, setDesktopView] = useState<TabletView>("budget");
 
   useEffect(() => {
     if (!loading && !session) {
@@ -68,22 +68,25 @@ export default function Home() {
       <div className="hidden xl:flex h-[calc(100vh-76px)] overflow-hidden flex-col p-4">
         <div className="grid grid-cols-[22%_78%] gap-3 h-full min-h-0 min-w-0">
           <div className="bg-zinc-100 dark:bg-slate-900 p-4 rounded-md drop-shadow-md dark:drop-shadow-lg h-full overflow-auto">
-            <SidebarPanel />
+            <SidebarPanel activeView={desktopView} onViewChange={setDesktopView} />
           </div>
 
           <div className="bg-zinc-100 dark:bg-slate-900 rounded-md drop-shadow-md dark:drop-shadow-lg h-full min-h-0 min-w-0 flex flex-col overflow-hidden">
-            <Tabs defaultValue="budget" className="w-full h-full flex flex-col min-h-0 min-w-0 overflow-hidden">
-              <TabsList className="m-4 mb-0 flex-shrink-0">
-                <TabsTrigger value="budget">Budget</TabsTrigger>
-                <TabsTrigger value="insights">Insights</TabsTrigger>
-              </TabsList>
-              <TabsContent value="budget" className="mt-0 flex-1 min-h-0 min-w-0 p-4 pt-4 overflow-auto">
+            {desktopView === "budget" && (
+              <div className="flex-1 min-h-0 min-w-0 p-4 overflow-auto">
                 <BudgetTable />
-              </TabsContent>
-              <TabsContent value="insights" className="mt-0 flex-1 min-h-0 min-w-0 overflow-auto">
+              </div>
+            )}
+            {desktopView === "insights" && (
+              <div className="flex-1 min-h-0 min-w-0 overflow-auto">
                 <TotalSpendingTile />
-              </TabsContent>
-            </Tabs>
+              </div>
+            )}
+            {desktopView === "accounts" && (
+              <div className="flex-1 min-h-0 min-w-0 p-4 overflow-auto">
+                <SidebarPanel />
+              </div>
+            )}
           </div>
         </div>
       </div>

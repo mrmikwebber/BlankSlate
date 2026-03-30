@@ -1,24 +1,31 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { getDaysInMonth, isSameMonth, parseISO, subMonths, format } from "date-fns";
 import { createPortal } from "react-dom";
 
 import { useAccountContext } from "@/app/context/AccountContext";
+import { useBudgetContext } from "@/app/context/BudgetContext";
+import { TabletView } from "./TabletRail";
 
 import AccountCardCompact from "./AccountCardCompact";
 import AddAccountModal from "./AddAccountModal";
 
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
+import { cn } from "@/lib/utils";
 
-import { Plus } from "lucide-react";
+import { BarChart3, CreditCard, TrendingUp, Plus } from "lucide-react";
 
-export default function SidebarPanel() {
+const NAV_ITEMS: { id: TabletView; icon: React.ReactNode; label: string }[] = [
+  { id: "budget",   icon: <BarChart3  className="h-3.5 w-3.5" />, label: "Budget"   },
+  { id: "accounts", icon: <CreditCard className="h-3.5 w-3.5" />, label: "Accounts" },
+  { id: "insights", icon: <TrendingUp className="h-3.5 w-3.5" />, label: "Insights" },
+];
+
+interface SidebarPanelProps {
+  activeView?: TabletView;
+  onViewChange?: (view: TabletView) => void;
+}
+
+export default function SidebarPanel({ activeView, onViewChange }: SidebarPanelProps = {}) {
   const [showModal, setShowModal] = useState(false);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
@@ -28,6 +35,59 @@ export default function SidebarPanel() {
   const [renaming, setRenaming] = useState<{ accountId: string | number; value: string } | null>(null);
 
   const { accounts, addAccount, deleteAccount, reorderAccounts, editAccountName } = useAccountContext();
+  const budgetCtx = useBudgetContext();
+  const rta = budgetCtx ? budgetCtx.getDisplayedRta(budgetCtx.currentMonth) : 0;
+  const netWorth = accounts.reduce((sum, acc) => {
+    const bal = acc.transactions?.reduce((s, tx) => s + tx.balance, 0) ?? acc.balance ?? 0;
+    return sum + bal;
+  }, 0);
+
+  const currentMonthDate = parseISO(`${budgetCtx?.currentMonth ?? format(new Date(), "yyyy-MM")}-01`);
+
+  const spendingPace = useMemo(() => {
+    const today = new Date();
+    const isCurrentRealMonth = isSameMonth(currentMonthDate, today);
+    const daysInMonth = getDaysInMonth(currentMonthDate);
+    const daysElapsed = isCurrentRealMonth ? Math.max(today.getDate(), 1) : daysInMonth;
+
+    const getMonthOutflow = (monthDate: Date) =>
+      accounts.flatMap((a) => a.transactions).filter((tx) => {
+        const isTransfer = (!tx.category && !tx.category_group) || tx.payee?.toLowerCase().includes("transfer");
+        const isStartingBalance = tx.category === "Category Not Needed" || tx.category_group === "Starting Balance";
+        const isCardPayment = tx.category_group === "Credit Card Payments";
+        return tx.balance < 0 && tx.date && isSameMonth(parseISO(tx.date), monthDate) && !isTransfer && !isStartingBalance && !isCardPayment;
+      }).reduce((sum, tx) => sum + Math.abs(tx.balance), 0);
+
+    const totalOutflow = getMonthOutflow(currentMonthDate);
+
+    const historicalRates: number[] = [];
+    for (let i = 1; i <= 6; i++) {
+      const d = subMonths(currentMonthDate, i);
+      const spending = getMonthOutflow(d);
+      if (spending > 0) {
+        historicalRates.push(spending / getDaysInMonth(d));
+        if (historicalRates.length >= 3) break;
+      }
+    }
+
+    if (historicalRates.length === 0) return null;
+
+    const avgDailyRate = historicalRates.reduce((a, b) => a + b, 0) / historicalRates.length;
+    const currentDailyRate = daysElapsed > 0 ? totalOutflow / daysElapsed : 0;
+    const diff = totalOutflow - avgDailyRate * daysElapsed;
+    const pct = avgDailyRate * daysElapsed > 0 ? Math.abs((diff / (avgDailyRate * daysElapsed)) * 100) : 0;
+
+    return {
+      isAhead: diff > 0,
+      pct,
+      diff,
+      currentTotal: totalOutflow,
+      projectedMonthTotal: currentDailyRate * daysInMonth,
+      avgMonthTotal: avgDailyRate * daysInMonth,
+      daysElapsed,
+      daysInMonth,
+    };
+  }, [accounts, currentMonthDate]);
   const [draggingId, setDraggingId] = useState<string | number | null>(null);
   const [dragOver, setDragOver] = useState<{
     id: string | number;
@@ -113,8 +173,9 @@ export default function SidebarPanel() {
           </span>
         </button>
 
-        <div className={`w-full border border-transparent ${borderClass}`}>
+        <div className={`w-full border border-transparent pr-7 ${borderClass}`}>
           <AccountCardCompact
+            variant="row"
             account={acc}
             onContextMenu={(e) => {
               e.preventDefault();
@@ -156,69 +217,180 @@ export default function SidebarPanel() {
 
   return (
     <aside className="space-y-3 w-full text-sm">
-      {/* Accounts card */}
-      <Card className="shadow-sm">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <div>
-            <CardTitle className="text-sm font-semibold">Accounts</CardTitle>
-            <CardDescription className="text-xs">
-              Cash and credit balances at a glance.
-            </CardDescription>
-          </div>
+
+      {/* Quick nav — only shown when wired up to a parent view */}
+      {onViewChange && (
+        <div className="flex gap-1 p-1 rounded-lg bg-slate-100 dark:bg-slate-800">
+          {NAV_ITEMS.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => onViewChange(item.id)}
+              className={cn(
+                "flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs font-medium transition-colors",
+                activeView === item.id
+                  ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm"
+                  : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+              )}
+            >
+              {item.icon}
+              {item.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Ready to Assign — only in the primary sidebar */}
+      {onViewChange && <div className={cn(
+        "rounded-xl px-4 py-3",
+        rta < 0
+          ? "bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800"
+          : "bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800"
+      )}>
+        <p className={cn(
+          "text-[10px] font-semibold uppercase tracking-wide mb-1",
+          rta < 0 ? "text-red-400 dark:text-red-500" : "text-teal-600 dark:text-teal-500"
+        )}>
+          Ready to Assign
+        </p>
+        <p className={cn(
+          "text-2xl font-bold font-mono tabular-nums leading-none",
+          rta < 0 ? "text-red-600 dark:text-red-400" : "text-teal-700 dark:text-teal-300"
+        )}>
+          {rta.toLocaleString("en-US", { style: "currency", currency: "USD" })}
+        </p>
+        {rta > 0 && (
+          <p className="text-[10px] text-teal-500 dark:text-teal-500 mt-1.5">
+            Assign it before the month ends
+          </p>
+        )}
+        {rta < 0 && (
+          <p className="text-[10px] text-red-400 dark:text-red-500 mt-1.5">
+            Over-assigned — check your budget
+          </p>
+        )}
+      </div>}
+
+      {/* Accounts list */}
+      <div>
+        {/* Header row */}
+        <div className="flex items-center justify-between mb-2 px-1">
+          <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+            Accounts
+          </span>
           <Button
             size="sm"
+            variant="ghost"
             onClick={() => setShowModal(true)}
-            className="gap-1 bg-teal-600 hover:bg-teal-700 text-white dark:bg-teal-700 dark:hover:bg-teal-600"
+            className="h-6 w-6 p-0 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
           >
-            <Plus className="h-4 w-4" />
-            Add
+            <Plus className="h-3.5 w-3.5" />
           </Button>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {accounts.length === 0 ? (
-            <p className="text-muted-foreground text-center">
-              No accounts added yet.
+        </div>
+
+        {accounts.length === 0 ? (
+          <p className="text-xs text-slate-400 dark:text-slate-500 px-1">
+            No accounts yet.
+          </p>
+        ) : (
+          <div className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-hidden">
+            <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 pt-2.5 pb-1">
+              Cash
             </p>
-          ) : (
-            <>
-              <div>
-                <p className="text-[11px] font-semibold text-muted-foreground tracking-wide uppercase mb-1">
-                  Cash
+            <div className="flex flex-col px-1">
+              {accounts
+                .filter((a) => a.type === "debit")
+                .map((acc) => renderAccountCard(acc))}
+            </div>
+            {sectionDropZone(accounts.filter((a) => a.type === "debit"), "debit")}
+
+            <div className="my-1 border-t border-slate-100 dark:border-slate-800" />
+
+            <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide px-3 pt-1.5 pb-1">
+              Credit
+            </p>
+            <div className="flex flex-col px-1 pb-1">
+              {accounts
+                .filter((a) => a.type === "credit")
+                .map((acc) => renderAccountCard(acc))}
+            </div>
+            {sectionDropZone(accounts.filter((a) => a.type === "credit"), "credit")}
+          </div>
+        )}
+
+        {showModal && (
+          <AddAccountModal
+            onAddAccount={handleAddAccount}
+            onClose={() => setShowModal(false)}
+          />
+        )}
+      </div>
+
+      {/* Footer stats — only in the primary sidebar */}
+      {accounts.length > 0 && onViewChange && (
+        <div className="pt-3 border-t border-slate-200 dark:border-slate-700 space-y-2">
+
+          {/* Net worth */}
+          <div className="rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm px-3 py-2.5">
+            <p className="text-[10px] font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-1">
+              Net Worth
+            </p>
+            <p className={cn(
+              "text-sm font-semibold font-mono tabular-nums leading-none",
+              netWorth < 0 ? "text-red-500 dark:text-red-400" : "text-slate-700 dark:text-slate-200"
+            )}>
+              {netWorth.toLocaleString("en-US", { style: "currency", currency: "USD" })}
+            </p>
+          </div>
+
+          {/* Spending pace */}
+          {spendingPace && (
+            <div className="rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm px-3 py-2.5 space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-[10px] font-medium text-slate-400 dark:text-slate-500 uppercase tracking-wide">
+                  Spending Pace
                 </p>
-                <div className="flex flex-col gap-2">
-                  {accounts
-                    .filter((a) => a.type === "debit")
-                    .map((acc) => renderAccountCard(acc))}
-                </div>
-                {sectionDropZone(accounts.filter((a) => a.type === "debit"), "debit")}
+                <span className="text-[10px] text-slate-400 dark:text-slate-500 tabular-nums">
+                  Day {spendingPace.daysElapsed}/{spendingPace.daysInMonth}
+                </span>
               </div>
 
-              <Separator className="my-1" />
-
-              <div>
-                <p className="text-[11px] font-semibold text-muted-foreground tracking-wide uppercase mb-1">
-                  Credit
-                </p>
-                <div className="flex flex-col gap-2">
-                  {accounts
-                    .filter((a) => a.type === "credit")
-                    .map((acc) => renderAccountCard(acc))}
-                </div>
-                {sectionDropZone(accounts.filter((a) => a.type === "credit"), "credit")}
+              {/* Progress bar */}
+              <div className="relative h-1.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+                {/* Average marker */}
+                <div
+                  className="absolute top-0 bottom-0 w-0.5 bg-slate-400 dark:bg-slate-500 z-10"
+                  style={{ left: `${Math.min((spendingPace.avgMonthTotal > 0 ? (spendingPace.projectedMonthTotal / (spendingPace.avgMonthTotal * 1.5)) : 0.5) * 100, 100)}%` }}
+                />
+                <div
+                  className={cn(
+                    "h-full rounded-full transition-all",
+                    spendingPace.isAhead ? "bg-red-400 dark:bg-red-500" : "bg-teal-500 dark:bg-teal-400"
+                  )}
+                  style={{ width: `${Math.min((spendingPace.avgMonthTotal > 0 ? spendingPace.currentTotal / (spendingPace.avgMonthTotal * 1.5) : 0) * 100, 100)}%` }}
+                />
               </div>
-            </>
-          )}
 
-          {showModal && (
-            <AddAccountModal
-              onAddAccount={handleAddAccount}
-              onClose={() => setShowModal(false)}
-            />
+              {/* Status + numbers */}
+              <div className="flex items-center justify-between gap-2">
+                <span className={cn(
+                  "text-[11px] font-semibold",
+                  spendingPace.isAhead ? "text-red-500 dark:text-red-400" : "text-teal-600 dark:text-teal-400"
+                )}>
+                  {spendingPace.isAhead ? "▲" : "▼"} {spendingPace.pct.toFixed(0)}% {spendingPace.isAhead ? "over" : "under"}
+                </span>
+                <div className="text-right">
+                  <p className="text-[11px] font-semibold font-mono tabular-nums text-slate-700 dark:text-slate-200 leading-none">
+                    {spendingPace.currentTotal.toLocaleString("en-US", { style: "currency", currency: "USD" })}
+                  </p>
+                  <p className="text-[9px] text-slate-400 dark:text-slate-500 tabular-nums">
+                    proj. {spendingPace.projectedMonthTotal.toLocaleString("en-US", { style: "currency", currency: "USD" })}
+                  </p>
+                </div>
+              </div>
+            </div>
           )}
-        </CardContent>
-      </Card>
-
-      {/* ItemsToAddress removed per request */}
+        </div>
+      )}
 
       {/* Right-click context menu for delete account (kept, but visually softened) */}
       {contextMenu &&
