@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useState } from "react";
 
 interface DarkModeContextType {
   isDarkMode: boolean;
@@ -10,43 +10,25 @@ interface DarkModeContextType {
 const DarkModeContext = createContext<DarkModeContextType | undefined>(undefined);
 
 export function DarkModeProvider({ children }: { children: React.ReactNode }) {
-  const [isDarkMode, setIsDarkMode] = useState(false);
-  const [mounted, setMounted] = useState(false);
-
-  // Initialize from localStorage and system preference
-  useEffect(() => {
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    if (typeof window === "undefined") return false;
     const stored = localStorage.getItem("darkMode");
-    if (stored !== null) {
-      setIsDarkMode(stored === "true");
-    } else {
-      // Default to system preference
-      const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-      setIsDarkMode(prefersDark);
-    }
-    setMounted(true);
-  }, []);
-
-  // Update DOM and localStorage when dark mode changes
-  useEffect(() => {
-    if (!mounted) return;
-
-    const html = document.documentElement;
-    if (isDarkMode) {
-      html.classList.add("dark");
-    } else {
-      html.classList.remove("dark");
-    }
-    localStorage.setItem("darkMode", isDarkMode.toString());
-  }, [isDarkMode, mounted]);
+    if (stored !== null) return stored === "true";
+    return window.matchMedia("(prefers-color-scheme: dark)").matches;
+  });
 
   const toggleDarkMode = () => {
-    setIsDarkMode((prev) => !prev);
+    const next = !isDarkMode;
+    const html = document.documentElement;
+    html.classList.add("theme-transitioning");
+    // Force the browser to commit the transition rule before changing the theme class,
+    // otherwise both changes are batched and no "before" state exists to transition from
+    void html.offsetHeight;
+    html.classList.toggle("dark", next);
+    localStorage.setItem("darkMode", String(next));
+    setTimeout(() => html.classList.remove("theme-transitioning"), 100);
+    requestAnimationFrame(() => requestAnimationFrame(() => setIsDarkMode(next)));
   };
-
-  // Don't render until mounted to avoid hydration mismatch
-  if (!mounted) {
-    return <>{children}</>;
-  }
 
   return (
     <DarkModeContext.Provider value={{ isDarkMode, toggleDarkMode }}>

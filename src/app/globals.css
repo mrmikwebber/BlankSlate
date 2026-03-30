@@ -111,6 +111,13 @@
 
 
 
+/* Smooth theme transitions — class applied only during toggle, removed immediately after */
+.theme-transitioning *,
+.theme-transitioning *::before,
+.theme-transitioning *::after {
+  transition: background-color 300ms ease, color 300ms ease, border-color 300ms ease, fill 300ms ease, box-shadow 300ms ease !important;
+}
+
 @layer base {
   * {
     @apply border-border;

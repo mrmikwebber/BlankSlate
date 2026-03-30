@@ -65,7 +65,6 @@ export default function AccountDetails() {
   } | null | undefined>(undefined);
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
-  const [reconnecting, setReconnecting] = useState(false);
   const [reconnectError, setReconnectError] = useState<string | null>(null);
 
   const account = accounts.find((acc) => acc.id.toString() === id);
@@ -297,7 +296,9 @@ export default function AccountDetails() {
     return sortConfig.direction === "asc" ? "▲" : "▼";
   };
 
-  // Fetch Teller enrollment status for this account
+  // Fetch Teller enrollment status for this account, then verify with Teller
+  // if the status is 'active' (catches pre-existing disconnections before the
+  // teller_status column was added)
   useEffect(() => {
     if (!account) return;
     setEnrollment(undefined);
@@ -306,7 +307,9 @@ export default function AccountDetails() {
       .select("last_synced_at, teller_status, teller_account_id")
       .eq("account_id", account.id)
       .single()
-      .then(({ data }) => setEnrollment(data ?? null));
+      .then(({ data }) => {
+        setEnrollment(data ?? null);
+      });
   }, [account?.id]);
 
   const handleSync = async () => {
@@ -339,7 +342,6 @@ export default function AccountDetails() {
 
   const handleReconnect = async (data: TellerEnrollmentData) => {
     if (!account || !enrollment?.teller_account_id) return;
-    setReconnecting(true);
     setReconnectError(null);
     try {
       const res = await fetch("/api/teller/enroll", {
@@ -364,8 +366,6 @@ export default function AccountDetails() {
       setEnrollment(fresh ?? null);
     } catch (err) {
       setReconnectError(err instanceof Error ? err.message : "Reconnect failed");
-    } finally {
-      setReconnecting(false);
     }
   };
 

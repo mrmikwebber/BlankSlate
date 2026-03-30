@@ -223,11 +223,10 @@ export default function Navbar() {
                       className="p-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                       title={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
                     >
-                      {isDarkMode ? (
-                        <Sun className="h-4 w-4 text-yellow-500" />
-                      ) : (
-                        <Moon className="h-4 w-4 text-slate-600" />
-                      )}
+                      <span className="relative h-4 w-4 block">
+                        <Sun className={`absolute inset-0 h-4 w-4 text-yellow-500 transition-opacity duration-100 ${isDarkMode ? "opacity-100" : "opacity-0"}`} />
+                        <Moon className={`absolute inset-0 h-4 w-4 text-slate-600 transition-opacity duration-100 ${isDarkMode ? "opacity-0" : "opacity-100"}`} />
+                      </span>
                     </button>
                     {isAdmin && (
                       <Link
