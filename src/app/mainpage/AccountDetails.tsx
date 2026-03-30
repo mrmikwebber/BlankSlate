@@ -19,7 +19,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Plus, Edit2, Trash2, ArrowLeft, CheckCircle2, Circle, Flag, RefreshCw } from "lucide-react";
+import { Plus, Edit2, Trash2, ArrowLeft, CheckCircle2, Circle, Flag, RefreshCw, WifiOff } from "lucide-react";
+import TellerConnect, { TellerEnrollmentData } from "@/components/TellerConnect";
 
 export default function AccountDetails() {
   const { id } = useParams();
@@ -57,9 +58,15 @@ export default function AccountDetails() {
   const [reconcileInput, setReconcileInput] = useState("");
   const [reconcileError, setReconcileError] = useState<string | null>(null);
 
-  const [enrollment, setEnrollment] = useState<{ last_synced_at: string | null } | null | undefined>(undefined);
+  const [enrollment, setEnrollment] = useState<{
+    last_synced_at: string | null;
+    teller_status?: string;
+    teller_account_id?: string;
+  } | null | undefined>(undefined);
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  const [reconnecting, setReconnecting] = useState(false);
+  const [reconnectError, setReconnectError] = useState<string | null>(null);
 
   const account = accounts.find((acc) => acc.id.toString() === id);
   const accountBalance =
@@ -296,7 +303,7 @@ export default function AccountDetails() {
     setEnrollment(undefined);
     supabase
       .from("teller_enrollments")
-      .select("last_synced_at")
+      .select("last_synced_at, teller_status, teller_account_id")
       .eq("account_id", account.id)
       .single()
       .then(({ data }) => setEnrollment(data ?? null));
@@ -312,9 +319,12 @@ export default function AccountDetails() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ accountId: account.id }),
       });
-      const body = await res.json() as { synced?: number; error?: string };
+      const body = await res.json() as { synced?: number; error?: string; disconnected?: boolean };
       if (!res.ok) {
         setSyncMessage(body.error ?? "Sync failed");
+        if (body.disconnected) {
+          setEnrollment((prev) => prev ? { ...prev, teller_status: "disconnected" } : prev);
+        }
       } else {
         setSyncMessage(body.synced === 0 ? "Already up to date" : `${body.synced} new transaction${body.synced !== 1 ? "s" : ""} added`);
         setEnrollment({ last_synced_at: new Date().toISOString() });
@@ -324,6 +334,38 @@ export default function AccountDetails() {
       setSyncMessage("Sync failed");
     } finally {
       setSyncing(false);
+    }
+  };
+
+  const handleReconnect = async (data: TellerEnrollmentData) => {
+    if (!account || !enrollment?.teller_account_id) return;
+    setReconnecting(true);
+    setReconnectError(null);
+    try {
+      const res = await fetch("/api/teller/enroll", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          accessToken: data.accessToken,
+          enrollmentId: data.enrollmentId,
+          selectedAccountIds: [enrollment.teller_account_id],
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json() as { error?: string };
+        throw new Error(body.error ?? "Reconnect failed");
+      }
+      // Re-fetch enrollment to clear the disconnected status
+      const { data: fresh } = await supabase
+        .from("teller_enrollments")
+        .select("last_synced_at, teller_status, teller_account_id")
+        .eq("account_id", account.id)
+        .single();
+      setEnrollment(fresh ?? null);
+    } catch (err) {
+      setReconnectError(err instanceof Error ? err.message : "Reconnect failed");
+    } finally {
+      setReconnecting(false);
     }
   };
 
@@ -571,7 +613,7 @@ export default function AccountDetails() {
         </div>
 
         <div className="flex items-center gap-2">
-          {enrollment && (() => {
+          {enrollment && enrollment.teller_status !== "disconnected" && (() => {
             const cooldown = syncCooldownLabel();
             return (
               <div className="flex flex-col items-end gap-0.5">
@@ -625,6 +667,22 @@ export default function AccountDetails() {
           )}
         </div>
       </div>
+
+      {/* Disconnected banner */}
+      {enrollment?.teller_status === "disconnected" && (
+        <div className="px-5 py-2.5 bg-red-50 dark:bg-red-950/40 border-b border-red-200 dark:border-red-800 flex items-center justify-between gap-3">
+          <span className="text-xs font-medium text-red-700 dark:text-red-300 flex items-center gap-1.5">
+            <WifiOff className="h-3.5 w-3.5 flex-shrink-0" />
+            Bank connection lost — reconnect to resume syncing
+          </span>
+          <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
+            <TellerConnect onEnrollmentReady={handleReconnect} />
+            {reconnectError && (
+              <span className="text-[10px] text-red-600 dark:text-red-400">{reconnectError}</span>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Unapproved banner */}
       {(() => {
