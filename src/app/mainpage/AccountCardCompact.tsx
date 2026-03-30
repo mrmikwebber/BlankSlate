@@ -108,11 +108,15 @@ export default function AccountCardCompact({
           >
             {formatToUSD(computedBalance)}
           </p>
-          {pendingCount > 0 && (
+          {account.tellerDisconnected ? (
+            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-400 leading-none">
+              Disconnected
+            </span>
+          ) : pendingCount > 0 ? (
             <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400 leading-none">
               {pendingCount} pending
             </span>
-          )}
+          ) : null}
         </div>
       </div>
 

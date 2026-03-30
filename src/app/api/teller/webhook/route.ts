@@ -42,17 +42,23 @@ export async function POST(req: Request) {
 
   console.log("[teller/webhook] received:", JSON.stringify(body));
 
-  // Handle enrollment disconnected
+  // Handle enrollment disconnected — mark as disconnected rather than deleting
+  // so the UI can prompt the user to reconnect
   if (body.type === "enrollment.disconnected") {
     const enrollmentId =
       body.payload?.enrollment_id ??
       body.payload?.account?.enrollment_id;
     if (enrollmentId) {
       const supabase = getServiceClient();
-      await supabase
+      const { error } = await supabase
         .from("teller_enrollments")
-        .delete()
+        .update({ teller_status: "disconnected" })
         .eq("enrollment_id", enrollmentId);
+      if (error) {
+        console.error("[teller/webhook] Failed to mark enrollment disconnected:", error);
+      } else {
+        console.log("[teller/webhook] Marked enrollment disconnected:", enrollmentId, "reason:", body.payload?.reason);
+      }
     }
     return NextResponse.json({ ok: true });
   }

@@ -113,8 +113,13 @@ export async function POST(req: Request) {
       console.error(`[teller/sync] Teller API ${statusCode}:`, body);
 
       if (statusCode === 401 || statusCode === 403) {
+        // Mark the enrollment as disconnected so the UI can prompt reconnect
+        await supabase
+          .from("teller_enrollments")
+          .update({ teller_status: "disconnected" })
+          .eq("id", enrollment.id);
         return NextResponse.json(
-          { error: `Teller enrollment disconnected or access denied (${statusCode})` },
+          { error: `Teller enrollment disconnected or access denied (${statusCode})`, disconnected: true },
           { status: 502 }
         );
       }
