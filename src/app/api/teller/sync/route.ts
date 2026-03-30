@@ -25,6 +25,7 @@ export async function POST(req: Request) {
     .select("*")
     .eq("account_id", accountId)
     .eq("user_id", user.id)
+    .neq("is_archived", true)
     .single();
 
   if (enrollError || !enrollment) {

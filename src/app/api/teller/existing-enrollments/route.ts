@@ -16,7 +16,8 @@ export async function GET() {
   const { data, error } = await supabase
     .from("teller_enrollments")
     .select("teller_account_id, access_token, enrollment_id, institution_name, teller_account_type")
-    .eq("user_id", user.id);
+    .eq("user_id", user.id)
+    .neq("is_archived", true);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

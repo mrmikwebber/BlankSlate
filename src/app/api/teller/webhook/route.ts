@@ -80,7 +80,8 @@ export async function POST(req: Request) {
   let { data: enrollments, error: enrollError } = await supabase
     .from("teller_enrollments")
     .select("*")
-    .eq("enrollment_id", enrollmentId);
+    .eq("enrollment_id", enrollmentId)
+    .neq("is_archived", true);
 
   // Fallback: enrollment_id in DB may be stale — look up by teller_account_id instead
   if (enrollError || !enrollments?.length) {
@@ -96,7 +97,8 @@ export async function POST(req: Request) {
       ({ data: enrollments, error: enrollError } = await supabase
         .from("teller_enrollments")
         .select("*")
-        .in("teller_account_id", tellerAccountIds));
+        .in("teller_account_id", tellerAccountIds)
+        .neq("is_archived", true));
     }
   }
 

@@ -45,7 +45,7 @@ export default function Navbar() {
   })();
   
   useEffect(() => {
-    const handleEscape = (e) => {
+    const handleEscape = (e: KeyboardEvent) => {
       if (e.key === "Escape" && showResetModal) {
         setShowResetModal(false);
       }
@@ -100,11 +100,30 @@ export default function Navbar() {
       
       if (budgetError) throw budgetError;
       
-      // Delete teller enrollments
+      // Disconnect Teller enrollments (revoke on Teller's side, best-effort)
+      const { data: enrollments } = await supabase
+        .from('teller_enrollments')
+        .select('account_id')
+        .eq('user_id', userId);
+
+      if (enrollments && enrollments.length > 0) {
+        await Promise.allSettled(
+          enrollments.map((e: { account_id: number }) =>
+            fetch('/api/teller/disconnect', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ accountId: e.account_id }),
+            })
+          )
+        );
+      }
+
+      // Archive any remaining teller enrollments not cleaned up by disconnect
       const { error: enrollmentsError } = await supabase
         .from('teller_enrollments')
-        .delete()
-        .eq('user_id', userId);
+        .update({ is_archived: true, teller_status: 'disconnected' })
+        .eq('user_id', userId)
+        .neq('is_archived', true);
 
       if (enrollmentsError) throw enrollmentsError;
 
