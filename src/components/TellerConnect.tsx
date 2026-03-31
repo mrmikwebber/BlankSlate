@@ -78,13 +78,11 @@ export default function TellerConnect({ onConnected, onEnrollmentReady }: Props)
       environment,
       products: ["transactions"],
       onSuccess: async (enrollment) => {
-        console.log("[TellerConnect] onSuccess fired", enrollment);
         setLoading(true);
         setError(null);
 
         // If a parent wants to handle account selection, hand off enrollment data
         if (onEnrollmentReady) {
-          console.log("[TellerConnect] calling onEnrollmentReady");
           onEnrollmentReady({
             accessToken: enrollment.accessToken,
             enrollmentId: enrollment.enrollment.id,

@@ -342,7 +342,6 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
 
   const refreshAccounts = async () => {
     if (!user?.id) return;
-    console.log("[BudgetContext] refreshAccounts called — user:", user.id);
     const { data, error } = await supabase
       .from("accounts")
       .select("*, transactions(*)")
@@ -354,7 +353,6 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
       return;
     }
 
-    console.log(`[BudgetContext] refreshAccounts complete — ${data?.length ?? 0} accounts:`, data?.map(a => `${a.id}:${a.name}`));
     setAccounts(data);
   };
 
@@ -2026,8 +2024,8 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
       });
     }
 
-    // 4️⃣ Final RTA
-    const result = inflowUpTo - totalAssigned - totalCashOverspending;
+    // 4️⃣ Final RTA — round to cents to eliminate floating-point residuals
+    const result = Math.round((inflowUpTo - totalAssigned - totalCashOverspending) * 100) / 100;
     rtaLog("calculateReadyToAssign", {
       month,
       inflowUpTo,
@@ -3051,10 +3049,13 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
         budgetData,
         setBudgetData,
         currentMonth,
-        getDisplayedRta: (month: string) =>
-          rtaDisplayState.rtaByMonth?.[month] ??
-          budgetData?.[month]?.ready_to_assign ??
-          0,
+        getDisplayedRta: (month: string) => {
+          const raw = rtaDisplayState.rtaByMonth?.[month] ??
+            budgetData?.[month]?.ready_to_assign ??
+            0;
+          // Round to cents to eliminate floating-point residuals (e.g. -0.000001 showing as -$0.00)
+          return Math.round(raw * 100) / 100;
+        },
         rtaCarryByMonth: rtaDisplayState.carryByMonth,
         globalRTA: rtaDisplayState.globalRTA,
         deficitBeyond: rtaDisplayState.deficitBeyond,

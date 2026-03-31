@@ -121,7 +121,6 @@ const AddAccountModal = ({ onAddAccount, onClose, isOpen = true }: AddAccountMod
   };
 
   const handleEnrollmentReady = async (data: TellerEnrollmentData) => {
-    console.log("[AddAccountModal] handleEnrollmentReady called", data);
     setEnrollment(data);
     setLoadingAccounts(true);
     setLinkError(null);
@@ -133,9 +132,7 @@ const AddAccountModal = ({ onAddAccount, onClose, isOpen = true }: AddAccountMod
         body: JSON.stringify({ accessToken: data.accessToken }),
       });
 
-      console.log("[AddAccountModal] /api/teller/accounts status", res.status);
       const body = await res.json() as { accounts?: TellerAccountOption[]; error?: string };
-      console.log("[AddAccountModal] /api/teller/accounts body", body);
 
       if (!res.ok) {
         throw new Error(body.error ?? "Failed to load accounts");
