@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { getDaysInMonth, isSameMonth, parseISO, subMonths, format } from "date-fns";
 import { createPortal } from "react-dom";
 
-import { useAccountContext } from "@/app/context/AccountContext";
+import { useAccountContext, Account } from "@/app/context/AccountContext";
 import { useBudgetContext } from "@/app/context/BudgetContext";
 import { TabletView } from "./TabletRail";
 
@@ -36,7 +36,8 @@ export default function SidebarPanel({ activeView, onViewChange }: SidebarPanelP
 
   const { accounts, addAccount, deleteAccount, reorderAccounts, editAccountName } = useAccountContext();
   const budgetCtx = useBudgetContext();
-  const rta = budgetCtx ? budgetCtx.getDisplayedRta(budgetCtx.currentMonth) : 0;
+  const accountsReady = accounts.length > 0 && accounts.some((a) => a.transactions?.length > 0);
+  const rta = accountsReady ? (budgetCtx ? budgetCtx.getDisplayedRta(budgetCtx.currentMonth) : 0) || 0 : null;
   const netWorth = accounts.reduce((sum, acc) => {
     const bal = acc.transactions?.reduce((s, tx) => s + tx.balance, 0) ?? acc.balance ?? 0;
     return sum + bal;
@@ -94,7 +95,7 @@ export default function SidebarPanel({ activeView, onViewChange }: SidebarPanelP
     position: "before" | "after";
   } | null>(null);
 
-  const handleAddAccount = (newAccount) => {
+  const handleAddAccount = (newAccount: Record<string, unknown>) => {
     addAccount(newAccount);
   };
 
@@ -108,7 +109,7 @@ export default function SidebarPanel({ activeView, onViewChange }: SidebarPanelP
     return () => document.removeEventListener("click", handleClick);
   }, []);
 
-  const renderAccountCard = (acc) => {
+  const renderAccountCard = (acc: Account) => {
     const isDragTarget = dragOver?.id === acc.id;
     const borderClass = isDragTarget
       ? dragOver?.position === "after"
@@ -191,7 +192,7 @@ export default function SidebarPanel({ activeView, onViewChange }: SidebarPanelP
     );
   };
 
-  const sectionDropZone = (list, type: "debit" | "credit") => {
+  const sectionDropZone = (list: Account[], type: "debit" | "credit") => {
     if (list.length === 0 || draggingId === null) return null;
     const last = list[list.length - 1];
     return (
@@ -240,35 +241,42 @@ export default function SidebarPanel({ activeView, onViewChange }: SidebarPanelP
       )}
 
       {/* Ready to Assign — only in the primary sidebar */}
-      {onViewChange && <div className={cn(
-        "rounded-xl px-4 py-3",
-        rta < 0
-          ? "bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800"
-          : "bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800"
-      )}>
-        <p className={cn(
-          "text-[10px] font-semibold uppercase tracking-wide mb-1",
-          rta < 0 ? "text-red-400 dark:text-red-500" : "text-teal-600 dark:text-teal-500"
+      {onViewChange && (rta === null ? (
+        <div className="rounded-xl px-4 py-3 bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800 animate-pulse">
+          <div className="h-3 w-24 bg-teal-200 dark:bg-teal-800 rounded mb-2" />
+          <div className="h-7 w-32 bg-teal-200 dark:bg-teal-800 rounded" />
+        </div>
+      ) : (
+        <div className={cn(
+          "rounded-xl px-4 py-3",
+          rta < 0
+            ? "bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800"
+            : "bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800"
         )}>
-          Ready to Assign
-        </p>
-        <p className={cn(
-          "text-2xl font-bold font-mono tabular-nums leading-none",
-          rta < 0 ? "text-red-600 dark:text-red-400" : "text-teal-700 dark:text-teal-300"
-        )}>
-          {rta.toLocaleString("en-US", { style: "currency", currency: "USD" })}
-        </p>
-        {rta > 0 && (
-          <p className="text-[10px] text-teal-500 dark:text-teal-500 mt-1.5">
-            Assign it before the month ends
+          <p className={cn(
+            "text-[10px] font-semibold uppercase tracking-wide mb-1",
+            rta < 0 ? "text-red-400 dark:text-red-500" : "text-teal-600 dark:text-teal-500"
+          )}>
+            Ready to Assign
           </p>
-        )}
-        {rta < 0 && (
-          <p className="text-[10px] text-red-400 dark:text-red-500 mt-1.5">
-            Over-assigned — check your budget
+          <p className={cn(
+            "text-2xl font-bold font-mono tabular-nums leading-none",
+            rta < 0 ? "text-red-600 dark:text-red-400" : "text-teal-700 dark:text-teal-300"
+          )}>
+            {rta.toLocaleString("en-US", { style: "currency", currency: "USD" })}
           </p>
-        )}
-      </div>}
+          {rta > 0 && (
+            <p className="text-[10px] text-teal-500 dark:text-teal-500 mt-1.5">
+              Assign it before the month ends
+            </p>
+          )}
+          {rta < 0 && (
+            <p className="text-[10px] text-red-400 dark:text-red-500 mt-1.5">
+              Over-assigned — check your budget
+            </p>
+          )}
+        </div>
+      ))}
 
       {/* Accounts list */}
       <div>

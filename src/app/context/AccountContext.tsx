@@ -44,29 +44,29 @@ interface AccountContextType {
   // ...existing stuff
   savedPayees: SavedPayee[];
   upsertPayee: (name: string) => Promise<void>;
-  toggleCleared: (accountId: number, transactionId: number) => Promise<void>;
-  toggleApproved: (accountId: number, transactionId: number) => Promise<void>;
-  approveAll: (accountId: number) => Promise<void>;
+  toggleCleared: (accountId: string | number, transactionId: string | number) => Promise<void>;
+  toggleApproved: (accountId: string | number, transactionId: string | number) => Promise<void>;
+  approveAll: (accountId: string | number) => Promise<void>;
 }
 
 interface AccountContextType {
-  toggleCleared: (accountId: number, transactionId: number) => Promise<void>;
+  toggleCleared: (accountId: string | number, transactionId: string | number) => Promise<void>;
   accounts: Account[];
   recentTransactions: Transaction[];
-  addTransaction: (accountId: number, transaction: Record<string, unknown>) => void;
-  addTransactionWithMirror: (accountId: number, transaction: Record<string, unknown>, mirrorAccountId: number, mirrorTransaction: Record<string, unknown>) => Promise<void>;
+  addTransaction: (accountId: string | number, transaction: Record<string, unknown>) => void;
+  addTransactionWithMirror: (accountId: string | number, transaction: Record<string, unknown>, mirrorAccountId: string | number, mirrorTransaction: Record<string, unknown>) => Promise<void>;
   addAccount: (newAccount: Record<string, unknown>) => void;
   setAccounts: Dispatch<SetStateAction<Account[]>>;
   deleteAccount: (accountId: string | number) => void;
-  deleteTransaction: (accountId: number, transactionId: number) => void;
-  deleteTransactionWithMirror: (accountId: number, transactionId: number) => void;
+  deleteTransaction: (accountId: string | number, transactionId: string | number) => void;
+  deleteTransactionWithMirror: (accountId: string | number, transactionId: string | number) => void;
   editTransaction: (
-    accountId: number,
-    transactionId: number,
+    accountId: string | number,
+    transactionId: string | number,
     updatedTransaction: Partial<Transaction>
   ) => void;
   editAccountName: (accountId: string | number, newName: string) => void;
-  refreshSingleAccount: (accountId: number) => void;
+  refreshSingleAccount: (accountId: string | number) => void;
   refetchAccounts: () => Promise<void>;
   reorderAccounts: (
     draggedId: string | number,
@@ -340,9 +340,9 @@ const upsertPayee = async (name: string) => {
   };
 
   const addTransactionWithMirror = async (
-    accountId: number,
+    accountId: string | number,
     transaction: Record<string, unknown>,
-    mirrorAccountId: number,
+    mirrorAccountId: string | number,
     mirrorTransaction: Record<string, unknown>
   ) => {
     // Insert both transactions
@@ -448,8 +448,8 @@ const upsertPayee = async (name: string) => {
   };
 
   const editTransaction = async (
-    accountId: number,
-    transactionId: number,
+    accountId: string | number,
+    transactionId: string | number,
     updatedTransaction: Transaction
   ) => {
     const { error } = await supabase
@@ -490,7 +490,7 @@ const upsertPayee = async (name: string) => {
     );
   };
 
-  const toggleCleared = async (accountId: number, transactionId: number) => {
+  const toggleCleared = async (accountId: string | number, transactionId: string | number) => {
     const account = accounts.find((a) => a.id === accountId);
     const tx = account?.transactions.find((t) => t.id === transactionId);
     if (!tx) return;
@@ -521,7 +521,7 @@ const upsertPayee = async (name: string) => {
     );
   };
 
-  const toggleApproved = async (accountId: number, transactionId: number) => {
+  const toggleApproved = async (accountId: string | number, transactionId: string | number) => {
     const account = accounts.find((a) => a.id === accountId);
     const tx = account?.transactions.find((t) => t.id === transactionId);
     if (!tx) return;
@@ -552,7 +552,7 @@ const upsertPayee = async (name: string) => {
     );
   };
 
-  const approveAll = async (accountId: number) => {
+  const approveAll = async (accountId: string | number) => {
     const account = accounts.find((a) => a.id === accountId);
     if (!account) return;
 
@@ -696,7 +696,7 @@ const upsertPayee = async (name: string) => {
     }
   };
 
-  const deleteTransaction = async (accountId: number, transactionId: number, skipUndo = false) => {
+  const deleteTransaction = async (accountId: string | number, transactionId: string | number, skipUndo = false) => {
     // Capture the transaction data for undo
     const account = accounts.find((a) => a.id === accountId);
     const deletedTransaction = account?.transactions.find((t) => t.id === transactionId);
@@ -763,8 +763,8 @@ const upsertPayee = async (name: string) => {
   };
 
   const deleteTransactionWithMirror = async (
-    accountId: number,
-    transactionId: number
+    accountId: string | number,
+    transactionId: string | number
   ) => {
     const account = accounts.find((a) => a.id === accountId);
     const transaction = account?.transactions.find((t) => t.id === transactionId);

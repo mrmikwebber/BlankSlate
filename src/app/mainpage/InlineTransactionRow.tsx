@@ -16,7 +16,7 @@ export default function InlineTransactionRow({
   onSave,
   autoFocus = false,
 }: {
-  accountId: number;
+  accountId: string | number;
   mode?: "add" | "edit";
   initialData?: Transaction;
   onCancel?: () => void;

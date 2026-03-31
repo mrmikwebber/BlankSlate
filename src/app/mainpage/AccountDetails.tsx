@@ -34,8 +34,8 @@ export default function AccountDetails() {
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
-    txId: number;
-    accountId: number;
+    txId: string | number;
+    accountId: string | number;
   } | null>(null);
   const [bulkContextMenu, setBulkContextMenu] = useState<{
     x: number;
@@ -113,7 +113,7 @@ export default function AccountDetails() {
 
   const handleRenameAccount = async () => {
     if (!account || !newAccountName) return;
-    await editAccountName(Number(account.id), newAccountName);
+    await editAccountName(account.id, newAccountName);
     setIsEditingAccountName(false);
   };
 
@@ -138,7 +138,7 @@ export default function AccountDetails() {
     }
 
     // Refresh account to show all deletions at once
-    await refreshSingleAccount(Number(account.id));
+    await refreshSingleAccount(account.id);
 
     // Register undo/redo action for bulk delete
     let currentDeletedTxIds = Array.from(selectedTxIds);
@@ -153,7 +153,7 @@ export default function AccountDetails() {
             .delete()
             .eq("id", txId);
         }
-        await refreshSingleAccount(Number(account.id));
+        await refreshSingleAccount(account.id);
       },
       undo: async () => {
         // Re-insert all deleted transactions
@@ -168,7 +168,7 @@ export default function AccountDetails() {
           const { data: restoredData, error } = await supabase.from("transactions").insert([
             {
               ...txData,
-              account_id: Number(account.id),
+              account_id: account.id,
               user_id: user?.id,
             },
           ]).select();
@@ -179,7 +179,7 @@ export default function AccountDetails() {
             console.error("Error restoring transaction:", error);
           }
         }
-        await refreshSingleAccount(Number(account.id));
+        await refreshSingleAccount(account.id);
       },
     });
     
@@ -206,7 +206,7 @@ export default function AccountDetails() {
 
     const today = new Date().toISOString().split("T")[0];
 
-    await addTransaction(Number(account.id), {
+    await addTransaction(account.id, {
       date: today,
       payee: "Reconciliation Adjustment",
       category: "Reconciliation (Hidden)",
@@ -331,7 +331,7 @@ export default function AccountDetails() {
       } else {
         setSyncMessage(body.synced === 0 ? "Already up to date" : `${body.synced} new transaction${body.synced !== 1 ? "s" : ""} added`);
         setEnrollment({ last_synced_at: new Date().toISOString() });
-        await refreshSingleAccount(Number(account.id));
+        await refreshSingleAccount(account.id);
       }
     } catch {
       setSyncMessage("Sync failed");
@@ -417,7 +417,7 @@ export default function AccountDetails() {
         selectedTxId != null
       ) {
         e.preventDefault();
-        deleteTransactionWithMirror(Number(account.id), selectedTxId);
+        deleteTransactionWithMirror(account.id, selectedTxId);
         setSelectedTxId(null);
         // Remove from bulk selection too if present
         setSelectedTxIds((prev) => {
@@ -538,12 +538,12 @@ export default function AccountDetails() {
                     const mirrorData = mirrorTx
                       ? { date: mirrorTx.date, payee: mirrorTx.payee, category: mirrorTx.category, category_group: mirrorTx.category_group, balance: mirrorTx.balance }
                       : { date: tx.date, payee: `${transferMatch[1]} ${transferMatch[2] === "to" ? "from" : "to"} ${account.name}`, category: tx.category_group === "Credit Card Payments" ? account.name : null, category_group: tx.category_group ?? null, balance: -tx.balance };
-                    addTransactionWithMirror(Number(account.id), txData, Number(otherAccount.id), mirrorData);
+                    addTransactionWithMirror(account.id, txData, otherAccount.id, mirrorData);
                   } else {
-                    addTransaction(Number(account.id), txData);
+                    addTransaction(account.id, txData);
                   }
                 } else {
-                  addTransaction(Number(account.id), txData);
+                  addTransaction(account.id, txData);
                 }
               }
               setContextMenu(null);
@@ -694,7 +694,7 @@ export default function AccountDetails() {
               {unapprovedCount} transaction{unapprovedCount !== 1 ? "s" : ""} need review
             </span>
             <button
-              onClick={() => void approveAll(Number(account.id))}
+              onClick={() => void approveAll(account.id)}
               className="text-xs font-medium text-amber-700 dark:text-amber-300 hover:text-amber-900 dark:hover:text-amber-100 underline underline-offset-2"
             >
               Approve all
@@ -769,7 +769,7 @@ export default function AccountDetails() {
             {/* Inline add row */}
             {showForm && (
               <InlineTransactionRow
-                accountId={Number(account.id)}
+                accountId={account.id}
                 mode="add"
                 autoFocus
                 onCancel={() => setShowForm(false)}
@@ -782,7 +782,7 @@ export default function AccountDetails() {
               editingTransactionId === tx.id ? (
                 <InlineTransactionRow
                   key={`edit-${tx.id}`}
-                  accountId={Number(account.id)}
+                  accountId={account.id}
                   mode="edit"
                   autoFocus
                   initialData={editedTransaction ?? tx}
@@ -813,7 +813,7 @@ export default function AccountDetails() {
                     if (selectedTxIds.size > 0) {
                       setBulkContextMenu({ x: e.clientX, y: e.clientY });
                     } else {
-                      setContextMenu({ x: e.clientX, y: e.clientY, txId: tx.id, accountId: Number(account.id) });
+                      setContextMenu({ x: e.clientX, y: e.clientY, txId: tx.id, accountId: account.id });
                     }
                   }}
                 >
@@ -831,7 +831,7 @@ export default function AccountDetails() {
                   </td>
                   <td
                     className="px-3 py-2.5 text-center"
-                    onClick={(e) => { e.stopPropagation(); void toggleApproved(Number(account.id), tx.id); }}
+                    onClick={(e) => { e.stopPropagation(); void toggleApproved(account.id, tx.id); }}
                     title={tx.approved ? "Approved — click to unapprove" : "Needs review — click to approve"}
                   >
                     {tx.approved
@@ -841,7 +841,7 @@ export default function AccountDetails() {
                   </td>
                   <td
                     className="px-3 py-2.5 text-center"
-                    onClick={(e) => { e.stopPropagation(); void toggleCleared(Number(account.id), tx.id); }}
+                    onClick={(e) => { e.stopPropagation(); void toggleCleared(account.id, tx.id); }}
                     title={tx.cleared ? "Cleared — click to uncleared" : "Uncleared — click to clear"}
                   >
                     {tx.cleared
