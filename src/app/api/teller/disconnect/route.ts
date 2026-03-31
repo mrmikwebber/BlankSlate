@@ -3,6 +3,8 @@ import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { deleteTellerAccount } from "@/lib/tellerClient";
 
+const DEBUG_TELLER = process.env.NEXT_PUBLIC_DEBUG_TELLER === "true";
+
 export async function POST(req: Request) {
   const supabase = createRouteHandlerClient({ cookies });
 
@@ -19,7 +21,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "accountId is required" }, { status: 400 });
   }
 
-  console.log("[teller/disconnect] looking up enrollment for accountId:", accountId, "userId:", user.id);
+  if (DEBUG_TELLER) console.log("[teller/disconnect] looking up enrollment for accountId:", accountId, "userId:", user.id);
 
   // Look up enrollment before deleting
   const { data: enrollment, error: lookupError } = await supabase
@@ -29,7 +31,7 @@ export async function POST(req: Request) {
     .eq("user_id", user.id)
     .single();
 
-  console.log("[teller/disconnect] enrollment lookup result:", {
+  if (DEBUG_TELLER) console.log("[teller/disconnect] enrollment lookup result:", {
     found: !!enrollment,
     teller_account_id: enrollment?.teller_account_id,
     institution_name: enrollment?.institution_name,
@@ -39,12 +41,12 @@ export async function POST(req: Request) {
 
   if (enrollment) {
     // Revoke on Teller's side (best-effort)
-    console.log("[teller/disconnect] calling Teller DELETE /accounts/" + enrollment.teller_account_id);
+    if (DEBUG_TELLER) console.log("[teller/disconnect] calling Teller DELETE /accounts/" + enrollment.teller_account_id);
     try {
       await deleteTellerAccount(enrollment.access_token, enrollment.teller_account_id);
-      console.log("[teller/disconnect] Teller account deleted successfully");
+      if (DEBUG_TELLER) console.log("[teller/disconnect] Teller account deleted successfully");
     } catch (err) {
-      console.error("[teller/disconnect] Failed to revoke on Teller:", err);
+      if (DEBUG_TELLER) console.error("[teller/disconnect] Failed to revoke on Teller:", err);
       // Continue — still clean up locally
     }
 
@@ -55,9 +57,9 @@ export async function POST(req: Request) {
       .eq("account_id", accountId)
       .eq("user_id", user.id);
 
-    console.log("[teller/disconnect] local enrollment archived, error:", deleteError?.message ?? null);
+    if (DEBUG_TELLER) console.log("[teller/disconnect] local enrollment archived, error:", deleteError?.message ?? null);
   } else {
-    console.log("[teller/disconnect] no enrollment found, skipping Teller revocation");
+    if (DEBUG_TELLER) console.log("[teller/disconnect] no enrollment found, skipping Teller revocation");
   }
 
   return NextResponse.json({ ok: true });

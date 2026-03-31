@@ -6,15 +6,18 @@ import {
   getTellerAccountBalance,
 } from "@/lib/tellerClient";
 
+const DEBUG_TELLER = process.env.NEXT_PUBLIC_DEBUG_TELLER === "true";
+
+
 export async function POST(req: Request) {
-  console.log("[teller/accounts] POST start");
+  if (DEBUG_TELLER) console.log("[teller/accounts] POST start");
   const supabase = createRouteHandlerClient({ cookies });
 
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  console.log("[teller/accounts] user", user?.id ?? "null");
+  if (DEBUG_TELLER) console.log("[teller/accounts] user", user?.id ?? "null");
 
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -27,24 +30,24 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "accessToken is required" }, { status: 400 });
   }
 
-  console.log("[teller/accounts] fetching Teller accounts");
+  if (DEBUG_TELLER) console.log("[teller/accounts] fetching Teller accounts");
   let tellerAccounts;
   try {
     tellerAccounts = await getTellerAccounts(accessToken);
-    console.log("[teller/accounts] got", tellerAccounts.length, "accounts");
+    if (DEBUG_TELLER) console.log("[teller/accounts] got", tellerAccounts.length, "accounts");
   } catch (err) {
     console.error("[teller/accounts] Failed to fetch accounts:", err);
     return NextResponse.json({ error: "Failed to connect to Teller" }, { status: 502 });
   }
 
   const openAccounts = tellerAccounts.filter((a) => a.status === "open");
-  console.log("[teller/accounts] open accounts:", openAccounts.length);
+  if (DEBUG_TELLER) console.log("[teller/accounts] open accounts:", openAccounts.length);
 
   const accountsWithBalances = await Promise.all(
     openAccounts.map(async (account) => {
       try {
         const balance = await getTellerAccountBalance(accessToken, account.id);
-        console.log("[teller/accounts] balance for", account.id, balance);
+        if (DEBUG_TELLER) console.log("[teller/accounts] balance for", account.id, balance);
         return {
           id: account.id,
           name: account.name,
@@ -69,6 +72,6 @@ export async function POST(req: Request) {
     })
   );
 
-  console.log("[teller/accounts] returning", accountsWithBalances.length, "accounts");
+  if (DEBUG_TELLER) console.log("[teller/accounts] returning", accountsWithBalances.length, "accounts");
   return NextResponse.json({ accounts: accountsWithBalances });
 }

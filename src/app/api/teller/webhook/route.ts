@@ -6,6 +6,7 @@ import { getTellerTransactions, toSignedBalance } from "@/lib/tellerClient";
 function getServiceClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+  
   return createClient(url, key);
 }
 
@@ -27,6 +28,7 @@ interface TellerWebhookPayload {
 }
 
 export async function POST(req: Request) {
+  const DEBUG_TELLER = process.env.NEXT_PUBLIC_DEBUG_TELLER === "true";
   let body: TellerWebhookPayload;
   try {
     body = await req.json() as TellerWebhookPayload;
@@ -40,7 +42,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true });
   }
 
-  console.log("[teller/webhook] received:", JSON.stringify(body));
+  if (DEBUG_TELLER) console.log("[teller/webhook] received:", JSON.stringify(body));
 
   // Handle enrollment disconnected — mark as disconnected rather than deleting
   // so the UI can prompt the user to reconnect
@@ -55,9 +57,9 @@ export async function POST(req: Request) {
         .update({ teller_status: "disconnected" })
         .eq("enrollment_id", enrollmentId);
       if (error) {
-        console.error("[teller/webhook] Failed to mark enrollment disconnected:", error);
+        if (DEBUG_TELLER) console.error("[teller/webhook] Failed to mark enrollment disconnected:", error);
       } else {
-        console.log("[teller/webhook] Marked enrollment disconnected:", enrollmentId, "reason:", body.payload?.reason);
+        if (DEBUG_TELLER) console.log("[teller/webhook] Marked enrollment disconnected:", enrollmentId, "reason:", body.payload?.reason);
       }
     }
     return NextResponse.json({ ok: true });
@@ -70,7 +72,7 @@ export async function POST(req: Request) {
 
   const enrollmentId = body.payload?.enrollment_id;
   if (!enrollmentId) {
-    console.error("[teller/webhook] Missing enrollment_id in payload:", JSON.stringify(body.payload));
+    if (DEBUG_TELLER) console.error("[teller/webhook] Missing enrollment_id in payload:", JSON.stringify(body.payload));
     return NextResponse.json({ error: "Missing enrollment_id" }, { status: 400 });
   }
 
@@ -103,7 +105,7 @@ export async function POST(req: Request) {
   }
 
   if (enrollError || !enrollments?.length) {
-    console.error("[teller/webhook] No enrollments found for:", enrollmentId);
+    if (DEBUG_TELLER) console.error("[teller/webhook] No enrollments found for:", enrollmentId);
     return NextResponse.json({ error: "Enrollment not found" }, { status: 404 });
   }
 
@@ -137,7 +139,7 @@ export async function POST(req: Request) {
         .upsert(rows, { onConflict: "teller_transaction_id", ignoreDuplicates: true });
 
       if (txError) {
-        console.error("[teller/webhook] Failed to insert transactions for account:", enrollment.teller_account_id, txError);
+        if (DEBUG_TELLER) console.error("[teller/webhook] Failed to insert transactions for account:", enrollment.teller_account_id, txError);
       }
 
       // Update cursor to the most recent posted transaction
@@ -153,7 +155,7 @@ export async function POST(req: Request) {
       }
     }
   } catch (err) {
-    console.error("[teller/webhook] Sync failed:", err);
+    if (DEBUG_TELLER) console.error("[teller/webhook] Sync failed:", err);
     return NextResponse.json({ error: "Sync failed" }, { status: 500 });
   }
 

@@ -3,6 +3,8 @@ import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { getTellerAccountBalance } from "@/lib/tellerClient";
 
+const DEBUG_TELLER = process.env.NEXT_PUBLIC_DEBUG_TELLER === "true";
+
 export async function POST(req: Request) {
   const supabase = createRouteHandlerClient({ cookies });
 
@@ -38,7 +40,7 @@ export async function POST(req: Request) {
     const isAuthError = /Teller API error (401|403)/.test(message);
 
     if (isAuthError) {
-      console.log("[teller/verify] Enrollment disconnected for account:", accountId);
+      if (DEBUG_TELLER) console.log("[teller/verify] Enrollment disconnected for account:", accountId);
       await supabase
         .from("teller_enrollments")
         .update({ teller_status: "disconnected" })
@@ -47,7 +49,7 @@ export async function POST(req: Request) {
     }
 
     // Non-auth errors (network, cert issues) — don't mark as disconnected
-    console.error("[teller/verify] Error checking enrollment:", message);
+    if (DEBUG_TELLER) console.error("[teller/verify] Error checking enrollment:", message);
     return NextResponse.json({ connected: true });
   }
 }
