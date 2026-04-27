@@ -82,6 +82,7 @@ const BudgetContext = createContext(null);
 
 export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(false);
+  const [budgetFullyLoaded, setBudgetFullyLoaded] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const [recentChanges, setRecentChanges] = useState([]);
   const [sandboxMode, setSandboxMode] = useState(false);
@@ -894,6 +895,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
       return updated;
     });
     setIsDirty(true);
+    setBudgetFullyLoaded(true);
   }, [accounts, currentMonth]);
 
   const getLatestMonth = (budgetData) => {
@@ -3067,6 +3069,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
         saveBudgetMonth,
         setIsDirty,
         loading,
+        budgetFullyLoaded,
         resetBudgetData,
         deleteCategoryGroup,
         deleteCategoryWithReassignment,

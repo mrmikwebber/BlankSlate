@@ -370,17 +370,20 @@ const upsertPayee = async (name: string) => {
     if (error2) {
       console.error("Add mirror transaction failed:", error2);
       // Clean up first transaction
-      await supabase.from("transactions").delete().eq("id", data1[0].id);
+      const id1ToClean = data1?.[0]?.id;
+      if (id1ToClean) await supabase.from("transactions").delete().eq("id", id1ToClean);
       return;
     }
 
-    let currentTxId1 = data1[0].id;
-    let currentTxId2 = data2[0].id;
-    const tx1Data = { ...transaction };
-    const tx2Data = { ...mirrorTransaction };
-
+    // Refresh both accounts before accessing IDs so mirrors always appear even if ID
+    // retrieval fails (e.g. when Supabase SELECT-after-INSERT returns empty due to RLS).
     await refreshSingleAccount(accountId);
     await refreshSingleAccount(mirrorAccountId);
+
+    let currentTxId1 = data1?.[0]?.id ?? null;
+    let currentTxId2 = data2?.[0]?.id ?? null;
+    const tx1Data = { ...transaction };
+    const tx2Data = { ...mirrorTransaction };
 
     registerAction({
       description: `Added transfer ${transaction.payee} ($${transaction.balance})`,
@@ -403,11 +406,11 @@ const upsertPayee = async (name: string) => {
         ]).select();
 
         if (!insertError1 && redoData1) {
-          currentTxId1 = redoData1[0].id;
+          currentTxId1 = redoData1?.[0]?.id ?? currentTxId1;
           await refreshSingleAccount(accountId);
         }
         if (!insertError2 && redoData2) {
-          currentTxId2 = redoData2[0].id;
+          currentTxId2 = redoData2?.[0]?.id ?? currentTxId2;
           await refreshSingleAccount(mirrorAccountId);
         }
       },

@@ -401,7 +401,7 @@ export default function InlineTransactionRow({
             t.payee?.includes(thisAccount?.name ?? "")
         );
         if (mirrored) {
-          await deleteTransaction(Number(matchMirror.id), mirrored.id);
+          await deleteTransaction(matchMirror.id, mirrored.id);
         }
       }
 
@@ -427,7 +427,7 @@ export default function InlineTransactionRow({
           }
         })();
 
-        await addTransaction(Number(otherAccount.id), {
+        await addTransaction(otherAccount.id, {
           date,
           payee: mirrorPayee,
           category: isOtherCredit ? otherAccount.name : effectiveItem || null,
@@ -467,7 +467,7 @@ export default function InlineTransactionRow({
           balance: -balance,
         };
 
-        await addTransactionWithMirror(accountId, transactionData, Number(otherAccount.id), mirrorTransactionData);
+        await addTransactionWithMirror(accountId, transactionData, otherAccount.id, mirrorTransactionData);
       } else {
         // Normal single transaction
         addTransaction(accountId, transactionData);

@@ -206,17 +206,21 @@ Cypress.Commands.add('createCategory', (groupName: string, itemName: string) => 
 Cypress.Commands.add(
   'setAssignedValue',
   (groupName: string, itemName: string, value: number | string) => {
+    // Click the display span to enter edit mode, then wait for the input to mount.
+    // We do these as two separate commands (not chained inside .within) so Cypress
+    // can properly retry the input query after the React re-render.
     cy.budgetRow(groupName, itemName)
       .scrollIntoView()
-      .within(() => {
-        cy.get('[data-cy="assigned-display"]')
-          .first()
-          .scrollIntoView()
-          .click({ force: true });
-        cy.get('[data-cy="assigned-input"]')
-          .clear()
-          .type(`${value}{enter}`);
-      });
+      .find('[data-cy="assigned-display"]')
+      .first()
+      .scrollIntoView()
+      .click({ force: true });
+
+    cy.budgetRow(groupName, itemName)
+      .find('[data-cy="assigned-input"]', { timeout: 8000 })
+      .should('be.visible')
+      .clear()
+      .type(`${value}{enter}`);
   }
 );
 
@@ -225,7 +229,7 @@ const parseCurrency = (text: string) =>
 
 Cypress.Commands.add('getReadyToAssignValue', () =>
   cy
-    .get('[data-cy=ready-to-assign]')
+    .get('[data-cy=ready-to-assign]', { timeout: 15000 })
     .filter(':visible')
     .first()
     .should(($el) => {

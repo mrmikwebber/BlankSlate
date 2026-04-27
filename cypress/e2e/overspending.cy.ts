@@ -38,8 +38,12 @@ const selectFilter = (filterName: string) => {
   cy.get(`[data-cy=filter-${filterName}]`)
     .filter(":visible")
     .first()
-    .click({ force: true })
-    .should("have.class", "bg-primary");
+    .click({ force: true });
+  // Active filter uses bg-slate-200 (light) / bg-slate-700 (dark), not bg-primary
+  cy.get(`[data-cy=filter-${filterName}]`)
+    .filter(":visible")
+    .first()
+    .should("have.class", "bg-slate-200");
 };
 
 const expectNotVisibleInBudget = (selector: string) => {

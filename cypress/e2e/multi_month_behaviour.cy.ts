@@ -476,7 +476,7 @@ describe("Multi-month behaviour – carryover, overspending, edits", () => {
         .then((label) => {
           cy.log(`Snapshot ${key} (month: ${label.trim()})`);
         });
-      cy.get(
+      cy.budgetFind(
         `${rowSelectorOld(groupName, oldItem)} [data-cy="item-available"]`
       )
         .invoke("text")
@@ -484,7 +484,7 @@ describe("Multi-month behaviour – carryover, overspending, edits", () => {
           cy.wrap(parseCurrencySafe(txt)).as(`${key}_oldAvail`);
         });
 
-      cy.get(
+      cy.budgetFind(
         `${rowSelectorNew(groupName, newItem)} [data-cy="item-available"]`
       )
         .invoke("text")
@@ -521,7 +521,7 @@ describe("Multi-month behaviour – carryover, overspending, edits", () => {
     visitBudget();
     // Wait for the transaction activity to propagate into oldItem's available before snapshotting.
     // Use .should($el => ...) directly so the full 10000ms timeout governs the retry loop.
-    cy.get(
+    cy.budgetFind(
       `${rowSelectorOld(groupName, oldItem)} [data-cy="item-available"]`,
       { timeout: 10000 }
     ).should(($el) => {
