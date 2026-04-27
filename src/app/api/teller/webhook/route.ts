@@ -2,6 +2,35 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getTellerTransactions, toSignedBalance } from "@/lib/tellerClient";
 
+type TxRow = {
+  user_id: string;
+  account_id: string;
+  date: string;
+  payee: string | null;
+  category: string | null;
+  category_group: string | null;
+  balance: number;
+  teller_transaction_id: string;
+  cleared: boolean;
+  approved: boolean;
+};
+
+type CandidateRow = {
+  id: string;
+  date: string;
+  payee: string | null;
+  balance: number;
+  cleared: boolean;
+};
+
+function normalizePayee(payee: string | null | undefined): string {
+  return (payee ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function txKey(date: string, balance: number, payee: string | null | undefined): string {
+  return `${date}|${Math.round(balance * 100)}|${normalizePayee(payee)}`;
+}
+
 // Service role client — bypasses RLS since webhooks have no user session
 function getServiceClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -117,26 +146,108 @@ export async function POST(req: Request) {
         enrollment.last_teller_transaction_id ?? undefined
       );
 
-      const synced = transactions.filter((t: { status: string }) => t.status === "posted" || t.status === "pending");
+      const fallbackCutoffDate =
+        !enrollment.last_teller_transaction_id && enrollment.last_synced_at
+          ? new Date(enrollment.last_synced_at).toISOString().slice(0, 10)
+          : null;
 
-      if (synced.length === 0) continue;
+      const synced = transactions
+        .filter((t: { status: string }) => t.status === "posted" || t.status === "pending")
+        .filter((t: { date: string }) => (fallbackCutoffDate ? t.date >= fallbackCutoffDate : true));
 
-      const rows = synced.map((t: { id: string; date: string; description: string; status: string; details?: { counterparty?: { name?: string } }; amount: string; type: "credit" | "debit" }) => ({
+      const isCreditAccount = enrollment.teller_account_type === "credit_card";
+
+      if (synced.length === 0) {
+        if (!enrollment.last_teller_transaction_id && transactions.length > 0) {
+          const cursorSource = transactions as Array<{ id: string; status: string }>;
+          await supabase
+            .from("teller_enrollments")
+            .update({
+              last_teller_transaction_id: cursorSource.find((t) => t.status === "posted")?.id ?? cursorSource[0].id,
+              last_synced_at: new Date().toISOString(),
+            })
+            .eq("id", enrollment.id);
+        }
+        continue;
+      }
+
+      const rows: TxRow[] = synced.map((t: { id: string; date: string; description: string; status: string; details?: { counterparty?: { name?: string } }; amount: string; type: "credit" | "debit" }) => ({
         user_id: enrollment.user_id,
         account_id: enrollment.account_id,
         date: t.date,
         payee: t.details?.counterparty?.name || t.description,
         category: null,
         category_group: null,
-        balance: toSignedBalance(t.amount, t.type),
+        balance: toSignedBalance(t.amount, t.type, isCreditAccount),
         teller_transaction_id: t.id,
         cleared: t.status === "posted",
         approved: false,
       }));
 
-      const { error: txError } = await supabase
+      const dates = rows.map((r) => r.date);
+      const minDate = dates.reduce((min, d) => (d < min ? d : min), dates[0]);
+      const maxDate = dates.reduce((max, d) => (d > max ? d : max), dates[0]);
+
+      const { data: manualCandidates, error: candidatesError } = await supabase
         .from("transactions")
-        .upsert(rows, { onConflict: "teller_transaction_id", ignoreDuplicates: true });
+        .select("id,date,payee,balance,cleared")
+        .eq("user_id", enrollment.user_id)
+        .eq("account_id", enrollment.account_id)
+        .is("teller_transaction_id", null)
+        .gte("date", minDate)
+        .lte("date", maxDate);
+
+      if (candidatesError) {
+        if (DEBUG_TELLER) console.error("[teller/webhook] Failed to load reconciliation candidates:", candidatesError);
+      }
+
+      const candidateBuckets = new Map<string, CandidateRow[]>();
+      for (const c of (manualCandidates ?? []) as CandidateRow[]) {
+        const key = txKey(c.date, Number(c.balance), c.payee);
+        const bucket = candidateBuckets.get(key);
+        if (bucket) {
+          bucket.push(c);
+        } else {
+          candidateBuckets.set(key, [c]);
+        }
+      }
+
+      const unmatchedRows: TxRow[] = [];
+      const matchedPairs: Array<{ row: TxRow; candidate: CandidateRow }> = [];
+
+      for (const row of rows) {
+        const key = txKey(row.date, row.balance, row.payee);
+        const bucket = candidateBuckets.get(key);
+        if (bucket && bucket.length > 0) {
+          const candidate = bucket.shift()!;
+          matchedPairs.push({ row, candidate });
+          continue;
+        }
+        unmatchedRows.push(row);
+      }
+
+      for (const match of matchedPairs) {
+        const { error: reconcileError } = await supabase
+          .from("transactions")
+          .update({
+            teller_transaction_id: match.row.teller_transaction_id,
+            cleared: match.candidate.cleared || match.row.cleared,
+          })
+          .eq("id", match.candidate.id)
+          .is("teller_transaction_id", null);
+
+        if (reconcileError) {
+          if (DEBUG_TELLER) console.error("[teller/webhook] Failed to reconcile transaction:", reconcileError);
+          unmatchedRows.push(match.row);
+        }
+      }
+
+      let txError: unknown = null;
+      if (unmatchedRows.length > 0) {
+        ({ error: txError } = await supabase
+          .from("transactions")
+          .upsert(unmatchedRows, { onConflict: "teller_transaction_id", ignoreDuplicates: true }));
+      }
 
       if (txError) {
         if (DEBUG_TELLER) console.error("[teller/webhook] Failed to insert transactions for account:", enrollment.teller_account_id, txError);
