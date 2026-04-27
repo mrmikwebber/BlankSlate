@@ -36,8 +36,8 @@ export default function SidebarPanel({ activeView, onViewChange }: SidebarPanelP
 
   const { accounts, addAccount, deleteAccount, reorderAccounts, editAccountName } = useAccountContext();
   const budgetCtx = useBudgetContext();
-  const accountsReady = accounts.length > 0 && accounts.some((a) => a.transactions?.length > 0);
-  const rta = accountsReady ? (budgetCtx ? budgetCtx.getDisplayedRta(budgetCtx.currentMonth) : 0) || 0 : null;
+  const accountsReady = accounts.length > 0 && (budgetCtx?.budgetFullyLoaded ?? false);
+  const rta = accountsReady ? (budgetCtx ? budgetCtx.getDisplayedRta(budgetCtx.currentMonth) : 0) ?? 0 : null;
   const netWorth = accounts.reduce((sum, acc) => {
     const bal = acc.transactions?.reduce((s, tx) => s + tx.balance, 0) ?? acc.balance ?? 0;
     return sum + bal;
@@ -259,7 +259,9 @@ export default function SidebarPanel({ activeView, onViewChange }: SidebarPanelP
           )}>
             Ready to Assign
           </p>
-          <p className={cn(
+          <p
+            data-cy="ready-to-assign"
+            className={cn(
             "text-2xl font-bold font-mono tabular-nums leading-none",
             rta < 0 ? "text-red-600 dark:text-red-400" : "text-teal-700 dark:text-teal-300"
           )}>

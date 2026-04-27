@@ -213,10 +213,14 @@ describe("Credit Card Payments behaviour", () => {
               .blur();
           });
 
-          cy.getReadyToAssignValue().then((updatedRta) => {
-            expect(updatedRta).to.satisfy((n: number) => Number.isFinite(n));
-            expect(updatedRta).to.eq(initialRta - 50);
-          });
+          cy.get('[data-cy=ready-to-assign]', { timeout: 15000 })
+            .filter(':visible')
+            .first()
+            .should(($el) => {
+              const updatedRta = Number($el.text().replace(/[^0-9.-]/g, ""));
+              expect(updatedRta).to.satisfy((n: number) => Number.isFinite(n));
+              expect(updatedRta).to.eq(initialRta - 50);
+            });
       });
   });
 });

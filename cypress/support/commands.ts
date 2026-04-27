@@ -66,7 +66,10 @@ declare global {
       /**
        * Find a selector scoped to the visible budget table.
        */
-      budgetFind(selector: string): Chainable<JQuery<HTMLElement>>
+      budgetFind(
+        selector: string,
+        options?: Partial<Cypress.Loggable & Cypress.Timeoutable & Cypress.Shadow>
+      ): Chainable<JQuery<HTMLElement>>
       /**
        * Get a category row from the visible budget table.
        */
@@ -123,8 +126,12 @@ Cypress.Commands.add('getVisibleBudgetTable', () =>
   cy.get('[data-cy=budget-table]').filter(':visible').first()
 );
 
-Cypress.Commands.add('budgetFind', (selector: string) =>
-  cy.getVisibleBudgetTable().find(selector)
+Cypress.Commands.add(
+  'budgetFind',
+  (
+    selector: string,
+    options?: Partial<Cypress.Loggable & Cypress.Timeoutable & Cypress.Shadow>
+  ) => cy.getVisibleBudgetTable().find(selector, options)
 );
 
 Cypress.Commands.add('rightClickFirst', (selector: string) => {
@@ -206,17 +213,21 @@ Cypress.Commands.add('createCategory', (groupName: string, itemName: string) => 
 Cypress.Commands.add(
   'setAssignedValue',
   (groupName: string, itemName: string, value: number | string) => {
+    // Click the display span to enter edit mode, then wait for the input to mount.
+    // We do these as two separate commands (not chained inside .within) so Cypress
+    // can properly retry the input query after the React re-render.
     cy.budgetRow(groupName, itemName)
       .scrollIntoView()
-      .within(() => {
-        cy.get('[data-cy="assigned-display"]')
-          .first()
-          .scrollIntoView()
-          .click({ force: true });
-        cy.get('[data-cy="assigned-input"]')
-          .clear()
-          .type(`${value}{enter}`);
-      });
+      .find('[data-cy="assigned-display"]')
+      .first()
+      .scrollIntoView()
+      .click({ force: true });
+
+    cy.budgetRow(groupName, itemName)
+      .find('[data-cy="assigned-input"]', { timeout: 8000 })
+      .should('be.visible')
+      .clear()
+      .type(`${value}{enter}`);
   }
 );
 
@@ -225,7 +236,7 @@ const parseCurrency = (text: string) =>
 
 Cypress.Commands.add('getReadyToAssignValue', () =>
   cy
-    .get('[data-cy=ready-to-assign]')
+    .get('[data-cy=ready-to-assign]', { timeout: 15000 })
     .filter(':visible')
     .first()
     .should(($el) => {
