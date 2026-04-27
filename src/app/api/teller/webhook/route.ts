@@ -118,6 +118,7 @@ export async function POST(req: Request) {
       );
 
       const synced = transactions.filter((t: { status: string }) => t.status === "posted" || t.status === "pending");
+      const isCreditAccount = enrollment.teller_account_type === "credit_card";
 
       if (synced.length === 0) continue;
 
@@ -128,7 +129,7 @@ export async function POST(req: Request) {
         payee: t.details?.counterparty?.name || t.description,
         category: null,
         category_group: null,
-        balance: toSignedBalance(t.amount, t.type),
+        balance: toSignedBalance(t.amount, t.type, isCreditAccount),
         teller_transaction_id: t.id,
         cleared: t.status === "posted",
         approved: false,

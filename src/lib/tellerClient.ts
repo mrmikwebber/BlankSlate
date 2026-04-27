@@ -135,9 +135,21 @@ export function getTellerTransactions(
   );
 }
 
-/** Convert Teller amount + type to a signed balance (positive = credit, negative = debit) */
-export function toSignedBalance(amount: string, type: "credit" | "debit"): number {
+/**
+ * Convert Teller amount + type to a signed balance.
+ * Depository (checking/savings): debit = negative, credit = positive.
+ * Credit card: Teller flips convention — "credit" = a charge (increasing debt) = negative,
+ *              "debit" = a payment (reducing debt) = positive.
+ */
+export function toSignedBalance(
+  amount: string,
+  type: "credit" | "debit",
+  isCreditAccount = false
+): number {
   const abs = parseFloat(amount);
+  if (isCreditAccount) {
+    return type === "credit" ? -abs : abs;
+  }
   return type === "debit" ? -abs : abs;
 }
 

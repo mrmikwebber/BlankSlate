@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { getTellerTransactions, toSignedBalance } from "@/lib/tellerClient";
+import { isAdminUser, normalizeAdminList } from "@/lib/admin";
 
 export async function POST(req: Request) {
   const supabase = createRouteHandlerClient({ cookies });
@@ -35,8 +36,15 @@ export async function POST(req: Request) {
     );
   }
 
+  const adminEmails = normalizeAdminList(process.env.ADMIN_EMAILS);
+  const adminIds = normalizeAdminList(process.env.ADMIN_USER_IDS);
+  const isAdmin = isAdminUser(
+    { email: user.email, id: user.id },
+    { emails: adminEmails, ids: adminIds }
+  );
+
   // Rate limit: 1 sync per hour per account
-  if (enrollment.last_synced_at) {
+  if (!isAdmin && enrollment.last_synced_at) {
     const msSinceLastSync = Date.now() - new Date(enrollment.last_synced_at).getTime();
     const msInHour = 60 * 60 * 1000;
     if (msSinceLastSync < msInHour) {
@@ -56,6 +64,7 @@ export async function POST(req: Request) {
     );
 
     const synced = transactions.filter((t) => t.status === "posted" || t.status === "pending");
+    const isCreditAccount = enrollment.teller_account_type === "credit_card";
     let inserted = 0;
 
     if (synced.length > 0) {
@@ -66,7 +75,7 @@ export async function POST(req: Request) {
         payee: t.details?.counterparty?.name || t.description,
         category: null,
         category_group: null,
-        balance: toSignedBalance(t.amount, t.type),
+        balance: toSignedBalance(t.amount, t.type, isCreditAccount),
         teller_transaction_id: t.id,
         cleared: t.status === "posted",
         approved: false,
