@@ -1,5 +1,16 @@
 // lib/budgetMath.ts
 import { format, isSameMonth, parseISO, subMonths } from "date-fns";
+import type {
+  AccountMeta,
+  AssignmentRecord,
+  BudgetState,
+  BudgetStateInput,
+  CategoryGroupMeta,
+  ComputedMonthView,
+  MonthItemState,
+  MonthState,
+  NormalizedTransaction,
+} from "../src/types/budget";
 
 const DEBUG_RTA = process.env.NEXT_PUBLIC_DEBUG_RTA === "true";
 const rtaLog = (...args: unknown[]) => {
@@ -56,7 +67,6 @@ export function calculateReadyToAssignPure(
     .slice(0, currentIndex + 1)
     .reduce((sum, m) => {
       const inflowThisMonth = accounts
-        .filter((acc) => acc.type === "debit")
         .flatMap((acc) => acc.transactions)
         .filter((tx) => {
           if (!tx.date) return false;
@@ -554,7 +564,6 @@ export function updateMonthPure(
     });
 
     const totalInflow = accounts
-      .filter((acc) => acc.type === "debit")
       .flatMap((acc) => acc.transactions)
       .filter(
         (tx) =>
@@ -665,7 +674,6 @@ export function updateMonthPure(
     : createEmptyCategories(prev[getLatestMonth(prev)]?.categories || []);
 
   const totalInflow = accounts
-    .filter((acc) => acc.type === "debit")
     .flatMap((acc) => acc.transactions)
     .filter(
       (tx) =>
@@ -691,4 +699,389 @@ export function updateMonthPure(
   dirty = true;
 
   return { newBudgetData, dirty };
+}
+
+// ============================================================================
+// New server-side computation engine (UUID-based, timeline-aware)
+// All functions below operate on NormalizedTransaction and stable IDs.
+// The legacy functions above remain for backward compatibility during migration.
+// ============================================================================
+
+// Raw DB transaction shape (what Supabase returns before normalization)
+export interface RawDbTransaction {
+  id: string;
+  account_id: string;
+  date: string;                  // "YYYY-MM-DD"
+  payee: string | null;
+  category: string | null;       // text name — legacy; use category_item_id going forward
+  category_group: string | null; // text name — legacy
+  balance: number;               // signed: positive = inflow, negative = outflow
+  category_item_id: string | null;
+  cleared: boolean;
+  approved: boolean;
+}
+
+function txMonth(date: string): string {
+  return date.substring(0, 7); // "YYYY-MM-DD" → "YYYY-MM"
+}
+
+// Convert raw DB transactions into the canonical NormalizedTransaction format.
+export function normalizeTransactions(
+  rawTransactions: RawDbTransaction[],
+  accounts: AccountMeta[]
+): NormalizedTransaction[] {
+  const accountMap = new Map(accounts.map((a) => [a.id, a]));
+
+  return rawTransactions.map((tx) => {
+    const account = accountMap.get(tx.account_id);
+    const isTransferPayee = typeof tx.payee === "string" && tx.payee.trim().startsWith("Transfer :");
+    const isUncategorized = !tx.category_item_id && tx.category !== "Ready to Assign";
+    // Income: positive transaction in "Ready to Assign" (any account type)
+    const isIncome = tx.category === "Ready to Assign" && tx.balance > 0;
+    // Direct card payment: positive inflow on a credit account that is either
+    // explicitly categorized to the card name or represented as a transfer payee.
+    const isCCPayment =
+      account?.type === "credit" &&
+      tx.balance > 0 &&
+      (tx.category === account.name || isTransferPayee || isUncategorized);
+    const isTransfer = !isCCPayment && isTransferPayee;
+
+    return {
+      id: tx.id,
+      accountId: tx.account_id,
+      date: tx.date,
+      amount: tx.balance,
+      categoryItemId: tx.category_item_id ?? undefined,
+      affectsBudget: isIncome || isCCPayment || tx.category_item_id != null,
+      isCreditCardPayment: isCCPayment,
+      cashFlowType: isIncome
+        ? "income"
+        : isCCPayment
+          ? "credit_payment"
+          : isTransfer
+            ? "transfer"
+            : "expense",
+    };
+  });
+}
+
+// Compute payment-category activity by credit account for a month.
+// Uses transaction order + per-category funding pool so unbudgeted credit
+// overspending does not increase card payment activity.
+function computeCreditCardActivityByAccount(
+  monthTransactions: NormalizedTransaction[],
+  accountMap: Map<string, AccountMeta>,
+  monthStartAvailableByItem: Map<string, number>,
+  prevOutstanding: Map<string, number>
+): { paymentActivity: Map<string, number>; updatedOutstanding: Map<string, number> } {
+  const paymentActivityByCard = new Map<string, number>();
+  const poolByItem = new Map<string, number>();
+  const budgetedOutstandingByItemCard = new Map(prevOutstanding);
+
+  for (const [itemId, amount] of monthStartAvailableByItem.entries()) {
+    poolByItem.set(itemId, amount);
+  }
+
+  const orderRank = (tx: NormalizedTransaction): number => {
+    const account = accountMap.get(tx.accountId);
+    if (!account) return 99;
+
+    if (account.type === "debit") {
+      if (tx.amount < 0) return 0;
+      if (tx.amount > 0) return 1;
+      return 2;
+    }
+
+    if (tx.isCreditCardPayment) return 5;
+    if (tx.amount < 0) return 3;
+    if (tx.amount > 0) return 4;
+    return 6;
+  };
+
+  const txOrdered = [...monthTransactions].sort((a, b) => {
+    const byDate = a.date.localeCompare(b.date);
+    if (byDate !== 0) return byDate;
+
+    const byRank = orderRank(a) - orderRank(b);
+    if (byRank !== 0) return byRank;
+
+    return 0;
+  });
+
+  for (const tx of txOrdered) {
+    const account = accountMap.get(tx.accountId);
+    if (!account) continue;
+
+    if (tx.isCreditCardPayment && account.type === "credit" && tx.amount > 0) {
+      paymentActivityByCard.set(
+        tx.accountId,
+        (paymentActivityByCard.get(tx.accountId) ?? 0) - tx.amount
+      );
+      continue;
+    }
+
+    if (!tx.categoryItemId) continue;
+
+    const itemId = tx.categoryItemId;
+    const currentPool = poolByItem.get(itemId) ?? 0;
+
+    if (account.type === "debit") {
+      poolByItem.set(itemId, currentPool + tx.amount);
+      continue;
+    }
+
+    if (account.type !== "credit") continue;
+
+    if (tx.amount < 0) {
+      const spend = Math.abs(tx.amount);
+      const budgeted = Math.min(Math.max(currentPool, 0), spend);
+      const unbudgeted = spend - budgeted;
+
+      if (budgeted > 0) {
+        paymentActivityByCard.set(
+          tx.accountId,
+          (paymentActivityByCard.get(tx.accountId) ?? 0) + budgeted
+        );
+        const outstandingKey = `${itemId}:${tx.accountId}`;
+        budgetedOutstandingByItemCard.set(
+          outstandingKey,
+          (budgetedOutstandingByItemCard.get(outstandingKey) ?? 0) + budgeted
+        );
+      }
+
+      poolByItem.set(itemId, currentPool - budgeted - unbudgeted);
+      continue;
+    }
+
+    if (tx.amount > 0) {
+      const refund = tx.amount;
+      const outstandingKey = `${itemId}:${tx.accountId}`;
+      const outstanding = budgetedOutstandingByItemCard.get(outstandingKey) ?? 0;
+      const reduction = Math.min(outstanding, refund);
+
+      if (reduction > 0) {
+        paymentActivityByCard.set(
+          tx.accountId,
+          (paymentActivityByCard.get(tx.accountId) ?? 0) - reduction
+        );
+        budgetedOutstandingByItemCard.set(outstandingKey, outstanding - reduction);
+      }
+
+      poolByItem.set(itemId, currentPool + refund);
+    }
+  }
+
+  return { paymentActivity: paymentActivityByCard, updatedOutstanding: budgetedOutstandingByItemCard };
+}
+
+// Compute deterministic full-timeline budget state from source-of-truth data.
+// Call serializeMonthView() to project a single month from this state.
+export function computeBudgetState(input: BudgetStateInput): BudgetState {
+  const { accounts, transactions, assignments, categoryGroups } = input;
+
+  const accountMap = new Map(accounts.map((a) => [a.id, a]));
+
+  // Lookup: "itemId:YYYY-MM" → assigned
+  const assignmentsByItemMonth = new Map<string, number>();
+  for (const a of assignments) {
+    assignmentsByItemMonth.set(`${a.categoryItemId}:${a.month}`, a.assigned);
+  }
+
+  // Collect all months with any data
+  const monthSet = new Set<string>();
+  for (const tx of transactions) {
+    if (tx.date) monthSet.add(txMonth(tx.date));
+  }
+  for (const a of assignments) monthSet.add(a.month);
+  const allMonths = [...monthSet].sort();
+
+  if (allMonths.length === 0) {
+    return {
+      months: new Map(),
+      categoryGroups,
+      accounts,
+      generatedAt: new Date().toISOString(),
+      version: Date.now(),
+    };
+  }
+
+  // Map CC payment items → their credit card account IDs (by name matching across all groups)
+  const ccItemToAccountId = new Map<string, string>(); // itemId → accountId
+  for (const group of categoryGroups) {
+    for (const item of group.items) {
+      const match = accounts.find((a) => a.type === "credit" && a.name === item.name);
+      if (match) ccItemToAccountId.set(item.id, match.id);
+    }
+  }
+
+  // Pre-compute: which items had debit spending in which months (for cash overspend detection)
+  const debitSpendingByItemMonth = new Set<string>(); // "itemId:YYYY-MM"
+  for (const tx of transactions) {
+    if (tx.amount < 0 && tx.categoryItemId) {
+      const account = accountMap.get(tx.accountId);
+      if (account?.type === "debit") {
+        debitSpendingByItemMonth.add(`${tx.categoryItemId}:${txMonth(tx.date)}`);
+      }
+    }
+  }
+
+  const months = new Map<string, MonthState>();
+  let outstandingByItemCard = new Map<string, number>();
+
+  let runningInflows = 0;
+  let runningCashOverspending = 0;
+  let runningAssigned = 0;
+  let prevMonthStates: Map<string, MonthItemState> | null = null;
+  let prevMonth: string | null = null;
+
+  for (const month of allMonths) {
+    const monthTx = transactions.filter(
+      (tx) => tx.date && txMonth(tx.date) === month
+    );
+
+    // Accumulate income inflows
+    runningInflows += monthTx
+      .filter((tx) => tx.cashFlowType === "income")
+      .reduce((sum, tx) => sum + tx.amount, 0);
+
+    runningAssigned += assignments
+      .filter((a) => a.month === month)
+      .reduce((sum, a) => sum + (a.assigned || 0), 0);
+
+    // Accumulate cash overspending from the previous month
+    if (prevMonthStates && prevMonth) {
+      for (const group of categoryGroups) {
+        for (const item of group.items) {
+          if (ccItemToAccountId.has(item.id)) continue;
+          const prevState = prevMonthStates.get(item.id);
+          if (!prevState || prevState.available >= 0) continue;
+          if (debitSpendingByItemMonth.has(`${item.id}:${prevMonth}`)) {
+            runningCashOverspending += Math.abs(prevState.available);
+          }
+        }
+      }
+    }
+
+    const rta = runningInflows - runningAssigned - runningCashOverspending;
+    const itemStates = new Map<string, MonthItemState>();
+    const monthStartAvailableByItem = new Map<string, number>();
+
+    // First pass: non-credit-card-payment categories
+    for (const group of categoryGroups) {
+      for (const item of group.items) {
+        if (ccItemToAccountId.has(item.id)) continue;
+
+        const assigned = assignmentsByItemMonth.get(`${item.id}:${month}`) ?? 0;
+        const activity = monthTx
+          .filter((tx) => tx.categoryItemId === item.id && !tx.isCreditCardPayment)
+          .reduce((sum, tx) => sum + tx.amount, 0);
+
+        const prevState = prevMonthStates?.get(item.id);
+        const wasDebitOverspent =
+          prevState != null &&
+          prevState.available < 0 &&
+          debitSpendingByItemMonth.has(`${item.id}:${prevMonth ?? ""}`);
+
+        const prevAvailable = prevState?.available ?? 0;
+        const effectivePrevAvailable = wasDebitOverspent ? 0 : Math.max(prevAvailable, 0);
+        const available = assigned + activity + effectivePrevAvailable;
+
+        monthStartAvailableByItem.set(item.id, effectivePrevAvailable + assigned);
+
+        itemStates.set(item.id, {
+          categoryItemId: item.id,
+          assigned,
+          activity,
+          cumulativeAvailable: 0,
+          available,
+        });
+      }
+    }
+
+    const { paymentActivity: ccActivityByAccountId, updatedOutstanding } =
+      computeCreditCardActivityByAccount(monthTx, accountMap, monthStartAvailableByItem, outstandingByItemCard);
+    outstandingByItemCard = updatedOutstanding;
+
+    // Second pass: credit card payment categories (all groups)
+    for (const group of categoryGroups) {
+      for (const item of group.items) {
+        if (!ccItemToAccountId.has(item.id)) continue;
+
+        const assigned = assignmentsByItemMonth.get(`${item.id}:${month}`) ?? 0;
+        const cardAccountId = ccItemToAccountId.get(item.id);
+        const activity = cardAccountId ? ccActivityByAccountId.get(cardAccountId) ?? 0 : 0;
+        const prevAvailable = prevMonthStates?.get(item.id)?.available ?? 0;
+        const available = prevAvailable + assigned + activity;
+
+        itemStates.set(item.id, {
+          categoryItemId: item.id,
+          assigned,
+          activity,
+          cumulativeAvailable: 0,
+          available,
+        });
+      }
+    }
+
+    months.set(month, { month, itemStates, readyToAssign: rta, rtaCarry: 0 });
+
+    prevMonthStates = itemStates;
+    prevMonth = month;
+  }
+
+  // Second pass: propagate RTA carry from deficit months forward
+  let carry = 0;
+  for (const month of allMonths) {
+    const ms = months.get(month)!;
+    const effectiveRta = ms.readyToAssign - carry;
+    months.set(month, { ...ms, rtaCarry: carry });
+    carry = effectiveRta < 0 ? Math.abs(effectiveRta) : 0;
+  }
+
+  return {
+    months,
+    categoryGroups,
+    accounts,
+    generatedAt: new Date().toISOString(),
+    version: Date.now(),
+  };
+}
+
+// Project a single month's computed view from a BudgetState.
+export function serializeMonthView(
+  state: BudgetState,
+  month: string
+): ComputedMonthView {
+  const monthState = state.months.get(month);
+
+  const categories = state.categoryGroups.map((group) => ({
+    id: group.id,
+    name: group.name,
+    notes: group.notes,
+    notes_history: group.notes_history,
+    categoryItems: group.items.map((item) => {
+      const s = monthState?.itemStates.get(item.id);
+      return {
+        id: item.id,
+        name: item.name,
+        assigned: s?.assigned ?? 0,
+        activity: s?.activity ?? 0,
+        available: Math.round((s?.available ?? 0) * 100) / 100,
+        snoozed: item.snoozed,
+        target: item.target,
+        notes: item.notes,
+        notes_history: item.notes_history,
+      };
+    }),
+  }));
+
+  return {
+    month,
+    ready_to_assign: Math.round((monthState?.readyToAssign ?? 0) * 100) / 100,
+    rta_carry: Math.round((monthState?.rtaCarry ?? 0) * 100) / 100,
+    has_deficit_carry: (monthState?.rtaCarry ?? 0) > 0,
+    version: state.version,
+    generatedAt: state.generatedAt,
+    categories,
+  };
 }

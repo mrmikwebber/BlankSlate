@@ -4,13 +4,45 @@ import {
     calculateActivityForMonthPure,
     calculateCreditCardAccountActivityPure,
     calculateReadyToAssignPure,
+    computeBudgetState,
     getCumulativeAvailablePure,
+    normalizeTransactions,
+    serializeMonthView,
     updateMonthPure,
     type Account,
     type BudgetMonth,
+    type RawDbTransaction,
 } from "../lib/budgetMath";
 
 describe("calculateReadyToAssignPure", () => {
+    it("includes Ready to Assign inflows from credit accounts", () => {
+        const months: Record<string, BudgetMonth> = {
+            "2026-05": {
+                categories: [],
+            },
+        };
+
+        const accounts: Account[] = [
+            {
+                name: "Checking",
+                type: "debit",
+                transactions: [
+                    { date: "2026-05-01", category: "Ready to Assign", balance: 100 },
+                ],
+            },
+            {
+                name: "Amex Gold (Due 20th)",
+                type: "credit",
+                transactions: [
+                    { date: "2026-05-06", category: "Ready to Assign", balance: 81.1 },
+                ],
+            },
+        ];
+
+        const rta = calculateReadyToAssignPure("2026-05", months, accounts);
+        expect(rta).toBe(181.1);
+    });
+
     it("keeps cash overspending in RTA across future months", () => {
         // December: overspend Electricity by 40 from a debit account
         const months: Record<string, BudgetMonth> = {
@@ -417,4 +449,393 @@ describe("updateMonthPure", () => {
         expect(janElectricity.available).toBe(0); // category reset
         // Later, your RTA helper will see Dec overspend & keep RTA negative.
     });
+});
+
+describe("computeBudgetState", () => {
+    it("calculates RTA using assignments through each month, not all months", () => {
+        const accounts = [{ id: "a-checking", name: "Checking", type: "debit" as const }];
+        const rawTransactions: RawDbTransaction[] = [
+            {
+                id: "tx-income-jan",
+                account_id: "a-checking",
+                date: "2026-01-05",
+                payee: "Paycheck",
+                category: "Ready to Assign",
+                category_group: "Inflow",
+                balance: 300,
+                category_item_id: null,
+                cleared: true,
+                approved: true,
+            },
+        ];
+
+        const state = computeBudgetState({
+            userId: "u1",
+            accounts,
+            transactions: normalizeTransactions(rawTransactions, accounts),
+            assignments: [
+                { categoryItemId: "item-rent", month: "2026-01", assigned: 100 },
+                { categoryItemId: "item-rent", month: "2026-02", assigned: 50 },
+            ],
+            categoryGroups: [
+                {
+                    id: "g-bills",
+                    name: "Bills",
+                    sortOrder: 0,
+                    items: [
+                        {
+                            id: "item-rent",
+                            groupId: "g-bills",
+                            name: "Rent",
+                            sortOrder: 0,
+                            snoozed: false,
+                        },
+                    ],
+                },
+            ],
+        });
+
+        const jan = serializeMonthView(state, "2026-01");
+        const feb = serializeMonthView(state, "2026-02");
+
+        expect(jan.ready_to_assign).toBe(200);
+        expect(feb.ready_to_assign).toBe(150);
+    });
+
+    it("treats transfer inflows on credit accounts as credit card payments", () => {
+        const accounts = [
+            { id: "a-checking", name: "Total Checking – 5692", type: "debit" as const },
+            { id: "a-amex", name: "Amex Gold (Due 20th)", type: "credit" as const },
+        ];
+
+        const rawTransactions: RawDbTransaction[] = [
+            {
+                id: "tx-cc-spend",
+                account_id: "a-amex",
+                date: "2026-05-01",
+                payee: "Grocer",
+                category: "Groceries",
+                category_group: "Monthly Living / Lifestyle",
+                balance: -100,
+                category_item_id: "item-groceries",
+                cleared: true,
+                approved: true,
+            },
+            {
+                id: "tx-transfer-out",
+                account_id: "a-checking",
+                date: "2026-05-02",
+                payee: "Transfer : Amex Gold (Due 20th)",
+                category: null,
+                category_group: null,
+                balance: -40,
+                category_item_id: null,
+                cleared: true,
+                approved: true,
+            },
+            {
+                id: "tx-transfer-in",
+                account_id: "a-amex",
+                date: "2026-05-02",
+                payee: "Transfer : Total Checking – 5692",
+                category: null,
+                category_group: null,
+                balance: 40,
+                category_item_id: null,
+                cleared: true,
+                approved: true,
+            },
+        ];
+
+        const state = computeBudgetState({
+            userId: "u1",
+            accounts,
+            transactions: normalizeTransactions(rawTransactions, accounts),
+            assignments: [{ categoryItemId: "item-groceries", month: "2026-05", assigned: 100 }],
+            categoryGroups: [
+                {
+                    id: "g-cc",
+                    name: "Credit Card Payments",
+                    sortOrder: 0,
+                    items: [
+                        {
+                            id: "item-amex-payment",
+                            groupId: "g-cc",
+                            name: "Amex Gold (Due 20th)",
+                            sortOrder: 0,
+                            snoozed: false,
+                        },
+                    ],
+                },
+                {
+                    id: "g-living",
+                    name: "Monthly Living / Lifestyle",
+                    sortOrder: 1,
+                    items: [
+                        {
+                            id: "item-groceries",
+                            groupId: "g-living",
+                            name: "Groceries",
+                            sortOrder: 0,
+                            snoozed: false,
+                        },
+                    ],
+                },
+            ],
+        });
+
+        const may = serializeMonthView(state, "2026-05");
+        const ccGroup = may.categories.find((c) => c.name === "Credit Card Payments");
+        const amexPayment = ccGroup?.categoryItems.find((i) => i.name === "Amex Gold (Due 20th)");
+
+        expect(amexPayment?.activity).toBe(60);
+        expect(amexPayment?.available).toBe(60);
+    });
+
+    it("counts only budgeted credit spending in payment activity", () => {
+        const accounts = [
+            { id: "a-checking", name: "Total Checking – 5692", type: "debit" as const },
+            { id: "a-amex", name: "Amex Gold (Due 20th)", type: "credit" as const },
+        ];
+
+        const rawTransactions: RawDbTransaction[] = [
+            {
+                id: "tx-cc-spend-over",
+                account_id: "a-amex",
+                date: "2026-05-01",
+                payee: "Bar",
+                category: "Bars",
+                category_group: "Fun Spending",
+                balance: -80,
+                category_item_id: "item-bars",
+                cleared: true,
+                approved: true,
+            },
+            {
+                id: "tx-transfer-out",
+                account_id: "a-checking",
+                date: "2026-05-02",
+                payee: "Transfer : Amex Gold (Due 20th)",
+                category: null,
+                category_group: null,
+                balance: -20,
+                category_item_id: null,
+                cleared: true,
+                approved: true,
+            },
+            {
+                id: "tx-transfer-in",
+                account_id: "a-amex",
+                date: "2026-05-02",
+                payee: "Transfer : Total Checking – 5692",
+                category: null,
+                category_group: null,
+                balance: 20,
+                category_item_id: null,
+                cleared: true,
+                approved: true,
+            },
+        ];
+
+        const state = computeBudgetState({
+            userId: "u1",
+            accounts,
+            transactions: normalizeTransactions(rawTransactions, accounts),
+            assignments: [{ categoryItemId: "item-bars", month: "2026-05", assigned: 50 }],
+            categoryGroups: [
+                {
+                    id: "g-cc",
+                    name: "Credit Card Payments",
+                    sortOrder: 0,
+                    items: [
+                        {
+                            id: "item-amex-payment",
+                            groupId: "g-cc",
+                            name: "Amex Gold (Due 20th)",
+                            sortOrder: 0,
+                            snoozed: false,
+                        },
+                    ],
+                },
+                {
+                    id: "g-fun",
+                    name: "Fun Spending",
+                    sortOrder: 1,
+                    items: [
+                        {
+                            id: "item-bars",
+                            groupId: "g-fun",
+                            name: "Bars",
+                            sortOrder: 0,
+                            snoozed: false,
+                        },
+                    ],
+                },
+            ],
+        });
+
+        const may = serializeMonthView(state, "2026-05");
+        const ccGroup = may.categories.find((c) => c.name === "Credit Card Payments");
+        const amexPayment = ccGroup?.categoryItems.find((i) => i.name === "Amex Gold (Due 20th)");
+
+        // 80 spend with only 50 funded => +50 payment activity, then -20 transfer payment => +30 net.
+        expect(amexPayment?.activity).toBe(30);
+        expect(amexPayment?.available).toBe(30);
+    });
+
+    it("treats uncategorized credit inflows as card payments", () => {
+        const accounts = [
+            { id: "a-amex", name: "Amex Gold (Due 20th)", type: "credit" as const },
+        ];
+
+        const rawTransactions: RawDbTransaction[] = [
+            {
+                id: "tx-spend",
+                account_id: "a-amex",
+                date: "2026-05-01",
+                payee: "Grocer",
+                category: "Groceries",
+                category_group: "Monthly Living / Lifestyle",
+                balance: -100,
+                category_item_id: "item-groceries",
+                cleared: true,
+                approved: true,
+            },
+            {
+                id: "tx-payment-uncat",
+                account_id: "a-amex",
+                date: "2026-05-02",
+                payee: "Bank Payment",
+                category: "Uncategorized",
+                category_group: "Uncategorized",
+                balance: 40,
+                category_item_id: null,
+                cleared: true,
+                approved: true,
+            },
+        ];
+
+        const state = computeBudgetState({
+            userId: "u1",
+            accounts,
+            transactions: normalizeTransactions(rawTransactions, accounts),
+            assignments: [{ categoryItemId: "item-groceries", month: "2026-05", assigned: 100 }],
+            categoryGroups: [
+                {
+                    id: "g-cc",
+                    name: "Credit Card Payments",
+                    sortOrder: 0,
+                    items: [
+                        {
+                            id: "item-amex-payment",
+                            groupId: "g-cc",
+                            name: "Amex Gold (Due 20th)",
+                            sortOrder: 0,
+                            snoozed: false,
+                        },
+                    ],
+                },
+                {
+                    id: "g-living",
+                    name: "Monthly Living / Lifestyle",
+                    sortOrder: 1,
+                    items: [
+                        {
+                            id: "item-groceries",
+                            groupId: "g-living",
+                            name: "Groceries",
+                            sortOrder: 0,
+                            snoozed: false,
+                        },
+                    ],
+                },
+            ],
+        });
+
+        const may = serializeMonthView(state, "2026-05");
+        const ccGroup = may.categories.find((c) => c.name === "Credit Card Payments");
+        const amexPayment = ccGroup?.categoryItems.find((i) => i.name === "Amex Gold (Due 20th)");
+
+        expect(amexPayment?.activity).toBe(60);
+        expect(amexPayment?.available).toBe(60);
+    });
+
+    it("applies same-day debit spending before credit spending for funding", () => {
+        const accounts = [
+            { id: "a-checking", name: "Checking", type: "debit" as const },
+            { id: "a-amex", name: "Amex Gold (Due 20th)", type: "credit" as const },
+        ];
+
+        const rawTransactions: RawDbTransaction[] = [
+            {
+                id: "tx-debit-spend",
+                account_id: "a-checking",
+                date: "2026-05-10",
+                payee: "Cash Grocer",
+                category: "Groceries",
+                category_group: "Monthly Living / Lifestyle",
+                balance: -80,
+                category_item_id: "item-groceries",
+                cleared: true,
+                approved: true,
+            },
+            {
+                id: "tx-credit-spend",
+                account_id: "a-amex",
+                date: "2026-05-10",
+                payee: "Card Grocer",
+                category: "Groceries",
+                category_group: "Monthly Living / Lifestyle",
+                balance: -80,
+                category_item_id: "item-groceries",
+                cleared: true,
+                approved: true,
+            },
+        ];
+
+        const state = computeBudgetState({
+            userId: "u1",
+            accounts,
+            transactions: normalizeTransactions(rawTransactions, accounts),
+            assignments: [{ categoryItemId: "item-groceries", month: "2026-05", assigned: 100 }],
+            categoryGroups: [
+                {
+                    id: "g-cc",
+                    name: "Credit Card Payments",
+                    sortOrder: 0,
+                    items: [
+                        {
+                            id: "item-amex-payment",
+                            groupId: "g-cc",
+                            name: "Amex Gold (Due 20th)",
+                            sortOrder: 0,
+                            snoozed: false,
+                        },
+                    ],
+                },
+                {
+                    id: "g-living",
+                    name: "Monthly Living / Lifestyle",
+                    sortOrder: 1,
+                    items: [
+                        {
+                            id: "item-groceries",
+                            groupId: "g-living",
+                            name: "Groceries",
+                            sortOrder: 0,
+                            snoozed: false,
+                        },
+                    ],
+                },
+            ],
+        });
+
+        const may = serializeMonthView(state, "2026-05");
+        const ccGroup = may.categories.find((c) => c.name === "Credit Card Payments");
+        const amexPayment = ccGroup?.categoryItems.find((i) => i.name === "Amex Gold (Due 20th)");
+
+        expect(amexPayment?.activity).toBe(20);
+        expect(amexPayment?.available).toBe(20);
+    });
+
 });

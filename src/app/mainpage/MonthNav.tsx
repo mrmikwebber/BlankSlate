@@ -3,11 +3,9 @@ import React from "react";
 import { addMonths, format, parse, subMonths } from "date-fns";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useBudgetContext } from "../context/BudgetContext";
-import { useAccountContext } from "../context/AccountContext";
 
 const MonthNav = () => {
-  const { currentMonth, updateMonth } = useBudgetContext();
-  const { accounts } = useAccountContext();
+  const { currentMonth, setCurrentMonth } = useBudgetContext();
 
   const formattedMonth = useMemo(() => {
     const parsedDate = parse(currentMonth, "yyyy-MM", new Date());
@@ -16,16 +14,14 @@ const MonthNav = () => {
 
   const goToNextMonth = () => {
     const parsedDate = parse(`${currentMonth}-01`, "yyyy-MM-dd", new Date());
-    const nextMonthDate = addMonths(parsedDate, 1);
-    const nextMonth = format(nextMonthDate, "yyyy-MM");
-    updateMonth(nextMonth, "forward", accounts);
+    const nextMonth = format(addMonths(parsedDate, 1), "yyyy-MM");
+    setCurrentMonth(nextMonth);
   };
 
   const goToPreviousMonth = () => {
     const parsedDate = parse(`${currentMonth}-01`, "yyyy-MM-dd", new Date());
-    const prevMonthDate = subMonths(parsedDate, 1);
-    const prevMonth = format(prevMonthDate, "yyyy-MM");
-    updateMonth(prevMonth, "backward", accounts);
+    const prevMonth = format(subMonths(parsedDate, 1), "yyyy-MM");
+    setCurrentMonth(prevMonth);
   };
 
   return (

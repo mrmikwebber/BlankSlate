@@ -97,9 +97,17 @@ export default function Navbar() {
         .from('budget_data')
         .delete()
         .eq('user_id', userId);
-      
+
       if (budgetError) throw budgetError;
-      
+
+      // Delete category structure (cascades to category_items and budget_assignments)
+      const { error: categoryError } = await supabase
+        .from('category_groups')
+        .delete()
+        .eq('user_id', userId);
+
+      if (categoryError) throw categoryError;
+
       // Disconnect Teller enrollments (revoke on Teller's side, best-effort)
       const { data: enrollments } = await supabase
         .from('teller_enrollments')
@@ -265,6 +273,28 @@ export default function Navbar() {
                         <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-teal-500" />
                       </button>
                     )}
+                    <button
+                      onClick={async () => {
+                        const [planRes, regRes] = await Promise.all([
+                          fetch("/api/export/plan"),
+                          fetch("/api/export/register"),
+                        ]);
+                        for (const [res, name] of [[planRes, "plan"], [regRes, "register"]] as const) {
+                          if (!res.ok) continue;
+                          const blob = await res.blob();
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement("a");
+                          a.href = url;
+                          const cd = res.headers.get("Content-Disposition") ?? "";
+                          a.download = cd.match(/filename="([^"]+)"/)?.[1] ?? `blankslate-${name}.csv`;
+                          a.click();
+                          URL.revokeObjectURL(url);
+                        }
+                      }}
+                      className="px-3 py-1.5 rounded-md text-xs border border-teal-300 dark:border-teal-700 text-teal-700 dark:text-teal-300 bg-transparent hover:bg-teal-50 dark:hover:bg-teal-950 transition-colors"
+                    >
+                      Export Data
+                    </button>
                     <button
                       onClick={() => setShowResetModal(true)}
                       className="px-3 py-1.5 rounded-md text-xs border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"

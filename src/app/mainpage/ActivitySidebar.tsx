@@ -37,7 +37,7 @@ export default function ActivitySidebar({ page, orientation = "vertical" }: Acti
     ];
     merged.sort(
       (a, b) =>
-        new Date(b.timestamp || 0).getTime() - new Date(a.timestamp).getTime()
+        new Date((b as { timestamp?: string }).timestamp || 0).getTime() - new Date((a as { timestamp?: string }).timestamp || 0).getTime()
     );
     setActivity(merged);
   }, [recentChanges, recentTransactions]);

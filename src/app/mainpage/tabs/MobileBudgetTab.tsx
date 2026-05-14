@@ -46,6 +46,7 @@ export default function MobileBudgetTab() {
     refreshAllReadyToAssign,
     setIsDirty,
     setRecentChanges,
+    getGroupIdByName,
   } = useBudgetContext();
 
   const [selectedItem, setSelectedItem] = useState<SelectedItem | null>(null);
@@ -159,7 +160,7 @@ export default function MobileBudgetTab() {
       );
 
       updated[currentMonth].categories = updatedWithCC;
-      refreshAllReadyToAssign(updated);
+      refreshAllReadyToAssign();
       return updated;
     });
 
@@ -180,7 +181,7 @@ export default function MobileBudgetTab() {
     setEditAssigned(String(current + amount));
   };
 
-  const cumulativeAvailable = getCumulativeAvailable(currentMonth);
+  const cumulativeAvailable = getCumulativeAvailable(null, "", "");
 
   if (!budgetMonth) {
     return (
@@ -491,12 +492,8 @@ export default function MobileBudgetTab() {
                 if (e.key === "Enter") {
                   e.preventDefault();
                   if (!addToGroup || !newItemName.trim()) return;
-                  addItemToCategory(addToGroup, {
-                    name: newItemName.trim(),
-                    assigned: 0,
-                    activity: 0,
-                    available: 0,
-                  });
+                  const gid = getGroupIdByName(addToGroup);
+                  if (gid) addItemToCategory(gid, newItemName.trim());
                   setAddToGroup(null);
                   setNewItemName("");
                 }
@@ -514,12 +511,8 @@ export default function MobileBudgetTab() {
                 className="flex-1 bg-teal-600 dark:bg-teal-700 text-white hover:bg-teal-500 dark:hover:bg-teal-600"
                 onClick={() => {
                   if (!addToGroup || !newItemName.trim()) return;
-                  addItemToCategory(addToGroup, {
-                    name: newItemName.trim(),
-                    assigned: 0,
-                    activity: 0,
-                    available: 0,
-                  });
+                  const gid = getGroupIdByName(addToGroup);
+                  if (gid) addItemToCategory(gid, newItemName.trim());
                   setAddToGroup(null);
                   setNewItemName("");
                 }}

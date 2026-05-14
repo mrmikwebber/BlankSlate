@@ -2,7 +2,14 @@
   "permissions": {
     "allow": [
       "Bash(npx tsc:*)",
-      "Bash(xargs grep *)"
+      "Bash(xargs grep *)",
+      "Bash(mkdir -p /Users/michaelwebb/Documents/GitHub/BlankSlate/src/app/api/budget/month \\\\ *)",
+      "Bash(npm test *)",
+      "Bash(python3 -c \"import os; print\\(os.path.relpath\\('/Users/michaelwebb/Documents/GitHub/BlankSlate/lib/budgetMath.ts', '/Users/michaelwebb/Documents/GitHub/BlankSlate/src/app/api/export/plan/'\\)\\)\")",
+      "Bash(xargs ls -la)"
+    ],
+    "additionalDirectories": [
+      "/Users/michaelwebb/Documents/GitHub/BlankSlate/src/app/api/budget/month"
     ]
   }
 }

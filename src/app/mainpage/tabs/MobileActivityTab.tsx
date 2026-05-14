@@ -28,7 +28,7 @@ export default function MobileActivityTab() {
     ];
     merged.sort(
       (a, b) =>
-        new Date(b.timestamp || 0).getTime() - new Date(a.timestamp).getTime()
+        new Date((b as { timestamp?: string }).timestamp || 0).getTime() - new Date((a as { timestamp?: string }).timestamp || 0).getTime()
     );
     setActivity(merged.slice(0, 50)); // Limit to 50 most recent
   }, [recentChanges, recentTransactions]);

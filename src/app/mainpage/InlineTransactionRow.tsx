@@ -28,6 +28,7 @@ export default function InlineTransactionRow({
     budgetData,
     currentMonth,
     addItemToCategory,
+    getGroupIdByName,
   } = useBudgetContext();
 
   const { addTransaction, addTransactionWithMirror, editTransaction, accounts, deleteTransaction, savedPayees, upsertPayee } =
@@ -325,12 +326,8 @@ export default function InlineTransactionRow({
     }
 
     if (groupName && groupName !== "Ready to Assign" && itemName) {
-      addItemToCategory(groupName, {
-        name: itemName,
-        assigned: 0,
-        activity: 0,
-        available: 0,
-      });
+      const groupId = getGroupIdByName(groupName);
+      if (groupId) addItemToCategory(groupId, itemName);
     }
 
 

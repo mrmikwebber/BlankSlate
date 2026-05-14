@@ -23,11 +23,17 @@ type ParsedBudgetData = {
   [month: string]: {
     categories: {
       name: string;
+      notes?: string;
+      notes_history?: unknown[];
       categoryItems: {
         name: string;
         assigned: number;
         activity: number;
         available: number;
+        snoozed?: boolean;
+        target?: unknown;
+        notes?: string;
+        notes_history?: unknown[];
       }[];
     }[];
     assignable_money?: number;

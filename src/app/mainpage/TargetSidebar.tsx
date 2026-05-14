@@ -45,7 +45,7 @@ export const TargetSidebar = ({ itemName, onClose }) => {
     if (foundItem) {
       const existingTarget = foundItem.target || null;
       setTarget(existingTarget);
-      setTargetAmount(existingTarget?.amount || "");
+      setTargetAmount(existingTarget?.amount?.toString() || "");
       setTargetType(
         foundItem.categoryName === "Credit Card Payments"
           ? existingTarget?.type || "Full Payoff"
@@ -201,7 +201,7 @@ export const TargetSidebar = ({ itemName, onClose }) => {
               <p>
                 <strong>Last Month Leftover:</strong>{" "}
                 {formatToUSD(
-                  budgetData?.[currentMonth]?.previousMonthAvailable || 0
+                  0
                 )}
               </p>
               <p>
