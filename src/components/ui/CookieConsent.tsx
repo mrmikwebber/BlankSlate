@@ -74,10 +74,10 @@ export default function CookieConsent() {
 
   return (
     <div className="fixed bottom-4 left-4 right-4 sm:left-8 sm:right-8 z-50">
-      <div className="mx-auto max-w-3xl rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white/95 dark:bg-neutral-900/95 backdrop-blur shadow-lg">
+      <div className="mx-auto max-w-3xl rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur shadow-lg">
         <div className="p-4 sm:p-5">
           <h2 className="text-sm font-semibold">Cookies & Analytics</h2>
-          <p className="mt-2 text-sm text-neutral-700 dark:text-neutral-300">
+          <p className="mt-2 text-sm text-slate-700 dark:text-slate-300">
             We use essential cookies to make the app work. With your permission, we would also like to use analytics cookies to understand usage and improve the product.
           </p>
           <div className="mt-3 flex items-center gap-3">
@@ -92,13 +92,13 @@ export default function CookieConsent() {
             </label>
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
-            <button onClick={acceptAll} className="px-3 py-1.5 rounded bg-neutral-900 text-white hover:bg-neutral-800 text-sm">
+            <button onClick={acceptAll} className="px-3 py-1.5 rounded bg-slate-900 text-white hover:bg-slate-800 text-sm">
               Accept all
             </button>
-            <button onClick={acceptSelected} className="px-3 py-1.5 rounded border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-sm">
+            <button onClick={acceptSelected} className="px-3 py-1.5 rounded border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-sm">
               Save selection
             </button>
-            <button onClick={decline} className="px-3 py-1.5 rounded border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-sm">
+            <button onClick={decline} className="px-3 py-1.5 rounded border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-sm">
               Decline non-essential
             </button>
             <a href="/cookies" className="px-3 py-1.5 rounded text-sm underline">

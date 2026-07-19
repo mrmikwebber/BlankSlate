@@ -1,4 +1,4 @@
-// Bulk recomputation endpoint — called after YNAB import and Teller sync.
+// Bulk recomputation endpoint — called after YNAB import.
 // Loads all source-of-truth data, runs computeBudgetState, and serializes
 // each requested month (or all months). Returns a summary.
 

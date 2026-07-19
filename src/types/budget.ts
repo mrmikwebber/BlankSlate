@@ -32,6 +32,12 @@ export interface ComputedCategoryItem {
   target?: Target;
   notes?: string;
   notes_history?: NoteEntry[];
+
+  // Opts this item into the Safe-to-Spend discretionary view — a distinct
+  // concept from `target` above (a funding/payoff goal never read by the
+  // compute engine). Safe-to-Spend derives its pace entirely from this
+  // item's real `available` above; there's no separate ceiling to track.
+  isDiscretionaryPool?: boolean;
 }
 
 export interface ComputedCategory {
@@ -68,7 +74,7 @@ export interface NormalizedTransaction {
   accountId: string;
   date: string;                  // "YYYY-MM-DD"
   amount: number;                // positive = inflow, negative = outflow
-  categoryItemId?: string;       // FK to category_items.id (null = uncategorized/Teller)
+  categoryItemId?: string;       // FK to category_items.id (null = uncategorized)
   transferPairId?: string;       // links the two legs of a transfer
   affectsBudget: boolean;        // false for transfers, internal movements
   isCreditCardPayment: boolean;
@@ -94,6 +100,7 @@ export interface CategoryItemMeta {
   target?: Target;
   notes?: string;
   notes_history?: NoteEntry[];
+  isDiscretionaryPool?: boolean;
 }
 
 export interface CategoryGroupMeta {
@@ -187,6 +194,7 @@ export interface UpdateItemRequest {
   snoozed?: boolean;
   target?: Target | null;
   notes?: string;
+  isDiscretionaryPool?: boolean;
 }
 
 export interface RecomputeRequest {

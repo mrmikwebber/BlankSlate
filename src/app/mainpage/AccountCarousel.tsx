@@ -60,18 +60,18 @@ export default function AccountCarousel({ selectedAccountId, onSelect }: Props) 
         <div className="relative flex-1">
           <button
             onClick={() => setAccountDropdownOpen(!accountDropdownOpen)}
-            className="w-full text-left px-3 py-2 text-sm border border-slate-300 dark:border-slate-700 rounded bg-white dark:bg-slate-800 dark:text-slate-200 hover:border-slate-400 dark:hover:border-slate-600"
+            className="w-full text-left px-3 py-2 text-sm border border-slate-300 dark:border-slate-700 rounded bg-slate-50 dark:bg-slate-800 dark:text-slate-200 hover:border-slate-400 dark:hover:border-slate-600"
           >
             {selectedAccountId ? accounts.find((a) => a.id === selectedAccountId)?.name || "All accounts" : "All accounts"}
           </button>
           {accountDropdownOpen && (
-            <div className="absolute top-full left-0 right-0 mt-1 z-20 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-lg max-h-48 overflow-y-auto">
+            <div className="absolute top-full left-0 right-0 mt-1 z-20 rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 shadow-lg max-h-48 overflow-y-auto">
               <button
                 onClick={() => {
                   onSelect?.(0);
                   setAccountDropdownOpen(false);
                 }}
-                className="w-full text-left px-3 py-2 text-sm hover:bg-teal-50 dark:hover:bg-teal-900/20 text-slate-800 dark:text-slate-200 border-b border-slate-200 dark:border-slate-700"
+                className="w-full text-left px-3 py-2 text-sm hover:bg-ledger-50 dark:hover:bg-ledger-900/20 text-slate-800 dark:text-slate-200 border-b border-slate-200 dark:border-slate-700"
               >
                 All accounts
               </button>
@@ -84,8 +84,8 @@ export default function AccountCarousel({ selectedAccountId, onSelect }: Props) 
                   }}
                   className={`w-full text-left px-3 py-2 text-sm text-slate-800 dark:text-slate-200 ${
                     selectedAccountId === Number(acc.id)
-                      ? "bg-teal-50 dark:bg-teal-900/20"
-                      : "hover:bg-teal-50 dark:hover:bg-teal-900/20"
+                      ? "bg-ledger-50 dark:bg-ledger-900/20"
+                      : "hover:bg-ledger-50 dark:hover:bg-ledger-900/20"
                   }`}
                 >
                   {acc.name}
@@ -120,7 +120,7 @@ export default function AccountCarousel({ selectedAccountId, onSelect }: Props) 
             variant="ghost"
             size="icon"
             onClick={() => scroll("left")}
-            className="absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-white/80 hover:bg-white shadow-sm hidden md:flex"
+            className="absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-slate-50/80 hover:bg-slate-50 shadow-sm hidden md:flex"
           >
             <ChevronLeft className="w-4 h-4" />
           </Button>
@@ -137,7 +137,7 @@ export default function AccountCarousel({ selectedAccountId, onSelect }: Props) 
             key={account.id}
             className={`flex-shrink-0 w-72 snap-start transition ring-offset-2 ${
               selectedAccountId === Number(account.id)
-                ? "ring-2 ring-teal-500 shadow-md"
+                ? "ring-2 ring-ledger-500 shadow-md"
                 : "hover:ring-1 hover:ring-slate-200"
             }`}
             role="button"
@@ -161,7 +161,7 @@ export default function AccountCarousel({ selectedAccountId, onSelect }: Props) 
             variant="ghost"
             size="icon"
             onClick={() => scroll("right")}
-            className="absolute right-0 top-1/2 -translate-y-1/2 z-10 bg-white/80 hover:bg-white shadow-sm hidden md:flex"
+            className="absolute right-0 top-1/2 -translate-y-1/2 z-10 bg-slate-50/80 hover:bg-slate-50 shadow-sm hidden md:flex"
           >
             <ChevronRight className="w-4 h-4" />
           </Button>

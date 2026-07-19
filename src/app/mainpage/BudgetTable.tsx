@@ -1,10 +1,9 @@
 "use client";
-import { useState, useEffect, useMemo, Fragment, useRef, useCallback } from "react";
+import { useState, useEffect, useLayoutEffect, useMemo, Fragment, useRef, useCallback } from "react";
 import { formatToUSD } from "../utils/formatToUSD";
 import AddCategoryButton from "./AddCategoryButton";
 import EditableAssigned from "./EditableAssigned";
 import InlineTransactionRow from "./InlineTransactionRow";
-import MonthNav from "./MonthNav";
 import { useBudgetContext } from "../context/BudgetContext";
 import { getCachedView } from "../hooks/useBudgetMonth";
 import { getTargetStatus } from "../utils/getTargetStatus";
@@ -56,6 +55,27 @@ const rtaLog = (...args: unknown[]) => {
 const budgetLog = (...args: unknown[]) => {
   if (DEBUG_BUDGET_TABLE) console.log("[BudgetTable]", ...args);
 };
+
+// Right-click context menus are positioned at the raw click coordinates,
+// which clips off-screen when the click lands near the bottom/right edge
+// (e.g. the last row in a long category list). Measures the menu after it
+// mounts and clamps it back into the viewport, before paint so there's no
+// visible jump.
+function useClampedMenuPosition(x: number | undefined, y: number | undefined) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+
+  useLayoutEffect(() => {
+    if (x == null || y == null || !ref.current) return;
+    const rect = ref.current.getBoundingClientRect();
+    const margin = 8;
+    const maxTop = Math.max(margin, window.innerHeight - rect.height - margin);
+    const maxLeft = Math.max(margin, window.innerWidth - rect.width - margin);
+    setPos({ top: Math.min(y, maxTop), left: Math.min(x, maxLeft) });
+  }, [x, y]);
+
+  return { ref, style: { top: pos.top, left: pos.left } };
+}
 
 export default function BudgetTable() {
   const {
@@ -159,6 +179,8 @@ export default function BudgetTable() {
     available: number;
     snoozed?: boolean;
   } | null>(null);
+  const groupMenuPos = useClampedMenuPosition(groupContext?.x, groupContext?.y);
+  const categoryMenuPos = useClampedMenuPosition(categoryContext?.x, categoryContext?.y);
 
   const [draggingGroup, setDraggingGroup] = useState<string | null>(null);
   const [dragOverGroup, setDragOverGroup] = useState<string | null>(null);
@@ -438,7 +460,10 @@ export default function BudgetTable() {
       if (fromIdx === -1 || toIdx === -1) return;
       const reordered = [...groups];
       reordered.splice(fromIdx, 1);
-      reordered.splice(toIdx, 0, draggingGroup);
+      // Removing the dragged item shifts everything after it back by one —
+      // account for that before inserting, or forward drags land one slot short.
+      const adjustedToIdx = fromIdx < toIdx ? toIdx - 1 : toIdx;
+      reordered.splice(adjustedToIdx, 0, draggingGroup);
       const orderedIds = reordered
         .map((name, i) => {
           const id = getGroupIdByName(name);
@@ -472,9 +497,12 @@ export default function BudgetTable() {
       if (fromIdx === -1) return;
       const reordered = [...items];
       reordered.splice(fromIdx, 1);
-      const insertAt = targetName ? items.indexOf(targetName) : items.length;
-      const finalIdx = position === "after" ? insertAt + 1 : insertAt;
-      reordered.splice(Math.max(0, Math.min(finalIdx, reordered.length)), 0, draggingItem.item);
+      let insertAt = targetName ? items.indexOf(targetName) : items.length;
+      if (position === "after") insertAt += 1;
+      // Removing the dragged item shifts everything after it back by one —
+      // account for that before inserting, or forward drags land one slot short.
+      if (fromIdx < insertAt) insertAt -= 1;
+      reordered.splice(Math.max(0, Math.min(insertAt, reordered.length)), 0, draggingItem.item);
       const orderedIds = reordered
         .map((name, i) => {
           const id = getItemIdByName(draggingItem.group, name);
@@ -724,7 +752,7 @@ export default function BudgetTable() {
 
   if (isLoading && !budgetView) {
     return (
-      <Card className="border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm">
+      <Card className="border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 shadow-sm">
         <CardHeader className="pb-2">
           <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">Loading budget...</div>
         </CardHeader>
@@ -737,7 +765,7 @@ export default function BudgetTable() {
 
   if (error) {
     return (
-      <Card className="border-red-200 dark:border-red-900/60 bg-white dark:bg-slate-900 shadow-sm">
+      <Card className="border-red-200 dark:border-red-900/60 bg-slate-50 dark:bg-slate-900 shadow-sm">
         <CardHeader className="pb-2">
           <div className="text-sm font-semibold text-red-700 dark:text-red-300">Budget data failed to load</div>
         </CardHeader>
@@ -789,9 +817,10 @@ export default function BudgetTable() {
       {groupContext &&
         createPortal(
           <div
+            ref={groupMenuPos.ref}
             data-cy="group-context-menu"
-            className="fixed z-50 w-40 bg-white border border-slate-200 shadow-md rounded-md text-xs"
-            style={{ top: groupContext.y, left: groupContext.x }}
+            className="fixed z-50 w-40 bg-slate-50 border border-slate-200 shadow-md rounded-md text-xs"
+            style={groupMenuPos.style}
             onClick={() => setGroupContext(null)}
           >
             <button
@@ -836,7 +865,7 @@ export default function BudgetTable() {
             onClick={() => setCategoryDeleteContext(null)}
           >
             <div
-              className="bg-white dark:bg-neutral-900 p-5 rounded-lg shadow-lg w-full max-w-md space-y-4 text-neutral-800 dark:text-neutral-200"
+              className="bg-slate-50 dark:bg-slate-900 p-5 rounded-lg shadow-lg w-full max-w-md space-y-4 text-slate-800 dark:text-slate-200"
               onClick={(e) => e.stopPropagation()}
             >
               <h2 className="text-base font-semibold">
@@ -853,7 +882,7 @@ export default function BudgetTable() {
 
                   <select
                     data-cy="reassign-target-select"
-                    className="w-full border border-slate-300 dark:border-neutral-700 rounded-md px-2 py-1 text-sm bg-white dark:bg-neutral-900 text-neutral-800 dark:text-neutral-200"
+                    className="w-full border border-slate-300 dark:border-slate-700 rounded-md px-2 py-1 text-sm bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200"
                     value={selectedTargetCategory}
                     onChange={(e) => setSelectedTargetCategory(e.target.value)}
                   >
@@ -898,7 +927,7 @@ export default function BudgetTable() {
                 </>
               ) : (
                 <>
-                  <p className="text-sm text-muted-foreground dark:text-neutral-400">
+                  <p className="text-sm text-muted-foreground dark:text-slate-400">
                     This category has no funds or activity. Are you sure you
                     want to delete it?
                   </p>
@@ -946,7 +975,7 @@ export default function BudgetTable() {
             }}
           >
             <div
-              className="bg-white dark:bg-neutral-900 p-5 rounded-lg shadow-lg w-full max-w-md space-y-4 text-neutral-800 dark:text-neutral-200"
+              className="bg-slate-50 dark:bg-slate-900 p-5 rounded-lg shadow-lg w-full max-w-md space-y-4 text-slate-800 dark:text-slate-200"
               onClick={(e) => e.stopPropagation()}
             >
               <h2 className="text-base font-semibold">
@@ -967,7 +996,7 @@ export default function BudgetTable() {
                   </label>
                   <select
                     data-cy="move-money-target-select"
-                    className="w-full border border-slate-300 dark:border-neutral-700 rounded-md px-3 py-2 text-sm bg-white dark:bg-neutral-900 text-neutral-800 dark:text-neutral-200"
+                    className="w-full border border-slate-300 dark:border-slate-700 rounded-md px-3 py-2 text-sm bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200"
                     value={moveToCategory}
                     onChange={(e) => {
                       const value = e.target.value;
@@ -1069,7 +1098,7 @@ export default function BudgetTable() {
                   size="sm"
                   onClick={handleMoveMoney}
                   disabled={!moveToCategory || moveAmount <= 0}
-                  className="bg-teal-600 dark:bg-teal-700 text-white hover:bg-teal-500 dark:hover:bg-teal-600"
+                  className="bg-ledger-600 dark:bg-ledger-700 text-white hover:bg-ledger-500 dark:hover:bg-ledger-600"
                 >
                   Move Money
                 </Button>
@@ -1083,9 +1112,10 @@ export default function BudgetTable() {
       {categoryContext &&
         createPortal(
           <div
+            ref={categoryMenuPos.ref}
             data-cy="category-context-menu"
-            className="fixed z-50 bg-white border border-slate-200 rounded-md shadow-md text-xs dark:bg-slate-900 dark:border-slate-700 min-w-max"
-            style={{ top: categoryContext.y, left: categoryContext.x }}
+            className="fixed z-50 bg-slate-50 border border-slate-200 rounded-md shadow-md text-xs dark:bg-slate-900 dark:border-slate-700 min-w-max"
+            style={categoryMenuPos.style}
             onClick={() => setCategoryContext(null)}
           >
             <div className="py-1">
@@ -1094,7 +1124,7 @@ export default function BudgetTable() {
                 data-category={categoryContext.groupName}
                 data-item={categoryContext.itemName}
                 onClick={() => handleQuickAssign(categoryContext.groupName, categoryContext.itemName, "last-month")}
-                className="px-3 py-2 hover:bg-teal-50 dark:hover:bg-teal-950 text-teal-600 dark:text-teal-400 w-full text-left flex items-center justify-between gap-4"
+                className="px-3 py-2 hover:bg-ledger-50 dark:hover:bg-ledger-950 text-ledger-600 dark:text-ledger-400 w-full text-left flex items-center justify-between gap-4"
               >
                 <span>Set to last month</span>
                 <span className="text-slate-500 dark:text-slate-400 font-mono text-[10px]">
@@ -1320,9 +1350,9 @@ export default function BudgetTable() {
       {/* Add Transaction Inline Form - Shows after account is selected */}
       {selectedAccountForTransaction && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl max-h-[90vh] w-[90vw] max-w-6xl flex flex-col border border-slate-200 dark:border-slate-700">
+          <div className="bg-slate-50 dark:bg-slate-900 rounded-2xl shadow-2xl max-h-[90vh] w-[90vw] max-w-6xl flex flex-col border border-slate-200 dark:border-slate-700">
             <div className="border-b border-slate-200 dark:border-slate-700 px-8 py-6 flex justify-between items-center bg-gradient-to-r from-slate-50 to-transparent dark:from-slate-800 dark:to-transparent rounded-t-2xl">
-              <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-50">Add Transaction to <span className="text-teal-600 dark:text-teal-400">{accounts.find(a => a.id === selectedAccountForTransaction)?.name}</span></h2>
+              <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-50">Add Transaction to <span className="text-ledger-600 dark:text-ledger-400">{accounts.find(a => a.id === selectedAccountForTransaction)?.name}</span></h2>
               <button
                 onClick={() => {
                   setSelectedAccountForTransaction(null);
@@ -1346,7 +1376,7 @@ export default function BudgetTable() {
                     </tr>
                   </thead>
                   <tbody>
-                    <tr className="hover:bg-teal-50 dark:hover:bg-teal-950/20 h-24 transition-colors">
+                    <tr className="hover:bg-ledger-50 dark:hover:bg-ledger-950/20 h-24 transition-colors">
                       <td colSpan={5} className="p-0">
                         <InlineTransactionRow
                           accountId={selectedAccountForTransaction}
@@ -1373,7 +1403,7 @@ export default function BudgetTable() {
       )}
 
       {/* Main card */}
-      <Card className="flex flex-col w-full h-full min-h-0 overflow-hidden border border-slate-200 dark:border-slate-700 rounded-xl bg-white dark:bg-slate-950">
+      <Card className="flex flex-col w-full h-full min-h-0 overflow-hidden border border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-950">
         <CardHeader className="py-2.5 px-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
           <div className="flex flex-col gap-2">
             {sandboxMode && (
@@ -1401,8 +1431,8 @@ export default function BudgetTable() {
               </div>
             )}
 
-            {/* Top row: RTA + Month */}
-            <div className="flex flex-wrap items-center justify-between gap-2">
+            {/* Status row — month nav now lives in the page-level toolbar */}
+            {(showCarryNote || overspentCategoriesCount > 0 || (!showCarryNote && overspentCategoriesCount === 0 && displayedRta > 0)) && (
               <div className="flex items-center gap-2 flex-wrap">
                 {!showCarryNote && overspentCategoriesCount === 0 && displayedRta > 0 && (
                   <span className="text-xs text-slate-400 dark:text-slate-500 italic">
@@ -1415,19 +1445,12 @@ export default function BudgetTable() {
                   </span>
                 )}
                 {overspentCategoriesCount > 0 && (
-                  <Badge
-                    data-cy="overspent-indicator"
-                    variant="outline"
-                    className="text-xs font-medium px-2.5 py-1 bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-300 border-red-300 dark:border-red-700"
-                  >
+                  <Badge data-cy="overspent-indicator" variant="negative">
                     {overspentCategoriesCount} overspent
                   </Badge>
                 )}
               </div>
-              <div>
-                <MonthNav />
-              </div>
-            </div>
+            )}
 
 
             {/* Toolbar: Filters + Actions */}
@@ -1462,7 +1485,7 @@ export default function BudgetTable() {
                   className={cn(
                     "h-6 w-6 p-0",
                     compareToLastMonth
-                      ? "bg-teal-600 text-white hover:bg-teal-500 dark:bg-teal-700 dark:hover:bg-teal-600"
+                      ? "bg-ledger-600 text-white hover:bg-ledger-500 dark:bg-ledger-700 dark:hover:bg-ledger-600"
                       : "text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"
                   )}
                 >
@@ -1572,7 +1595,7 @@ export default function BudgetTable() {
                   <TableHead className="text-right px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">
                     Activity
                   </TableHead>
-                  <TableHead className="text-right px-3 py-2 text-xs font-semibold uppercase tracking-wide text-teal-600 dark:text-teal-400">
+                  <TableHead className="text-right px-3 py-2 text-xs font-semibold uppercase tracking-wide text-ledger-600 dark:text-ledger-400">
                     Available
                   </TableHead>
                 </TableRow>
@@ -1586,20 +1609,29 @@ export default function BudgetTable() {
           >
             <Table data-cy="budget-table" className="w-full table-fixed">
               <TableBody>
-                {filteredCategories.map((group) => (
+                {filteredCategories.map((group, groupIndex) => (
                   <Fragment key={group.name}>
+                    {/* Gap between groups — real HTML tables ignore margin on
+                        rows, so a spacer row matching the page background is
+                        what actually makes each group read as its own block
+                        instead of one continuous flat table. */}
+                    {groupIndex > 0 && (
+                      <TableRow className="border-none hover:bg-transparent">
+                        <TableCell colSpan={4} className="h-3 p-0 bg-slate-100 dark:bg-slate-900" />
+                      </TableRow>
+                    )}
                     {/* Group row */}
                     <TableRow
                       data-cy="category-group-row"
                       data-category={group.name}
                       className={cn(
-                        "group bg-slate-100 dark:bg-slate-800 text-sm font-semibold text-slate-900 dark:text-slate-100 border-b border-slate-200 dark:border-slate-700",
+                        "group bg-slate-100 dark:bg-slate-800 text-sm font-semibold text-slate-900 dark:text-slate-100 border-b-2 border-slate-200 dark:border-slate-700",
                         draggingGroup === group.name && "opacity-70",
                         dragOverGroup === group.name && draggingGroup
-                          ? "ring-2 ring-teal-500/70 bg-teal-50/60 dark:bg-teal-950/40 border-l-4 border-l-teal-500 shadow-sm"
+                          ? "ring-2 ring-ledger-500/70 bg-ledger-50/60 dark:bg-ledger-950/40 shadow-sm"
                           : "",
                         dragOverItem?.group === group.name && dragOverItem?.item === "__group__"
-                          ? "ring-2 ring-teal-500/70 bg-teal-50/60 dark:bg-teal-950/40 border-l-4 border-l-teal-500 shadow-sm"
+                          ? "ring-2 ring-ledger-500/70 bg-ledger-50/60 dark:bg-ledger-950/40 shadow-sm"
                           : ""
                       )}
                       onDragOver={(e) => {
@@ -1654,7 +1686,7 @@ export default function BudgetTable() {
                       }}
                     >
                       <TableCell
-                        className="py-2.5 px-3 align-middle"
+                        className="py-3 px-3 align-middle rounded-tl-md"
                         onContextMenu={(e) => {
                           e.preventDefault();
                           setGroupContext({
@@ -1727,7 +1759,7 @@ export default function BudgetTable() {
                             <span
                               data-cy="group-name"
                               data-category={group.name}
-                              className="text-sm font-semibold leading-tight truncate"
+                              className="text-[13px] font-bold uppercase tracking-wide leading-tight truncate"
                             >
                               {group.name}
                             </span>
@@ -1750,7 +1782,7 @@ export default function BudgetTable() {
                                 setActiveCategory(group.name);
                                 setAddPopoverPos({ top: rect.top, left: rect.right + 8 });
                               }}
-                              className="relative z-40 h-7 w-7 p-0 rounded-md border border-slate-300 bg-white shadow-sm hover:bg-slate-50 hover:border-slate-400 focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-1 dark:bg-slate-900 dark:border-slate-700 dark:hover:bg-slate-800 dark:hover:border-slate-500"
+                              className="relative z-40 h-7 w-7 p-0 rounded-md border border-slate-300 bg-slate-50 shadow-sm hover:bg-slate-50 hover:border-slate-400 focus-visible:ring-2 focus-visible:ring-ledger-500 focus-visible:ring-offset-1 dark:bg-slate-900 dark:border-slate-700 dark:hover:bg-slate-800 dark:hover:border-slate-500"
                             >
                               <Plus className="h-3 w-3" />
                             </Button>
@@ -1777,7 +1809,7 @@ export default function BudgetTable() {
                           )
                         )}
                       </TableCell>
-                      <TableCell className="py-2.5 px-3 text-right text-sm font-medium">
+                      <TableCell className="py-2.5 px-3 text-right text-sm font-medium rounded-tr-md">
                         {group.name === "Credit Card Payments"
                           ? "Payment - " +
                           formatToUSD(
@@ -1803,7 +1835,7 @@ export default function BudgetTable() {
                             <div
                               ref={addItemRef}
                               style={{ position: "fixed", top: addPopoverPos.top, left: addPopoverPos.left }}
-                              className="w-72 bg-white dark:bg-slate-900 p-3 shadow-sm rounded-md border border-slate-200 dark:border-slate-700 z-50 space-y-2 text-slate-800 dark:text-slate-200"
+                              className="w-72 bg-slate-50 dark:bg-slate-900 p-3 shadow-sm rounded-md border border-slate-200 dark:border-slate-700 z-50 space-y-2 text-slate-800 dark:text-slate-200"
                             >
                               <Input
                                 data-cy="add-item-input"
@@ -1844,7 +1876,7 @@ export default function BudgetTable() {
                                   data-category={group.name}
                                   size="sm"
                                   onClick={() => handleAddItem(group.name)}
-                                  className="bg-teal-600 dark:bg-teal-700 text-white hover:bg-teal-500 dark:hover:bg-teal-600"
+                                  className="bg-ledger-600 dark:bg-ledger-700 text-white hover:bg-ledger-500 dark:hover:bg-ledger-600"
                                 >
                                   Add category
                                 </Button>
@@ -1876,17 +1908,17 @@ export default function BudgetTable() {
                             data-category={group.name}
                             data-item={item.name}
                             className={cn(
-                              "relative odd:bg-white dark:odd:bg-slate-950 even:bg-slate-50/60 dark:even:bg-slate-900/40 border-b border-slate-100 dark:border-slate-700",
+                              "relative odd:bg-slate-50 dark:odd:bg-slate-950 even:bg-slate-50/60 dark:even:bg-slate-900/40 border-b border-slate-100 dark:border-slate-700",
                               draggingItem?.group === group.name &&
                               draggingItem?.item === item.name &&
                               "opacity-70",
                               dragOverItem?.group === group.name &&
                               dragOverItem?.item === item.name &&
                               cn(
-                                "ring-2 ring-teal-500/70 bg-teal-50/60 dark:bg-teal-950/40 shadow-sm",
+                                "ring-2 ring-ledger-500/70 bg-ledger-50/60 dark:bg-ledger-950/40 shadow-sm",
                                 dragOverItem?.position === "after"
-                                  ? "border-b-4 border-b-teal-500"
-                                  : "border-l-4 border-l-teal-500"
+                                  ? "border-b-4 border-b-ledger-500"
+                                  : "border-l-4 border-l-ledger-500"
                               ),
                               item.snoozed && "opacity-80 dark:opacity-70"
                             )}
@@ -2016,32 +2048,35 @@ export default function BudgetTable() {
                                         className="flex-shrink-0"
                                       />
                                       {item.snoozed && (
-                                        <Badge className="bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/30 dark:text-amber-100 dark:border-amber-700" data-cy="snoozed-pill">
+                                        <Badge variant="warning" data-cy="snoozed-pill">
                                           Snoozed
                                         </Badge>
                                       )}
                                       {item.target && getTargetStatus(item).message && (
-                                        <div className={`px-1.5 py-0.5 rounded text-[10px] font-semibold whitespace-nowrap ${getTargetStatus(item).type === "overspent"
-                                          ? "bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-200"
-                                          : getTargetStatus(item).type === "funded"
-                                            ? "bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-200"
-                                            : getTargetStatus(item).type === "overfunded"
-                                              ? "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-200"
-                                              : getTargetStatus(item).type === "underfunded"
-                                                ? "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-200"
-                                                : "bg-slate-100 dark:bg-slate-800/40 text-slate-600 dark:text-slate-300"
-                                          }`}>
-                                          {getTargetStatus(item).type === "funded" && "✓ Funded"}
-                                          {getTargetStatus(item).type === "overfunded" && "↑ Overfunded"}
-                                          {getTargetStatus(item).type === "underfunded" && "↓ " + (item.target.amountNeeded - item.assigned > 0 ? formatToUSD(item.target.amountNeeded - item.assigned) + " left" : "")}
-                                          {getTargetStatus(item).type === "overspent" && "⚠ Overspent"}
-                                        </div>
+                                        <Badge
+                                          variant={
+                                            getTargetStatus(item).type === "overspent"
+                                              ? "negative"
+                                              : getTargetStatus(item).type === "funded"
+                                                ? "positive"
+                                                : getTargetStatus(item).type === "overfunded"
+                                                  ? "info"
+                                                  : getTargetStatus(item).type === "underfunded"
+                                                    ? "warning"
+                                                    : "neutral"
+                                          }
+                                        >
+                                          {getTargetStatus(item).type === "funded" && "Funded"}
+                                          {getTargetStatus(item).type === "overfunded" && "Overfunded"}
+                                          {getTargetStatus(item).type === "underfunded" && (item.target.amountNeeded - item.assigned > 0 ? formatToUSD(item.target.amountNeeded - item.assigned) + " left" : "Underfunded")}
+                                          {getTargetStatus(item).type === "overspent" && "Overspent"}
+                                        </Badge>
                                       )}
                                     </div>
                                     {item.target && (
                                       <div className="h-0.5 mt-1 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden">
                                         <div
-                                          className="h-full bg-teal-500 dark:bg-teal-600 rounded-full"
+                                          className="h-full bg-ledger-500 dark:bg-ledger-600 rounded-full"
                                           style={{ width: `${Math.min((item.assigned / item.target.amountNeeded) * 100, 100)}%` }}
                                         />
                                       </div>
@@ -2063,13 +2098,13 @@ export default function BudgetTable() {
                             <TableCell
                               data-cy="item-activity"
                               data-item={item.name}
-                              className="py-2 px-3 text-right align-middle font-mono font-medium"
+                              className="py-2 px-3 text-right align-middle font-mono tabular-nums font-medium"
                             >
                               <div className="flex flex-col items-end gap-1">
                                 {item.activity !== 0 ? (
                                   <button
                                     type="button"
-                                    className="rounded px-1 py-0.5 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 hover:bg-slate-200/80 dark:hover:bg-slate-700/60 font-mono font-medium text-sm"
+                                    className="rounded px-1 py-0.5 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-ledger-500 hover:bg-slate-200/80 dark:hover:bg-slate-700/60 font-mono font-medium text-sm"
                                     onClick={() => setActivityDetailModal({ categoryName: item.name, groupName: group.name })}
                                   >
                                     <span className="underline decoration-dotted underline-offset-4">{formatToUSD(item.activity)}</span>
@@ -2095,7 +2130,7 @@ export default function BudgetTable() {
                               data-cy="item-available"
                               data-item={item.name}
                               className={cn(
-                                "py-2 px-3 text-right align-middle font-mono text-sm font-semibold",
+                                "py-2 px-3 text-right align-middle font-mono tabular-nums text-sm font-semibold",
                                 Math.round(item.available * 100) > 0
                                   ? "text-emerald-600"
                                   : Math.round(item.available * 100) < 0
@@ -2191,7 +2226,7 @@ export default function BudgetTable() {
                                     <button
                                       type="button"
                                       data-cy="move-money-trigger"
-                                      className="inline-flex items-center justify-end gap-1 rounded px-2 py-1 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-1 hover:bg-slate-200/80 dark:hover:bg-slate-700/60"
+                                      className="inline-flex items-center justify-end gap-1 rounded px-2 py-1 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-ledger-500 focus-visible:ring-offset-1 hover:bg-slate-200/80 dark:hover:bg-slate-700/60"
                                       onClick={() => {
                                         setMoveMoneyModal({
                                           toGroup: group.name,

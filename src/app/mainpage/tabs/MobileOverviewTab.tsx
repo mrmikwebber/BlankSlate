@@ -82,39 +82,40 @@ export default function MobileOverviewTab() {
 
   return (
     <div className="space-y-4 pb-24 text-slate-900 dark:text-slate-200">
-      {/* Key Metrics */}
-      <div className="grid grid-cols-2 gap-3">
-        <Card className="shadow-none border border-teal-200 dark:border-teal-800/40 bg-teal-50 dark:bg-teal-900/30 text-teal-800 dark:text-teal-200">
-          <CardContent className="pt-4">
-            <p className="text-xs text-teal-700 font-medium mb-2">Ready to Assign</p>
-            <p className="text-lg font-bold text-teal-600">
-              {formatToUSD(totalInflow)}
-            </p>
-          </CardContent>
-        </Card>
+      {/* Key Metrics — Ready to Assign leads as the hero figure; everything
+          else is supporting detail below it, not an equal peer. */}
+      <Card className="shadow-none border border-ledger-200 dark:border-ledger-800/40 bg-ledger-50 dark:bg-ledger-900/30 text-ledger-800 dark:text-ledger-200">
+        <CardContent className="pt-4 pb-5">
+          <p className="text-xs text-ledger-700 font-medium mb-1.5">Ready to Assign</p>
+          <p className="text-3xl font-bold font-mono tabular-nums tracking-tight text-ledger-600">
+            {formatToUSD(totalInflow)}
+          </p>
+        </CardContent>
+      </Card>
 
+      <div className="grid grid-cols-3 gap-2.5">
         <Card className="shadow-none border border-red-200 dark:border-red-800/40 bg-red-50 dark:bg-red-900/30 text-red-800 dark:text-red-200">
-          <CardContent className="pt-4">
-            <p className="text-xs text-red-700 font-medium mb-2">Total Spending</p>
-            <p className="text-lg font-bold text-red-600">
+          <CardContent className="pt-3 pb-3 px-3">
+            <p className="text-[10px] text-red-700 font-medium mb-1.5 leading-tight">Spending</p>
+            <p className="text-sm font-bold font-mono tabular-nums text-red-600">
               {formatToUSD(totalSpending)}
             </p>
           </CardContent>
         </Card>
 
-        <Card className="shadow-none border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
-          <CardContent className="pt-4">
-            <p className="text-xs text-slate-600 font-medium mb-2">Balances</p>
-            <p className="text-lg font-bold">
+        <Card className="shadow-none border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
+          <CardContent className="pt-3 pb-3 px-3">
+            <p className="text-[10px] text-slate-600 font-medium mb-1.5 leading-tight">Balances</p>
+            <p className="text-sm font-bold font-mono tabular-nums">
               {formatToUSD(accountsTotal)}
             </p>
           </CardContent>
         </Card>
 
-        <Card className="shadow-none border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
-          <CardContent className="pt-4">
-            <p className="text-xs text-slate-600 font-medium mb-2">Accounts</p>
-            <p className="text-lg font-bold">
+        <Card className="shadow-none border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
+          <CardContent className="pt-3 pb-3 px-3">
+            <p className="text-[10px] text-slate-600 font-medium mb-1.5 leading-tight">Accounts</p>
+            <p className="text-sm font-bold">
               {accounts.length}
             </p>
           </CardContent>
@@ -123,7 +124,7 @@ export default function MobileOverviewTab() {
 
       {/* Spending Distribution Chart */}
       {spendingData.length > 0 && (
-        <Card className="shadow-none border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+        <Card className="shadow-none border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
           <CardHeader>
             <CardTitle className="text-sm">Spending Distribution</CardTitle>
           </CardHeader>
@@ -152,7 +153,7 @@ export default function MobileOverviewTab() {
 
       {/* Top Categories */}
       {spendingData.length > 0 && (
-        <Card className="shadow-none border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+        <Card className="shadow-none border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
           <CardHeader>
             <CardTitle className="text-sm">Top Categories</CardTitle>
           </CardHeader>

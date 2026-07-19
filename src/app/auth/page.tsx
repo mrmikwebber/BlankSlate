@@ -111,7 +111,7 @@ export default function AuthPage() {
   return (
     <div className="min-h-screen grid grid-cols-1 lg:grid-cols-2 bg-slate-50 dark:bg-slate-950">
       {/* Left Section - Form */}
-      <div className="flex flex-col justify-center items-center px-8 py-12 bg-white dark:bg-slate-900 shadow-2xl">
+      <div className="flex flex-col justify-center items-center px-8 py-12 bg-slate-50 dark:bg-slate-900 shadow-2xl">
         <div className="w-full max-w-md">
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-50 mb-2">
@@ -138,7 +138,7 @@ export default function AuthPage() {
                     required
                     type="text"
                     placeholder="John"
-                    className="w-full px-4 py-2.5 border border-slate-300 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                    className="w-full px-4 py-2.5 border border-slate-300 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-ledger-500 focus:border-transparent bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
                     value={firstName}
                     onChange={(e) => setFirstName(e.target.value)}
                   />
@@ -152,7 +152,7 @@ export default function AuthPage() {
                     required
                     type="text"
                     placeholder="Doe"
-                    className="w-full px-4 py-2.5 border border-slate-300 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                    className="w-full px-4 py-2.5 border border-slate-300 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-ledger-500 focus:border-transparent bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
                     value={lastName}
                     onChange={(e) => setLastName(e.target.value)}
                   />
@@ -171,7 +171,7 @@ export default function AuthPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-4 py-2.5 border border-slate-300 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                className="w-full px-4 py-2.5 border border-slate-300 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-ledger-500 focus:border-transparent bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
               />
             </div>
 
@@ -187,7 +187,7 @@ export default function AuthPage() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-4 py-2.5 border border-slate-300 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                  className="w-full px-4 py-2.5 border border-slate-300 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-ledger-500 focus:border-transparent bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
                 />
               </div>
             )}
@@ -207,7 +207,7 @@ export default function AuthPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-teal-600 hover:bg-teal-700 text-white font-medium py-2.5 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+              className="w-full bg-ledger-600 hover:bg-ledger-700 text-white font-medium py-2.5 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
             >
               {loading ? (
                 <span className="flex items-center justify-center gap-2">
@@ -225,7 +225,7 @@ export default function AuthPage() {
             <div className="mt-4 text-center">
               <button
                 onClick={() => setIsForgotPassword(true)}
-                className="text-sm text-teal-600 dark:text-teal-400 hover:text-teal-700 dark:hover:text-teal-300 font-medium transition-colors"
+                className="text-sm text-ledger-600 dark:text-ledger-400 hover:text-ledger-700 dark:hover:text-ledger-300 font-medium transition-colors"
                 disabled={loading}
               >
                 Forgot your password?
@@ -243,7 +243,7 @@ export default function AuthPage() {
                   setError("");
                   setSuccess("");
                 }}
-                className="text-teal-600 dark:text-teal-400 hover:text-teal-700 dark:hover:text-teal-300 font-medium transition-colors"
+                className="text-ledger-600 dark:text-ledger-400 hover:text-ledger-700 dark:hover:text-ledger-300 font-medium transition-colors"
                 disabled={loading}
               >
                 {isForgotPassword ? "Sign In" : isSignUp ? "Sign In" : "Sign Up"}
@@ -254,12 +254,12 @@ export default function AuthPage() {
       </div>
 
       {/* Right Section - Branding */}
-      <div className="hidden lg:flex flex-col justify-center items-center bg-gradient-to-br from-teal-600 via-teal-700 to-emerald-800 text-white p-16 relative overflow-hidden">
+      <div className="hidden lg:flex flex-col justify-center items-center bg-gradient-to-br from-ledger-600 via-ledger-700 to-emerald-800 text-white p-16 relative overflow-hidden">
         <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmZmZmYiIGZpbGwtb3BhY2l0eT0iMC4wNSI+PHBhdGggZD0iTTM2IDM0djItMnptMC0ydi0yaDJ2Mmgtem0tMiAwdi0yaDJ2Mmgtem0wIDJ2MmgtMnYtMmgyem0wLTR2LTJoMnYyaC0yem0yIDB2Mmgtdi0yaDJ6bS0yLTJ2LTJoMnYyaC0yeiIvPjwvZz48L2c+PC9zdmc+')] opacity-20"></div>
         <div className="relative z-10 max-w-md text-center">
           <div className="mb-8">
             <h2 className="text-5xl font-bold mb-4 tracking-tight">BlankSlate</h2>
-            <div className="w-16 h-1 bg-white/40 mx-auto mb-6"></div>
+            <div className="w-16 h-1 bg-slate-50/40 mx-auto mb-6"></div>
           </div>
           <p className="text-xl mb-8 leading-relaxed text-white/90">
             A fresh start for your finances. Budget with confidence. Plan with clarity.

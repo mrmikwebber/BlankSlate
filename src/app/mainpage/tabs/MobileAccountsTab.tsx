@@ -58,7 +58,7 @@ export default function MobileAccountsTab({ onSelectAccount }: Props) {
       <div
         key={acc.id}
         onClick={() => onSelectAccount(acc.id)}
-        className="flex items-center gap-3 px-5 py-3.5 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 cursor-pointer active:bg-slate-50 dark:active:bg-slate-800 min-h-[62px]"
+        className="flex items-center gap-3 px-5 py-3.5 bg-slate-50 dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 cursor-pointer active:bg-slate-50 dark:active:bg-slate-800 min-h-[62px]"
       >
         {/* Icon chip */}
         <div
@@ -90,7 +90,7 @@ export default function MobileAccountsTab({ onSelectAccount }: Props) {
               ? "text-slate-300 dark:text-slate-600"
               : bal < 0
               ? "text-red-600 dark:text-red-400"
-              : "text-teal-600 dark:text-teal-400"
+              : "text-ledger-600 dark:text-ledger-400"
           )}
         >
           {formatToUSD(bal)}
@@ -107,7 +107,7 @@ export default function MobileAccountsTab({ onSelectAccount }: Props) {
   return (
     <div className="bg-slate-50 dark:bg-slate-950 min-h-full pb-24">
       {/* Header */}
-      <div className="px-5 pt-5 pb-3 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+      <div className="px-5 pt-5 pb-3 bg-slate-50 dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
         <div>
           <h2 className="text-[17px] font-semibold text-slate-900 dark:text-slate-100">
             Accounts
@@ -118,14 +118,14 @@ export default function MobileAccountsTab({ onSelectAccount }: Props) {
         </div>
         <button
           onClick={() => setShowAddModal(true)}
-          className="px-3 py-1.5 rounded-lg text-[12px] font-semibold bg-teal-600 hover:bg-teal-700 dark:bg-teal-700 dark:hover:bg-teal-600 text-white transition-colors"
+          className="px-3 py-1.5 rounded-lg text-[12px] font-semibold bg-ledger-600 hover:bg-ledger-700 dark:bg-ledger-700 dark:hover:bg-ledger-600 text-white transition-colors"
         >
           + Add
         </button>
       </div>
 
       {/* Net Worth */}
-      <div className="mx-4 mt-3 mb-1 p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-between shadow-sm">
+      <div className="mx-4 mt-3 mb-1 p-4 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-between shadow-sm">
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500">
             Net Worth
@@ -138,7 +138,7 @@ export default function MobileAccountsTab({ onSelectAccount }: Props) {
           className={cn(
             "text-[11px] font-semibold px-2 py-1 rounded-lg border",
             netWorth >= 0
-              ? "bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400 border-teal-100 dark:border-teal-800/40"
+              ? "bg-ledger-50 dark:bg-ledger-900/30 text-ledger-700 dark:text-ledger-400 border-ledger-100 dark:border-ledger-800/40"
               : "bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-100 dark:border-red-800/40"
           )}
         >

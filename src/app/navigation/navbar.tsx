@@ -67,32 +67,32 @@ export default function Navbar() {
     { emails: adminEmails, ids: adminIds }
   );
 
-  const handleResetAccount = async () => {
+  const handleResetTransactions = async () => {
     if (!user) return;
-    
+
     setIsResetting(true);
-    
+
     try {
-      // Delete in order: transactions first, then budget_data, then accounts
       const userId = user.id;
-      
-      // Delete transactions
+
+      // Delete all transactions — accounts and categories/plan are kept intact
       const { error: txError } = await supabase
         .from('transactions')
         .delete()
         .eq('user_id', userId);
-      
+
       if (txError) throw txError;
-      
-      // Delete transaction payees
-      const { error: payeesError } = await supabase
-        .from('transaction_payees')
+
+      // Delete assigned money for every category — the category/plan
+      // structure itself (category_groups, category_items) stays
+      const { error: assignmentsError } = await supabase
+        .from('budget_assignments')
         .delete()
         .eq('user_id', userId);
-      
-      if (payeesError) throw payeesError;
-      
-      // Delete budget data
+
+      if (assignmentsError) throw assignmentsError;
+
+      // Clear legacy per-month budget_data rows (superseded by budget_assignments)
       const { error: budgetError } = await supabase
         .from('budget_data')
         .delete()
@@ -100,68 +100,25 @@ export default function Navbar() {
 
       if (budgetError) throw budgetError;
 
-      // Delete category structure (cascades to category_items and budget_assignments)
-      const { error: categoryError } = await supabase
-        .from('category_groups')
-        .delete()
-        .eq('user_id', userId);
-
-      if (categoryError) throw categoryError;
-
-      // Disconnect Teller enrollments (revoke on Teller's side, best-effort)
-      const { data: enrollments } = await supabase
-        .from('teller_enrollments')
-        .select('account_id')
-        .eq('user_id', userId);
-
-      if (enrollments && enrollments.length > 0) {
-        await Promise.allSettled(
-          enrollments.map((e: { account_id: number }) =>
-            fetch('/api/teller/disconnect', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ accountId: e.account_id }),
-            })
-          )
-        );
-      }
-
-      // Archive any remaining teller enrollments not cleaned up by disconnect
-      const { error: enrollmentsError } = await supabase
-        .from('teller_enrollments')
-        .update({ is_archived: true, teller_status: 'disconnected' })
-        .eq('user_id', userId)
-        .neq('is_archived', true);
-
-      if (enrollmentsError) throw enrollmentsError;
-
-      // Delete accounts
-      const { error: accountsError } = await supabase
-        .from('accounts')
-        .delete()
-        .eq('user_id', userId);
-
-      if (accountsError) throw accountsError;
-
       // Close modal and refresh the page to show clean state
       setShowResetModal(false);
       setIsResetting(false);
       window.location.reload();
-      
+
     } catch (error) {
-      console.error('Error resetting account:', error);
-      alert('Failed to reset account. Please try again.');
+      console.error('Error resetting transactions:', error);
+      alert('Failed to reset transactions. Please try again.');
       setIsResetting(false);
     }
   };
 
   return (
     <div>
-      <nav className="block w-full px-3 py-2 mx-auto bg-white dark:bg-slate-900 sticky top-0 shadow-sm dark:shadow lg:px-4 z-[9999]">
+      <nav className="block w-full px-3 py-2 mx-auto bg-slate-50 dark:bg-slate-900 sticky top-0 shadow-sm dark:shadow lg:px-4 z-[9999]">
         <div className="flex flex-wrap items-center justify-between w-full text-slate-800 dark:text-slate-100">
           <Link
             href="/"
-            className="mr-4 block cursor-pointer py-0.5 text-teal-600 font-bold text-lg"
+            className="mr-4 block cursor-pointer py-0.5 text-ledger-600 font-bold text-lg"
           >
             blankslate
           </Link>
@@ -171,11 +128,11 @@ export default function Navbar() {
             {user && isEndOfMonth && (
               <button
                 onClick={() => setShowAuditModal(true)}
-                className="relative px-2.5 py-1 rounded-md text-xs border border-teal-400 dark:border-teal-500 text-teal-700 dark:text-teal-300 bg-transparent font-semibold audit-pulse"
+                className="relative px-2.5 py-1 rounded-md text-xs border border-ledger-400 dark:border-ledger-500 text-ledger-700 dark:text-ledger-300 bg-transparent font-semibold audit-pulse"
               >
                 Audit
-                <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-teal-400 animate-ping" />
-                <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-teal-500" />
+                <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-ledger-400 animate-ping" />
+                <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-ledger-500" />
               </button>
             )}
             <button
@@ -210,15 +167,15 @@ export default function Navbar() {
                 <div className="flex items-center gap-2">
                     <Popover>
                       <PopoverTrigger asChild>
-                        <button className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 transition-colors rounded px-1 py-0.5 hover:bg-slate-100 dark:hover:bg-slate-800">
+                        <button className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 transition-colors rounded px-1 py-0.5 hover:bg-slate-100 dark:hover:bg-slate-800">
                           <User className="h-3.5 w-3.5" />
                           <span>Hello, {name || "User"}</span>
                         </button>
                       </PopoverTrigger>
                       <PopoverContent className="w-64 p-4" align="end">
                         <div className="flex items-center gap-3 mb-3">
-                          <div className="h-10 w-10 rounded-full bg-teal-100 dark:bg-teal-900/50 flex items-center justify-center shrink-0">
-                            <span className="text-sm font-semibold text-teal-700 dark:text-teal-300">
+                          <div className="h-10 w-10 rounded-full bg-ledger-100 dark:bg-ledger-900/50 flex items-center justify-center shrink-0">
+                            <span className="text-sm font-semibold text-ledger-700 dark:text-ledger-300">
                               {(user?.user_metadata?.first_name?.[0] ?? "") + (user?.user_metadata?.last_name?.[0] ?? "") || "?"}
                             </span>
                           </div>
@@ -258,7 +215,7 @@ export default function Navbar() {
                     {isAdmin && (
                       <Link
                         href="/admin/port-user-data"
-                        className="px-3 py-1.5 rounded-md text-xs border border-teal-300 dark:border-teal-700 text-teal-800 dark:text-teal-300 bg-transparent hover:bg-teal-50 dark:hover:bg-teal-950 transition-colors"
+                        className="px-3 py-1.5 rounded-md text-xs border border-ledger-300 dark:border-ledger-700 text-ledger-800 dark:text-ledger-300 bg-transparent hover:bg-ledger-50 dark:hover:bg-ledger-950 transition-colors"
                       >
                         Admin Tools
                       </Link>
@@ -266,11 +223,11 @@ export default function Navbar() {
                     {isEndOfMonth && (
                       <button
                         onClick={() => setShowAuditModal(true)}
-                        className="relative px-3 py-1.5 rounded-md text-xs border border-teal-400 dark:border-teal-500 text-teal-700 dark:text-teal-300 bg-transparent hover:bg-teal-50 dark:hover:bg-teal-950 transition-colors font-semibold audit-pulse"
+                        className="relative px-3 py-1.5 rounded-md text-xs border border-ledger-400 dark:border-ledger-500 text-ledger-700 dark:text-ledger-300 bg-transparent hover:bg-ledger-50 dark:hover:bg-ledger-950 transition-colors font-semibold audit-pulse"
                       >
                         Monthly Audit
-                        <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-teal-400 animate-ping" />
-                        <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-teal-500" />
+                        <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-ledger-400 animate-ping" />
+                        <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-ledger-500" />
                       </button>
                     )}
                     <button
@@ -291,7 +248,7 @@ export default function Navbar() {
                           URL.revokeObjectURL(url);
                         }
                       }}
-                      className="px-3 py-1.5 rounded-md text-xs border border-teal-300 dark:border-teal-700 text-teal-700 dark:text-teal-300 bg-transparent hover:bg-teal-50 dark:hover:bg-teal-950 transition-colors"
+                      className="px-3 py-1.5 rounded-md text-xs border border-ledger-300 dark:border-ledger-700 text-ledger-700 dark:text-ledger-300 bg-transparent hover:bg-ledger-50 dark:hover:bg-ledger-950 transition-colors"
                     >
                       Export Data
                     </button>
@@ -299,7 +256,7 @@ export default function Navbar() {
                       onClick={() => setShowResetModal(true)}
                       className="px-3 py-1.5 rounded-md text-xs border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                     >
-                      Reset Account
+                      Reset Transactions
                     </button>
                     <button
                       onClick={() => {
@@ -321,7 +278,7 @@ export default function Navbar() {
                     >
                       Suggest Feature
                     </button>
-                    <button onClick={signOut} className="bg-teal-600 dark:bg-teal-700 hover:bg-teal-500 dark:hover:bg-teal-600 text-white px-5 py-1.5 rounded-md text-xs transition-colors">
+                    <button onClick={signOut} className="bg-ledger-600 dark:bg-ledger-700 hover:bg-ledger-500 dark:hover:bg-ledger-600 text-white px-5 py-1.5 rounded-md text-xs transition-colors">
                       Sign Out
                     </button>
                 </div>
@@ -336,34 +293,35 @@ export default function Navbar() {
         <MonthlyAuditModal onClose={() => setShowAuditModal(false)} />
       )}
 
-      {/* Reset Account Confirmation Modal */}
+      {/* Reset Transactions Confirmation Modal */}
       {showResetModal && createPortal(
-        <div 
+        <div
           className="fixed inset-0 bg-black/30 dark:bg-black/60 z-[10000] flex items-center justify-center"
           onClick={() => setShowResetModal(false)}
         >
-          <div 
-            className="bg-white dark:bg-slate-900 p-6 rounded-lg shadow-lg dark:shadow-xl w-full max-w-md space-y-4 border dark:border-slate-700"
+          <div
+            className="bg-slate-50 dark:bg-slate-900 p-6 rounded-lg shadow-lg dark:shadow-xl w-full max-w-md space-y-4 border dark:border-slate-700"
             onClick={(e) => e.stopPropagation()}
           >
             <h2 className="text-xl font-semibold text-red-600 dark:text-red-400">
-              Reset Your Account?
+              Reset Transactions?
             </h2>
-            <p className="text-sm text-gray-700 dark:text-slate-300">
+            <p className="text-sm text-slate-700 dark:text-slate-300">
               This will permanently delete:
             </p>
-            <ul className="text-sm text-gray-700 dark:text-slate-300 list-disc list-inside space-y-1">
-              <li>All accounts</li>
+            <ul className="text-sm text-slate-700 dark:text-slate-300 list-disc list-inside space-y-1">
               <li>All transactions</li>
-              <li>All budget data</li>
-              <li>All payees</li>
+              <li>All assigned money for every category</li>
             </ul>
+            <p className="text-sm text-slate-700 dark:text-slate-300">
+              Your accounts and categories are kept.
+            </p>
             <p className="text-sm font-semibold text-red-600 dark:text-red-400">
               This action cannot be undone!
             </p>
             <div className="flex justify-end gap-2 pt-2">
               <button
-                className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-slate-700 hover:bg-gray-100 dark:hover:bg-slate-800 dark:text-slate-300 transition-colors"
+                className="px-4 py-2 text-sm rounded-md border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 dark:text-slate-300 transition-colors"
                 onClick={() => setShowResetModal(false)}
                 disabled={isResetting}
               >
@@ -371,10 +329,10 @@ export default function Navbar() {
               </button>
               <button
                 className="px-4 py-2 text-sm rounded-md bg-red-600 dark:bg-red-700 text-white hover:bg-red-700 dark:hover:bg-red-600 disabled:opacity-50 transition-colors"
-                onClick={handleResetAccount}
+                onClick={handleResetTransactions}
                 disabled={isResetting}
               >
-                {isResetting ? 'Resetting...' : 'Yes, Reset Everything'}
+                {isResetting ? 'Resetting...' : 'Yes, Reset Transactions'}
               </button>
             </div>
           </div>
@@ -389,7 +347,7 @@ export default function Navbar() {
           onClick={() => setShowBugModal(false)}
         >
           <div 
-            className="bg-white dark:bg-slate-900 p-6 rounded-lg shadow-lg dark:shadow-xl w-full max-w-lg space-y-4 border dark:border-slate-700"
+            className="bg-slate-50 dark:bg-slate-900 p-6 rounded-lg shadow-lg dark:shadow-xl w-full max-w-lg space-y-4 border dark:border-slate-700"
             onClick={(e) => e.stopPropagation()}
           >
             <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100">Report a Bug</h2>
@@ -401,7 +359,7 @@ export default function Navbar() {
               <div className="space-y-1">
                 <label className="text-xs text-slate-600 dark:text-slate-300">Title</label>
                 <input
-                  className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm"
+                  className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-sm"
                   value={bugTitle}
                   onChange={(e) => setBugTitle(e.target.value)}
                   placeholder="Short summary"
@@ -410,7 +368,7 @@ export default function Navbar() {
               <div className="space-y-1">
                 <label className="text-xs text-slate-600 dark:text-slate-300">Steps to reproduce</label>
                 <textarea
-                  className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm"
+                  className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-sm"
                   rows={3}
                   value={bugSteps}
                   onChange={(e) => setBugSteps(e.target.value)}
@@ -422,7 +380,7 @@ export default function Navbar() {
               <div className="space-y-1">
                 <label className="text-xs text-slate-600 dark:text-slate-300">Expected</label>
                 <textarea
-                  className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm"
+                  className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-sm"
                   rows={2}
                   value={bugExpected}
                   onChange={(e) => setBugExpected(e.target.value)}
@@ -432,7 +390,7 @@ export default function Navbar() {
               <div className="space-y-1">
                 <label className="text-xs text-slate-600 dark:text-slate-300">Actual</label>
                 <textarea
-                  className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm"
+                  className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-sm"
                   rows={2}
                   value={bugActual}
                   onChange={(e) => setBugActual(e.target.value)}
@@ -442,7 +400,7 @@ export default function Navbar() {
               <div className="space-y-1">
                 <label className="text-xs text-slate-600 dark:text-slate-300">Contact (optional)</label>
                 <input
-                  className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm"
+                  className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-sm"
                   value={bugContact}
                   onChange={(e) => setBugContact(e.target.value)}
                   placeholder="Email or handle for follow-up"
@@ -455,7 +413,7 @@ export default function Navbar() {
 
             <div className="flex justify-end gap-2 pt-2">
               <button
-                className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-slate-700 hover:bg-gray-100 dark:hover:bg-slate-800 dark:text-slate-300 transition-colors"
+                className="px-4 py-2 text-sm rounded-md border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 dark:text-slate-300 transition-colors"
                 onClick={() => setShowBugModal(false)}
                 disabled={bugSubmitting}
               >
@@ -519,7 +477,7 @@ export default function Navbar() {
           onClick={() => setShowSuggestionModal(false)}
         >
           <div 
-            className="bg-white dark:bg-slate-900 p-6 rounded-lg shadow-lg dark:shadow-xl w-full max-w-lg space-y-4 border dark:border-slate-700"
+            className="bg-slate-50 dark:bg-slate-900 p-6 rounded-lg shadow-lg dark:shadow-xl w-full max-w-lg space-y-4 border dark:border-slate-700"
             onClick={(e) => e.stopPropagation()}
           >
             <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100">Suggest a Feature</h2>
@@ -531,7 +489,7 @@ export default function Navbar() {
               <div className="space-y-1">
                 <label className="text-xs text-slate-600 dark:text-slate-300">Feature Title</label>
                 <input
-                  className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm"
+                  className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-sm"
                   value={suggestionTitle}
                   onChange={(e) => setSuggestionTitle(e.target.value)}
                   placeholder="Brief title for your feature"
@@ -541,7 +499,7 @@ export default function Navbar() {
               <div className="space-y-1">
                 <label className="text-xs text-slate-600 dark:text-slate-300">Description</label>
                 <textarea
-                  className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm min-h-[80px]"
+                  className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-sm min-h-[80px]"
                   value={suggestionDescription}
                   onChange={(e) => setSuggestionDescription(e.target.value)}
                   placeholder="Describe the feature you'd like to see"
@@ -551,7 +509,7 @@ export default function Navbar() {
               <div className="space-y-1">
                 <label className="text-xs text-slate-600 dark:text-slate-300">Use Case</label>
                 <textarea
-                  className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm min-h-[60px]"
+                  className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-sm min-h-[60px]"
                   value={suggestionUseCase}
                   onChange={(e) => setSuggestionUseCase(e.target.value)}
                   placeholder="How would this feature help you?"
@@ -561,7 +519,7 @@ export default function Navbar() {
               <div className="space-y-1">
                 <label className="text-xs text-slate-600 dark:text-slate-300">Contact (Optional)</label>
                 <input
-                  className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm"
+                  className="w-full rounded-md border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-sm"
                   value={suggestionContact}
                   onChange={(e) => setSuggestionContact(e.target.value)}
                   placeholder="Email or username for follow-up"

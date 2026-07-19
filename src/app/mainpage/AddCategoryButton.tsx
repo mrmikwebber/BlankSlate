@@ -58,7 +58,7 @@ const AddCategoryButton = ({
       </PopoverTrigger>
       <PopoverContent
         align="end"
-        className="w-64 p-3 space-y-2 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 shadow-md dark:shadow-lg"
+        className="w-64 p-3 space-y-2 bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 shadow-md dark:shadow-lg"
       >
         <div className="space-y-2">
           <Label

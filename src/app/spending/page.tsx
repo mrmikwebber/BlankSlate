@@ -23,8 +23,8 @@ export default function SpendingPage() {
 
   if (loading || !session) {
     return (
-      <div className="min-h-screen flex justify-center items-center bg-white dark:bg-slate-950">
-        <p className="text-teal-600 dark:text-teal-400 text-lg">Loading spending...</p>
+      <div className="min-h-screen flex justify-center items-center bg-slate-50 dark:bg-slate-950">
+        <p className="text-ledger-600 dark:text-ledger-400 text-lg">Loading spending...</p>
       </div>
     );
   }
@@ -63,7 +63,7 @@ export default function SpendingPage() {
 
   return (
     <div className="p-4 md:p-6 lg:p-8 space-y-4">
-      <Card className="bg-zinc-100 dark:bg-slate-900">
+      <Card className="bg-slate-100 dark:bg-slate-900">
         <CardHeader>
           <CardTitle className="text-2xl">Total Spending</CardTitle>
         </CardHeader>
@@ -74,7 +74,7 @@ export default function SpendingPage() {
               <TotalSpendingTile />
             </div>
             <div className="col-span-1">
-              <div className="rounded-md bg-white dark:bg-slate-800 p-4">
+              <div className="rounded-md bg-slate-50 dark:bg-slate-800 p-4">
                 <h3 className="text-lg font-semibold mb-2">Summary</h3>
                 <ul className="text-sm space-y-2">
                   <li className="flex justify-between"><span>Income</span><span className="font-mono">{formatToUSD(totals.inflow)}</span></li>

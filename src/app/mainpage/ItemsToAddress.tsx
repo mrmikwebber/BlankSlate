@@ -36,9 +36,9 @@ export default function ItemsToAddress({
   );
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-md p-4 shadow-sm dark:shadow-md space-y-1">
+    <div className="bg-slate-50 dark:bg-slate-900 rounded-md p-4 shadow-sm dark:shadow-md space-y-1">
       <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">Items to Address</h3>
-      <ul className="text-sm text-gray-700 dark:text-slate-300 list-disc list-inside space-y-1">
+      <ul className="text-sm text-slate-700 dark:text-slate-300 list-disc list-inside space-y-1">
         {unassignedAmount > 0 && (
           <li>{`$${unassignedAmount.toFixed(2)} remains unassigned`}</li>
         )}

@@ -1,5 +1,5 @@
 // lib/budgetMath.ts
-import { format, isSameMonth, parseISO, subMonths } from "date-fns";
+import { addMonths, format, isSameMonth, parseISO, subMonths } from "date-fns";
 import type {
   AccountMeta,
   AssignmentRecord,
@@ -725,6 +725,10 @@ function txMonth(date: string): string {
   return date.substring(0, 7); // "YYYY-MM-DD" → "YYYY-MM"
 }
 
+function shiftMonth(month: string, delta: number): string {
+  return format(addMonths(parseISO(`${month}-01`), delta), "yyyy-MM");
+}
+
 // Convert raw DB transactions into the canonical NormalizedTransaction format.
 export function normalizeTransactions(
   rawTransactions: RawDbTransaction[],
@@ -893,6 +897,23 @@ export function computeBudgetState(input: BudgetStateInput): BudgetState {
     if (tx.date) monthSet.add(txMonth(tx.date));
   }
   for (const a of assignments) monthSet.add(a.month);
+
+  if (monthSet.size > 0) {
+    // A month with no transaction or assignment of its own (a gap, or any
+    // month past the latest real activity — e.g. one you haven't visited
+    // yet) would otherwise be absent from the timeline entirely, causing
+    // RTA/available to fall back to zero instead of carrying forward. Fill
+    // the range contiguously and extend well past the latest known month so
+    // navigating ahead still produces a real "nothing happened" projection
+    // via the same per-month loop below, not a special-cased default.
+    const dataMonths = [...monthSet].sort();
+    const earliest = dataMonths[0];
+    const horizon = shiftMonth(dataMonths[dataMonths.length - 1], 24);
+    for (let m = earliest; m <= horizon; m = shiftMonth(m, 1)) {
+      monthSet.add(m);
+    }
+  }
+
   const allMonths = [...monthSet].sort();
 
   if (allMonths.length === 0) {
@@ -962,7 +983,6 @@ export function computeBudgetState(input: BudgetStateInput): BudgetState {
       }
     }
 
-    const rta = runningInflows - runningAssigned - runningCashOverspending;
     const itemStates = new Map<string, MonthItemState>();
     const monthStartAvailableByItem = new Map<string, number>();
 
@@ -1023,19 +1043,22 @@ export function computeBudgetState(input: BudgetStateInput): BudgetState {
       }
     }
 
-    months.set(month, { month, itemStates, readyToAssign: rta, rtaCarry: 0 });
+    months.set(month, { month, itemStates, readyToAssign: 0, rtaCarry: 0 });
 
     prevMonthStates = itemStates;
     prevMonth = month;
   }
 
-  // Second pass: propagate RTA carry from deficit months forward
-  let carry = 0;
+  // Ready to Assign is a single account-wide figure, not a per-month one —
+  // assigning money anywhere (past or future relative to whichever month
+  // you're viewing) affects the same number everywhere, the same way real
+  // ZBB/YNAB-style budgeting works. Use the final totals after walking the
+  // whole timeline, applied uniformly to every month, rather than each
+  // month's own running-total-so-far snapshot.
+  const globalReadyToAssign = runningInflows - runningAssigned - runningCashOverspending;
   for (const month of allMonths) {
     const ms = months.get(month)!;
-    const effectiveRta = ms.readyToAssign - carry;
-    months.set(month, { ...ms, rtaCarry: carry });
-    carry = effectiveRta < 0 ? Math.abs(effectiveRta) : 0;
+    months.set(month, { ...ms, readyToAssign: globalReadyToAssign, rtaCarry: runningCashOverspending });
   }
 
   return {
@@ -1071,6 +1094,7 @@ export function serializeMonthView(
         target: item.target,
         notes: item.notes,
         notes_history: item.notes_history,
+        isDiscretionaryPool: item.isDiscretionaryPool,
       };
     }),
   }));

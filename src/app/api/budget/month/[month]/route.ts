@@ -8,8 +8,9 @@ const DEBUG_BUDGET_TABLE = process.env.NEXT_PUBLIC_DEBUG_BUDGET_TABLE === "true"
 
 export async function GET(
   _req: Request,
-  { params }: { params: { month: string } }
+  { params }: { params: Promise<{ month: string }> }
 ) {
+  const { month } = await params;
   const supabase = createRouteHandlerClient({ cookies });
   const {
     data: { user },
@@ -19,7 +20,6 @@ export async function GET(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { month } = params;
   if (!/^\d{4}-\d{2}$/.test(month)) {
     return NextResponse.json({ error: "Invalid month format — expected YYYY-MM" }, { status: 400 });
   }

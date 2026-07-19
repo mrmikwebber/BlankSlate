@@ -171,6 +171,24 @@ export function setCachedView(month: string, view: ComputedMonthView) {
   viewCache.set(month, view);
 }
 
+// Ready to Assign is a single global figure (see computeBudgetState), so a
+// mutation that changes it makes every OTHER cached month's RTA stale too —
+// not just the one that was edited. Patch every cached entry in place rather
+// than invalidating the cache, so a month you've already visited (or
+// prefetched) stays instant to navigate back to instead of re-fetching.
+export function patchGlobalRTA(rta: number, rtaCarry: number, hasDeficitCarry: boolean) {
+  for (const [month, view] of viewCache) {
+    if (
+      view.ready_to_assign === rta &&
+      view.rta_carry === rtaCarry &&
+      view.has_deficit_carry === hasDeficitCarry
+    ) {
+      continue;
+    }
+    viewCache.set(month, { ...view, ready_to_assign: rta, rta_carry: rtaCarry, has_deficit_carry: hasDeficitCarry });
+  }
+}
+
 // Read a cached view without triggering a fetch (used for prev-month display in BudgetTable)
 export function getCachedView(month: string): ComputedMonthView | null {
   return viewCache.get(month) ?? null;

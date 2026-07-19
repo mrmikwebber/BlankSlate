@@ -452,7 +452,7 @@ describe("updateMonthPure", () => {
 });
 
 describe("computeBudgetState", () => {
-    it("calculates RTA using assignments through each month, not all months", () => {
+    it("computes RTA as a single global figure — a future month's assignment reduces every month's RTA, not just its own", () => {
         const accounts = [{ id: "a-checking", name: "Checking", type: "debit" as const }];
         const rawTransactions: RawDbTransaction[] = [
             {
@@ -498,7 +498,10 @@ describe("computeBudgetState", () => {
         const jan = serializeMonthView(state, "2026-01");
         const feb = serializeMonthView(state, "2026-02");
 
-        expect(jan.ready_to_assign).toBe(200);
+        // $300 income - $100 (Jan rent) - $50 (Feb rent) = $150, shown
+        // identically in both months even though the Feb assignment is
+        // chronologically "after" January.
+        expect(jan.ready_to_assign).toBe(150);
         expect(feb.ready_to_assign).toBe(150);
     });
 

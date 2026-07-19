@@ -19,6 +19,7 @@ import {
   invalidateCachedMonth,
   invalidateAllCachedMonths,
   setCachedView,
+  patchGlobalRTA,
 } from "@/app/hooks/useBudgetMonth";
 import type {
   ComputedMonthView,
@@ -65,6 +66,8 @@ async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
     const body = await res.json().catch(() => ({}));
     throw new Error(body?.error ?? `Request failed: ${res.status}`);
   }
+  // DELETE routes (and any other 204) return no body — .json() would throw
+  if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
 }
 
@@ -110,9 +113,11 @@ function buildContextValue(_placeholder: null) {
     reorderCategoryItems: (orderedIds: { id: string; sortOrder: number }[]) => Promise<void>;
     setCategorySnooze: (id: string, snoozed: boolean) => Promise<void>;
     setCategoryTarget: (id: string, target: Target | null) => Promise<void>;
+    setCategoryDiscretionaryPool: (id: string, isDiscretionaryPool: boolean) => Promise<void>;
     updateCategoryGroupNote: (id: string, text: string) => Promise<void>;
     updateCategoryItemNote: (id: string, text: string) => Promise<void>;
     invalidate: () => void;
+    invalidateAll: () => void;
     seedDefaultCategories: () => Promise<void>;
 
     // YNAB import
@@ -121,7 +126,6 @@ function buildContextValue(_placeholder: null) {
       transactions: number;
       months: number;
       createdAccounts: { id: string; name: string; type: string }[];
-      preservedEnrollments: { accountName: string; tellerAccountId: string; accessToken: string; enrollmentId: string; institutionName: string; tellerAccountType: string; lastTellerTransactionId: string | null }[];
     }>;
     confirmImport: () => Promise<void>;
     undoImport: () => Promise<void>;
@@ -184,6 +188,15 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
     [currentMonth, hookInvalidate]
   );
 
+  // RTA and available cascade forward across months, so a transaction change
+  // in any month can affect every later one — clear every cached month
+  // (same pattern as YNAB import) rather than just the current one.
+  const invalidateAll = useCallback(() => {
+    invalidateAllCachedMonths();
+    setMutationView(null);
+    hookInvalidate();
+  }, [hookInvalidate]);
+
   // Clear mutation view on month navigation
   const setCurrentMonth = useCallback(
     (month: string, _direction?: "forward" | "backward") => {
@@ -210,13 +223,55 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
 
   const patchAssigned = useCallback(
     async (categoryItemId: string, month: string, value: number) => {
-      const view = await apiFetch<ComputedMonthView>("/api/budget/assign", {
-        method: "PATCH",
-        body: JSON.stringify({ month, categoryItemId, assigned: value }),
-      });
-      applyMutationResult(view);
+      // Optimistic: RTA is a single global figure now, so changing one
+      // item's assigned amount by `delta` changes this item's available and
+      // the global RTA by exactly `delta` — no approximation needed. Apply
+      // that instantly instead of waiting on the round trip, and roll back
+      // on failure.
+      const previousView = budgetView?.month === month ? budgetView : null;
+
+      if (previousView) {
+        const item = previousView.categories
+          .flatMap((g) => g.categoryItems)
+          .find((i) => i.id === categoryItemId);
+        const delta = value - (item?.assigned ?? 0);
+        const optimisticRta = previousView.ready_to_assign - delta;
+
+        applyMutationResult({
+          ...previousView,
+          ready_to_assign: optimisticRta,
+          categories: previousView.categories.map((g) => ({
+            ...g,
+            categoryItems: g.categoryItems.map((i) =>
+              i.id === categoryItemId ? { ...i, assigned: value, available: i.available + delta } : i
+            ),
+          })),
+        });
+        // Assigning money doesn't touch cash-overspending debt, only RTA —
+        // patch every other cached month (e.g. a prefetched adjacent one) so
+        // navigating there mid-flight shows the right number immediately
+        // instead of the pre-edit one.
+        patchGlobalRTA(optimisticRta, previousView.rta_carry, previousView.has_deficit_carry);
+      }
+
+      try {
+        const view = await apiFetch<ComputedMonthView>("/api/budget/assign", {
+          method: "PATCH",
+          body: JSON.stringify({ month, categoryItemId, assigned: value }),
+        });
+        // Reconcile every cached month with the authoritative global RTA,
+        // then restore the one month we have the full, correct view for.
+        patchGlobalRTA(view.ready_to_assign, view.rta_carry, view.has_deficit_carry);
+        applyMutationResult(view);
+      } catch (err) {
+        if (previousView) {
+          patchGlobalRTA(previousView.ready_to_assign, previousView.rta_carry, previousView.has_deficit_carry);
+          applyMutationResult(previousView);
+        }
+        throw err;
+      }
     },
-    [applyMutationResult]
+    [applyMutationResult, budgetView]
   );
 
   const moveMoney = useCallback(
@@ -243,10 +298,32 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
 
   const deleteCategoryGroup = useCallback(
     async (id: string) => {
-      await apiFetch(`/api/budget/category-group/${id}`, { method: "DELETE" });
-      invalidate();
+      // Only ever called on an empty group (the UI blocks it otherwise), so
+      // removing it has no money/RTA impact — safe to drop it from the list
+      // immediately rather than waiting on the round trip.
+      const previousView = budgetView;
+      if (previousView) {
+        applyMutationResult({
+          ...previousView,
+          categories: previousView.categories.filter((g) => g.id !== id),
+        });
+      }
+
+      try {
+        await apiFetch(`/api/budget/category-group/${id}`, { method: "DELETE" });
+        // Only clear the cache (for other months' next visit) — don't route
+        // through invalidateAll()/hookInvalidate() here, since that clears
+        // mutationView and lets the stale pre-delete cached view flash back
+        // in for a moment before a refetch would resolve. The optimistic
+        // view above is already exactly correct (empty-group delete has no
+        // money impact), so there's nothing left to reconcile for this month.
+        invalidateAllCachedMonths();
+      } catch (err) {
+        if (previousView) applyMutationResult(previousView);
+        throw err;
+      }
     },
-    [invalidate]
+    [applyMutationResult, budgetView]
   );
 
   const addItemToCategory = useCallback(
@@ -262,10 +339,39 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
 
   const deleteCategoryItem = useCallback(
     async (id: string) => {
-      await apiFetch(`/api/budget/category-item/${id}`, { method: "DELETE" });
-      invalidate();
+      // Deleting cascades to that item's budget_assignments across every
+      // month, which can shift RTA by an amount we can't know client-side
+      // (only this month's assigned is visible here) — so only the row
+      // removal itself is optimistic; RTA/available settle in once the
+      // server responds and every cached month gets invalidated.
+      const previousView = budgetView;
+      if (previousView) {
+        applyMutationResult({
+          ...previousView,
+          categories: previousView.categories.map((g) => ({
+            ...g,
+            categoryItems: g.categoryItems.filter((i) => i.id !== id),
+          })),
+        });
+      }
+
+      try {
+        await apiFetch(`/api/budget/category-item/${id}`, { method: "DELETE" });
+        // Same reasoning as deleteCategoryGroup: avoid invalidateAll()'s
+        // setMutationView(null), which would let the stale pre-delete view
+        // flash back in. Instead fetch the authoritative post-delete view
+        // directly and swap it in atomically — mutationView never goes
+        // through a null/stale gap. Other cached months are cleared so they
+        // pick up the (possibly RTA-shifted) truth on next visit.
+        invalidateAllCachedMonths();
+        const freshView = await apiFetch<ComputedMonthView>(`/api/budget/month/${currentMonth}`);
+        applyMutationResult(freshView);
+      } catch (err) {
+        if (previousView) applyMutationResult(previousView);
+        throw err;
+      }
     },
-    [invalidate]
+    [applyMutationResult, budgetView, currentMonth]
   );
 
   const seedDefaultCategories = useCallback(async () => {
@@ -365,6 +471,31 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
     [invalidate]
   );
 
+  const setCategoryDiscretionaryPool = useCallback(
+    async (id: string, isDiscretionaryPool: boolean) => {
+      await apiFetch(`/api/budget/category-item/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ isDiscretionaryPool }),
+      });
+      // This flag never feeds budget math (unlike assigned/activity), so a
+      // full month invalidate+recompute here was pure overhead — and the
+      // visible cause of Ready to Assign flickering on every toggle. Patch
+      // the one item in place instead.
+      if (budgetView) {
+        applyMutationResult({
+          ...budgetView,
+          categories: budgetView.categories.map((g) => ({
+            ...g,
+            categoryItems: g.categoryItems.map((item) =>
+              item.id === id ? { ...item, isDiscretionaryPool } : item
+            ),
+          })),
+        });
+      }
+    },
+    [budgetView, applyMutationResult]
+  );
+
   const updateCategoryGroupNote = useCallback(
     async (id: string, text: string) => {
       await apiFetch(`/api/budget/category-group/${id}`, {
@@ -398,26 +529,6 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
       // Snapshot for undo
       importedAccountIdsRef.current = [];
       importedCategoryGroupIdsRef.current = [];
-
-      // Save Teller enrollments so they can be re-linked after import
-      const { data: enrollmentData } = await supabase
-        .from("teller_enrollments")
-        .select("account_id, teller_account_id, access_token, enrollment_id, institution_name, teller_account_type, last_teller_transaction_id")
-        .eq("user_id", user.id);
-
-      type SavedEnrollment = { accountName: string; tellerAccountId: string; accessToken: string; enrollmentId: string; institutionName: string; tellerAccountType: string; lastTellerTransactionId: string | null };
-      const savedEnrollments: SavedEnrollment[] = [];
-
-      if (enrollmentData && enrollmentData.length > 0) {
-        const accountIds = enrollmentData.map((e) => e.account_id as string);
-        const { data: accountNameData } = await supabase.from("accounts").select("id, name").in("id", accountIds);
-        const nameById = new Map((accountNameData ?? []).map((a) => [a.id as string, a.name as string]));
-        for (const e of enrollmentData) {
-          const name = nameById.get(e.account_id as string);
-          if (!name) continue;
-          savedEnrollments.push({ accountName: name.toLowerCase(), tellerAccountId: e.teller_account_id as string, accessToken: e.access_token as string, enrollmentId: e.enrollment_id as string, institutionName: e.institution_name as string, tellerAccountType: e.teller_account_type as string, lastTellerTransactionId: e.last_teller_transaction_id as string | null });
-        }
-      }
 
       // Delete existing data (cascades to transactions, items, assignments)
       await supabase.from("accounts").delete().eq("user_id", user.id);
@@ -573,7 +684,6 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
         transactions: registerParsed.transactionCount,
         months: planParsed.monthCount,
         createdAccounts: createdAccounts,
-        preservedEnrollments: savedEnrollments,
       };
     },
     [user?.id, clearHistory, setAccounts, hookInvalidate]
@@ -705,9 +815,11 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
         reorderCategoryItems,
         setCategorySnooze,
         setCategoryTarget,
+        setCategoryDiscretionaryPool,
         updateCategoryGroupNote,
         updateCategoryItemNote,
         invalidate,
+        invalidateAll,
         seedDefaultCategories,
 
         importYnabData,

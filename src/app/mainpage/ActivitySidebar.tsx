@@ -49,14 +49,14 @@ export default function ActivitySidebar({ page, orientation = "vertical" }: Acti
       data-cy="activity-sidebar"
       className={
         isHorizontal
-          ? "w-full bg-white dark:bg-slate-900 border-b border-slate-300 dark:border-slate-700 p-3 shadow-sm dark:shadow-md"
-          : "w-64 bg-white dark:bg-slate-900 border-r border-slate-300 dark:border-slate-700 p-4 space-y-4 shadow-sm dark:shadow-md overflow-y-auto h-screen"
+          ? "w-full bg-slate-50 dark:bg-slate-900 border-b border-slate-300 dark:border-slate-700 p-3 shadow-sm dark:shadow-md"
+          : "w-64 bg-slate-50 dark:bg-slate-900 border-r border-slate-300 dark:border-slate-700 p-4 space-y-4 shadow-sm dark:shadow-md overflow-y-auto h-screen"
       }
     >
       {page === "account" && (
         <button
           onClick={() => router.push("/dashboard")}
-          className="flex items-center text-sm text-slate-600 dark:text-slate-400 hover:text-teal-600 dark:hover:text-teal-400 transition font-medium mb-3 group"
+          className="flex items-center text-sm text-slate-600 dark:text-slate-400 hover:text-ledger-600 dark:hover:text-ledger-400 transition font-medium mb-3 group"
         >
           <span className="mr-1.5 text-base group-hover:transform group-hover:-translate-x-1 transition-transform">←</span> Back to Dashboard
         </button>
@@ -105,8 +105,8 @@ export default function ActivitySidebar({ page, orientation = "vertical" }: Acti
             data-activity-type={item.type}
             className={
               isHorizontal
-                ? "min-w-[260px] border-l-4 pl-3 border-teal-400 dark:border-teal-600 bg-slate-50 dark:bg-slate-800 p-2.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-                : "border-l-4 pl-3 border-teal-400 dark:border-teal-600 bg-slate-50 dark:bg-slate-800 p-2.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                ? "min-w-[260px] border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-2.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                : "border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-2.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
             }
           >
             {item.type === "transaction" ? (

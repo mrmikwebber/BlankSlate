@@ -45,7 +45,7 @@ export async function loadBudgetState(
       supabase
         .from("category_items")
         .select(
-          "id, group_id, name, sort_order, snoozed, target, notes, notes_history"
+          "id, group_id, name, sort_order, snoozed, target, notes, notes_history, is_discretionary_pool"
         )
         .eq("user_id", userId)
         .order("sort_order", { ascending: true }),
@@ -85,6 +85,7 @@ export async function loadBudgetState(
       target: item.target ?? undefined,
       notes: item.notes ?? undefined,
       notes_history: item.notes_history ?? undefined,
+      isDiscretionaryPool: item.is_discretionary_pool ?? false,
     });
   }
 

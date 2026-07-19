@@ -60,7 +60,7 @@ export function NotesPopover({
         <Button
           variant="ghost"
           size={triggerSize}
-          className={`h-6 w-6 p-0 ${hasNote ? "text-teal-600 dark:text-teal-400" : "text-slate-400 dark:text-slate-600"} hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors ${className}`}
+          className={`h-6 w-6 p-0 ${hasNote ? "text-ledger-600 dark:text-ledger-400" : "text-slate-400 dark:text-slate-600"} hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors ${className}`}
           title={hasNote ? currentNote : "Add note"}
           onClick={(e) => e.stopPropagation()}
         >
@@ -139,7 +139,7 @@ export function NotesPopover({
               <Button
                 size="sm"
                 onClick={handleSave}
-                className="bg-teal-600 hover:bg-teal-700 text-white dark:bg-teal-700 dark:hover:bg-teal-600"
+                className="bg-ledger-600 hover:bg-ledger-700 text-white dark:bg-ledger-700 dark:hover:bg-ledger-600"
               >
                 Save
               </Button>

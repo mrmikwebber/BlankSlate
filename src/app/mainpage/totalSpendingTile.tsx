@@ -440,7 +440,7 @@ const TotalSpendingTile = () => {
           </button>
 
           {selectorOpen && (
-            <div className="absolute right-0 top-full mt-1 w-52 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg z-50 p-3">
+            <div className="absolute right-0 top-full mt-1 w-52 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 shadow-lg z-50 p-3">
               <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2 px-1">
                 Visible Widgets
               </p>
@@ -457,7 +457,7 @@ const TotalSpendingTile = () => {
                         className={cn(
                           "w-4 h-4 flex-shrink-0 rounded border flex items-center justify-center transition-colors",
                           active
-                            ? "bg-teal-500 border-teal-500"
+                            ? "bg-ledger-500 border-ledger-500"
                             : "border-slate-300 dark:border-slate-600"
                         )}
                       >
@@ -487,7 +487,7 @@ const TotalSpendingTile = () => {
       {show("ynab-stats") && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           {/* Assigned */}
-          <div className="relative overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900 p-4 shadow-sm">
+          <div className="relative overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900 p-4 shadow-sm">
             <div className="absolute top-0 inset-x-0 h-[3px] bg-violet-500 rounded-t-xl" />
             <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-2">
               Assigned This Month
@@ -501,7 +501,7 @@ const TotalSpendingTile = () => {
           </div>
 
           {/* Spent */}
-          <div className="relative overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900 p-4 shadow-sm">
+          <div className="relative overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900 p-4 shadow-sm">
             <div className="absolute top-0 inset-x-0 h-[3px] bg-orange-500 rounded-t-xl" />
             <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-2">
               Spent This Month
@@ -517,11 +517,11 @@ const TotalSpendingTile = () => {
           </div>
 
           {/* Available */}
-          <div className="relative overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900 p-4 shadow-sm">
+          <div className="relative overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900 p-4 shadow-sm">
             <div
               className={cn(
                 "absolute top-0 inset-x-0 h-[3px] rounded-t-xl",
-                ynabStats.available >= 0 ? "bg-teal-500" : "bg-red-500"
+                ynabStats.available >= 0 ? "bg-ledger-500" : "bg-red-500"
               )}
             />
             <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-2">
@@ -531,7 +531,7 @@ const TotalSpendingTile = () => {
               className={cn(
                 "font-mono text-xl font-semibold",
                 ynabStats.available >= 0
-                  ? "text-teal-600 dark:text-teal-400"
+                  ? "text-ledger-600 dark:text-ledger-400"
                   : "text-red-600 dark:text-red-400"
               )}
             >
@@ -548,18 +548,18 @@ const TotalSpendingTile = () => {
       {/* ── Classic Income / Savings stat cards ── */}
       {show("classic-stats") && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div className="relative overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900 p-4 shadow-sm">
-            <div className="absolute top-0 inset-x-0 h-[3px] bg-teal-500 rounded-t-xl" />
+          <div className="relative overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900 p-4 shadow-sm">
+            <div className="absolute top-0 inset-x-0 h-[3px] bg-ledger-500 rounded-t-xl" />
             <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-2">
               Total Income
             </p>
-            <p className="font-mono text-xl font-semibold text-teal-600 dark:text-teal-400">
+            <p className="font-mono text-xl font-semibold text-ledger-600 dark:text-ledger-400">
               {formatToUSD(totalInflow)}
             </p>
             <p className="text-xs text-slate-500 dark:text-slate-500 mt-1">{monthLabel}</p>
           </div>
 
-          <div className="relative overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900 p-4 shadow-sm">
+          <div className="relative overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900 p-4 shadow-sm">
             <div className="absolute top-0 inset-x-0 h-[3px] bg-red-500 rounded-t-xl" />
             <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-2">
               Total Spending
@@ -574,7 +574,7 @@ const TotalSpendingTile = () => {
             </p>
           </div>
 
-          <div className="relative overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900 p-4 shadow-sm">
+          <div className="relative overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900 p-4 shadow-sm">
             <div className="absolute top-0 inset-x-0 h-[3px] bg-blue-500 rounded-t-xl" />
             <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-2">
               Net Saved
@@ -598,7 +598,7 @@ const TotalSpendingTile = () => {
 
       {/* ── Spending Pace ── */}
       {show("spending-pace") && spendingPace && (
-        <div className="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900 p-3.5 shadow-sm">
+        <div className="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900 p-3.5 shadow-sm">
           {/* Header row */}
           <div className="flex items-center justify-between mb-2">
             <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
@@ -615,7 +615,7 @@ const TotalSpendingTile = () => {
               "flex flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2 rounded-lg text-sm font-semibold mb-3",
               spendingPace.isAhead
                 ? "bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-400"
-                : "bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-400"
+                : "bg-ledger-50 dark:bg-ledger-950/40 text-ledger-700 dark:text-ledger-400"
             )}
           >
             {spendingPace.isAhead ? (
@@ -654,7 +654,7 @@ const TotalSpendingTile = () => {
                 "font-mono text-sm font-semibold truncate",
                 spendingPace.projectedMonthTotal > spendingPace.avgMonthTotal
                   ? "text-red-600 dark:text-red-400"
-                  : "text-teal-600 dark:text-teal-400"
+                  : "text-ledger-600 dark:text-ledger-400"
               )}>
                 {formatToUSD(spendingPace.projectedMonthTotal)}
               </p>
@@ -680,7 +680,7 @@ const TotalSpendingTile = () => {
                 <div
                   className={cn(
                     "h-full rounded-full transition-all",
-                    spendingPace.isAhead ? "bg-red-500" : "bg-teal-500"
+                    spendingPace.isAhead ? "bg-red-500" : "bg-ledger-500"
                   )}
                   style={{
                     width: `${Math.min(
@@ -765,7 +765,7 @@ const TotalSpendingTile = () => {
                             "text-[11px] font-medium px-1.5 py-0.5 rounded whitespace-nowrap",
                             cat.diff > 0
                               ? "bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400"
-                              : "bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-400"
+                              : "bg-ledger-50 dark:bg-ledger-950/40 text-ledger-700 dark:text-ledger-400"
                           )}
                         >
                           {cat.diff > 0 ? `+${formatToUSD(cat.diff)}` : `-${formatToUSD(Math.abs(cat.diff))}`}
@@ -786,7 +786,7 @@ const TotalSpendingTile = () => {
 
           {/* Spending Breakdown donut */}
           {show("donut") && (
-            <div className="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900 p-4 shadow-sm">
+            <div className="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900 p-4 shadow-sm">
               <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-0.5">
                 Spending Breakdown
               </p>
@@ -814,7 +814,7 @@ const TotalSpendingTile = () => {
                       <Tooltip
                         formatter={(v) => [formatToUSD(v as number), "Amount"]}
                         contentStyle={{
-                          backgroundColor: isDark ? "#0f172a" : "#ffffff",
+                          backgroundColor: isDark ? "#0f172a" : "#f8fafc",
                           border: isDark ? "1px solid #334155" : "1px solid #e2e8f0",
                           borderRadius: "6px",
                           padding: "6px 10px",
@@ -857,7 +857,7 @@ const TotalSpendingTile = () => {
 
           {/* Spending vs Budget bars */}
           {show("budget-bars") && (
-            <div className="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900 p-4 shadow-sm">
+            <div className="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900 p-4 shadow-sm">
               <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-0.5">
                 Spending vs Budget
               </p>
@@ -898,7 +898,7 @@ const TotalSpendingTile = () => {
               </div>
               <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 flex gap-4">
                 <div className="flex items-center gap-1.5 text-[10px] text-slate-400 dark:text-slate-500">
-                  <div className="w-4 h-[3px] bg-teal-500 rounded" />
+                  <div className="w-4 h-[3px] bg-ledger-500 rounded" />
                   Within budget
                 </div>
                 <div className="flex items-center gap-1.5 text-[10px] text-slate-400 dark:text-slate-500">
@@ -913,7 +913,7 @@ const TotalSpendingTile = () => {
 
       {/* ── Monthly Trend Sparkline ── */}
       {show("trend") && (
-        <div className="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900 p-4 shadow-sm">
+        <div className="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900 p-4 shadow-sm">
           <div className="flex items-center justify-between mb-3">
             <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
               Monthly Spending Trend
@@ -976,7 +976,7 @@ const TotalSpendingTile = () => {
                       cy={y}
                       r={isLast ? 4 : 3}
                       fill="#00c9a7"
-                      stroke={isLast ? (isDark ? "#0f172a" : "#ffffff") : "none"}
+                      stroke={isLast ? (isDark ? "#0f172a" : "#f8fafc") : "none"}
                       strokeWidth={isLast ? 2 : 0}
                     />
                   );
@@ -989,7 +989,7 @@ const TotalSpendingTile = () => {
                     className={cn(
                       "text-[10px]",
                       i === monthlyTrend.length - 1
-                        ? "text-teal-600 dark:text-teal-400 font-semibold"
+                        ? "text-ledger-600 dark:text-ledger-400 font-semibold"
                         : "text-slate-400 dark:text-slate-500"
                     )}
                   >
@@ -1004,7 +1004,7 @@ const TotalSpendingTile = () => {
 
       {/* ── Category Breakdown Table ── */}
       {show("category-table") && categoryBreakdown.length > 0 && (
-        <div className="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900 p-4 shadow-sm">
+        <div className="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900 p-4 shadow-sm">
           <div className="flex items-center justify-between mb-3">
             <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
               Category Breakdown
@@ -1056,7 +1056,7 @@ const TotalSpendingTile = () => {
                     className={cn(
                       "py-2.5 text-right font-mono text-xs font-medium",
                       item.remaining >= 0
-                        ? "text-teal-600 dark:text-teal-400"
+                        ? "text-ledger-600 dark:text-ledger-400"
                         : "text-red-600 dark:text-red-400"
                     )}
                   >
@@ -1076,7 +1076,7 @@ const TotalSpendingTile = () => {
 
       {/* Empty state */}
       {spendingData.length === 0 && totalOutflow === 0 && (
-        <div className="flex-1 flex items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 py-16">
+        <div className="flex-1 flex items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 py-16">
           <div className="text-center">
             <div className="text-5xl mb-4 opacity-20">📊</div>
             <p className="text-base font-medium text-slate-600 dark:text-slate-400">

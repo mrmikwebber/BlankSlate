@@ -5,17 +5,19 @@ import MobileTabBar from "./MobileTabBar";
 import MobileBudgetTab from "./tabs/MobileBudgetTab";
 import MobileAccountsTab from "./tabs/MobileAccountsTab";
 import MobileTransactionsTab from "./tabs/MobileTransactionsTab";
+import DiscretionaryTab from "./tabs/DiscretionaryTab";
 import TotalSpendingTile from "./totalSpendingTile";
 import { useAuth } from "../context/AuthContext";
+import { Settings as SettingsIcon } from "lucide-react";
 
-export type TabType = "budget" | "accounts" | "insights" | "settings";
+export type TabType = "budget" | "accounts" | "discretionary" | "insights" | "settings";
 
 function SettingsTab() {
   const { signOut } = useAuth();
 
   return (
     <div className="flex flex-col items-center justify-center py-20 px-8 text-center bg-slate-50 dark:bg-slate-950 min-h-full">
-      <div className="text-5xl mb-4 opacity-20">⚙️</div>
+      <SettingsIcon className="h-12 w-12 mb-4 opacity-20 text-slate-600 dark:text-slate-400" />
       <p className="text-[15px] font-medium text-slate-600 dark:text-slate-400">
         Settings
       </p>
@@ -24,7 +26,7 @@ function SettingsTab() {
       </p>
       <button
         onClick={signOut}
-        className="bg-teal-600 dark:bg-teal-700 hover:bg-teal-500 dark:hover:bg-teal-600 text-white px-5 py-2 rounded-md text-sm transition-colors"
+        className="bg-ledger-600 dark:bg-ledger-700 hover:bg-ledger-500 dark:hover:bg-ledger-600 text-white px-5 py-2 rounded-md text-sm transition-colors"
       >
         Sign Out
       </button>
@@ -46,7 +48,7 @@ export default function MobileDashboardShell() {
       case "budget":
         return (
           <div className="pt-4 px-4 bg-slate-50 dark:bg-slate-950 min-h-full">
-            <div className="rounded-t-3xl bg-white dark:bg-slate-900 pb-4 px-4 min-h-full text-slate-900 dark:text-slate-200">
+            <div className="rounded-t-3xl bg-slate-50 dark:bg-slate-900 pb-4 px-4 min-h-full text-slate-900 dark:text-slate-200">
               <MobileBudgetTab />
             </div>
           </div>
@@ -59,6 +61,12 @@ export default function MobileDashboardShell() {
           />
         ) : (
           <MobileAccountsTab onSelectAccount={setSelectedAccountId} />
+        );
+      case "discretionary":
+        return (
+          <div className="pt-4 px-4 bg-slate-50 dark:bg-slate-950 min-h-full">
+            <DiscretionaryTab />
+          </div>
         );
       case "insights":
         return <TotalSpendingTile />;
@@ -77,7 +85,7 @@ export default function MobileDashboardShell() {
       </div>
 
       {/* Bottom tab bar */}
-      <div className="flex-shrink-0 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-lg">
+      <div className="flex-shrink-0 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 shadow-lg">
         <MobileTabBar activeTab={activeTab} onTabChange={handleTabChange} />
       </div>
     </div>

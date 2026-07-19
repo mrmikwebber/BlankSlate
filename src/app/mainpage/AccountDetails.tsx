@@ -19,8 +19,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Plus, Edit2, Trash2, ArrowLeft, CheckCircle2, Circle, Flag, RefreshCw, WifiOff } from "lucide-react";
-import TellerConnect, { TellerEnrollmentData } from "@/components/TellerConnect";
+import { Plus, Edit2, Trash2, ArrowLeft, CheckCircle2, Circle, Flag } from "lucide-react";
 
 export default function AccountDetails() {
   const { id } = useParams();
@@ -57,15 +56,6 @@ export default function AccountDetails() {
   const [reconcileOpen, setReconcileOpen] = useState(false);
   const [reconcileInput, setReconcileInput] = useState("");
   const [reconcileError, setReconcileError] = useState<string | null>(null);
-
-  const [enrollment, setEnrollment] = useState<{
-    last_synced_at: string | null;
-    teller_status?: string;
-    teller_account_id?: string;
-  } | null | undefined>(undefined);
-  const [syncing, setSyncing] = useState(false);
-  const [syncMessage, setSyncMessage] = useState<string | null>(null);
-  const [reconnectError, setReconnectError] = useState<string | null>(null);
 
   const account = accounts.find((acc) => acc.id.toString() === id);
   const accountBalance =
@@ -296,90 +286,6 @@ export default function AccountDetails() {
     return sortConfig.direction === "asc" ? "▲" : "▼";
   };
 
-  // Fetch Teller enrollment status for this account, then verify with Teller
-  // if the status is 'active' (catches pre-existing disconnections before the
-  // teller_status column was added)
-  useEffect(() => {
-    if (!account) return;
-    setEnrollment(undefined);
-    supabase
-      .from("teller_enrollments")
-      .select("last_synced_at, teller_status, teller_account_id")
-      .eq("account_id", account.id)
-      .single()
-      .then(({ data }) => {
-        setEnrollment(data ?? null);
-      });
-  }, [account?.id]);
-
-  const handleSync = async () => {
-    if (!account || syncing) return;
-    setSyncing(true);
-    setSyncMessage(null);
-    try {
-      const res = await fetch("/api/teller/sync", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ accountId: account.id }),
-      });
-      const body = await res.json() as { synced?: number; error?: string; disconnected?: boolean };
-      if (!res.ok) {
-        setSyncMessage(body.error ?? "Sync failed");
-        if (body.disconnected) {
-          setEnrollment((prev) => prev ? { ...prev, teller_status: "disconnected" } : prev);
-        }
-      } else {
-        setSyncMessage(body.synced === 0 ? "Already up to date" : `${body.synced} new transaction${body.synced !== 1 ? "s" : ""} added`);
-        setEnrollment({ last_synced_at: new Date().toISOString() });
-        await refreshSingleAccount(account.id);
-      }
-    } catch {
-      setSyncMessage("Sync failed");
-    } finally {
-      setSyncing(false);
-    }
-  };
-
-  const handleReconnect = async (data: TellerEnrollmentData) => {
-    if (!account || !enrollment?.teller_account_id) return;
-    setReconnectError(null);
-    try {
-      const res = await fetch("/api/teller/enroll", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          accessToken: data.accessToken,
-          enrollmentId: data.enrollmentId,
-          selectedAccountIds: [enrollment.teller_account_id],
-        }),
-      });
-      if (!res.ok) {
-        const body = await res.json() as { error?: string };
-        throw new Error(body.error ?? "Reconnect failed");
-      }
-      // Re-fetch enrollment to clear the disconnected status
-      const { data: fresh } = await supabase
-        .from("teller_enrollments")
-        .select("last_synced_at, teller_status, teller_account_id")
-        .eq("account_id", account.id)
-        .single();
-      setEnrollment(fresh ?? null);
-    } catch (err) {
-      setReconnectError(err instanceof Error ? err.message : "Reconnect failed");
-    }
-  };
-
-  const syncCooldownLabel = (): string | null => {
-    if (!enrollment?.last_synced_at) return null;
-    const ms = Date.now() - new Date(enrollment.last_synced_at).getTime();
-    const msInHour = 60 * 60 * 1000;
-    if (ms < msInHour) {
-      const minutesLeft = Math.ceil((msInHour - ms) / 60000);
-      return `Available in ${minutesLeft}m`;
-    }
-    return null;
-  };
-
   // Keyboard shortcuts
   useEffect(() => {
     if (!account) return;
@@ -482,12 +388,12 @@ export default function AccountDetails() {
   }
 
   return (
-    <div className="relative bg-white dark:bg-slate-950 min-h-screen">
+    <div className="relative bg-slate-50 dark:bg-slate-950 min-h-screen">
       {/* Context menu */}
       {contextMenu && (
         <div
           data-cy="tx-context-menu"
-          className="fixed z-50 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg shadow-xl dark:shadow-2xl text-sm overflow-hidden"
+          className="fixed z-50 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg shadow-xl dark:shadow-2xl text-sm overflow-hidden"
           style={{ top: contextMenu.y, left: contextMenu.x }}
           onClick={() => setContextMenu(null)}
         >
@@ -516,7 +422,7 @@ export default function AccountDetails() {
               }
               setContextMenu(null);
             }}
-            className="px-4 py-2.5 hover:bg-teal-50 dark:hover:bg-teal-950 text-teal-600 dark:text-teal-400 w-full text-left font-medium transition-colors"
+            className="px-4 py-2.5 hover:bg-ledger-50 dark:hover:bg-ledger-950 text-ledger-600 dark:text-ledger-400 w-full text-left font-medium transition-colors"
           >
             Edit Transaction
           </button>
@@ -569,7 +475,7 @@ export default function AccountDetails() {
       )}
 
       {/* Header / balance */}
-      <div className="flex items-center justify-between gap-4 px-5 py-4 border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900">
+      <div className="flex items-center justify-between gap-4 px-5 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900">
         <div className="flex items-center gap-3">
           <Button
             variant="ghost"
@@ -585,11 +491,11 @@ export default function AccountDetails() {
           {isEditingAccountName ? (
             <div className="flex items-center gap-2">
               <Input
-                className="text-lg font-semibold border-b-2 border-teal-500 focus-visible:ring-0 bg-transparent text-slate-800 dark:text-slate-100 h-auto px-0"
+                className="text-lg font-semibold border-b-2 border-ledger-500 focus-visible:ring-0 bg-transparent text-slate-800 dark:text-slate-100 h-auto px-0"
                 value={newAccountName ?? ""}
                 onChange={(e) => setNewAccountName(e.target.value)}
               />
-              <Button onClick={handleRenameAccount} size="sm" className="h-7 text-xs bg-teal-600 hover:bg-teal-700 text-white">Save</Button>
+              <Button onClick={handleRenameAccount} size="sm" className="h-7 text-xs bg-ledger-600 hover:bg-ledger-700 text-white">Save</Button>
               <Button onClick={() => { setNewAccountName(account.name); setIsEditingAccountName(false); }} variant="outline" size="sm" className="h-7 text-xs">Cancel</Button>
             </div>
           ) : (
@@ -603,7 +509,7 @@ export default function AccountDetails() {
           <p className="text-[13px] text-slate-500 dark:text-slate-400 mt-0.5">
             <span
               data-cy="account-balance"
-              className={`font-mono font-semibold ${accountBalance < 0 ? "text-red-600 dark:text-red-400" : "text-teal-600 dark:text-teal-400"}`}
+              className={`font-mono font-semibold ${accountBalance < 0 ? "text-red-600 dark:text-red-400" : "text-ledger-600 dark:text-ledger-400"}`}
             >
               {accountBalance.toLocaleString("en-US", { style: "currency", currency: "USD" })}
             </span>
@@ -613,27 +519,6 @@ export default function AccountDetails() {
         </div>
 
         <div className="flex items-center gap-2">
-          {enrollment && enrollment.teller_status !== "disconnected" && (() => {
-            const cooldown = syncCooldownLabel();
-            return (
-              <div className="flex flex-col items-end gap-0.5">
-                <Button
-                  onClick={() => void handleSync()}
-                  disabled={syncing || !!cooldown}
-                  variant="outline"
-                  size="sm"
-                  className="text-xs h-8 gap-1.5"
-                  title={cooldown ?? "Sync bank transactions"}
-                >
-                  <RefreshCw className={`h-3 w-3 ${syncing ? "animate-spin" : ""}`} />
-                  {syncing ? "Syncing…" : cooldown ?? "Sync"}
-                </Button>
-                {syncMessage && (
-                  <span className="text-[10px] text-slate-500 dark:text-slate-400">{syncMessage}</span>
-                )}
-              </div>
-            );
-          })()}
           <Button
             onClick={() => { setReconcileInput(accountBalance.toFixed(2)); setReconcileError(null); setReconcileOpen(true); }}
             variant="outline"
@@ -659,7 +544,7 @@ export default function AccountDetails() {
               data-cy="add-transaction-button"
               onClick={() => setShowForm(true)}
               size="sm"
-              className="h-8 bg-teal-600 hover:bg-teal-700 text-white dark:bg-teal-700 dark:hover:bg-teal-600 text-xs"
+              className="h-8 bg-ledger-600 hover:bg-ledger-700 text-white dark:bg-ledger-700 dark:hover:bg-ledger-600 text-xs"
             >
               <Plus className="h-3.5 w-3.5 mr-1.5" />
               Add
@@ -667,22 +552,6 @@ export default function AccountDetails() {
           )}
         </div>
       </div>
-
-      {/* Disconnected banner */}
-      {enrollment?.teller_status === "disconnected" && (
-        <div className="px-5 py-2.5 bg-red-50 dark:bg-red-950/40 border-b border-red-200 dark:border-red-800 flex items-center justify-between gap-3">
-          <span className="text-xs font-medium text-red-700 dark:text-red-300 flex items-center gap-1.5">
-            <WifiOff className="h-3.5 w-3.5 flex-shrink-0" />
-            Bank connection lost — reconnect to resume syncing
-          </span>
-          <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
-            <TellerConnect onEnrollmentReady={handleReconnect} />
-            {reconnectError && (
-              <span className="text-[10px] text-red-600 dark:text-red-400">{reconnectError}</span>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* Unapproved banner */}
       {(() => {
@@ -798,13 +667,13 @@ export default function AccountDetails() {
                     selectedTxIds.has(tx.id)
                       ? "bg-blue-50 dark:bg-blue-950/40"
                       : selectedTxId === tx.id
-                        ? "bg-teal-50 dark:bg-teal-950/40"
+                        ? "bg-ledger-50 dark:bg-ledger-950/40"
                         : !tx.approved
                           ? "bg-amber-50/60 dark:bg-amber-950/20"
                           : idx % 2 === 0
-                            ? "bg-white dark:bg-slate-950"
+                            ? "bg-slate-50 dark:bg-slate-950"
                             : "bg-slate-50/60 dark:bg-slate-900/40"
-                  } ${selectedTxId === tx.id ? "ring-1 ring-inset ring-teal-400 dark:ring-teal-600" : "hover:bg-slate-50 dark:hover:bg-slate-900"}`}
+                  } ${selectedTxId === tx.id ? "ring-1 ring-inset ring-ledger-400 dark:ring-ledger-600" : "hover:bg-slate-50 dark:hover:bg-slate-900"}`}
                   onClick={() => setSelectedTxId(tx.id)}
                   onDoubleClick={() => startEdit(tx)}
                   onContextMenu={(e) => {
@@ -845,7 +714,7 @@ export default function AccountDetails() {
                     title={tx.cleared ? "Cleared — click to uncleared" : "Uncleared — click to clear"}
                   >
                     {tx.cleared
-                      ? <CheckCircle2 className="h-4 w-4 text-teal-500 dark:text-teal-400 mx-auto" />
+                      ? <CheckCircle2 className="h-4 w-4 text-ledger-500 dark:text-ledger-400 mx-auto" />
                       : <Circle className="h-4 w-4 text-slate-300 dark:text-slate-600 mx-auto" />
                     }
                   </td>
@@ -873,7 +742,7 @@ export default function AccountDetails() {
                   </td>
                   <td
                     data-cy="transaction-amount"
-                    className={`px-3 py-2.5 text-right font-mono font-semibold text-[13px] ${tx.balance < 0 ? "text-red-600 dark:text-red-400" : "text-teal-600 dark:text-teal-400"}`}
+                    className={`px-3 py-2.5 text-right font-mono font-semibold text-[13px] ${tx.balance < 0 ? "text-red-600 dark:text-red-400" : "text-ledger-600 dark:text-ledger-400"}`}
                   >
                     {tx.balance < 0 ? "−" : "+"}{Math.abs(tx.balance).toLocaleString("en-US", { style: "currency", currency: "USD" })}
                   </td>
@@ -887,7 +756,7 @@ export default function AccountDetails() {
       {/* Bulk delete context menu */}
       {bulkContextMenu && selectedTxIds.size > 0 && (
         <div
-          className="fixed z-50 bg-white border border-slate-200 rounded-md shadow-lg py-1 min-w-[180px]"
+          className="fixed z-50 bg-slate-50 border border-slate-200 rounded-md shadow-lg py-1 min-w-[180px]"
           style={{ top: bulkContextMenu.y, left: bulkContextMenu.x }}
           onClick={(e) => e.stopPropagation()}
         >
@@ -961,7 +830,7 @@ export default function AccountDetails() {
             <Button variant="outline" onClick={() => setReconcileOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={() => void handleReconcileSubmit()} className="bg-teal-600 hover:bg-teal-700 text-white">
+            <Button onClick={() => void handleReconcileSubmit()} className="bg-ledger-600 hover:bg-ledger-700 text-white">
               Create Adjustment
             </Button>
           </DialogFooter>

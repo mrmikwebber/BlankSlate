@@ -5,8 +5,9 @@ import type { UpdateItemRequest } from "@/types/budget";
 
 export async function PATCH(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const supabase = createRouteHandlerClient({ cookies });
   const {
     data: { user },
@@ -29,6 +30,7 @@ export async function PATCH(
   if (body.snoozed !== undefined) updates.snoozed = body.snoozed;
   if (body.target !== undefined) updates.target = body.target;
   if (body.notes !== undefined) updates.notes = body.notes;
+  if (body.isDiscretionaryPool !== undefined) updates.is_discretionary_pool = body.isDiscretionaryPool;
 
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: "No fields to update" }, { status: 400 });
@@ -37,9 +39,9 @@ export async function PATCH(
   const { data, error } = await supabase
     .from("category_items")
     .update(updates)
-    .eq("id", params.id)
+    .eq("id", id)
     .eq("user_id", user.id)
-    .select("id, group_id, name, sort_order, snoozed, target, notes, notes_history")
+    .select("id, group_id, name, sort_order, snoozed, target, notes, notes_history, is_discretionary_pool")
     .single();
 
   if (error) {
@@ -52,8 +54,9 @@ export async function PATCH(
 
 export async function DELETE(
   _req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const supabase = createRouteHandlerClient({ cookies });
   const {
     data: { user },
@@ -67,7 +70,7 @@ export async function DELETE(
   const { error } = await supabase
     .from("category_items")
     .delete()
-    .eq("id", params.id)
+    .eq("id", id)
     .eq("user_id", user.id);
 
   if (error) {

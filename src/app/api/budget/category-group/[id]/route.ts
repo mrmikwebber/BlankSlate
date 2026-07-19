@@ -5,8 +5,9 @@ import type { UpdateGroupRequest } from "@/types/budget";
 
 export async function PATCH(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const supabase = createRouteHandlerClient({ cookies });
   const {
     data: { user },
@@ -35,7 +36,7 @@ export async function PATCH(
   const { data, error } = await supabase
     .from("category_groups")
     .update(updates)
-    .eq("id", params.id)
+    .eq("id", id)
     .eq("user_id", user.id)
     .select("id, name, sort_order")
     .single();
@@ -50,8 +51,9 @@ export async function PATCH(
 
 export async function DELETE(
   _req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   const supabase = createRouteHandlerClient({ cookies });
   const {
     data: { user },
@@ -65,7 +67,7 @@ export async function DELETE(
   const { error } = await supabase
     .from("category_groups")
     .delete()
-    .eq("id", params.id)
+    .eq("id", id)
     .eq("user_id", user.id);
 
   if (error) {
