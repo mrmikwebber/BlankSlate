@@ -9,6 +9,7 @@ import { TabletView } from "./TabletRail";
 import AccountCardCompact from "./AccountCardCompact";
 import AddAccountModal from "./AddAccountModal";
 import MonthNav from "./MonthNav";
+import ReadyToAssignBreakdown from "./ReadyToAssignBreakdown";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -326,32 +327,39 @@ export default function SidebarPanel({ activeView, onViewChange }: SidebarPanelP
         <div className="pt-3 border-t border-slate-200 dark:border-slate-700 space-y-2">
 
           {/* Ready to Assign */}
-          <div className={cn(
-            "rounded-lg border shadow-sm px-3 py-2.5",
-            rta !== null && rta < 0
-              ? "bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800"
-              : "bg-ledger-50 dark:bg-ledger-950/30 border-ledger-200 dark:border-ledger-800"
-          )}>
-            <p className={cn(
-              "text-[10px] font-semibold uppercase tracking-wide mb-1",
-              rta !== null && rta < 0 ? "text-red-500 dark:text-red-400" : "text-ledger-600 dark:text-ledger-500"
-            )}>
-              Ready to Assign
-            </p>
-            {rta === null ? (
-              <div className="h-5 w-20 rounded bg-ledger-200 dark:bg-ledger-800 animate-pulse" />
-            ) : (
-              <p
-                data-cy="ready-to-assign"
-                className={cn(
-                  "text-xl font-bold font-mono tabular-nums leading-none",
-                  rta < 0 ? "text-red-600 dark:text-red-400" : "text-ledger-700 dark:text-ledger-300"
-                )}
-              >
-                {rta.toLocaleString("en-US", { style: "currency", currency: "USD" })}
+          <ReadyToAssignBreakdown>
+            <div
+              role="button"
+              tabIndex={0}
+              title="Click to see how this is calculated"
+              className={cn(
+                "rounded-lg border shadow-sm px-3 py-2.5 cursor-pointer transition-colors hover:brightness-95 dark:hover:brightness-110",
+                rta !== null && rta < 0
+                  ? "bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800"
+                  : "bg-ledger-50 dark:bg-ledger-950/30 border-ledger-200 dark:border-ledger-800"
+              )}
+            >
+              <p className={cn(
+                "text-[10px] font-semibold uppercase tracking-wide mb-1",
+                rta !== null && rta < 0 ? "text-red-500 dark:text-red-400" : "text-ledger-600 dark:text-ledger-500"
+              )}>
+                Ready to Assign
               </p>
-            )}
-          </div>
+              {rta === null ? (
+                <div className="h-5 w-20 rounded bg-ledger-200 dark:bg-ledger-800 animate-pulse" />
+              ) : (
+                <p
+                  data-cy="ready-to-assign"
+                  className={cn(
+                    "text-xl font-bold font-mono tabular-nums leading-none",
+                    rta < 0 ? "text-red-600 dark:text-red-400" : "text-ledger-700 dark:text-ledger-300"
+                  )}
+                >
+                  {rta.toLocaleString("en-US", { style: "currency", currency: "USD" })}
+                </p>
+              )}
+            </div>
+          </ReadyToAssignBreakdown>
 
           {/* Net worth */}
           <div className="rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm px-3 py-2.5">

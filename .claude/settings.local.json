@@ -51,7 +51,11 @@
       "Bash(taskkill //PID 40448 //F)",
       "Bash(curl -s -o /dev/null -w \"3000 status: %{http_code}\\\\n\" http://localhost:3000 --max-time 5)",
       "Bash(git log *)",
-      "Bash(grep -n \"const { currentMonth, budgetData } = useBudgetContext\\\\|isReconciliation = \" src/app/mainpage/totalSpendingTile.tsx)"
+      "Bash(grep -n \"const { currentMonth, budgetData } = useBudgetContext\\\\|isReconciliation = \" src/app/mainpage/totalSpendingTile.tsx)",
+      "Bash(RTA_DEBUG=1 npx vitest run tests/tmp-rta-verify.test.ts)",
+      "Bash(grep -v '\"\\\\$0.00\",\"\\\\$0.00\",\"\\\\$0.00\"' \"blankslate-plan-2026-07-22.csv\")",
+      "Bash(awk -F'\",\"' '{print $1}')",
+      "Bash(awk -F'\",\"' '{gsub\\(/\"/,\"\"\\); if \\($5 != \"$0.00\" && $1 !~ /Jun 2026|Jul 2026/ && NR>1\\) print}' \"blankslate-plan-2026-07-22.csv\")"
     ],
     "additionalDirectories": [
       "/Users/michaelwebb/Documents/GitHub/BlankSlate/src/app/api/budget/month"

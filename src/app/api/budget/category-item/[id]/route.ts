@@ -37,6 +37,32 @@ export async function PATCH(
     return NextResponse.json({ error: "No fields to update" }, { status: 400 });
   }
 
+  // Credit Card Payments items are linked to their account by exact name
+  // match (no real foreign key — see lib/budgetMath.ts ccItemToAccountId).
+  // If this rename would break that link, capture the pre-rename name so we
+  // can rename the matching account to follow, keeping the link intact.
+  let oldNameForCcSync: string | null = null;
+  if (typeof updates.name === "string") {
+    const { data: existing } = await supabase
+      .from("category_items")
+      .select("name, group_id")
+      .eq("id", id)
+      .eq("user_id", user.id)
+      .single();
+
+    if (existing && existing.name !== updates.name) {
+      const { data: groupRow } = await supabase
+        .from("category_groups")
+        .select("name")
+        .eq("id", existing.group_id)
+        .eq("user_id", user.id)
+        .single();
+      if (groupRow?.name === "Credit Card Payments") {
+        oldNameForCcSync = existing.name;
+      }
+    }
+  }
+
   const { data, error } = await supabase
     .from("category_items")
     .update(updates)
@@ -48,6 +74,18 @@ export async function PATCH(
   if (error) {
     console.error("[category-item/[id]] PATCH error:", error);
     return NextResponse.json({ error: "Failed to update item" }, { status: 500 });
+  }
+
+  if (oldNameForCcSync) {
+    const { error: accountRenameError } = await supabase
+      .from("accounts")
+      .update({ name: data.name })
+      .eq("user_id", user.id)
+      .eq("type", "credit")
+      .eq("name", oldNameForCcSync);
+    if (accountRenameError) {
+      console.error("[category-item/[id]] failed to sync account name:", accountRenameError);
+    }
   }
 
   return NextResponse.json(data);

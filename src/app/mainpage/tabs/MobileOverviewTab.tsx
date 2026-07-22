@@ -7,6 +7,7 @@ import { formatToUSD } from "@/app/utils/formatToUSD";
 import { isSameMonth, parseISO } from "date-fns";
 import { PieChart, Pie, Cell, Tooltip as RechartsTooltip } from "recharts";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import ReadyToAssignBreakdown from "../ReadyToAssignBreakdown";
 
 export default function MobileOverviewTab() {
   const { accounts } = useAccountContext();
@@ -31,22 +32,6 @@ export default function MobileOverviewTab() {
     "#A728F5",
     "#FF2D55",
   ];
-
-  const totalInflow = useMemo(() => {
-    return accounts
-      .flatMap((account) => account.transactions)
-      .filter((tx) => {
-        return (
-          tx.category === "Ready to Assign" &&
-          tx.date &&
-          isSameMonth(
-            typeof tx.date === "string" ? parseISO(tx.date) : tx.date,
-            parseISO(currentMonth)
-          )
-        );
-      })
-      .reduce((sum, tx) => sum + tx.balance, 0);
-  }, [accounts, currentMonth]);
 
   const spendingData = useMemo(() => {
     const categoryTotals: Record<string, number> = {};
@@ -100,14 +85,20 @@ export default function MobileOverviewTab() {
     <div className="space-y-4 pb-24 text-slate-900 dark:text-slate-200">
       {/* Key Metrics — Ready to Assign leads as the hero figure; everything
           else is supporting detail below it, not an equal peer. */}
-      <Card className="shadow-none border border-ledger-200 dark:border-ledger-800/40 bg-ledger-50 dark:bg-ledger-900/30 text-ledger-800 dark:text-ledger-200">
-        <CardContent className="pt-4 pb-5">
-          <p className="text-xs text-ledger-700 font-medium mb-1.5">Ready to Assign</p>
-          <p className="text-3xl font-bold font-mono tabular-nums tracking-tight text-ledger-600">
-            {formatToUSD(totalInflow)}
-          </p>
-        </CardContent>
-      </Card>
+      <ReadyToAssignBreakdown>
+        <Card
+          role="button"
+          tabIndex={0}
+          className="shadow-none border border-ledger-200 dark:border-ledger-800/40 bg-ledger-50 dark:bg-ledger-900/30 text-ledger-800 dark:text-ledger-200 cursor-pointer active:opacity-80 transition-opacity"
+        >
+          <CardContent className="pt-4 pb-5">
+            <p className="text-xs text-ledger-700 font-medium mb-1.5">Ready to Assign</p>
+            <p className="text-3xl font-bold font-mono tabular-nums tracking-tight text-ledger-600">
+              {formatToUSD(budgetView?.ready_to_assign ?? 0)}
+            </p>
+          </CardContent>
+        </Card>
+      </ReadyToAssignBreakdown>
 
       <div className="grid grid-cols-3 gap-2.5">
         <Card className="shadow-none border border-red-200 dark:border-red-800/40 bg-red-50 dark:bg-red-900/30 text-red-800 dark:text-red-200">

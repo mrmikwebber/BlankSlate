@@ -39,6 +39,10 @@ export interface ComputedCategoryItem {
   // item's real `available` above; there's no separate ceiling to track.
   isDiscretionaryPool?: boolean;
 
+  // Only present for Credit Card Payments items — decomposes `activity`
+  // into its YNAB-style components (see CCActivityBreakdown).
+  ccActivityBreakdown?: CCActivityBreakdown;
+
   // Excludes this category's transactions from Insights charts (donut,
   // spending pace, trend, category table) without affecting the budget
   // itself — e.g. a reimbursed personal loan that isn't real spending.
@@ -59,8 +63,19 @@ export interface ComputedMonthView {
   month: string;                 // "YYYY-MM"
 
   ready_to_assign: number;
-  rta_carry: number;             // deficit carry forwarded from prior months
+  rta_carry: number;             // permanent, one-month-lag debit-overspend carry (see computeBudgetState)
   has_deficit_carry: boolean;
+  // Per-month breakdown (mirrors YNAB's "Ready to Assign" breakdown):
+  // ready_to_assign = rta_prev_month_leftover + rta_income_this_month
+  //                   - rta_overspend_prev_month - rta_assigned_this_month
+  rta_prev_month_leftover: number;
+  rta_income_this_month: number;
+  rta_overspend_prev_month: number;
+  rta_assigned_this_month: number;
+  // Not part of the core chain above — money already assigned to any month
+  // after this one. Frontend only surfaces it when viewing the real current
+  // month (see ReadyToAssignBreakdown.tsx), as a "already spoken for" warning.
+  rta_assigned_beyond_this_month: number;
 
   version: number;               // monotonically increasing per user — reject stale responses
   generatedAt: string;           // ISO timestamp
@@ -138,19 +153,31 @@ export interface BudgetStateInput {
 // Computed budget state (intermediate — not serialized to frontend)
 // ---------------------------------------------------------------------------
 
+export interface CCActivityBreakdown {
+  spending: number;        // gross card spend this month (negative)
+  returns: number;         // gross merchant refunds this month (positive)
+  fundedSpending: number;  // net budgeted portion of spend, minus refunds against previously-funded spend
+  payments: number;        // direct payments made toward the card this month (negative)
+  // activity = fundedSpending + payments
+}
+
 export interface MonthItemState {
   categoryItemId: string;
   assigned: number;
   activity: number;
   cumulativeAvailable: number;   // sum of (assigned + activity) for all prior months
   available: number;             // assigned + activity + max(cumulativeAvailable, 0)
+  ccActivityBreakdown?: CCActivityBreakdown; // Credit Card Payments items only
 }
 
 export interface MonthState {
   month: string;
   itemStates: Map<string, MonthItemState>;
   readyToAssign: number;
-  rtaCarry: number;
+  rtaCarry: number;         // permanent, one-month-lag debit-overspend carry — see computeBudgetState
+  incomeThisMonth: number;  // this month's own "Ready to Assign" inflows
+  assignedThisMonth: number; // this month's own assignments (not future months')
+  overspendPrevMonth: number; // previous month's fresh debit-only overspend, applied once
 }
 
 export interface BudgetState {
@@ -159,6 +186,8 @@ export interface BudgetState {
   accounts: AccountMeta[];
   generatedAt: string;
   version: number;
+  totalIncome: number;              // all-time inflows in "Ready to Assign" — feeds the RTA breakdown
+  totalAssigned: number;            // all-time sum of budget_assignments — feeds the RTA breakdown
 }
 
 // ---------------------------------------------------------------------------

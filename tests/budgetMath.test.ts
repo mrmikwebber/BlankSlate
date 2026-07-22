@@ -452,7 +452,13 @@ describe("updateMonthPure", () => {
 });
 
 describe("computeBudgetState", () => {
-    it("computes RTA as a single global figure — a future month's assignment reduces every month's RTA, not just its own", () => {
+    it("computes RTA sequentially per month — a future month's assignment does NOT reduce an earlier month's RTA, only its own", () => {
+        // Matches real YNAB: Ready to Assign is a rolling per-month
+        // calculation (leftover from last month + this month's income -
+        // this month's assigned), not one figure shared by every month.
+        // Pre-budgeting Feb's rent ahead of time is money earmarked for
+        // Feb specifically — it shouldn't shrink what Jan shows as
+        // available, only Feb's own figure once you get there.
         const accounts = [{ id: "a-checking", name: "Checking", type: "debit" as const }];
         const rawTransactions: RawDbTransaction[] = [
             {
@@ -498,10 +504,9 @@ describe("computeBudgetState", () => {
         const jan = serializeMonthView(state, "2026-01");
         const feb = serializeMonthView(state, "2026-02");
 
-        // $300 income - $100 (Jan rent) - $50 (Feb rent) = $150, shown
-        // identically in both months even though the Feb assignment is
-        // chronologically "after" January.
-        expect(jan.ready_to_assign).toBe(150);
+        // Jan: $300 income - $100 Jan rent = $200 (Feb's $50 doesn't count yet).
+        expect(jan.ready_to_assign).toBe(200);
+        // Feb: $200 leftover from Jan - $50 Feb rent = $150.
         expect(feb.ready_to_assign).toBe(150);
     });
 
@@ -839,6 +844,396 @@ describe("computeBudgetState", () => {
 
         expect(amexPayment?.activity).toBe(20);
         expect(amexPayment?.available).toBe(20);
+    });
+
+    it("decomposes credit card payment activity into a YNAB-style breakdown that sums to the same total", () => {
+        const accounts = [{ id: "a-amex", name: "Amex Gold", type: "credit" as const }];
+
+        const rawTransactions: RawDbTransaction[] = [
+            // $100 assigned to Groceries gives the pool room to fund this spend.
+            {
+                id: "tx-spend",
+                account_id: "a-amex",
+                date: "2026-07-05",
+                payee: "Store",
+                category: "Groceries",
+                category_group: "Living",
+                balance: -80,
+                category_item_id: "item-groceries",
+                cleared: true,
+                approved: true,
+            },
+            // A merchant refund against that same funded spend.
+            {
+                id: "tx-refund",
+                account_id: "a-amex",
+                date: "2026-07-10",
+                payee: "Store Refund",
+                category: "Groceries",
+                category_group: "Living",
+                balance: 20,
+                category_item_id: "item-groceries",
+                cleared: true,
+                approved: true,
+            },
+            // A direct payment made toward the card.
+            {
+                id: "tx-payment",
+                account_id: "a-amex",
+                date: "2026-07-15",
+                payee: "Payment from Checking",
+                category: null,
+                category_group: null,
+                balance: 30,
+                category_item_id: null,
+                cleared: true,
+                approved: true,
+            },
+        ];
+
+        const state = computeBudgetState({
+            userId: "u1",
+            accounts,
+            transactions: normalizeTransactions(rawTransactions, accounts),
+            assignments: [{ categoryItemId: "item-groceries", month: "2026-07", assigned: 100 }],
+            categoryGroups: [
+                {
+                    id: "g-living",
+                    name: "Living",
+                    sortOrder: 0,
+                    items: [{ id: "item-groceries", groupId: "g-living", name: "Groceries", sortOrder: 0, snoozed: false }],
+                },
+                {
+                    id: "g-cc",
+                    name: "Credit Card Payments",
+                    sortOrder: 1,
+                    items: [{ id: "item-amex-payment", groupId: "g-cc", name: "Amex Gold", sortOrder: 0, snoozed: false }],
+                },
+            ],
+        });
+
+        const july = serializeMonthView(state, "2026-07");
+        const amexPayment = july.categories.find((c) => c.name === "Credit Card Payments")?.categoryItems[0];
+        const b = amexPayment?.ccActivityBreakdown;
+
+        expect(b).toBeDefined();
+        expect(b!.spending).toBe(-80);
+        expect(b!.returns).toBe(20);
+        expect(b!.fundedSpending).toBe(60); // 80 budgeted - 20 refund-against-funded
+        expect(b!.payments).toBe(-30);
+        // The breakdown must always reconcile exactly to the real activity figure.
+        expect(b!.fundedSpending + b!.payments).toBe(amexPayment!.activity);
+        expect(amexPayment!.activity).toBe(30);
+    });
+
+    it("excludes Starting Balance and Reconciliation Adjustment from credit card payment activity", () => {
+        const accounts = [
+            { id: "a-checking", name: "Checking", type: "debit" as const },
+            { id: "a-amex", name: "Amex Gold", type: "credit" as const },
+        ];
+
+        const rawTransactions: RawDbTransaction[] = [
+            // Neither of these has a category_item_id — they must not be
+            // mistaken for real card spend needing a payment.
+            {
+                id: "tx-starting-balance",
+                account_id: "a-amex",
+                date: "2026-07-01",
+                payee: "Starting Balance",
+                category: "Category Not Needed",
+                category_group: null,
+                balance: -500,
+                category_item_id: null,
+                cleared: true,
+                approved: true,
+            },
+            {
+                id: "tx-reconcile",
+                account_id: "a-amex",
+                date: "2026-07-10",
+                payee: "Reconciliation Adjustment",
+                category: "Reconciliation (Hidden)",
+                category_group: "Reconciliation (Hidden)",
+                balance: -75,
+                category_item_id: null,
+                cleared: true,
+                approved: true,
+            },
+            {
+                id: "tx-groceries",
+                account_id: "a-amex",
+                date: "2026-07-15",
+                payee: "Store",
+                category: "Groceries",
+                category_group: "Living",
+                balance: -50,
+                category_item_id: "item-groceries",
+                cleared: true,
+                approved: true,
+            },
+        ];
+
+        const state = computeBudgetState({
+            userId: "u1",
+            accounts,
+            transactions: normalizeTransactions(rawTransactions, accounts),
+            assignments: [{ categoryItemId: "item-groceries", month: "2026-07", assigned: 50 }],
+            categoryGroups: [
+                {
+                    id: "g-living",
+                    name: "Living",
+                    sortOrder: 0,
+                    items: [{ id: "item-groceries", groupId: "g-living", name: "Groceries", sortOrder: 0, snoozed: false }],
+                },
+                {
+                    id: "g-cc",
+                    name: "Credit Card Payments",
+                    sortOrder: 1,
+                    items: [{ id: "item-amex-payment", groupId: "g-cc", name: "Amex Gold", sortOrder: 0, snoozed: false }],
+                },
+            ],
+        });
+
+        const july = serializeMonthView(state, "2026-07");
+        const ccGroup = july.categories.find((c) => c.name === "Credit Card Payments");
+        const amexPayment = ccGroup?.categoryItems.find((i) => i.name === "Amex Gold");
+
+        expect(amexPayment?.activity).toBe(50); // only the real grocery spend
+        expect(amexPayment?.available).toBe(50);
+    });
+
+    it("still excludes a Reconciliation Adjustment even if it somehow has a real category_item_id set", () => {
+        // Guards against the implicit-nullness assumption breaking silently
+        // (e.g. a backfill migration or stray edit linking the row to a real
+        // category) — the exclusion must hold on category_group text alone,
+        // not on category_item_id happening to be null.
+        const accounts = [{ id: "a-amex", name: "Amex Gold", type: "credit" as const }];
+
+        const rawTransactions: RawDbTransaction[] = [
+            {
+                id: "tx-reconcile-linked",
+                account_id: "a-amex",
+                date: "2026-07-10",
+                payee: "Reconciliation Adjustment",
+                category: "Reconciliation (Hidden)",
+                category_group: "Reconciliation (Hidden)",
+                balance: -689.82,
+                category_item_id: "item-groceries", // simulates the bug: wrongly linked
+                cleared: true,
+                approved: true,
+            },
+            {
+                id: "tx-groceries",
+                account_id: "a-amex",
+                date: "2026-07-15",
+                payee: "Store",
+                category: "Groceries",
+                category_group: "Living",
+                balance: -50,
+                category_item_id: "item-groceries",
+                cleared: true,
+                approved: true,
+            },
+        ];
+
+        const state = computeBudgetState({
+            userId: "u1",
+            accounts,
+            transactions: normalizeTransactions(rawTransactions, accounts),
+            assignments: [{ categoryItemId: "item-groceries", month: "2026-07", assigned: 50 }],
+            categoryGroups: [
+                {
+                    id: "g-living",
+                    name: "Living",
+                    sortOrder: 0,
+                    items: [{ id: "item-groceries", groupId: "g-living", name: "Groceries", sortOrder: 0, snoozed: false }],
+                },
+                {
+                    id: "g-cc",
+                    name: "Credit Card Payments",
+                    sortOrder: 1,
+                    items: [{ id: "item-amex-payment", groupId: "g-cc", name: "Amex Gold", sortOrder: 0, snoozed: false }],
+                },
+            ],
+        });
+
+        const july = serializeMonthView(state, "2026-07");
+        const groceries = july.categories.find((c) => c.name === "Living")?.categoryItems[0];
+        const amexPayment = july.categories.find((c) => c.name === "Credit Card Payments")?.categoryItems[0];
+
+        // The reconciliation row's own $689.82 must not leak into Groceries'
+        // activity (even though it was force-linked to that item's id) or
+        // into the Amex payment activity — only the real $50 grocery spend.
+        expect(groceries?.activity).toBe(-50);
+        expect(amexPayment?.activity).toBe(50);
+    });
+
+    it("counts only the debit portion of a mixed debit/credit overspend, applied to the following month", () => {
+        const accounts = [
+            { id: "a-checking", name: "Checking", type: "debit" as const },
+            { id: "a-amex", name: "Amex", type: "credit" as const },
+        ];
+
+        // Groceries: $0 assigned, -$30 from debit, -$70 from credit — the
+        // credit portion is a card liability tracked separately, not cash
+        // that actually left checking, so it must not inflate rta_carry.
+        const rawTransactions: RawDbTransaction[] = [
+            {
+                id: "tx-debit",
+                account_id: "a-checking",
+                date: "2026-03-05",
+                payee: "Store",
+                category: "Groceries",
+                category_group: "Living",
+                balance: -30,
+                category_item_id: "item-groceries",
+                cleared: true,
+                approved: true,
+            },
+            {
+                id: "tx-credit",
+                account_id: "a-amex",
+                date: "2026-03-06",
+                payee: "Store",
+                category: "Groceries",
+                category_group: "Living",
+                balance: -70,
+                category_item_id: "item-groceries",
+                cleared: true,
+                approved: true,
+            },
+        ];
+
+        const state = computeBudgetState({
+            userId: "u1",
+            accounts,
+            transactions: normalizeTransactions(rawTransactions, accounts),
+            assignments: [],
+            categoryGroups: [
+                {
+                    id: "g-living",
+                    name: "Living",
+                    sortOrder: 0,
+                    items: [
+                        { id: "item-groceries", groupId: "g-living", name: "Groceries", sortOrder: 0, snoozed: false },
+                    ],
+                },
+            ],
+        });
+
+        const march = serializeMonthView(state, "2026-03");
+        const groceries = march.categories[0].categoryItems[0];
+        expect(groceries.available).toBe(-100); // blended display is unchanged
+
+        // Matches YNAB: a month's own overspending doesn't hit its own RTA —
+        // it's applied to the month right after it, once.
+        expect(march.rta_carry).toBe(0);
+        const april = serializeMonthView(state, "2026-04");
+        expect(april.rta_overspend_prev_month).toBe(30); // debit-only, not the blended -$100
+        expect(april.rta_carry).toBe(30);
+    });
+
+    it("applies a cash-overspending deficit exactly once and keeps it permanently — later funding the category doesn't undo it", () => {
+        // Matches real YNAB behavior (verified against an actual multi-month
+        // export): once counted, an overspend is a sunk cost, not a debt
+        // that later gets "paid off." Assigning more money to the category
+        // afterward is a separate, independent use of fresh money — it does
+        // not retroactively cancel the earlier deficit.
+        const accounts = [{ id: "a-checking", name: "Checking", type: "debit" as const }];
+
+        const rawTransactions: RawDbTransaction[] = [
+            {
+                id: "tx-overspend",
+                account_id: "a-checking",
+                date: "2026-03-05",
+                payee: "Utility Co",
+                category: "Electricity",
+                category_group: "Bills",
+                balance: -50,
+                category_item_id: "item-electricity",
+                cleared: true,
+                approved: true,
+            },
+        ];
+
+        const state = computeBudgetState({
+            userId: "u1",
+            accounts,
+            transactions: normalizeTransactions(rawTransactions, accounts),
+            // Fully "caught up" the very next month.
+            assignments: [{ categoryItemId: "item-electricity", month: "2026-04", assigned: 50 }],
+            categoryGroups: [
+                {
+                    id: "g-bills",
+                    name: "Bills",
+                    sortOrder: 0,
+                    items: [
+                        { id: "item-electricity", groupId: "g-bills", name: "Electricity", sortOrder: 0, snoozed: false },
+                    ],
+                },
+            ],
+        });
+
+        const april = serializeMonthView(state, "2026-04");
+        expect(april.rta_overspend_prev_month).toBe(50);
+        expect(april.rta_carry).toBe(50); // NOT resolved by April's assignment to the same category
+
+        // Still permanent several months later, with no further activity.
+        const july = serializeMonthView(state, "2026-07");
+        expect(july.rta_carry).toBe(50);
+    });
+
+    it("reduces the displayed Ready to Assign by future-assigned money only when viewing the real current month", () => {
+        const accounts = [{ id: "a-checking", name: "Checking", type: "debit" as const }];
+        const rawTransactions: RawDbTransaction[] = [
+            {
+                id: "tx-income",
+                account_id: "a-checking",
+                date: "2026-07-05",
+                payee: "Paycheck",
+                category: "Ready to Assign",
+                category_group: "Inflow",
+                balance: 1000,
+                category_item_id: null,
+                cleared: true,
+                approved: true,
+            },
+        ];
+
+        const state = computeBudgetState({
+            userId: "u1",
+            accounts,
+            transactions: normalizeTransactions(rawTransactions, accounts),
+            // Pre-budgeted next month's rent ahead of time.
+            assignments: [{ categoryItemId: "item-rent", month: "2026-08", assigned: 300 }],
+            categoryGroups: [
+                {
+                    id: "g-bills",
+                    name: "Bills",
+                    sortOrder: 0,
+                    items: [{ id: "item-rent", groupId: "g-bills", name: "Rent", sortOrder: 0, snoozed: false }],
+                },
+            ],
+        });
+
+        // Viewing July as "today" — the $300 August pre-assignment should
+        // show up as a warning line's worth of data and reduce the displayed
+        // total.
+        const julyAsToday = serializeMonthView(state, "2026-07", "2026-07");
+        expect(julyAsToday.rta_assigned_beyond_this_month).toBe(300);
+        expect(julyAsToday.ready_to_assign).toBe(700); // $1000 income - $300 already earmarked for August
+
+        // Viewing July again, but "today" is actually August now (July is
+        // history) — no reduction; browsing the past never applies it.
+        const julyAsHistory = serializeMonthView(state, "2026-07", "2026-08");
+        expect(julyAsHistory.ready_to_assign).toBe(1000);
+
+        // August's own breakdown must use July's UNADJUSTED $1000 as its
+        // "leftover from July" — not the $700 that was only ever a display
+        // warning for July's live view — then subtracts its own $300 assignment.
+        const august = serializeMonthView(state, "2026-08", "2026-08");
+        expect(august.rta_prev_month_leftover).toBe(1000);
+        expect(august.ready_to_assign).toBe(700); // $1000 leftover - $300 assigned in August itself
     });
 
 });
