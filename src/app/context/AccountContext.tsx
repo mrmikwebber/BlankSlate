@@ -575,6 +575,8 @@ const upsertPayee = async (name: string) => {
   };
 
   const editAccountName = async (accountId: string | number, newName: string) => {
+    const account = accounts.find((a) => a.id === accountId);
+
     const { error } = await supabase
       .from("accounts")
       .update({ name: newName })
@@ -590,6 +592,40 @@ const upsertPayee = async (name: string) => {
         acc.id === accountId ? { ...acc, name: newName } : acc
       )
     );
+
+    // Credit Card Payments category items are linked to their account by
+    // exact name match (no real foreign key — see lib/budgetMath.ts
+    // ccItemToAccountId) — a stale name silently breaks that link, so keep
+    // the matching category item's name in sync whenever the account is
+    // renamed. Not reflected in BudgetContext's cache until its next
+    // fetch/month-navigation.
+    if (account?.type === "credit" && account.name !== newName && user?.id) {
+      const { data: ccGroup } = await supabase
+        .from("category_groups")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("name", "Credit Card Payments")
+        .maybeSingle();
+
+      if (ccGroup) {
+        const { data: matchingItem } = await supabase
+          .from("category_items")
+          .select("id")
+          .eq("group_id", ccGroup.id)
+          .eq("name", account.name)
+          .maybeSingle();
+
+        if (matchingItem) {
+          const { error: renameError } = await supabase
+            .from("category_items")
+            .update({ name: newName })
+            .eq("id", matchingItem.id);
+          if (renameError) {
+            console.error("Failed to sync Credit Card Payments category name:", renameError.message);
+          }
+        }
+      }
+    }
   };
 
 

@@ -39,6 +39,10 @@ export interface ComputedCategoryItem {
   // item's real `available` above; there's no separate ceiling to track.
   isDiscretionaryPool?: boolean;
 
+  // Only present for Credit Card Payments items — decomposes `activity`
+  // into its YNAB-style components (see CCActivityBreakdown).
+  ccActivityBreakdown?: CCActivityBreakdown;
+
   // Excludes this category's transactions from Insights charts (donut,
   // spending pace, trend, category table) without affecting the budget
   // itself — e.g. a reimbursed personal loan that isn't real spending.
@@ -149,12 +153,21 @@ export interface BudgetStateInput {
 // Computed budget state (intermediate — not serialized to frontend)
 // ---------------------------------------------------------------------------
 
+export interface CCActivityBreakdown {
+  spending: number;        // gross card spend this month (negative)
+  returns: number;         // gross merchant refunds this month (positive)
+  fundedSpending: number;  // net budgeted portion of spend, minus refunds against previously-funded spend
+  payments: number;        // direct payments made toward the card this month (negative)
+  // activity = fundedSpending + payments
+}
+
 export interface MonthItemState {
   categoryItemId: string;
   assigned: number;
   activity: number;
   cumulativeAvailable: number;   // sum of (assigned + activity) for all prior months
   available: number;             // assigned + activity + max(cumulativeAvailable, 0)
+  ccActivityBreakdown?: CCActivityBreakdown; // Credit Card Payments items only
 }
 
 export interface MonthState {

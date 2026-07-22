@@ -35,6 +35,14 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -190,14 +198,8 @@ export default function BudgetTable() {
     item: string;
     position?: "before" | "after";
   } | null>(null);
-  const [moveMoneyModal, setMoveMoneyModal] = useState<{
-    toGroup: string;
-    toItem: string;
-    available: number;
-  } | null>(null);
-  const [moveAmount, setMoveAmount] = useState<number>(0);
-  const [moveToCategory, setMoveToCategory] = useState<string>("");
-  const [sourceAvailable, setSourceAvailable] = useState<number>(0);
+  // Key = "group::item" of whichever row's Move Money popover is open.
+  const [openMoveMoneyFor, setOpenMoveMoneyFor] = useState<string | null>(null);
   const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
   const [showAddTransactionModal, setShowAddTransactionModal] = useState(false);
   const [selectedAccountForTransaction, setSelectedAccountForTransaction] = useState<number | null>(null);
@@ -241,14 +243,7 @@ export default function BudgetTable() {
     for (const group of budgetView.categories) {
       for (const item of group.categoryItems) {
         if (item.available > 0) {
-          setMoveMoneyModal({
-            toGroup: group.name,
-            toItem: item.name,
-            available: item.available,
-          });
-          setMoveAmount(0);
-          setMoveToCategory("");
-          setSourceAvailable(item.available);
+          setOpenMoveMoneyFor(`${group.name}::${item.name}`);
           return;
         }
       }
@@ -533,69 +528,71 @@ export default function BudgetTable() {
     }, 100);
   };
 
-  const handleMoveMoney = useCallback(async () => {
-    if (!moveMoneyModal || !moveToCategory || moveAmount === 0) return;
+  // Selecting a source in the Move Money popover executes immediately — no
+  // separate amount field or confirm button. The amount is unambiguous:
+  // exactly enough to zero out a deficit, or the source's full available
+  // balance otherwise (matches YNAB's minimal "Cover Overspending From").
+  type MoveMoneySource =
+    | { type: "rta" }
+    | { type: "category"; group: string; item: string; available: number };
 
-    const toGroup = moveMoneyModal.toGroup;
-    const toItem = moveMoneyModal.toItem;
-    const destItemId = getItemIdByName(toGroup, toItem);
-    if (!destItemId) return;
+  const executeMoveMoney = useCallback(
+    async (toGroup: string, toItem: string, toAvailable: number, source: MoveMoneySource) => {
+      const destItemId = getItemIdByName(toGroup, toItem);
+      if (!destItemId) return;
 
-    const isMovingFromRTA = moveToCategory === "RTA";
-    const transferAmount = Math.abs(moveAmount);
-    if (transferAmount <= 0) return;
+      const sourceAvailable = source.type === "rta" ? displayedRta : source.available;
+      const transferAmount = toAvailable < 0 ? Math.abs(toAvailable) : Math.max(sourceAvailable, 0);
+      if (transferAmount <= 0) return;
 
-    let fromItem = "";
-    let sourceItemId: string | null = null;
+      const isMovingFromRTA = source.type === "rta";
+      let sourceItemId: string | null = null;
+      if (source.type === "category") {
+        sourceItemId = getItemIdByName(source.group, source.item);
+        if (!sourceItemId) return;
+      }
 
-    if (!isMovingFromRTA) {
-      const [groupName, itemName] = moveToCategory.split("::");
-      fromItem = itemName;
-      sourceItemId = getItemIdByName(groupName, itemName);
-      if (!sourceItemId) return;
-    }
+      const description = source.type === "rta"
+        ? `Moved ${formatToUSD(transferAmount)} from RTA to '${toItem}'`
+        : `Moved ${formatToUSD(transferAmount)} from '${source.item}' to '${toItem}'`;
 
-    const description = isMovingFromRTA
-      ? `Moved ${formatToUSD(transferAmount)} from RTA to '${toItem}'`
-      : `Moved ${formatToUSD(transferAmount)} from '${fromItem}' to '${toItem}'`;
+      registerAction({
+        description,
+        execute: async () => {
+          if (isMovingFromRTA) {
+            const toCurrentAssigned = budgetView?.categories
+              .find((c) => c.name === toGroup)
+              ?.categoryItems.find((i) => i.name === toItem)?.assigned ?? 0;
+            await patchAssigned(destItemId, currentMonth, toCurrentAssigned + transferAmount);
+          } else if (sourceItemId) {
+            await moveMoney(sourceItemId, destItemId, currentMonth, transferAmount);
+          }
+        },
+        undo: async () => {
+          if (isMovingFromRTA) {
+            const toCurrentAssigned = budgetView?.categories
+              .find((c) => c.name === toGroup)
+              ?.categoryItems.find((i) => i.name === toItem)?.assigned ?? 0;
+            await patchAssigned(destItemId, currentMonth, Math.max(0, toCurrentAssigned - transferAmount));
+          } else if (sourceItemId) {
+            await moveMoney(destItemId, sourceItemId, currentMonth, transferAmount);
+          }
+        },
+      });
 
-    registerAction({
-      description,
-      execute: async () => {
-        if (isMovingFromRTA) {
-          const toCurrentAssigned = budgetView?.categories
-            .find((c) => c.name === toGroup)
-            ?.categoryItems.find((i) => i.name === toItem)?.assigned ?? 0;
-          await patchAssigned(destItemId, currentMonth, toCurrentAssigned + transferAmount);
-        } else if (sourceItemId) {
-          await moveMoney(sourceItemId, destItemId, currentMonth, transferAmount);
-        }
-      },
-      undo: async () => {
-        if (isMovingFromRTA) {
-          const toCurrentAssigned = budgetView?.categories
-            .find((c) => c.name === toGroup)
-            ?.categoryItems.find((i) => i.name === toItem)?.assigned ?? 0;
-          await patchAssigned(destItemId, currentMonth, Math.max(0, toCurrentAssigned - transferAmount));
-        } else if (sourceItemId) {
-          await moveMoney(destItemId, sourceItemId, currentMonth, transferAmount);
-        }
-      },
-    });
+      if (isMovingFromRTA) {
+        const toCurrentAssigned = budgetView?.categories
+          .find((c) => c.name === toGroup)
+          ?.categoryItems.find((i) => i.name === toItem)?.assigned ?? 0;
+        await patchAssigned(destItemId, currentMonth, toCurrentAssigned + transferAmount);
+      } else if (sourceItemId) {
+        await moveMoney(sourceItemId, destItemId, currentMonth, transferAmount);
+      }
 
-    if (isMovingFromRTA) {
-      const toCurrentAssigned = budgetView?.categories
-        .find((c) => c.name === toGroup)
-        ?.categoryItems.find((i) => i.name === toItem)?.assigned ?? 0;
-      await patchAssigned(destItemId, currentMonth, toCurrentAssigned + transferAmount);
-    } else if (sourceItemId) {
-      await moveMoney(sourceItemId, destItemId, currentMonth, transferAmount);
-    }
-
-    setMoveMoneyModal(null);
-    setMoveAmount(0);
-    setMoveToCategory("");
-  }, [moveMoneyModal, moveToCategory, moveAmount, budgetView, currentMonth, moveMoney, patchAssigned, registerAction, getItemIdByName]);
+      setOpenMoveMoneyFor(null);
+    },
+    [budgetView, currentMonth, moveMoney, patchAssigned, registerAction, getItemIdByName, displayedRta]
+  );
 
   // Get assigned amount from previous month
   const getLastMonthAssigned = useCallback((groupName: string, itemName: string): number => {
@@ -745,7 +742,7 @@ export default function BudgetTable() {
     onShowHelp: () => {
       setShowShortcutsHelp(true);
     },
-    enabled: !categoryContext && !moveMoneyModal && !groupContext && !categoryDeleteContext,
+    enabled: !categoryContext && !openMoveMoneyFor && !groupContext && !categoryDeleteContext,
   });
 
   const hasBudgetCategories = (budgetView?.categories.length ?? 0) > 0;
@@ -962,151 +959,6 @@ export default function BudgetTable() {
           document.body
         )}
 
-      {/* Move money modal */}
-      {moveMoneyModal &&
-        createPortal(
-          <div
-            className="fixed inset-0 bg-black/30 dark:bg-black/50 z-50 flex items-center justify-center"
-            onClick={() => {
-              setMoveMoneyModal(null);
-              setMoveAmount(0);
-              setMoveToCategory("");
-              setSourceAvailable(0);
-            }}
-          >
-            <div
-              className="bg-slate-50 dark:bg-slate-900 p-5 rounded-lg shadow-lg w-full max-w-md space-y-4 text-slate-800 dark:text-slate-200"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <h2 className="text-base font-semibold">
-                Move Money to &quot;{moveMoneyModal.toItem}&quot;
-              </h2>
-
-              <div className="space-y-3">
-                <div className="text-sm text-muted-foreground">
-                  Available: <span className={cn(
-                    "font-mono font-semibold",
-                    moveMoneyModal.available < 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"
-                  )}>{formatToUSD(moveMoneyModal.available)}</span>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">
-                    Move from category:
-                  </label>
-                  <select
-                    data-cy="move-money-target-select"
-                    className="w-full border border-slate-300 dark:border-slate-700 rounded-md px-3 py-2 text-sm bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200"
-                    value={moveToCategory}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      setMoveToCategory(value);
-
-                      if (!value) {
-                        setMoveAmount(moveMoneyModal.available < 0 ? Math.abs(moveMoneyModal.available) : 0);
-                        setSourceAvailable(0);
-                        return;
-                      }
-
-                      // Handle RTA special case
-                      if (value === "RTA") {
-                        const rtaBalance = displayedRta;
-                        setSourceAvailable(rtaBalance);
-                        const targetDeficit = moveMoneyModal.available < 0 ? Math.abs(moveMoneyModal.available) : rtaBalance;
-                        setMoveAmount(targetDeficit);
-                        return;
-                      }
-
-                      const [srcGroup, srcItem] = value.split("::");
-                      const source = budgetView?.categories
-                        .find((c) => c.name === srcGroup)?.categoryItems.find((i) => i.name === srcItem);
-
-                      const srcAvail = source?.available ?? 0;
-                      setSourceAvailable(srcAvail);
-
-                      const targetDeficit = moveMoneyModal.available < 0 ? Math.abs(moveMoneyModal.available) : srcAvail;
-                      setMoveAmount(targetDeficit);
-                    }}
-                  >
-                    <option value="">Select a category</option>
-                    <option value="RTA" className="font-semibold">
-                      Ready to Assign (Avail {formatToUSD(displayedRta || 0)})
-                    </option>
-                    {(budgetView?.categories ?? [])
-                      .flatMap((cat) =>
-                        cat.categoryItems
-                          .filter((i) => !(i.name === moveMoneyModal.toItem && cat.name === moveMoneyModal.toGroup))
-                          .map((i) => ({ group: cat.name, item: i }))
-                      )
-                      .map(({ group, item }) => (
-                        <option key={`${group}::${item.name}`} value={`${group}::${item.name}`}>
-                          {group} → {item.name} (Avail {formatToUSD(item.available || 0)})
-                        </option>
-                      ))}
-                  </select>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">
-                    Amount to move:
-                  </label>
-                  <Input
-                    data-cy="move-money-amount-input"
-                    type="number"
-                    step="0.01"
-                    value={moveAmount ? parseFloat(moveAmount.toFixed(2)) : ""}
-                    onChange={(e) => setMoveAmount(parseFloat(e.target.value) || 0)}
-                    className="w-full"
-                    placeholder="Enter amount"
-                  />
-                  <div className="flex flex-wrap gap-2 pt-1 text-xs">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={!moveToCategory}
-                      onClick={() => setMoveAmount(Math.max(sourceAvailable, 0))}
-                    >
-                      Use available ({formatToUSD(Math.round(sourceAvailable * 100) / 100)})
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={moveMoneyModal.available >= 0 || !moveToCategory}
-                      onClick={() => setMoveAmount(Math.abs(moveMoneyModal.available))}
-                    >
-                      Cover deficit ({formatToUSD(Math.round(Math.abs(moveMoneyModal.available) * 100) / 100)})
-                    </Button>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2">
-                <Button
-                  data-cy="move-money-cancel"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setMoveMoneyModal(null);
-                    setMoveAmount(0);
-                    setMoveToCategory("");
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  data-cy="move-money-confirm"
-                  size="sm"
-                  onClick={handleMoveMoney}
-                  disabled={!moveToCategory || moveAmount <= 0}
-                  className="bg-ledger-600 dark:bg-ledger-700 text-white hover:bg-ledger-500 dark:hover:bg-ledger-600"
-                >
-                  Move Money
-                </Button>
-              </div>
-            </div>
-          </div>,
-          document.body
-        )}
 
       {/* Category context menu */}
       {categoryContext &&
@@ -2223,25 +2075,84 @@ export default function BudgetTable() {
                                         </PopoverContent>
                                       </Popover>
                                     )}
-                                    <button
-                                      type="button"
-                                      data-cy="move-money-trigger"
-                                      className="inline-flex items-center justify-end gap-1 rounded px-2 py-1 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-ledger-500 focus-visible:ring-offset-1 hover:bg-slate-200/80 dark:hover:bg-slate-700/60"
-                                      onClick={() => {
-                                        setMoveMoneyModal({
-                                          toGroup: group.name,
-                                          toItem: item.name,
-                                          available: item.available,
-                                        });
-                                        setMoveAmount(availableCents < 0 ? Math.abs(item.available) : 0);
-                                        setMoveToCategory("");
-                                        setSourceAvailable(0);
-                                      }}
-                                    >
-                                      <span className="underline decoration-dotted underline-offset-4">
-                                        {formatToUSD(item.available || 0)}
-                                      </span>
-                                    </button>
+                                    {(() => {
+                                      const rowKey = `${group.name}::${item.name}`;
+                                      const sources = (budgetView?.categories ?? [])
+                                        .flatMap((cat) =>
+                                          cat.categoryItems
+                                            .filter((i) => !(i.name === item.name && cat.name === group.name))
+                                            .map((i) => ({ group: cat.name, item: i }))
+                                        )
+                                        .filter(({ item: i }) => i.available > 0);
+
+                                      return (
+                                        <Popover
+                                          open={openMoveMoneyFor === rowKey}
+                                          onOpenChange={(o) => setOpenMoveMoneyFor(o ? rowKey : null)}
+                                        >
+                                          <PopoverTrigger asChild>
+                                            <button
+                                              type="button"
+                                              data-cy="move-money-trigger"
+                                              className="inline-flex items-center justify-end gap-1 rounded px-2 py-1 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-ledger-500 focus-visible:ring-offset-1 hover:bg-slate-200/80 dark:hover:bg-slate-700/60"
+                                            >
+                                              <span className="underline decoration-dotted underline-offset-4">
+                                                {formatToUSD(item.available || 0)}
+                                              </span>
+                                            </button>
+                                          </PopoverTrigger>
+                                          <PopoverContent className="w-64 p-0" align="end">
+                                            <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 px-3 pt-3 pb-2">
+                                              {item.available < 0 ? "Cover Overspending From" : "Move Money From"}
+                                            </p>
+                                            <Command>
+                                              <CommandInput placeholder="Search categories…" autoFocus />
+                                              <CommandList>
+                                                <CommandEmpty>No matches.</CommandEmpty>
+                                                <CommandGroup>
+                                                  {displayedRta > 0 && (
+                                                    <CommandItem
+                                                      value="Ready to Assign"
+                                                      data-cy="move-money-source-rta"
+                                                      className="group"
+                                                      onSelect={() =>
+                                                        executeMoveMoney(group.name, item.name, item.available, { type: "rta" })
+                                                      }
+                                                    >
+                                                      <span className="flex-1">Ready to Assign</span>
+                                                      <span className="font-mono text-xs text-slate-400 dark:text-slate-500 group-data-[selected=true]:text-accent-foreground">
+                                                        {formatToUSD(displayedRta || 0)}
+                                                      </span>
+                                                    </CommandItem>
+                                                  )}
+                                                  {sources.map(({ group: srcGroup, item: srcItem }) => (
+                                                    <CommandItem
+                                                      key={`${srcGroup}::${srcItem.name}`}
+                                                      value={`${srcGroup} ${srcItem.name}`}
+                                                      data-cy="move-money-source-item"
+                                                      className="group"
+                                                      onSelect={() =>
+                                                        executeMoveMoney(group.name, item.name, item.available, {
+                                                          type: "category",
+                                                          group: srcGroup,
+                                                          item: srcItem.name,
+                                                          available: srcItem.available,
+                                                        })
+                                                      }
+                                                    >
+                                                      <span className="flex-1 truncate">{srcGroup} → {srcItem.name}</span>
+                                                      <span className="font-mono text-xs text-slate-400 dark:text-slate-500 group-data-[selected=true]:text-accent-foreground flex-shrink-0">
+                                                        {formatToUSD(srcItem.available || 0)}
+                                                      </span>
+                                                    </CommandItem>
+                                                  ))}
+                                                </CommandGroup>
+                                              </CommandList>
+                                            </Command>
+                                          </PopoverContent>
+                                        </Popover>
+                                      );
+                                    })()}
                                   </div>
                                 );
                               })()}
@@ -2284,6 +2195,12 @@ export default function BudgetTable() {
             {activityDetailModal && (() => {
               const selMonth = format(parse(currentMonth, "yyyy-MM", new Date()), "yyyy-MM");
               const isCreditCardRow = activityDetailModal.groupName === "Credit Card Payments";
+              const ccBreakdown = isCreditCardRow
+                ? budgetView?.categories
+                    .find((g) => g.name === "Credit Card Payments")
+                    ?.categoryItems.find((i) => i.name === activityDetailModal.categoryName)
+                    ?.ccActivityBreakdown
+                : undefined;
               const txs = isCreditCardRow
                 ? (() => {
                     const cardAccount = accounts.find((a) => a.name === activityDetailModal.categoryName && a.type === "credit");
@@ -2293,6 +2210,7 @@ export default function BudgetTable() {
                         if (!tx.date) return false;
                         if (format(parseISO(tx.date), "yyyy-MM") !== selMonth) return false;
                         if (tx.category === "Ready to Assign" || tx.category === cardAccount.name) return false;
+                        if (tx.category === "Category Not Needed" || tx.category_group === "Reconciliation (Hidden)") return false;
                         return true;
                       })
                       .map((tx) => ({ ...tx, accountName: cardAccount.name, accountType: cardAccount.type }))
@@ -2302,6 +2220,7 @@ export default function BudgetTable() {
                     .flatMap((a) => a.transactions.map((tx) => ({ ...tx, accountName: a.name, accountType: a.type })))
                     .filter((tx) => {
                       if (!tx.date) return false;
+                      if (tx.category === "Category Not Needed" || tx.category_group === "Reconciliation (Hidden)") return false;
                       return (
                         format(parseISO(tx.date), "yyyy-MM") === selMonth &&
                         tx.category === activityDetailModal.categoryName &&
@@ -2312,12 +2231,39 @@ export default function BudgetTable() {
 
               const total = txs.reduce((sum, tx) => sum + tx.balance, 0);
 
-              if (txs.length === 0) {
+              if (txs.length === 0 && !ccBreakdown) {
                 return <p className="text-sm text-slate-500 py-2">No transactions found.</p>;
               }
 
               return (
                 <div className="flex flex-col gap-2">
+                  {ccBreakdown && (() => {
+                    const totalSpending = ccBreakdown.spending + ccBreakdown.returns;
+                    const totalActivity = ccBreakdown.fundedSpending + ccBreakdown.payments;
+                    const fmt = (n: number) => formatToUSD(n);
+                    const line = (label: string, value: number, opts?: { bold?: boolean; border?: boolean }) => (
+                      <div className={cn(
+                        "flex justify-between items-center px-1 py-0.5 text-sm",
+                        opts?.bold && "font-semibold",
+                        opts?.border && "border-t border-slate-200 dark:border-slate-700 pt-1.5 mt-0.5"
+                      )}>
+                        <span className={opts?.bold ? "text-slate-700 dark:text-slate-200" : "text-slate-500 dark:text-slate-400"}>{label}</span>
+                        <span className={cn("font-mono", value < 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400")}>
+                          {fmt(value)}
+                        </span>
+                      </div>
+                    );
+                    return (
+                      <div className="rounded border border-slate-200 dark:border-slate-700 px-2 py-1.5 mb-1">
+                        {line("Spending", ccBreakdown.spending)}
+                        {line("Returns", ccBreakdown.returns)}
+                        {line("Total Spending", totalSpending, { bold: true, border: true })}
+                        {line("Funded Spending", ccBreakdown.fundedSpending, { border: true })}
+                        {line("Payments", ccBreakdown.payments)}
+                        {line("Total Activity", totalActivity, { bold: true, border: true })}
+                      </div>
+                    );
+                  })()}
                   <div className="max-h-80 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800 rounded border border-slate-200 dark:border-slate-700">
                     {txs.map((tx) => (
                       <div key={tx.id} className="flex items-center justify-between px-3 py-2 text-sm">
@@ -2342,12 +2288,14 @@ export default function BudgetTable() {
                       </div>
                     ))}
                   </div>
-                  <div className="flex justify-between items-center px-1 pt-1 text-sm font-semibold">
-                    <span className="text-slate-600 dark:text-slate-400">Total</span>
-                    <span className={cn("font-mono", total < 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400")}>
-                      {formatToUSD(total)}
-                    </span>
-                  </div>
+                  {!ccBreakdown && (
+                    <div className="flex justify-between items-center px-1 pt-1 text-sm font-semibold">
+                      <span className="text-slate-600 dark:text-slate-400">Total</span>
+                      <span className={cn("font-mono", total < 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400")}>
+                        {formatToUSD(total)}
+                      </span>
+                    </div>
+                  )}
                 </div>
               );
             })()}

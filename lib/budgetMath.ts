@@ -739,24 +739,34 @@ export function normalizeTransactions(
   return rawTransactions.map((tx) => {
     const account = accountMap.get(tx.account_id);
     const isTransferPayee = typeof tx.payee === "string" && tx.payee.trim().startsWith("Transfer :");
+    // Reconciliation adjustments must never affect the budget, regardless of
+    // whether category_item_id happens to be set on the row (it's supposed
+    // to stay null — see AccountDetails.tsx's handleReconcileSubmit — but
+    // relying solely on that implicit nullness is fragile: a backfill
+    // migration, a stray edit, or any future path could link it to a real
+    // category_item and this would silently start counting as real spending
+    // with no explicit guard). Checked by category_group text, not id, since
+    // "Reconciliation (Hidden)" is a sentinel label, not a real category.
+    const isReconciliation = tx.category_group === "Reconciliation (Hidden)";
     const isUncategorized = !tx.category_item_id && tx.category !== "Ready to Assign";
     // Income: positive transaction in "Ready to Assign" (any account type)
-    const isIncome = tx.category === "Ready to Assign" && tx.balance > 0;
+    const isIncome = !isReconciliation && tx.category === "Ready to Assign" && tx.balance > 0;
     // Direct card payment: positive inflow on a credit account that is either
     // explicitly categorized to the card name or represented as a transfer payee.
     const isCCPayment =
+      !isReconciliation &&
       account?.type === "credit" &&
       tx.balance > 0 &&
       (tx.category === account.name || isTransferPayee || isUncategorized);
-    const isTransfer = !isCCPayment && isTransferPayee;
+    const isTransfer = !isReconciliation && !isCCPayment && isTransferPayee;
 
     return {
       id: tx.id,
       accountId: tx.account_id,
       date: tx.date,
       amount: tx.balance,
-      categoryItemId: tx.category_item_id ?? undefined,
-      affectsBudget: isIncome || isCCPayment || tx.category_item_id != null,
+      categoryItemId: isReconciliation ? undefined : tx.category_item_id ?? undefined,
+      affectsBudget: !isReconciliation && (isIncome || isCCPayment || tx.category_item_id != null),
       isCreditCardPayment: isCCPayment,
       cashFlowType: isIncome
         ? "income"
@@ -777,10 +787,27 @@ function computeCreditCardActivityByAccount(
   accountMap: Map<string, AccountMeta>,
   monthStartAvailableByItem: Map<string, number>,
   prevOutstanding: Map<string, number>
-): { paymentActivity: Map<string, number>; updatedOutstanding: Map<string, number> } {
+): {
+  paymentActivity: Map<string, number>;
+  updatedOutstanding: Map<string, number>;
+  breakdownByCard: Map<string, { spending: number; returns: number; fundedSpending: number; payments: number }>;
+} {
   const paymentActivityByCard = new Map<string, number>();
   const poolByItem = new Map<string, number>();
   const budgetedOutstandingByItemCard = new Map(prevOutstanding);
+
+  // YNAB-style breakdown of the same running totals above, tracked
+  // alongside so the two can never drift apart — this is a decomposition of
+  // paymentActivityByCard, not a separate recomputation of it.
+  const breakdownByCard = new Map<string, { spending: number; returns: number; fundedSpending: number; payments: number }>();
+  const getBreakdown = (accountId: string) => {
+    let b = breakdownByCard.get(accountId);
+    if (!b) {
+      b = { spending: 0, returns: 0, fundedSpending: 0, payments: 0 };
+      breakdownByCard.set(accountId, b);
+    }
+    return b;
+  };
 
   for (const [itemId, amount] of monthStartAvailableByItem.entries()) {
     poolByItem.set(itemId, amount);
@@ -821,6 +848,7 @@ function computeCreditCardActivityByAccount(
         tx.accountId,
         (paymentActivityByCard.get(tx.accountId) ?? 0) - tx.amount
       );
+      getBreakdown(tx.accountId).payments -= tx.amount;
       continue;
     }
 
@@ -841,11 +869,14 @@ function computeCreditCardActivityByAccount(
       const budgeted = Math.min(Math.max(currentPool, 0), spend);
       const unbudgeted = spend - budgeted;
 
+      getBreakdown(tx.accountId).spending -= spend;
+
       if (budgeted > 0) {
         paymentActivityByCard.set(
           tx.accountId,
           (paymentActivityByCard.get(tx.accountId) ?? 0) + budgeted
         );
+        getBreakdown(tx.accountId).fundedSpending += budgeted;
         const outstandingKey = `${itemId}:${tx.accountId}`;
         budgetedOutstandingByItemCard.set(
           outstandingKey,
@@ -863,11 +894,14 @@ function computeCreditCardActivityByAccount(
       const outstanding = budgetedOutstandingByItemCard.get(outstandingKey) ?? 0;
       const reduction = Math.min(outstanding, refund);
 
+      getBreakdown(tx.accountId).returns += refund;
+
       if (reduction > 0) {
         paymentActivityByCard.set(
           tx.accountId,
           (paymentActivityByCard.get(tx.accountId) ?? 0) - reduction
         );
+        getBreakdown(tx.accountId).fundedSpending -= reduction;
         budgetedOutstandingByItemCard.set(outstandingKey, outstanding - reduction);
       }
 
@@ -875,7 +909,7 @@ function computeCreditCardActivityByAccount(
     }
   }
 
-  return { paymentActivity: paymentActivityByCard, updatedOutstanding: budgetedOutstandingByItemCard };
+  return { paymentActivity: paymentActivityByCard, updatedOutstanding: budgetedOutstandingByItemCard, breakdownByCard };
 }
 
 // Compute deterministic full-timeline budget state from source-of-truth data.
@@ -1052,7 +1086,7 @@ export function computeBudgetState(input: BudgetStateInput): BudgetState {
       if (debitAvail < 0) monthDebitOverspend += Math.abs(debitAvail);
     }
 
-    const { paymentActivity: ccActivityByAccountId, updatedOutstanding } =
+    const { paymentActivity: ccActivityByAccountId, updatedOutstanding, breakdownByCard } =
       computeCreditCardActivityByAccount(monthTx, accountMap, monthStartAvailableByItem, outstandingByItemCard);
     outstandingByItemCard = updatedOutstanding;
 
@@ -1073,6 +1107,7 @@ export function computeBudgetState(input: BudgetStateInput): BudgetState {
           activity,
           cumulativeAvailable: 0,
           available,
+          ccActivityBreakdown: cardAccountId ? breakdownByCard.get(cardAccountId) : undefined,
         });
       }
     }
@@ -1135,6 +1170,14 @@ export function serializeMonthView(
         notes_history: item.notes_history,
         isDiscretionaryPool: item.isDiscretionaryPool,
         isHiddenFromInsights: item.isHiddenFromInsights,
+        ccActivityBreakdown: s?.ccActivityBreakdown
+          ? {
+              spending: Math.round(s.ccActivityBreakdown.spending * 100) / 100,
+              returns: Math.round(s.ccActivityBreakdown.returns * 100) / 100,
+              fundedSpending: Math.round(s.ccActivityBreakdown.fundedSpending * 100) / 100,
+              payments: Math.round(s.ccActivityBreakdown.payments * 100) / 100,
+            }
+          : undefined,
       };
     }),
   }));

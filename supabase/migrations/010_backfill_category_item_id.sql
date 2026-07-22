@@ -18,7 +18,7 @@
 -- WHERE t.category_item_id IS NULL
 --   AND t.category_group IS NOT NULL
 --   AND t.category IS NOT NULL
---   AND t.category NOT IN ('Ready to Assign', 'Category Not Needed')
+--   AND t.category NOT IN ('Ready to Assign', 'Category Not Needed', 'Reconciliation (Hidden)')
 --   AND ci.user_id = t.user_id
 --   AND cg.user_id = t.user_id;
 
@@ -29,7 +29,7 @@ JOIN category_groups cg ON cg.id = ci.group_id
 WHERE t.category_item_id IS NULL
   AND t.category_group IS NOT NULL
   AND t.category IS NOT NULL
-  AND t.category NOT IN ('Ready to Assign', 'Category Not Needed')
+  AND t.category NOT IN ('Ready to Assign', 'Category Not Needed', 'Reconciliation (Hidden)')
   AND ci.user_id = t.user_id
   AND cg.user_id = t.user_id
   AND ci.name = t.category

@@ -846,6 +846,228 @@ describe("computeBudgetState", () => {
         expect(amexPayment?.available).toBe(20);
     });
 
+    it("decomposes credit card payment activity into a YNAB-style breakdown that sums to the same total", () => {
+        const accounts = [{ id: "a-amex", name: "Amex Gold", type: "credit" as const }];
+
+        const rawTransactions: RawDbTransaction[] = [
+            // $100 assigned to Groceries gives the pool room to fund this spend.
+            {
+                id: "tx-spend",
+                account_id: "a-amex",
+                date: "2026-07-05",
+                payee: "Store",
+                category: "Groceries",
+                category_group: "Living",
+                balance: -80,
+                category_item_id: "item-groceries",
+                cleared: true,
+                approved: true,
+            },
+            // A merchant refund against that same funded spend.
+            {
+                id: "tx-refund",
+                account_id: "a-amex",
+                date: "2026-07-10",
+                payee: "Store Refund",
+                category: "Groceries",
+                category_group: "Living",
+                balance: 20,
+                category_item_id: "item-groceries",
+                cleared: true,
+                approved: true,
+            },
+            // A direct payment made toward the card.
+            {
+                id: "tx-payment",
+                account_id: "a-amex",
+                date: "2026-07-15",
+                payee: "Payment from Checking",
+                category: null,
+                category_group: null,
+                balance: 30,
+                category_item_id: null,
+                cleared: true,
+                approved: true,
+            },
+        ];
+
+        const state = computeBudgetState({
+            userId: "u1",
+            accounts,
+            transactions: normalizeTransactions(rawTransactions, accounts),
+            assignments: [{ categoryItemId: "item-groceries", month: "2026-07", assigned: 100 }],
+            categoryGroups: [
+                {
+                    id: "g-living",
+                    name: "Living",
+                    sortOrder: 0,
+                    items: [{ id: "item-groceries", groupId: "g-living", name: "Groceries", sortOrder: 0, snoozed: false }],
+                },
+                {
+                    id: "g-cc",
+                    name: "Credit Card Payments",
+                    sortOrder: 1,
+                    items: [{ id: "item-amex-payment", groupId: "g-cc", name: "Amex Gold", sortOrder: 0, snoozed: false }],
+                },
+            ],
+        });
+
+        const july = serializeMonthView(state, "2026-07");
+        const amexPayment = july.categories.find((c) => c.name === "Credit Card Payments")?.categoryItems[0];
+        const b = amexPayment?.ccActivityBreakdown;
+
+        expect(b).toBeDefined();
+        expect(b!.spending).toBe(-80);
+        expect(b!.returns).toBe(20);
+        expect(b!.fundedSpending).toBe(60); // 80 budgeted - 20 refund-against-funded
+        expect(b!.payments).toBe(-30);
+        // The breakdown must always reconcile exactly to the real activity figure.
+        expect(b!.fundedSpending + b!.payments).toBe(amexPayment!.activity);
+        expect(amexPayment!.activity).toBe(30);
+    });
+
+    it("excludes Starting Balance and Reconciliation Adjustment from credit card payment activity", () => {
+        const accounts = [
+            { id: "a-checking", name: "Checking", type: "debit" as const },
+            { id: "a-amex", name: "Amex Gold", type: "credit" as const },
+        ];
+
+        const rawTransactions: RawDbTransaction[] = [
+            // Neither of these has a category_item_id — they must not be
+            // mistaken for real card spend needing a payment.
+            {
+                id: "tx-starting-balance",
+                account_id: "a-amex",
+                date: "2026-07-01",
+                payee: "Starting Balance",
+                category: "Category Not Needed",
+                category_group: null,
+                balance: -500,
+                category_item_id: null,
+                cleared: true,
+                approved: true,
+            },
+            {
+                id: "tx-reconcile",
+                account_id: "a-amex",
+                date: "2026-07-10",
+                payee: "Reconciliation Adjustment",
+                category: "Reconciliation (Hidden)",
+                category_group: "Reconciliation (Hidden)",
+                balance: -75,
+                category_item_id: null,
+                cleared: true,
+                approved: true,
+            },
+            {
+                id: "tx-groceries",
+                account_id: "a-amex",
+                date: "2026-07-15",
+                payee: "Store",
+                category: "Groceries",
+                category_group: "Living",
+                balance: -50,
+                category_item_id: "item-groceries",
+                cleared: true,
+                approved: true,
+            },
+        ];
+
+        const state = computeBudgetState({
+            userId: "u1",
+            accounts,
+            transactions: normalizeTransactions(rawTransactions, accounts),
+            assignments: [{ categoryItemId: "item-groceries", month: "2026-07", assigned: 50 }],
+            categoryGroups: [
+                {
+                    id: "g-living",
+                    name: "Living",
+                    sortOrder: 0,
+                    items: [{ id: "item-groceries", groupId: "g-living", name: "Groceries", sortOrder: 0, snoozed: false }],
+                },
+                {
+                    id: "g-cc",
+                    name: "Credit Card Payments",
+                    sortOrder: 1,
+                    items: [{ id: "item-amex-payment", groupId: "g-cc", name: "Amex Gold", sortOrder: 0, snoozed: false }],
+                },
+            ],
+        });
+
+        const july = serializeMonthView(state, "2026-07");
+        const ccGroup = july.categories.find((c) => c.name === "Credit Card Payments");
+        const amexPayment = ccGroup?.categoryItems.find((i) => i.name === "Amex Gold");
+
+        expect(amexPayment?.activity).toBe(50); // only the real grocery spend
+        expect(amexPayment?.available).toBe(50);
+    });
+
+    it("still excludes a Reconciliation Adjustment even if it somehow has a real category_item_id set", () => {
+        // Guards against the implicit-nullness assumption breaking silently
+        // (e.g. a backfill migration or stray edit linking the row to a real
+        // category) — the exclusion must hold on category_group text alone,
+        // not on category_item_id happening to be null.
+        const accounts = [{ id: "a-amex", name: "Amex Gold", type: "credit" as const }];
+
+        const rawTransactions: RawDbTransaction[] = [
+            {
+                id: "tx-reconcile-linked",
+                account_id: "a-amex",
+                date: "2026-07-10",
+                payee: "Reconciliation Adjustment",
+                category: "Reconciliation (Hidden)",
+                category_group: "Reconciliation (Hidden)",
+                balance: -689.82,
+                category_item_id: "item-groceries", // simulates the bug: wrongly linked
+                cleared: true,
+                approved: true,
+            },
+            {
+                id: "tx-groceries",
+                account_id: "a-amex",
+                date: "2026-07-15",
+                payee: "Store",
+                category: "Groceries",
+                category_group: "Living",
+                balance: -50,
+                category_item_id: "item-groceries",
+                cleared: true,
+                approved: true,
+            },
+        ];
+
+        const state = computeBudgetState({
+            userId: "u1",
+            accounts,
+            transactions: normalizeTransactions(rawTransactions, accounts),
+            assignments: [{ categoryItemId: "item-groceries", month: "2026-07", assigned: 50 }],
+            categoryGroups: [
+                {
+                    id: "g-living",
+                    name: "Living",
+                    sortOrder: 0,
+                    items: [{ id: "item-groceries", groupId: "g-living", name: "Groceries", sortOrder: 0, snoozed: false }],
+                },
+                {
+                    id: "g-cc",
+                    name: "Credit Card Payments",
+                    sortOrder: 1,
+                    items: [{ id: "item-amex-payment", groupId: "g-cc", name: "Amex Gold", sortOrder: 0, snoozed: false }],
+                },
+            ],
+        });
+
+        const july = serializeMonthView(state, "2026-07");
+        const groceries = july.categories.find((c) => c.name === "Living")?.categoryItems[0];
+        const amexPayment = july.categories.find((c) => c.name === "Credit Card Payments")?.categoryItems[0];
+
+        // The reconciliation row's own $689.82 must not leak into Groceries'
+        // activity (even though it was force-linked to that item's id) or
+        // into the Amex payment activity — only the real $50 grocery spend.
+        expect(groceries?.activity).toBe(-50);
+        expect(amexPayment?.activity).toBe(50);
+    });
+
     it("counts only the debit portion of a mixed debit/credit overspend, applied to the following month", () => {
         const accounts = [
             { id: "a-checking", name: "Checking", type: "debit" as const },
