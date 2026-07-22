@@ -923,6 +923,8 @@ export function computeBudgetState(input: BudgetStateInput): BudgetState {
       accounts,
       generatedAt: new Date().toISOString(),
       version: Date.now(),
+      totalIncome: 0,
+      totalAssigned: 0,
     };
   }
 
@@ -949,42 +951,53 @@ export function computeBudgetState(input: BudgetStateInput): BudgetState {
   const months = new Map<string, MonthState>();
   let outstandingByItemCard = new Map<string, number>();
 
+  // Ready to Assign is computed sequentially, month by month, matching real
+  // YNAB: each month = (previous month's leftover, which may be negative)
+  //   + (this month's own income)
+  //   - (previous month's own fresh debit-only cash overspending — applied
+  //      exactly once, permanently, the month after it happens; it does NOT
+  //      "resolve" later even if you fund the category back up, because that
+  //      later assignment is a separate, independent claim on fresh money —
+  //      see tests/budgetMath.test.ts for the worked reconciliation)
+  //   - (this month's own assignments — NOT future months', so pre-budgeting
+  //      next month's rent ahead of time doesn't touch this month's figure)
+  // This deliberately reverses an earlier "single global figure, same in
+  // every month" design (see git history) — that design broke down under
+  // real usage: it let a future month's pre-assignment retroactively cancel
+  // a past month's already-real cash overspending, making that assignment a
+  // no-op on RTA. Verified against a real multi-month export; see PR/commit
+  // discussion for the reconciliation against actual YNAB screenshots.
   let runningInflows = 0;
-  let runningCashOverspending = 0;
   let runningAssigned = 0;
+  let runningCashOverspending = 0; // permanent, incremented once per month transition
+  let prevMonthDebitOverspend = 0; // previous month's own fresh debit-only overspend
   let prevMonthStates: Map<string, MonthItemState> | null = null;
   let prevMonth: string | null = null;
+  let prevDebitAvailableByItem = new Map<string, number>();
 
   for (const month of allMonths) {
     const monthTx = transactions.filter(
       (tx) => tx.date && txMonth(tx.date) === month
     );
 
-    // Accumulate income inflows
-    runningInflows += monthTx
+    const incomeThisMonth = monthTx
       .filter((tx) => tx.cashFlowType === "income")
       .reduce((sum, tx) => sum + tx.amount, 0);
+    runningInflows += incomeThisMonth;
 
-    runningAssigned += assignments
+    const assignedThisMonth = assignments
       .filter((a) => a.month === month)
       .reduce((sum, a) => sum + (a.assigned || 0), 0);
+    runningAssigned += assignedThisMonth;
 
-    // Accumulate cash overspending from the previous month
-    if (prevMonthStates && prevMonth) {
-      for (const group of categoryGroups) {
-        for (const item of group.items) {
-          if (ccItemToAccountId.has(item.id)) continue;
-          const prevState = prevMonthStates.get(item.id);
-          if (!prevState || prevState.available >= 0) continue;
-          if (debitSpendingByItemMonth.has(`${item.id}:${prevMonth}`)) {
-            runningCashOverspending += Math.abs(prevState.available);
-          }
-        }
-      }
-    }
+    // Apply the previous month's own fresh debit-only overspend exactly
+    // once, permanently, before computing this month's Ready to Assign.
+    runningCashOverspending += prevMonthDebitOverspend;
+    const overspendPrevMonth = prevMonthDebitOverspend;
 
     const itemStates = new Map<string, MonthItemState>();
     const monthStartAvailableByItem = new Map<string, number>();
+    const debitAvailableByItem = new Map<string, number>();
 
     // First pass: non-credit-card-payment categories
     for (const group of categoryGroups) {
@@ -992,8 +1005,12 @@ export function computeBudgetState(input: BudgetStateInput): BudgetState {
         if (ccItemToAccountId.has(item.id)) continue;
 
         const assigned = assignmentsByItemMonth.get(`${item.id}:${month}`) ?? 0;
-        const activity = monthTx
-          .filter((tx) => tx.categoryItemId === item.id && !tx.isCreditCardPayment)
+        const itemMonthTx = monthTx.filter(
+          (tx) => tx.categoryItemId === item.id && !tx.isCreditCardPayment
+        );
+        const activity = itemMonthTx.reduce((sum, tx) => sum + tx.amount, 0);
+        const debitActivity = itemMonthTx
+          .filter((tx) => accountMap.get(tx.accountId)?.type === "debit")
           .reduce((sum, tx) => sum + tx.amount, 0);
 
         const prevState = prevMonthStates?.get(item.id);
@@ -1015,7 +1032,24 @@ export function computeBudgetState(input: BudgetStateInput): BudgetState {
           cumulativeAvailable: 0,
           available,
         });
+
+        // Parallel debit-only lens on the same item, mirroring the blended
+        // available's reset-after-overspend behavior above, so each month's
+        // fresh cash-overspend figure is computed independent of credit
+        // activity (a credit-funded deficit is card debt, tracked via the
+        // Credit Card Payments group instead — counting it here too would
+        // double-count the same shortfall).
+        const prevDebitAvailable = prevDebitAvailableByItem.get(item.id) ?? 0;
+        const effectivePrevDebitAvailable =
+          prevDebitAvailable < 0 ? 0 : prevDebitAvailable;
+        const debitAvailable = assigned + debitActivity + effectivePrevDebitAvailable;
+        debitAvailableByItem.set(item.id, debitAvailable);
       }
+    }
+
+    let monthDebitOverspend = 0;
+    for (const debitAvail of debitAvailableByItem.values()) {
+      if (debitAvail < 0) monthDebitOverspend += Math.abs(debitAvail);
     }
 
     const { paymentActivity: ccActivityByAccountId, updatedOutstanding } =
@@ -1043,22 +1077,22 @@ export function computeBudgetState(input: BudgetStateInput): BudgetState {
       }
     }
 
-    months.set(month, { month, itemStates, readyToAssign: 0, rtaCarry: 0 });
+    const readyToAssign = runningInflows - runningAssigned - runningCashOverspending;
+
+    months.set(month, {
+      month,
+      itemStates,
+      readyToAssign,
+      rtaCarry: runningCashOverspending,
+      incomeThisMonth,
+      assignedThisMonth,
+      overspendPrevMonth,
+    });
 
     prevMonthStates = itemStates;
     prevMonth = month;
-  }
-
-  // Ready to Assign is a single account-wide figure, not a per-month one —
-  // assigning money anywhere (past or future relative to whichever month
-  // you're viewing) affects the same number everywhere, the same way real
-  // ZBB/YNAB-style budgeting works. Use the final totals after walking the
-  // whole timeline, applied uniformly to every month, rather than each
-  // month's own running-total-so-far snapshot.
-  const globalReadyToAssign = runningInflows - runningAssigned - runningCashOverspending;
-  for (const month of allMonths) {
-    const ms = months.get(month)!;
-    months.set(month, { ...ms, readyToAssign: globalReadyToAssign, rtaCarry: runningCashOverspending });
+    prevMonthDebitOverspend = monthDebitOverspend;
+    prevDebitAvailableByItem = debitAvailableByItem;
   }
 
   return {
@@ -1067,13 +1101,18 @@ export function computeBudgetState(input: BudgetStateInput): BudgetState {
     accounts,
     generatedAt: new Date().toISOString(),
     version: Date.now(),
+    totalIncome: runningInflows,
+    totalAssigned: runningAssigned,
   };
 }
 
 // Project a single month's computed view from a BudgetState.
+// `todayMonth` ("YYYY-MM") defaults to the real current month — only tests
+// need to override it, to check the "viewing today" behavior deterministically.
 export function serializeMonthView(
   state: BudgetState,
-  month: string
+  month: string,
+  todayMonth: string = format(new Date(), "yyyy-MM")
 ): ComputedMonthView {
   const monthState = state.months.get(month);
 
@@ -1100,11 +1139,35 @@ export function serializeMonthView(
     }),
   }));
 
+  const prevMonthState = state.months.get(shiftMonth(month, -1));
+
+  // Money already assigned to any month after this one — not part of the
+  // core recursive RTA chain stored in state.months (that money only counts
+  // against RTA once the walk actually reaches its own month; the "leftover"
+  // fed into the *next* month's calculation must stay the pure, unadjusted
+  // value — matches real YNAB, verified against actual screenshots). Only
+  // when `month` is the real current month does this become a genuine,
+  // displayed reduction of the usable Ready to Assign figure — some of what
+  // looks available is already earmarked for a month you haven't gotten to
+  // yet. Browsing a past month never applies this adjustment.
+  let assignedBeyondThisMonth = 0;
+  for (const [otherMonth, otherState] of state.months) {
+    if (otherMonth > month) assignedBeyondThisMonth += otherState.assignedThisMonth;
+  }
+  const isRealCurrentMonth = month === todayMonth;
+  const displayedReadyToAssign =
+    (monthState?.readyToAssign ?? 0) - (isRealCurrentMonth ? assignedBeyondThisMonth : 0);
+
   return {
     month,
-    ready_to_assign: Math.round((monthState?.readyToAssign ?? 0) * 100) / 100,
+    ready_to_assign: Math.round(displayedReadyToAssign * 100) / 100,
     rta_carry: Math.round((monthState?.rtaCarry ?? 0) * 100) / 100,
     has_deficit_carry: (monthState?.rtaCarry ?? 0) > 0,
+    rta_prev_month_leftover: Math.round((prevMonthState?.readyToAssign ?? 0) * 100) / 100,
+    rta_income_this_month: Math.round((monthState?.incomeThisMonth ?? 0) * 100) / 100,
+    rta_overspend_prev_month: Math.round((monthState?.overspendPrevMonth ?? 0) * 100) / 100,
+    rta_assigned_this_month: Math.round((monthState?.assignedThisMonth ?? 0) * 100) / 100,
+    rta_assigned_beyond_this_month: Math.round(assignedBeyondThisMonth * 100) / 100,
     version: state.version,
     generatedAt: state.generatedAt,
     categories,

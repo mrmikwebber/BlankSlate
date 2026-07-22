@@ -3,6 +3,7 @@
 import { useBudgetContext } from "@/app/context/BudgetContext";
 import { formatToUSD } from "@/app/utils/formatToUSD";
 import MonthNav from "../MonthNav";
+import ReadyToAssignBreakdown from "../ReadyToAssignBreakdown";
 import { ChevronDown, ChevronRight, Plus, Wallet } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
@@ -209,17 +210,23 @@ export default function MobileBudgetTab() {
       </div>
 
       {/* Ready to Assign banner */}
-      <div className="mx-0 mb-4 px-5 py-4 bg-ledger-50 dark:bg-ledger-900/30 border-y border-ledger-100 dark:border-ledger-800/40 flex items-center justify-between">
-        <div>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-ledger-600 dark:text-ledger-400">
-            Ready to Assign
-          </p>
-          <p className="font-mono tabular-nums text-[32px] font-bold text-ledger-700 dark:text-ledger-300 leading-tight tracking-tight">
-            {formatToUSD(cumulativeAvailable)}
-          </p>
+      <ReadyToAssignBreakdown>
+        <div
+          role="button"
+          tabIndex={0}
+          className="mx-0 mb-4 px-5 py-4 bg-ledger-50 dark:bg-ledger-900/30 border-y border-ledger-100 dark:border-ledger-800/40 flex items-center justify-between cursor-pointer active:bg-ledger-100 dark:active:bg-ledger-900/50 transition-colors"
+        >
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-ledger-600 dark:text-ledger-400">
+              Ready to Assign
+            </p>
+            <p className="font-mono tabular-nums text-[32px] font-bold text-ledger-700 dark:text-ledger-300 leading-tight tracking-tight">
+              {formatToUSD(cumulativeAvailable)}
+            </p>
+          </div>
+          <Wallet className="h-6 w-6 text-ledger-400 dark:text-ledger-600 opacity-40" />
         </div>
-        <Wallet className="h-6 w-6 text-ledger-400 dark:text-ledger-600 opacity-40" />
-      </div>
+      </ReadyToAssignBreakdown>
 
       {/* Category groups */}
       {sortedGroups.map((group) => {

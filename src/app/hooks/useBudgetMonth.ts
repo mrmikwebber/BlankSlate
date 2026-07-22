@@ -171,21 +171,30 @@ export function setCachedView(month: string, view: ComputedMonthView) {
   viewCache.set(month, view);
 }
 
-// Ready to Assign is a single global figure (see computeBudgetState), so a
-// mutation that changes it makes every OTHER cached month's RTA stale too —
-// not just the one that was edited. Patch every cached entry in place rather
-// than invalidating the cache, so a month you've already visited (or
-// prefetched) stays instant to navigate back to instead of re-fetching.
-export function patchGlobalRTA(rta: number, rtaCarry: number, hasDeficitCarry: boolean) {
-  for (const [month, view] of viewCache) {
-    if (
-      view.ready_to_assign === rta &&
-      view.rta_carry === rtaCarry &&
-      view.has_deficit_carry === hasDeficitCarry
-    ) {
+// Ready to Assign is computed sequentially per month (see computeBudgetState)
+// — each month's RTA recursively depends on the one before it ("leftover
+// from last month" + this month's own income/overspend/assigned) — so
+// changing assigned in `fromMonth` also shifts every CACHED month at or
+// after it (never before). Rather than tracking deltas through optimistic
+// update / server response / rollback separately, just re-walk the cached
+// months forward from the new authoritative (or optimistic) RTA for
+// `fromMonth`, recomputing each subsequent cached month from its own
+// already-known income/overspend/assigned components — naturally idempotent,
+// so this can be called once optimistically and again with the real value
+// once the server responds, no undo bookkeeping required.
+export function patchRTAForward(fromMonth: string, newFromMonthRTA: number) {
+  const monthsAtOrAfter = [...viewCache.keys()].filter((m) => m >= fromMonth).sort();
+  let runningRta = newFromMonthRTA;
+  for (const month of monthsAtOrAfter) {
+    const view = viewCache.get(month)!;
+    if (month === fromMonth) {
+      viewCache.set(month, { ...view, ready_to_assign: runningRta });
       continue;
     }
-    viewCache.set(month, { ...view, ready_to_assign: rta, rta_carry: rtaCarry, has_deficit_carry: hasDeficitCarry });
+    const recomputed =
+      runningRta + view.rta_income_this_month - view.rta_overspend_prev_month - view.rta_assigned_this_month;
+    viewCache.set(month, { ...view, ready_to_assign: recomputed, rta_prev_month_leftover: runningRta });
+    runningRta = recomputed;
   }
 }
 

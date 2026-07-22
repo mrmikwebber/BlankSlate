@@ -59,8 +59,19 @@ export interface ComputedMonthView {
   month: string;                 // "YYYY-MM"
 
   ready_to_assign: number;
-  rta_carry: number;             // deficit carry forwarded from prior months
+  rta_carry: number;             // permanent, one-month-lag debit-overspend carry (see computeBudgetState)
   has_deficit_carry: boolean;
+  // Per-month breakdown (mirrors YNAB's "Ready to Assign" breakdown):
+  // ready_to_assign = rta_prev_month_leftover + rta_income_this_month
+  //                   - rta_overspend_prev_month - rta_assigned_this_month
+  rta_prev_month_leftover: number;
+  rta_income_this_month: number;
+  rta_overspend_prev_month: number;
+  rta_assigned_this_month: number;
+  // Not part of the core chain above — money already assigned to any month
+  // after this one. Frontend only surfaces it when viewing the real current
+  // month (see ReadyToAssignBreakdown.tsx), as a "already spoken for" warning.
+  rta_assigned_beyond_this_month: number;
 
   version: number;               // monotonically increasing per user — reject stale responses
   generatedAt: string;           // ISO timestamp
@@ -150,7 +161,10 @@ export interface MonthState {
   month: string;
   itemStates: Map<string, MonthItemState>;
   readyToAssign: number;
-  rtaCarry: number;
+  rtaCarry: number;         // permanent, one-month-lag debit-overspend carry — see computeBudgetState
+  incomeThisMonth: number;  // this month's own "Ready to Assign" inflows
+  assignedThisMonth: number; // this month's own assignments (not future months')
+  overspendPrevMonth: number; // previous month's fresh debit-only overspend, applied once
 }
 
 export interface BudgetState {
@@ -159,6 +173,8 @@ export interface BudgetState {
   accounts: AccountMeta[];
   generatedAt: string;
   version: number;
+  totalIncome: number;              // all-time inflows in "Ready to Assign" — feeds the RTA breakdown
+  totalAssigned: number;            // all-time sum of budget_assignments — feeds the RTA breakdown
 }
 
 // ---------------------------------------------------------------------------

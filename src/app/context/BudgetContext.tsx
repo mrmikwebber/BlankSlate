@@ -19,7 +19,7 @@ import {
   invalidateCachedMonth,
   invalidateAllCachedMonths,
   setCachedView,
-  patchGlobalRTA,
+  patchRTAForward,
 } from "@/app/hooks/useBudgetMonth";
 import type {
   ComputedMonthView,
@@ -224,11 +224,14 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
 
   const patchAssigned = useCallback(
     async (categoryItemId: string, month: string, value: number) => {
-      // Optimistic: RTA is a single global figure now, so changing one
-      // item's assigned amount by `delta` changes this item's available and
-      // the global RTA by exactly `delta` — no approximation needed. Apply
-      // that instantly instead of waiting on the round trip, and roll back
-      // on failure.
+      // Optimistic: changing this item's assigned amount by `delta` changes
+      // this item's available and this month's RTA by exactly `delta` — no
+      // approximation needed. Apply that instantly instead of waiting on the
+      // round trip, and roll back on failure. RTA is sequential per month
+      // (not a single global figure), so the change also ripples forward
+      // into any cached later month — patchRTAForward re-walks those from
+      // their own already-known income/overspend/assigned, never touching
+      // cached months before this one.
       const previousView = budgetView?.month === month ? budgetView : null;
 
       if (previousView) {
@@ -241,6 +244,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
         applyMutationResult({
           ...previousView,
           ready_to_assign: optimisticRta,
+          rta_assigned_this_month: previousView.rta_assigned_this_month + delta,
           categories: previousView.categories.map((g) => ({
             ...g,
             categoryItems: g.categoryItems.map((i) =>
@@ -248,11 +252,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
             ),
           })),
         });
-        // Assigning money doesn't touch cash-overspending debt, only RTA —
-        // patch every other cached month (e.g. a prefetched adjacent one) so
-        // navigating there mid-flight shows the right number immediately
-        // instead of the pre-edit one.
-        patchGlobalRTA(optimisticRta, previousView.rta_carry, previousView.has_deficit_carry);
+        patchRTAForward(month, optimisticRta);
       }
 
       try {
@@ -260,13 +260,13 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
           method: "PATCH",
           body: JSON.stringify({ month, categoryItemId, assigned: value }),
         });
-        // Reconcile every cached month with the authoritative global RTA,
-        // then restore the one month we have the full, correct view for.
-        patchGlobalRTA(view.ready_to_assign, view.rta_carry, view.has_deficit_carry);
+        // Reconcile forward from the authoritative value, then restore the
+        // one month we have the full, correct view for.
+        patchRTAForward(month, view.ready_to_assign);
         applyMutationResult(view);
       } catch (err) {
         if (previousView) {
-          patchGlobalRTA(previousView.ready_to_assign, previousView.rta_carry, previousView.has_deficit_carry);
+          patchRTAForward(month, previousView.ready_to_assign);
           applyMutationResult(previousView);
         }
         throw err;

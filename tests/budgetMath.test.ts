@@ -452,7 +452,13 @@ describe("updateMonthPure", () => {
 });
 
 describe("computeBudgetState", () => {
-    it("computes RTA as a single global figure — a future month's assignment reduces every month's RTA, not just its own", () => {
+    it("computes RTA sequentially per month — a future month's assignment does NOT reduce an earlier month's RTA, only its own", () => {
+        // Matches real YNAB: Ready to Assign is a rolling per-month
+        // calculation (leftover from last month + this month's income -
+        // this month's assigned), not one figure shared by every month.
+        // Pre-budgeting Feb's rent ahead of time is money earmarked for
+        // Feb specifically — it shouldn't shrink what Jan shows as
+        // available, only Feb's own figure once you get there.
         const accounts = [{ id: "a-checking", name: "Checking", type: "debit" as const }];
         const rawTransactions: RawDbTransaction[] = [
             {
@@ -498,10 +504,9 @@ describe("computeBudgetState", () => {
         const jan = serializeMonthView(state, "2026-01");
         const feb = serializeMonthView(state, "2026-02");
 
-        // $300 income - $100 (Jan rent) - $50 (Feb rent) = $150, shown
-        // identically in both months even though the Feb assignment is
-        // chronologically "after" January.
-        expect(jan.ready_to_assign).toBe(150);
+        // Jan: $300 income - $100 Jan rent = $200 (Feb's $50 doesn't count yet).
+        expect(jan.ready_to_assign).toBe(200);
+        // Feb: $200 leftover from Jan - $50 Feb rent = $150.
         expect(feb.ready_to_assign).toBe(150);
     });
 
@@ -839,6 +844,174 @@ describe("computeBudgetState", () => {
 
         expect(amexPayment?.activity).toBe(20);
         expect(amexPayment?.available).toBe(20);
+    });
+
+    it("counts only the debit portion of a mixed debit/credit overspend, applied to the following month", () => {
+        const accounts = [
+            { id: "a-checking", name: "Checking", type: "debit" as const },
+            { id: "a-amex", name: "Amex", type: "credit" as const },
+        ];
+
+        // Groceries: $0 assigned, -$30 from debit, -$70 from credit — the
+        // credit portion is a card liability tracked separately, not cash
+        // that actually left checking, so it must not inflate rta_carry.
+        const rawTransactions: RawDbTransaction[] = [
+            {
+                id: "tx-debit",
+                account_id: "a-checking",
+                date: "2026-03-05",
+                payee: "Store",
+                category: "Groceries",
+                category_group: "Living",
+                balance: -30,
+                category_item_id: "item-groceries",
+                cleared: true,
+                approved: true,
+            },
+            {
+                id: "tx-credit",
+                account_id: "a-amex",
+                date: "2026-03-06",
+                payee: "Store",
+                category: "Groceries",
+                category_group: "Living",
+                balance: -70,
+                category_item_id: "item-groceries",
+                cleared: true,
+                approved: true,
+            },
+        ];
+
+        const state = computeBudgetState({
+            userId: "u1",
+            accounts,
+            transactions: normalizeTransactions(rawTransactions, accounts),
+            assignments: [],
+            categoryGroups: [
+                {
+                    id: "g-living",
+                    name: "Living",
+                    sortOrder: 0,
+                    items: [
+                        { id: "item-groceries", groupId: "g-living", name: "Groceries", sortOrder: 0, snoozed: false },
+                    ],
+                },
+            ],
+        });
+
+        const march = serializeMonthView(state, "2026-03");
+        const groceries = march.categories[0].categoryItems[0];
+        expect(groceries.available).toBe(-100); // blended display is unchanged
+
+        // Matches YNAB: a month's own overspending doesn't hit its own RTA —
+        // it's applied to the month right after it, once.
+        expect(march.rta_carry).toBe(0);
+        const april = serializeMonthView(state, "2026-04");
+        expect(april.rta_overspend_prev_month).toBe(30); // debit-only, not the blended -$100
+        expect(april.rta_carry).toBe(30);
+    });
+
+    it("applies a cash-overspending deficit exactly once and keeps it permanently — later funding the category doesn't undo it", () => {
+        // Matches real YNAB behavior (verified against an actual multi-month
+        // export): once counted, an overspend is a sunk cost, not a debt
+        // that later gets "paid off." Assigning more money to the category
+        // afterward is a separate, independent use of fresh money — it does
+        // not retroactively cancel the earlier deficit.
+        const accounts = [{ id: "a-checking", name: "Checking", type: "debit" as const }];
+
+        const rawTransactions: RawDbTransaction[] = [
+            {
+                id: "tx-overspend",
+                account_id: "a-checking",
+                date: "2026-03-05",
+                payee: "Utility Co",
+                category: "Electricity",
+                category_group: "Bills",
+                balance: -50,
+                category_item_id: "item-electricity",
+                cleared: true,
+                approved: true,
+            },
+        ];
+
+        const state = computeBudgetState({
+            userId: "u1",
+            accounts,
+            transactions: normalizeTransactions(rawTransactions, accounts),
+            // Fully "caught up" the very next month.
+            assignments: [{ categoryItemId: "item-electricity", month: "2026-04", assigned: 50 }],
+            categoryGroups: [
+                {
+                    id: "g-bills",
+                    name: "Bills",
+                    sortOrder: 0,
+                    items: [
+                        { id: "item-electricity", groupId: "g-bills", name: "Electricity", sortOrder: 0, snoozed: false },
+                    ],
+                },
+            ],
+        });
+
+        const april = serializeMonthView(state, "2026-04");
+        expect(april.rta_overspend_prev_month).toBe(50);
+        expect(april.rta_carry).toBe(50); // NOT resolved by April's assignment to the same category
+
+        // Still permanent several months later, with no further activity.
+        const july = serializeMonthView(state, "2026-07");
+        expect(july.rta_carry).toBe(50);
+    });
+
+    it("reduces the displayed Ready to Assign by future-assigned money only when viewing the real current month", () => {
+        const accounts = [{ id: "a-checking", name: "Checking", type: "debit" as const }];
+        const rawTransactions: RawDbTransaction[] = [
+            {
+                id: "tx-income",
+                account_id: "a-checking",
+                date: "2026-07-05",
+                payee: "Paycheck",
+                category: "Ready to Assign",
+                category_group: "Inflow",
+                balance: 1000,
+                category_item_id: null,
+                cleared: true,
+                approved: true,
+            },
+        ];
+
+        const state = computeBudgetState({
+            userId: "u1",
+            accounts,
+            transactions: normalizeTransactions(rawTransactions, accounts),
+            // Pre-budgeted next month's rent ahead of time.
+            assignments: [{ categoryItemId: "item-rent", month: "2026-08", assigned: 300 }],
+            categoryGroups: [
+                {
+                    id: "g-bills",
+                    name: "Bills",
+                    sortOrder: 0,
+                    items: [{ id: "item-rent", groupId: "g-bills", name: "Rent", sortOrder: 0, snoozed: false }],
+                },
+            ],
+        });
+
+        // Viewing July as "today" — the $300 August pre-assignment should
+        // show up as a warning line's worth of data and reduce the displayed
+        // total.
+        const julyAsToday = serializeMonthView(state, "2026-07", "2026-07");
+        expect(julyAsToday.rta_assigned_beyond_this_month).toBe(300);
+        expect(julyAsToday.ready_to_assign).toBe(700); // $1000 income - $300 already earmarked for August
+
+        // Viewing July again, but "today" is actually August now (July is
+        // history) — no reduction; browsing the past never applies it.
+        const julyAsHistory = serializeMonthView(state, "2026-07", "2026-08");
+        expect(julyAsHistory.ready_to_assign).toBe(1000);
+
+        // August's own breakdown must use July's UNADJUSTED $1000 as its
+        // "leftover from July" — not the $700 that was only ever a display
+        // warning for July's live view — then subtracts its own $300 assignment.
+        const august = serializeMonthView(state, "2026-08", "2026-08");
+        expect(august.rta_prev_month_leftover).toBe(1000);
+        expect(august.ready_to_assign).toBe(700); // $1000 leftover - $300 assigned in August itself
     });
 
 });
