@@ -44,7 +44,7 @@ const roadmapItems: RoadmapItem[] = [
     status: "planned",
     description: "Automatically import transactions from your bank",
     details: [
-      "Connect via Plaid/Teller",
+      "Connect via a bank aggregator (evaluating options)",
       "Auto-categorization with ML",
       "Daily balance sync",
       "Support for 10,000+ institutions",
@@ -322,11 +322,11 @@ export default function RoadmapPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900">
       {/* Header */}
-      <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shadow-sm">
+      <div className="bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 py-8">
           <Link
             href="/dashboard"
-            className="inline-flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400 hover:text-teal-600 dark:hover:text-teal-400 mb-4 transition-colors"
+            className="inline-flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400 hover:text-ledger-600 dark:hover:text-ledger-400 mb-4 transition-colors"
           >
             <ChevronLeft className="h-4 w-4" />
             Back to Dashboard
@@ -349,7 +349,7 @@ export default function RoadmapPage() {
             return (
               <div
                 key={status}
-                className="flex items-center gap-2 px-4 py-2 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700"
+                className="flex items-center gap-2 px-4 py-2 rounded-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700"
               >
                 <Icon className={`h-4 w-4 ${config.color}`} />
                 <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
@@ -376,7 +376,7 @@ export default function RoadmapPage() {
                   relative rounded-xl border-2 p-6 transition-all duration-300 cursor-pointer
                   ${config.bg} ${config.border}
                   ${isHovered ? "shadow-xl scale-105 z-10" : "shadow-md"}
-                  bg-white dark:bg-slate-800
+                  bg-slate-50 dark:bg-slate-800
                 `}
               >
                 {/* Status Badge */}
@@ -416,7 +416,7 @@ export default function RoadmapPage() {
                           key={index}
                           className="flex items-start gap-2 text-sm text-slate-600 dark:text-slate-400"
                         >
-                          <span className="text-teal-600 dark:text-teal-400 mt-0.5">•</span>
+                          <span className="text-ledger-600 dark:text-ledger-400 mt-0.5">•</span>
                           <span>{detail}</span>
                         </li>
                       ))}
@@ -442,7 +442,7 @@ export default function RoadmapPage() {
                 // Navigate to dashboard and trigger the suggestion modal via URL or event
                 window.location.href = "/dashboard";
               }}
-              className="text-teal-600 dark:text-teal-400 hover:underline"
+              className="text-ledger-600 dark:text-ledger-400 hover:underline"
             >
               Use the &quot;Suggest Feature&quot; button in the navbar
             </Link>

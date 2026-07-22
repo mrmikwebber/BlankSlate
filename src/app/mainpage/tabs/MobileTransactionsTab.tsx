@@ -31,6 +31,7 @@ type SavedPayeeLike = { name?: string | null };
 export default function MobileTransactionsTab({ accountId, onBack }: Props) {
   const {
     accounts,
+    accountsLoading,
     addTransaction,
     upsertPayee,
     savedPayees,
@@ -38,7 +39,7 @@ export default function MobileTransactionsTab({ accountId, onBack }: Props) {
     editTransaction,
     addTransactionWithMirror,
   } = useAccountContext();
-  const { budgetData, currentMonth } = useBudgetContext();
+  const { budgetData, currentMonth, getGroupIdByName, getItemIdByName, addItemToCategory } = useBudgetContext();
 
   const account = useMemo(
     () => accounts.find((a) => a.id === accountId) ?? null,
@@ -152,6 +153,23 @@ export default function MobileTransactionsTab({ accountId, onBack }: Props) {
     }
   };
 
+  // Resolves a group/item name pair to the category_item's stable UUID — the
+  // canonical FK the budget calc engine reads (mirrors InlineTransactionRow).
+  // Creates the item if it doesn't exist yet.
+  const resolveCategoryItemId = async (
+    resolveGroupName: string | null,
+    resolveItemName: string | null
+  ): Promise<string | null> => {
+    if (!resolveGroupName || !resolveItemName || resolveGroupName === "Ready to Assign") {
+      return null;
+    }
+    const groupId = getGroupIdByName(resolveGroupName);
+    if (!groupId) return null;
+    const existingId = getItemIdByName(resolveGroupName, resolveItemName);
+    if (existingId) return existingId;
+    return addItemToCategory(groupId, resolveItemName);
+  };
+
   const handleSubmit = async () => {
     if (!formPayee.trim() || !formAmount) return;
     const amt = parseFloat(formAmount);
@@ -184,11 +202,16 @@ export default function MobileTransactionsTab({ accountId, onBack }: Props) {
         ? null
         : formCategoryGroup || null;
 
+    const mainCategoryItemId = isTransfer && !isCreditPayment
+      ? null
+      : await resolveCategoryItemId(effectiveGroup, effectiveCategory);
+
     const txPayload = {
       date: formDate,
       payee: payeeLabel,
       category: effectiveCategory,
       category_group: effectiveGroup,
+      category_item_id: mainCategoryItemId,
       balance,
     };
 
@@ -198,11 +221,15 @@ export default function MobileTransactionsTab({ accountId, onBack }: Props) {
       const mirrorPayee = getMirrorPayeeLabel(otherAccount.name, balance);
       const mirrorCategory = isOtherCredit ? otherAccount.name : null;
       const mirrorGroup = isOtherCredit ? "Credit Card Payments" : null;
+      const mirrorCategoryItemId = isOtherCredit
+        ? await resolveCategoryItemId("Credit Card Payments", otherAccount.name)
+        : null;
       await addTransactionWithMirror(accountId, txPayload, otherAccount.id, {
         date: formDate,
         payee: mirrorPayee,
         category: mirrorCategory,
         category_group: mirrorGroup,
+        category_item_id: mirrorCategoryItemId,
         balance: -balance,
       });
     } else {
@@ -301,7 +328,7 @@ export default function MobileTransactionsTab({ accountId, onBack }: Props) {
   if (!account) {
     return (
       <div className="flex items-center justify-center py-24 text-slate-400">
-        Account not found
+        {accountsLoading ? "Loading…" : "Account not found"}
       </div>
     );
   }
@@ -310,7 +337,7 @@ export default function MobileTransactionsTab({ accountId, onBack }: Props) {
     <div className="flex flex-col h-full bg-slate-50 dark:bg-slate-950">
 
       {/* ── Header ── */}
-      <div className="flex-shrink-0 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800">
+      <div className="flex-shrink-0 bg-slate-50 dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800">
         <div className="flex items-center gap-3 px-4 py-3">
           <button
             onClick={onBack}
@@ -332,7 +359,7 @@ export default function MobileTransactionsTab({ accountId, onBack }: Props) {
                 "font-mono text-[15px] font-semibold",
                 balance < 0
                   ? "text-red-600 dark:text-red-400"
-                  : "text-teal-600 dark:text-teal-400"
+                  : "text-ledger-600 dark:text-ledger-400"
               )}
             >
               {formatToUSD(balance)}
@@ -394,7 +421,7 @@ export default function MobileTransactionsTab({ accountId, onBack }: Props) {
                 return (
                   <div
                     key={tx.id}
-                    className="relative overflow-hidden bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800"
+                    className="relative overflow-hidden bg-slate-50 dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800"
                   >
                     {/* Swipe actions background */}
                     <div className="absolute inset-0 flex items-center justify-end">
@@ -402,7 +429,7 @@ export default function MobileTransactionsTab({ accountId, onBack }: Props) {
                         onClick={() => {
                           openEdit(tx);
                         }}
-                        className="h-full w-20 bg-teal-500 flex flex-col items-center justify-center text-white text-[11px] font-semibold gap-0.5"
+                        className="h-full w-20 bg-ledger-500 flex flex-col items-center justify-center text-white text-[11px] font-semibold gap-0.5"
                       >
                         Edit
                       </button>
@@ -419,7 +446,7 @@ export default function MobileTransactionsTab({ accountId, onBack }: Props) {
 
                     {/* Row (swipeable) */}
                     <div
-                      className="relative flex items-center gap-3 px-4 py-3 min-h-[58px] bg-white dark:bg-slate-900 cursor-pointer"
+                      className="relative flex items-center gap-3 px-4 py-3 min-h-[58px] bg-slate-50 dark:bg-slate-900 cursor-pointer"
                       style={{
                         transform: `translateX(${offset}px)`,
                         transition:
@@ -478,7 +505,7 @@ export default function MobileTransactionsTab({ accountId, onBack }: Props) {
                         className={cn(
                           "font-mono text-[14px] font-semibold flex-shrink-0",
                           isIncome
-                            ? "text-teal-600 dark:text-teal-400"
+                            ? "text-ledger-600 dark:text-ledger-400"
                             : "text-slate-800 dark:text-slate-200"
                         )}
                       >
@@ -498,14 +525,14 @@ export default function MobileTransactionsTab({ accountId, onBack }: Props) {
       <div className="absolute bottom-20 right-4 flex flex-col items-end gap-2">
         <button
           onClick={() => setShowSearch((v) => !v)}
-          className="w-10 h-10 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-md flex items-center justify-center text-slate-500 dark:text-slate-400"
+          className="w-10 h-10 rounded-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-md flex items-center justify-center text-slate-500 dark:text-slate-400"
         >
           <Search className="w-4 h-4" />
         </button>
         <button
           onClick={openAdd}
-          className="w-14 h-14 rounded-full bg-teal-500 dark:bg-teal-600 shadow-lg flex items-center justify-center text-white"
-          style={{ boxShadow: "0 4px 16px rgba(20,184,166,0.4)" }}
+          className="w-14 h-14 rounded-full bg-ledger-500 dark:bg-ledger-600 shadow-lg flex items-center justify-center text-white"
+          style={{ boxShadow: "0 4px 16px oklch(58% 0.150 258 / 0.4)" }}
         >
           <Plus className="w-6 h-6" />
         </button>
@@ -513,7 +540,7 @@ export default function MobileTransactionsTab({ accountId, onBack }: Props) {
 
       {/* ── Add / Edit sheet ── */}
       <Dialog open={sheetOpen} onOpenChange={(o) => !o && resetForm()}>
-        <DialogContent className="p-0 overflow-hidden max-w-none w-[96vw] sm:max-w-md rounded-2xl bg-white dark:bg-slate-900 border-0 shadow-2xl">
+        <DialogContent className="p-0 overflow-hidden max-w-none w-[96vw] sm:max-w-md rounded-2xl bg-slate-50 dark:bg-slate-900 border-0 shadow-2xl">
           <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-slate-100 dark:border-slate-800">
             <DialogHeader>
               <DialogTitle className="text-[15px] text-slate-900 dark:text-slate-100">
@@ -538,7 +565,7 @@ export default function MobileTransactionsTab({ accountId, onBack }: Props) {
                 <Input
                   inputMode="decimal"
                   value={formAmount}
-                  onChange={(e) => setFormAmount(e.target.value)}
+                  onChange={(e) => setFormAmount(e.target.value.replace(/,/g, ""))}
                   placeholder="0.00"
                   className="h-11 font-mono text-[16px]"
                   autoFocus={!editingTxId}
@@ -558,7 +585,7 @@ export default function MobileTransactionsTab({ accountId, onBack }: Props) {
                         formType === t
                           ? t === "expense"
                             ? "bg-red-500 text-white"
-                            : "bg-teal-500 text-white"
+                            : "bg-ledger-500 text-white"
                           : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
                       )}
                     >
@@ -589,7 +616,7 @@ export default function MobileTransactionsTab({ accountId, onBack }: Props) {
                 className="h-11"
               />
               {payeeSuggestionsOpen && payeeOptions.length > 0 && (
-                <div className="absolute z-30 top-full mt-1 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-xl overflow-hidden max-h-48 overflow-y-auto">
+                <div className="absolute z-30 top-full mt-1 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 shadow-xl overflow-hidden max-h-48 overflow-y-auto">
                   {payeeOptions
                     .filter((p) =>
                       formPayee
@@ -659,7 +686,7 @@ export default function MobileTransactionsTab({ accountId, onBack }: Props) {
                 readOnly={Boolean(selectedPayeeAccount && accounts.find(a => a.name === selectedPayeeAccount)?.type === "credit" && account?.type !== "credit")}
               />
               {categorySuggestionsOpen && !selectedPayeeAccount && (
-                <div className="absolute z-30 top-full mt-1 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-xl overflow-hidden max-h-52 overflow-y-auto">
+                <div className="absolute z-30 top-full mt-1 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 shadow-xl overflow-hidden max-h-52 overflow-y-auto">
                   {categoryOptions
                     .filter((c) =>
                       formCategory
@@ -718,7 +745,7 @@ export default function MobileTransactionsTab({ accountId, onBack }: Props) {
                 Cancel
               </Button>
               <Button
-                className="flex-1 h-11 bg-teal-600 hover:bg-teal-700 dark:bg-teal-700 dark:hover:bg-teal-600 text-white font-semibold"
+                className="flex-1 h-11 bg-ledger-600 hover:bg-ledger-700 dark:bg-ledger-700 dark:hover:bg-ledger-600 text-white font-semibold"
                 onClick={handleSubmit}
                 disabled={!formPayee.trim() || !formAmount}
               >

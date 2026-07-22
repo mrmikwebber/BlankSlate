@@ -9,46 +9,63 @@ export default {
   ],
   theme: {
   	extend: {
+  		fontFamily: {
+  			mono: ["var(--font-geist-mono)", "ui-monospace", "monospace"]
+  		},
   		colors: {
-  			background: 'hsl(var(--background))',
-  			foreground: 'hsl(var(--foreground))',
+  			background: 'oklch(var(--background))',
+  			foreground: 'oklch(var(--foreground))',
   			card: {
-  				DEFAULT: 'hsl(var(--card))',
-  				foreground: 'hsl(var(--card-foreground))'
+  				DEFAULT: 'oklch(var(--card))',
+  				foreground: 'oklch(var(--card-foreground))'
   			},
   			popover: {
-  				DEFAULT: 'hsl(var(--popover))',
-  				foreground: 'hsl(var(--popover-foreground))'
+  				DEFAULT: 'oklch(var(--popover))',
+  				foreground: 'oklch(var(--popover-foreground))'
   			},
   			primary: {
-  				DEFAULT: 'hsl(var(--primary))',
-  				foreground: 'hsl(var(--primary-foreground))'
+  				DEFAULT: 'oklch(var(--primary))',
+  				foreground: 'oklch(var(--primary-foreground))'
   			},
   			secondary: {
-  				DEFAULT: 'hsl(var(--secondary))',
-  				foreground: 'hsl(var(--secondary-foreground))'
+  				DEFAULT: 'oklch(var(--secondary))',
+  				foreground: 'oklch(var(--secondary-foreground))'
   			},
   			muted: {
-  				DEFAULT: 'hsl(var(--muted))',
-  				foreground: 'hsl(var(--muted-foreground))'
+  				DEFAULT: 'oklch(var(--muted))',
+  				foreground: 'oklch(var(--muted-foreground))'
   			},
   			accent: {
-  				DEFAULT: 'hsl(var(--accent))',
-  				foreground: 'hsl(var(--accent-foreground))'
+  				DEFAULT: 'oklch(var(--accent))',
+  				foreground: 'oklch(var(--accent-foreground))'
   			},
   			destructive: {
-  				DEFAULT: 'hsl(var(--destructive))',
-  				foreground: 'hsl(var(--destructive-foreground))'
+  				DEFAULT: 'oklch(var(--destructive))',
+  				foreground: 'oklch(var(--destructive-foreground))'
   			},
-  			border: 'hsl(var(--border))',
-  			input: 'hsl(var(--input))',
-  			ring: 'hsl(var(--ring))',
+  			border: 'oklch(var(--border))',
+  			input: 'oklch(var(--input))',
+  			ring: 'oklch(var(--ring))',
   			chart: {
-  				'1': 'hsl(var(--chart-1))',
-  				'2': 'hsl(var(--chart-2))',
-  				'3': 'hsl(var(--chart-3))',
-  				'4': 'hsl(var(--chart-4))',
-  				'5': 'hsl(var(--chart-5))'
+  				'1': 'oklch(var(--chart-1))',
+  				'2': 'oklch(var(--chart-2))',
+  				'3': 'oklch(var(--chart-3))',
+  				'4': 'oklch(var(--chart-4))',
+  				'5': 'oklch(var(--chart-5))'
+  			},
+  			// Ledger — cool indigo/slate-blue brand anchor
+  			ledger: {
+  				50:  'oklch(97% 0.015 260 / <alpha-value>)',
+  				100: 'oklch(93% 0.030 260 / <alpha-value>)',
+  				200: 'oklch(86% 0.050 258 / <alpha-value>)',
+  				300: 'oklch(77% 0.080 257 / <alpha-value>)',
+  				400: 'oklch(68% 0.110 256 / <alpha-value>)',
+  				500: 'oklch(58% 0.150 258 / <alpha-value>)',
+  				600: 'oklch(50% 0.160 260 / <alpha-value>)',
+  				700: 'oklch(43% 0.150 262 / <alpha-value>)',
+  				800: 'oklch(36% 0.120 264 / <alpha-value>)',
+  				900: 'oklch(29% 0.090 266 / <alpha-value>)',
+  				950: 'oklch(19% 0.060 268 / <alpha-value>)'
   			}
   		},
   		borderRadius: {

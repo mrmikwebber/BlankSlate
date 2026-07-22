@@ -11,7 +11,7 @@ const Sidebar = () => {
   return (
       <div
         className={
-          "bg-teal-600 text-white transition-all duration-300 z-10 w-64"
+          "bg-ledger-600 text-white transition-all duration-300 z-10 w-64"
         }
       >
         <div className="flex flex-col ms-2 me-2">
@@ -19,7 +19,7 @@ const Sidebar = () => {
             <button
               onClick={() => openDashboard()}
               type="button"
-              className="text-white bg-teal-600 hover:bg-teal-500 w-full focus:bg-teal-500 focus:outline-none font-medium rounded-lg text-sm px-5 py-2.5 text-center inline-flex items-center dark:focus:ring-[#3b5998]/55 me-2 mb-2"
+              className="text-white bg-ledger-600 hover:bg-ledger-500 w-full focus:bg-ledger-500 focus:outline-none font-medium rounded-lg text-sm px-5 py-2.5 text-center inline-flex items-center dark:focus:ring-[#3b5998]/55 me-2 mb-2"
             >
               <svg 
                 className="me-2 fill-white"
@@ -36,7 +36,7 @@ const Sidebar = () => {
           <div className="mt-2">
             <button
               type="button"
-              className="text-white bg-teal-600 hover:bg-teal-500 focus:bg-teal-500 w-full focus:outline-none font-medium rounded-lg text-sm px-5 py-2.5 text-center inline-flex items-center dark:focus:ring-[#3b5998]/55 me-2 mb-2"
+              className="text-white bg-ledger-600 hover:bg-ledger-500 focus:bg-ledger-500 w-full focus:outline-none font-medium rounded-lg text-sm px-5 py-2.5 text-center inline-flex items-center dark:focus:ring-[#3b5998]/55 me-2 mb-2"
             >
               <svg 
                 className="me-2 fill-white"

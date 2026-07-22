@@ -1,11 +1,11 @@
 "use client";
 import { useAccountContext } from "@/app/context/AccountContext";
 import { useRouter } from "next/navigation";
-import { BarChart3, CreditCard, TrendingUp, Settings } from "lucide-react";
+import { BarChart3, CreditCard, Wallet, TrendingUp, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatToUSD } from "@/app/utils/formatToUSD";
 
-export type TabletView = "budget" | "accounts" | "insights";
+export type TabletView = "budget" | "accounts" | "discretionary" | "insights" | "settings";
 
 interface Props {
   activeView: TabletView;
@@ -22,9 +22,10 @@ function getAccountAbbr(name: string): string {
 }
 
 const VIEWS: { id: TabletView; icon: React.ReactNode; label: string }[] = [
-  { id: "budget",   icon: <BarChart3  className="w-5 h-5" />, label: "Budget"   },
-  { id: "accounts", icon: <CreditCard className="w-5 h-5" />, label: "Accounts" },
-  { id: "insights", icon: <TrendingUp className="w-5 h-5" />, label: "Insights" },
+  { id: "budget",        icon: <BarChart3  className="w-5 h-5" />, label: "Budget"        },
+  { id: "accounts",      icon: <CreditCard className="w-5 h-5" />, label: "Accounts"      },
+  { id: "discretionary", icon: <Wallet     className="w-5 h-5" />, label: "Safe to Spend" },
+  { id: "insights",      icon: <TrendingUp className="w-5 h-5" />, label: "Insights"      },
 ];
 
 export default function TabletRail({ activeView, onViewChange }: Props) {
@@ -32,7 +33,7 @@ export default function TabletRail({ activeView, onViewChange }: Props) {
   const router = useRouter();
 
   return (
-    <div className="w-[52px] flex-shrink-0 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col items-center py-2.5 gap-1 overflow-visible z-10">
+    <div className="w-[52px] flex-shrink-0 bg-slate-50 dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col items-center py-2.5 gap-1 overflow-visible z-10">
 
       {/* View icons */}
       {VIEWS.map((v) => (
@@ -42,7 +43,7 @@ export default function TabletRail({ activeView, onViewChange }: Props) {
             className={cn(
               "w-9 h-9 rounded-[9px] flex items-center justify-center transition-colors",
               activeView === v.id
-                ? "bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400"
+                ? "bg-ledger-50 dark:bg-ledger-900/30 text-ledger-600 dark:text-ledger-400"
                 : "text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-600 dark:hover:text-slate-300"
             )}
           >
@@ -82,7 +83,7 @@ export default function TabletRail({ activeView, onViewChange }: Props) {
             </button>
 
             {/* Hover popout panel */}
-            <div className="pointer-events-none absolute left-[calc(100%+8px)] top-1/2 -translate-y-1/2 hidden group-hover:flex flex-col bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg px-3 py-2 z-50 whitespace-nowrap min-w-[140px]">
+            <div className="pointer-events-none absolute left-[calc(100%+8px)] top-1/2 -translate-y-1/2 hidden group-hover:flex flex-col bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg px-3 py-2 z-50 whitespace-nowrap min-w-[140px]">
               {/* Arrow */}
               <div className="absolute right-full mr-0 top-1/2 -translate-y-1/2 border-4 border-transparent border-r-white dark:border-r-slate-800" />
               <p className="text-[12px] font-semibold text-slate-800 dark:text-slate-100 leading-tight">
@@ -93,7 +94,7 @@ export default function TabletRail({ activeView, onViewChange }: Props) {
                   "font-mono text-[13px] font-semibold mt-0.5",
                   bal < 0
                     ? "text-red-600 dark:text-red-400"
-                    : "text-teal-600 dark:text-teal-400"
+                    : "text-ledger-600 dark:text-ledger-400"
                 )}
               >
                 {formatToUSD(bal)}
@@ -108,7 +109,15 @@ export default function TabletRail({ activeView, onViewChange }: Props) {
 
       {/* Settings at bottom */}
       <div className="relative group mt-auto">
-        <button className="w-9 h-9 rounded-[9px] flex items-center justify-center text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
+        <button
+          onClick={() => onViewChange("settings")}
+          className={cn(
+            "w-9 h-9 rounded-[9px] flex items-center justify-center transition-colors",
+            activeView === "settings"
+              ? "bg-ledger-50 dark:bg-ledger-900/30 text-ledger-600 dark:text-ledger-400"
+              : "text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-600 dark:hover:text-slate-300"
+          )}
+        >
           <Settings className="w-4 h-4" />
         </button>
         <div className="pointer-events-none absolute left-[calc(100%+8px)] top-1/2 -translate-y-1/2 hidden group-hover:flex items-center bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 text-xs font-medium px-2.5 py-1.5 rounded-lg shadow-lg whitespace-nowrap z-50">

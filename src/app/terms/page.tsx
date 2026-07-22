@@ -7,9 +7,9 @@ export default function TermsPage() {
   return (
     <main className="mx-auto max-w-3xl px-4 py-10">
       <h1 className="text-2xl font-semibold">Terms of Service</h1>
-      <p className="mt-2 text-sm text-neutral-600">Last updated: December 20, 2025</p>
+      <p className="mt-2 text-sm text-slate-600">Last updated: December 20, 2025</p>
 
-      <section className="mt-6 space-y-4 text-neutral-800 dark:text-neutral-200">
+      <section className="mt-6 space-y-4 text-slate-800 dark:text-slate-200">
         <p>
           Welcome to BlankSlate. By accessing or using our application, you agree to these Terms of Service (&quot;Terms&quot;). If you do not agree, you may not use the service.
         </p>

@@ -28,7 +28,7 @@ export default function MobileActivityTab() {
     ];
     merged.sort(
       (a, b) =>
-        new Date(b.timestamp || 0).getTime() - new Date(a.timestamp).getTime()
+        new Date((b as { timestamp?: string }).timestamp || 0).getTime() - new Date((a as { timestamp?: string }).timestamp || 0).getTime()
     );
     setActivity(merged.slice(0, 50)); // Limit to 50 most recent
   }, [recentChanges, recentTransactions]);
@@ -44,7 +44,7 @@ export default function MobileActivityTab() {
   return (
     <div className="space-y-2 pb-24 text-slate-900 dark:text-slate-200">
       {activity.map((item, idx) => (
-        <Card key={idx} className="shadow-none border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900">
+        <Card key={idx} className="shadow-none border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
           <CardContent className="pt-4">
             {item.type === "transaction" ? (
               <>

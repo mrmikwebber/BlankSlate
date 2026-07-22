@@ -8,6 +8,43 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { CheckCircle2, Circle } from "lucide-react";
 
+const DROPDOWN_MAX_HEIGHT = 240; // matches max-h-60
+const DROPDOWN_GAP = 4;
+
+interface DropdownPosition {
+  top: number | null;
+  bottom: number | null;
+  left: number;
+  width: number;
+}
+
+// Minimal shape shared by BudgetContext's `budgetData[month]` (legacy shim,
+// only ever holds the currently-navigated month) and the raw ComputedMonthView
+// returned by GET /api/budget/month/[month] — either satisfies this.
+interface TxFormCategoryItem {
+  name: string;
+  available: number;
+}
+interface TxFormCategoryGroup {
+  name: string;
+  categoryItems: TxFormCategoryItem[];
+}
+
+// Fixed-position dropdowns anchored to an input's rect only work if they
+// stay inside the viewport — a row near the bottom of a long scrollable
+// table otherwise pushes the dropdown past window.innerHeight and clips it.
+// Flip upward (anchor to `bottom` instead of `top`) when there isn't enough
+// room below but there's more room above.
+function getDropdownPosition(rect: DOMRect): DropdownPosition {
+  const spaceBelow = window.innerHeight - rect.bottom;
+  const spaceAbove = rect.top;
+  const openUpward = spaceBelow < DROPDOWN_MAX_HEIGHT && spaceAbove > spaceBelow;
+
+  return openUpward
+    ? { top: null, bottom: window.innerHeight - rect.top + DROPDOWN_GAP, left: rect.left, width: rect.width }
+    : { top: rect.bottom + DROPDOWN_GAP, bottom: null, left: rect.left, width: rect.width };
+}
+
 export default function InlineTransactionRow({
   accountId,
   mode = "add",
@@ -28,6 +65,9 @@ export default function InlineTransactionRow({
     budgetData,
     currentMonth,
     addItemToCategory,
+    getGroupIdByName,
+    getItemIdByName,
+    invalidateAll,
   } = useBudgetContext();
 
   const { addTransaction, addTransactionWithMirror, editTransaction, accounts, deleteTransaction, savedPayees, upsertPayee } =
@@ -110,8 +150,8 @@ export default function InlineTransactionRow({
   const newCategoryGroupInputRef = useRef<HTMLInputElement | null>(null);
   const payeeInputRef = useRef<HTMLInputElement | null>(null);
   const categoryInputRef = useRef<HTMLInputElement | null>(null);
-  const [payeeDropdownPos, setPayeeDropdownPos] = useState({ top: 0, left: 0, width: 0 });
-  const [categoryDropdownPos, setCategoryDropdownPos] = useState({ top: 0, left: 0, width: 0 });
+  const [payeeDropdownPos, setPayeeDropdownPos] = useState<DropdownPosition>({ top: 0, bottom: null, left: 0, width: 0 });
+  const [categoryDropdownPos, setCategoryDropdownPos] = useState<DropdownPosition>({ top: 0, bottom: null, left: 0, width: 0 });
 
 
 
@@ -124,7 +164,37 @@ export default function InlineTransactionRow({
   const crossTypeTransfer =
     thisAccount && otherAccount && thisAccount.type !== otherAccount.type;
 
-  const categoryGroups = budgetData?.[currentMonth]?.categories ?? [];
+  // The category "$X left" figures must reflect the transaction's own month,
+  // not whatever month the main budget table happens to be navigated to —
+  // BudgetContext's `budgetData` only ever caches the currently-viewed month,
+  // so editing/adding a transaction dated in a different month fetches that
+  // month's view directly rather than silently showing the wrong numbers.
+  const txMonth = date.slice(0, 7);
+  const [otherMonthCategories, setOtherMonthCategories] = useState<TxFormCategoryGroup[] | null>(null);
+
+  useEffect(() => {
+    if (txMonth === currentMonth) {
+      setOtherMonthCategories(null);
+      return;
+    }
+    let cancelled = false;
+    fetch(`/api/budget/month/${txMonth}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { categories?: TxFormCategoryGroup[] } | null) => {
+        if (!cancelled) setOtherMonthCategories(data?.categories ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setOtherMonthCategories([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [txMonth, currentMonth]);
+
+  const categoryGroups: TxFormCategoryGroup[] =
+    txMonth === currentMonth
+      ? budgetData?.[currentMonth]?.categories ?? []
+      : otherMonthCategories ?? [];
 
 
 
@@ -324,16 +394,22 @@ export default function InlineTransactionRow({
       return;
     }
 
-    if (groupName && groupName !== "Ready to Assign" && itemName) {
-      addItemToCategory(groupName, {
-        name: itemName,
-        assigned: 0,
-        activity: 0,
-        available: 0,
-      });
-    }
-
-
+    // Resolves a group/item name pair to the category_item's stable UUID —
+    // the canonical FK the budget calc engine actually reads. Creates the
+    // item first if it doesn't exist yet (e.g. "new category" mode).
+    const resolveCategoryItemId = async (
+      resolveGroupName: string | null,
+      resolveItemName: string | null
+    ): Promise<string | null> => {
+      if (!resolveGroupName || !resolveItemName || resolveGroupName === "Ready to Assign") {
+        return null;
+      }
+      const groupId = getGroupIdByName(resolveGroupName);
+      if (!groupId) return null;
+      const existingId = getItemIdByName(resolveGroupName, resolveItemName);
+      if (existingId) return existingId;
+      return addItemToCategory(groupId, resolveItemName);
+    };
 
     const balance = (isNegative ? -1 : 1) * Number(amount);
 
@@ -364,12 +440,16 @@ export default function InlineTransactionRow({
 
     const isReadyToAssign = effectiveGroup === "Ready to Assign";
 
+    const mainCategoryItemId =
+      isTransfer && !isCreditPayment ? null : await resolveCategoryItemId(effectiveGroup, effectiveItem);
+
     const transactionData = {
       date,
       payee: payeeLabel,
       category: isTransfer && !isCreditPayment ? null : isReadyToAssign ? effectiveGroup : effectiveItem || null,
       // for anything that's not "Ready to Assign", store the group
       category_group: isTransfer && !isCreditPayment ? null : isReadyToAssign ? null : effectiveGroup || null,
+      category_item_id: mainCategoryItemId,
       balance,
       cleared,
     };
@@ -427,11 +507,18 @@ export default function InlineTransactionRow({
           }
         })();
 
+        const mirrorCategoryItemId = isOtherCredit
+          ? await resolveCategoryItemId("Credit Card Payments", otherAccount.name)
+          : effectiveItem
+            ? await resolveCategoryItemId(effectiveGroup, effectiveItem)
+            : null;
+
         await addTransaction(otherAccount.id, {
           date,
           payee: mirrorPayee,
           category: isOtherCredit ? otherAccount.name : effectiveItem || null,
           category_group: isOtherCredit ? "Credit Card Payments" : (effectiveItem ? effectiveGroup : null),
+          category_item_id: mirrorCategoryItemId,
           balance: -balance,
         });
       }
@@ -459,11 +546,18 @@ export default function InlineTransactionRow({
           }
         })();
 
+        const mirrorCategoryItemId = isOtherCredit
+          ? await resolveCategoryItemId("Credit Card Payments", otherAccount.name)
+          : effectiveItem
+            ? await resolveCategoryItemId(effectiveGroup, effectiveItem)
+            : null;
+
         const mirrorTransactionData = {
           date,
           payee: mirrorPayee,
           category: isOtherCredit ? otherAccount.name : effectiveItem || null,
           category_group: isOtherCredit ? "Credit Card Payments" : (effectiveItem ? effectiveGroup : null),
+          category_item_id: mirrorCategoryItemId,
           balance: -balance,
         };
 
@@ -473,6 +567,11 @@ export default function InlineTransactionRow({
         addTransaction(accountId, transactionData);
       }
     }
+
+    // Transactions affect activity/available/RTA in BudgetContext's separately
+    // cached view, which never hears about AccountContext mutations on its
+    // own — force a refetch so the budget table doesn't show stale numbers.
+    invalidateAll();
 
     onSave?.();
     setTransferPayee("");
@@ -533,7 +632,7 @@ export default function InlineTransactionRow({
         isEdit ? "transaction-form-row-edit" : "transaction-form-row-add"
       }
       data-mode={isEdit ? "edit" : "add"}
-      className="bg-teal-50/30 dark:bg-teal-950/30 hover:bg-teal-50/50 dark:hover:bg-teal-950/50 transition-colors duration-150 border-b border-slate-200 dark:border-slate-700"
+      className="bg-ledger-50/30 dark:bg-ledger-950/30 hover:bg-ledger-50/50 dark:hover:bg-ledger-950/50 transition-colors duration-150 border-b border-slate-200 dark:border-slate-700"
     >
       {/* Empty checkbox cell to match the checkbox column */}
       <td className="px-2 py-2 border-r border-slate-200 dark:border-slate-700"></td>
@@ -546,7 +645,7 @@ export default function InlineTransactionRow({
         title={cleared ? "Cleared — click to uncleared" : "Uncleared — click to clear"}
       >
         {cleared
-          ? <CheckCircle2 className="h-4 w-4 text-teal-500 dark:text-teal-400 mx-auto" />
+          ? <CheckCircle2 className="h-4 w-4 text-ledger-500 dark:text-ledger-400 mx-auto" />
           : <Circle className="h-4 w-4 text-slate-300 dark:text-slate-600 mx-auto" />
         }
       </td>
@@ -558,7 +657,7 @@ export default function InlineTransactionRow({
           value={date}
           onChange={(e) => setDate(e.target.value)}
           onKeyDown={handleKeyDown}
-          className="h-9 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100 focus-visible:ring-teal-500 dark:focus-visible:ring-teal-600 dark:[color-scheme:dark]"
+          className="h-9 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100 focus-visible:ring-ledger-500 dark:focus-visible:ring-ledger-600 dark:[color-scheme:dark]"
         />
       </td>
 
@@ -569,7 +668,7 @@ export default function InlineTransactionRow({
             data-cy="tx-payee-select"
             type="text"
             placeholder="Select or type payee..."
-            className="h-9 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100 dark:placeholder-slate-500 focus-visible:ring-teal-500 dark:focus-visible:ring-teal-600"
+            className="h-9 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100 dark:placeholder-slate-500 focus-visible:ring-ledger-500 dark:focus-visible:ring-ledger-600"
             value={payeeInput}
             onChange={(e) => {
               setPayeeInput(e.target.value);
@@ -577,14 +676,14 @@ export default function InlineTransactionRow({
               setPayeeSelectedIndex(0);
               if (payeeInputRef.current) {
                 const rect = payeeInputRef.current.getBoundingClientRect();
-                setPayeeDropdownPos({ top: rect.bottom, left: rect.left, width: rect.width });
+                setPayeeDropdownPos(getDropdownPosition(rect));
               }
               setPayeeDropdownOpen(true);
             }}
             onFocus={() => {
               if (payeeInputRef.current) {
                 const rect = payeeInputRef.current.getBoundingClientRect();
-                setPayeeDropdownPos({ top: rect.bottom, left: rect.left, width: rect.width });
+                setPayeeDropdownPos(getDropdownPosition(rect));
               }
               setPayeeDropdownOpen(true);
             }}
@@ -649,18 +748,19 @@ export default function InlineTransactionRow({
           />
           {payeeDropdownOpen && (
             <div
-              className="fixed z-[9999] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg shadow-xl dark:shadow-2xl max-h-60 overflow-y-auto"
+              className="fixed z-[9999] bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg shadow-xl dark:shadow-2xl max-h-60 overflow-y-auto"
               data-cy="payee-dropdown"
               style={{
-                top: `${payeeDropdownPos.top}px`,
+                ...(payeeDropdownPos.top !== null
+                  ? { top: `${payeeDropdownPos.top}px` }
+                  : { bottom: `${payeeDropdownPos.bottom}px` }),
                 left: `${payeeDropdownPos.left}px`,
                 width: `${payeeDropdownPos.width}px`,
-                marginTop: '4px'
               }}
             >
               {payeeSuggestions.length === 0 ? (
                 <div
-                  className="px-3 py-2 hover:bg-teal-50 dark:hover:bg-teal-950 cursor-pointer text-sm text-slate-700 dark:text-slate-300"
+                  className="px-3 py-2 hover:bg-ledger-50 dark:hover:bg-ledger-950 cursor-pointer text-sm text-slate-700 dark:text-slate-300"
                   onClick={() => {
                     setTransferPayee(payeeInput);
                     setSelectedPayeeAccountName(null);
@@ -689,8 +789,8 @@ export default function InlineTransactionRow({
                           key={suggestion.accountName}
                           className={`px-3 py-2 cursor-pointer ${
                             isSelected
-                              ? "bg-teal-100 dark:bg-teal-900"
-                              : "hover:bg-teal-50 dark:hover:bg-teal-950"
+                              ? "bg-ledger-100 dark:bg-ledger-900"
+                              : "hover:bg-ledger-50 dark:hover:bg-ledger-950"
                           }`}
                           onClick={() => {
                             setIsTypingPayee(false);
@@ -746,8 +846,8 @@ export default function InlineTransactionRow({
                           key={suggestion.label}
                           className={`px-3 py-2 cursor-pointer ${
                             isSelected
-                              ? "bg-teal-100 dark:bg-teal-900"
-                              : "hover:bg-teal-50 dark:hover:bg-teal-950"
+                              ? "bg-ledger-100 dark:bg-ledger-900"
+                              : "hover:bg-ledger-50 dark:hover:bg-ledger-950"
                           }`}
                           onClick={() => {
                             setIsTypingPayee(false);
@@ -775,7 +875,7 @@ export default function InlineTransactionRow({
                     })}
                   {payeeInput && (
                     <div
-                      className="px-3 py-2 hover:bg-teal-50 dark:hover:bg-teal-950 cursor-pointer text-sm border-t border-slate-200 dark:border-slate-700 text-teal-600 dark:text-teal-400 font-medium"
+                      className="px-3 py-2 hover:bg-ledger-50 dark:hover:bg-ledger-950 cursor-pointer text-sm border-t border-slate-200 dark:border-slate-700 text-ledger-600 dark:text-ledger-400 font-medium"
                       onClick={() => {
                         setTransferPayee(payeeInput);
                         setSelectedPayeeAccountName(null);
@@ -819,7 +919,7 @@ export default function InlineTransactionRow({
             {/* Choose existing group or 'Add New Category Group...' */}
             <select
               data-cy="tx-category-group-select"
-              className="w-full px-2 py-1.5 border border-slate-300 dark:border-slate-700 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 dark:focus:ring-teal-400 focus:border-transparent bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
+              className="w-full px-2 py-1.5 border border-slate-300 dark:border-slate-700 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ledger-500 dark:focus:ring-ledger-400 focus:border-transparent bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100"
               value={
                 newCategoryGroupIsNew
                   ? "__new_group__"
@@ -867,7 +967,7 @@ export default function InlineTransactionRow({
             {/* Tiny cancel back to normal dropdown */}
             <button
               type="button"
-              className="self-start text-xs text-slate-500 dark:text-slate-400 hover:text-teal-600 dark:hover:text-teal-400 transition-colors"
+              className="self-start text-xs text-slate-500 dark:text-slate-400 hover:text-ledger-600 dark:hover:text-ledger-400 transition-colors"
               onClick={() => {
                 setNewCategoryMode(false);
                 setNewCategoryName("");
@@ -886,7 +986,7 @@ export default function InlineTransactionRow({
               type="text"
               placeholder="Select or type category..."
               className={cn(
-                "h-9 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100 dark:placeholder-slate-500 focus-visible:ring-teal-500 dark:focus-visible:ring-teal-600",
+                "h-9 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100 dark:placeholder-slate-500 focus-visible:ring-ledger-500 dark:focus-visible:ring-ledger-600",
                 needsCategory && "border-red-400 focus-visible:ring-red-500"
               )}
               value={categoryInput}
@@ -905,14 +1005,14 @@ export default function InlineTransactionRow({
                 }
                 if (categoryInputRef.current) {
                   const rect = categoryInputRef.current.getBoundingClientRect();
-                  setCategoryDropdownPos({ top: rect.bottom, left: rect.left, width: rect.width });
+                  setCategoryDropdownPos(getDropdownPosition(rect));
                 }
                 setCategoryDropdownOpen(true);
               }}
               onFocus={() => {
                 if (categoryInputRef.current) {
                   const rect = categoryInputRef.current.getBoundingClientRect();
-                  setCategoryDropdownPos({ top: rect.bottom, left: rect.left, width: rect.width });
+                  setCategoryDropdownPos(getDropdownPosition(rect));
                 }
                 setCategoryDropdownOpen(true);
               }}
@@ -980,18 +1080,19 @@ export default function InlineTransactionRow({
             />
             {categoryDropdownOpen && !sameTypeTransfer && (
               <div
-                className="fixed z-[9999] bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg shadow-xl dark:shadow-2xl max-h-60 overflow-y-auto"
+                className="fixed z-[9999] bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg shadow-xl dark:shadow-2xl max-h-60 overflow-y-auto"
                 data-cy="category-dropdown"
                 style={{
-                  top: `${categoryDropdownPos.top}px`,
+                  ...(categoryDropdownPos.top !== null
+                    ? { top: `${categoryDropdownPos.top}px` }
+                    : { bottom: `${categoryDropdownPos.bottom}px` }),
                   left: `${categoryDropdownPos.left}px`,
                   width: `${categoryDropdownPos.width}px`,
-                  marginTop: '4px'
                 }}
               >
                 {categorySuggestions.length === 0 && !categoryInput.toLowerCase().includes("ready to assign") ? (
                   <div
-                    className="px-3 py-2 hover:bg-teal-50 dark:hover:bg-teal-950 cursor-pointer text-sm text-teal-600 dark:text-teal-400 font-medium"
+                    className="px-3 py-2 hover:bg-ledger-50 dark:hover:bg-ledger-950 cursor-pointer text-sm text-ledger-600 dark:text-ledger-400 font-medium"
                     onClick={() => {
                       setNewCategoryMode(true);
                       setNewCategoryName(categoryInput);
@@ -1006,8 +1107,8 @@ export default function InlineTransactionRow({
                       <div
                         className={`px-3 py-2 cursor-pointer text-sm font-semibold ${
                           categorySelectedIndex === 0
-                            ? "bg-teal-100 dark:bg-teal-900 text-slate-900 dark:text-slate-100"
-                            : "hover:bg-teal-50 dark:hover:bg-teal-950 text-slate-700 dark:text-slate-300"
+                            ? "bg-ledger-100 dark:bg-ledger-900 text-slate-900 dark:text-slate-100"
+                            : "hover:bg-ledger-50 dark:hover:bg-ledger-950 text-slate-700 dark:text-slate-300"
                         }`}
                         onClick={() => {
                           setSelectedGroup("Ready to Assign");
@@ -1039,8 +1140,8 @@ export default function InlineTransactionRow({
                           <div
                             className={`px-3 py-2 cursor-pointer pl-6 ${
                               isSelected
-                                ? "bg-teal-100 dark:bg-teal-900"
-                                : "hover:bg-teal-50 dark:hover:bg-teal-950"
+                                ? "bg-ledger-100 dark:bg-ledger-900"
+                                : "hover:bg-ledger-50 dark:hover:bg-ledger-950"
                             }`}
                             onClick={() => {
                               setIsTypingCategory(false);
@@ -1076,7 +1177,7 @@ export default function InlineTransactionRow({
                                   ? "text-red-500 dark:text-red-400"
                                   : available === 0
                                     ? "text-slate-400 dark:text-slate-500"
-                                    : "text-teal-600 dark:text-teal-400"
+                                    : "text-ledger-600 dark:text-ledger-400"
                               }`}>
                                 {available.toLocaleString("en-US", { style: "currency", currency: "USD" })} left
                               </span>
@@ -1087,7 +1188,7 @@ export default function InlineTransactionRow({
                     })}
                     {categoryInput && (
                       <div
-                        className="px-3 py-2 hover:bg-teal-50 dark:hover:bg-teal-950 cursor-pointer text-sm border-t border-slate-200 dark:border-slate-700 text-teal-600 dark:text-teal-400 font-medium"
+                        className="px-3 py-2 hover:bg-ledger-50 dark:hover:bg-ledger-950 cursor-pointer text-sm border-t border-slate-200 dark:border-slate-700 text-ledger-600 dark:text-ledger-400 font-medium"
                         onClick={() => {
                           setNewCategoryMode(true);
                           setNewCategoryName(categoryInput);
@@ -1131,10 +1232,11 @@ export default function InlineTransactionRow({
           <Input
             ref={amountInputRef}
             data-cy="tx-amount-input"
-            type="number"
-            className="h-9 text-right font-mono dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100 dark:placeholder-slate-500 focus-visible:ring-teal-500 dark:focus-visible:ring-teal-600"
+            type="text"
+            inputMode="decimal"
+            className="h-9 text-right font-mono dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100 dark:placeholder-slate-500 focus-visible:ring-ledger-500 dark:focus-visible:ring-ledger-600"
             value={amount}
-            onChange={(e) => setAmount(e.target.value)}
+            onChange={(e) => setAmount(e.target.value.replace(/,/g, ""))}
             onKeyDown={handleKeyDown}
             placeholder="0.00"
           />

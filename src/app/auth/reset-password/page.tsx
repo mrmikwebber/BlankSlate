@@ -74,7 +74,7 @@ export default function ResetPasswordPage() {
 
   if (checkingSession) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-teal-50 dark:bg-slate-950 text-teal-600 dark:text-teal-400">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-ledger-50 dark:bg-slate-950 text-ledger-600 dark:text-ledger-400">
         <h1 className="text-3xl font-bold mb-4">BlankSlate</h1>
         <p className="text-lg animate-pulse">Verifying reset link...</p>
       </div>
@@ -83,13 +83,13 @@ export default function ResetPasswordPage() {
 
   if (!validSession) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-teal-50 dark:bg-slate-950">
-        <div className="bg-white dark:bg-slate-900 p-8 rounded-lg shadow-md dark:shadow-2xl max-w-md w-full border border-transparent dark:border-slate-700">
-          <h1 className="text-2xl font-bold text-teal-600 dark:text-teal-400 mb-4 text-center">Invalid Reset Link</h1>
+      <div className="min-h-screen flex flex-col items-center justify-center bg-ledger-50 dark:bg-slate-950">
+        <div className="bg-slate-50 dark:bg-slate-900 p-8 rounded-lg shadow-md dark:shadow-2xl max-w-md w-full border border-transparent dark:border-slate-700">
+          <h1 className="text-2xl font-bold text-ledger-600 dark:text-ledger-400 mb-4 text-center">Invalid Reset Link</h1>
           <p className="text-red-500 dark:text-red-400 text-center mb-6">{error}</p>
           <button
             onClick={() => router.push('/auth')}
-            className="w-full bg-teal-600 dark:bg-teal-700 text-white p-2 rounded hover:bg-teal-500 dark:hover:bg-teal-600 transition"
+            className="w-full bg-ledger-600 dark:bg-ledger-700 text-white p-2 rounded hover:bg-ledger-500 dark:hover:bg-ledger-600 transition"
           >
             Back to Login
           </button>
@@ -101,11 +101,11 @@ export default function ResetPasswordPage() {
   return (
     <div className="min-h-screen grid grid-cols-1 md:grid-cols-2">
       {/* Left Section */}
-      <div className="flex flex-col justify-center items-center px-8 py-12 bg-white dark:bg-slate-950">
-        <h1 className="text-4xl font-bold text-teal-600 dark:text-teal-400 mb-4 text-center">
+      <div className="flex flex-col justify-center items-center px-8 py-12 bg-slate-50 dark:bg-slate-950">
+        <h1 className="text-4xl font-bold text-ledger-600 dark:text-ledger-400 mb-4 text-center">
           Set New Password
         </h1>
-        <p className="text-gray-600 dark:text-slate-400 mb-6 text-center max-w-md">
+        <p className="text-slate-600 dark:text-slate-400 mb-6 text-center max-w-md">
           Enter your new password below.
         </p>
 
@@ -116,7 +116,7 @@ export default function ResetPasswordPage() {
             required
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full p-2 border border-gray-300 dark:border-slate-700 rounded bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500"
+            className="w-full p-2 border border-slate-300 dark:border-slate-700 rounded bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500"
           />
           <input
             type="password"
@@ -124,7 +124,7 @@ export default function ResetPasswordPage() {
             required
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
-            className="w-full p-2 border border-gray-300 dark:border-slate-700 rounded bg-white dark:bg-slate-900 text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500"
+            className="w-full p-2 border border-slate-300 dark:border-slate-700 rounded bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500"
           />
           {error && (
             <p className="text-red-500 dark:text-red-400 text-sm text-center">{error}</p>
@@ -135,17 +135,17 @@ export default function ResetPasswordPage() {
           <button
             type="submit"
             disabled={loading || !!success}
-            className="w-full bg-teal-600 dark:bg-teal-700 text-white p-2 rounded hover:bg-teal-500 dark:hover:bg-teal-600 transition disabled:opacity-50"
+            className="w-full bg-ledger-600 dark:bg-ledger-700 text-white p-2 rounded hover:bg-ledger-500 dark:hover:bg-ledger-600 transition disabled:opacity-50"
           >
             {loading ? 'Updating...' : 'Update Password'}
           </button>
         </form>
 
-        <p className="mt-4 text-sm text-gray-700 dark:text-slate-400">
+        <p className="mt-4 text-sm text-slate-700 dark:text-slate-400">
           Remember your password?{' '}
           <button
             onClick={() => router.push('/auth')}
-            className="text-teal-600 dark:text-teal-400 underline hover:text-teal-500 dark:hover:text-teal-300"
+            className="text-ledger-600 dark:text-ledger-400 underline hover:text-ledger-500 dark:hover:text-ledger-300"
             disabled={loading}
           >
             Sign In
@@ -154,7 +154,7 @@ export default function ResetPasswordPage() {
       </div>
 
       {/* Right Section */}
-      <div className="hidden md:flex flex-col justify-center items-center bg-gradient-to-br from-teal-500 to-green-400 dark:from-teal-700 dark:to-green-600 text-white p-12">
+      <div className="hidden md:flex flex-col justify-center items-center bg-gradient-to-br from-ledger-500 to-green-400 dark:from-ledger-700 dark:to-green-600 text-white p-12">
         <h2 className="text-4xl font-bold mb-4">BlankSlate</h2>
         <p className="text-lg max-w-md text-center">
           A fresh start for your finances. Budget smarter. Plan confidently.

@@ -50,7 +50,8 @@ const DEFAULT_ENABLED: WidgetId[] = WIDGET_DEFS.filter((w) => w.defaultOn).map((
 // ── Helpers ──────────────────────────────────────────────────────────────────
 function getSpendingForMonth(
   accounts: ReturnType<typeof useAccountContext>["accounts"],
-  monthDate: Date
+  monthDate: Date,
+  hiddenCategoryNames?: Set<string>
 ): number {
   return accounts
     .flatMap((a) => a.transactions)
@@ -62,13 +63,17 @@ function getSpendingForMonth(
         tx.category === "Category Not Needed" ||
         tx.category_group === "Starting Balance";
       const isCardPayment = tx.category_group === "Credit Card Payments";
+      const isReconciliation = tx.category_group === "Reconciliation (Hidden)";
+      const isHidden = tx.category ? hiddenCategoryNames?.has(tx.category) : false;
       return (
         tx.balance < 0 &&
         tx.date &&
         isSameMonth(parseISO(tx.date), monthDate) &&
         !isTransfer &&
         !isStartingBalance &&
-        !isCardPayment
+        !isCardPayment &&
+        !isReconciliation &&
+        !isHidden
       );
     })
     .reduce((sum, tx) => sum + Math.abs(tx.balance), 0);
@@ -76,7 +81,8 @@ function getSpendingForMonth(
 
 function getCategorySpendingForMonth(
   accounts: ReturnType<typeof useAccountContext>["accounts"],
-  monthDate: Date
+  monthDate: Date,
+  hiddenCategoryNames?: Set<string>
 ): Record<string, number> {
   const totals: Record<string, number> = {};
   accounts.flatMap((a) => a.transactions).forEach((tx) => {
@@ -87,6 +93,8 @@ function getCategorySpendingForMonth(
       tx.category === "Category Not Needed" ||
       tx.category_group === "Starting Balance";
     const isCardPayment = tx.category_group === "Credit Card Payments";
+    const isReconciliation = tx.category_group === "Reconciliation (Hidden)";
+    const isHidden = tx.category ? hiddenCategoryNames?.has(tx.category) : false;
     if (
       tx.balance < 0 &&
       tx.date &&
@@ -96,7 +104,9 @@ function getCategorySpendingForMonth(
       isSameMonth(parseISO(tx.date), monthDate) &&
       !isTransfer &&
       !isStartingBalance &&
-      !isCardPayment
+      !isCardPayment &&
+      !isReconciliation &&
+      !isHidden
     ) {
       totals[tx.category] = (totals[tx.category] ?? 0) + Math.abs(tx.balance);
     }
@@ -119,7 +129,20 @@ function buildSparklinePath(values: number[], width: number, height: number): st
 // ── Component ────────────────────────────────────────────────────────────────
 const TotalSpendingTile = () => {
   const { accounts } = useAccountContext();
-  const { currentMonth, budgetData } = useBudgetContext();
+  const { currentMonth, budgetData, budgetView } = useBudgetContext();
+
+  // Category names the user has flagged to exclude from Insights charts
+  // (e.g. a reimbursed personal loan) — category-level, so the same set
+  // applies regardless of which month is being viewed.
+  const hiddenCategoryNames = useMemo(() => {
+    const names = new Set<string>();
+    budgetView?.categories.forEach((g) =>
+      g.categoryItems.forEach((i) => {
+        if (i.isHiddenFromInsights) names.add(i.name);
+      })
+    );
+    return names;
+  }, [budgetView]);
 
   // Widget visibility state (persisted to localStorage)
   const [enabledWidgets, setEnabledWidgets] = useState<WidgetId[]>(DEFAULT_ENABLED);
@@ -178,17 +201,21 @@ const TotalSpendingTile = () => {
           tx.category === "Category Not Needed" ||
           tx.category_group === "Starting Balance";
         const isCardPayment = tx.category_group === "Credit Card Payments";
+        const isReconciliation = tx.category_group === "Reconciliation (Hidden)";
+        const isHidden = tx.category ? hiddenCategoryNames.has(tx.category) : false;
         return (
           tx.balance > 0 &&
           tx.date &&
           isSameMonth(parseISO(tx.date), currentMonthDate) &&
           !isTransfer &&
           !isStartingBalance &&
-          !isCardPayment
+          !isCardPayment &&
+          !isReconciliation &&
+          !isHidden
         );
       })
       .reduce((sum, tx) => sum + tx.balance, 0);
-  }, [accounts, currentMonthDate]);
+  }, [accounts, currentMonthDate, hiddenCategoryNames]);
 
   const spendingData = useMemo(() => {
     const totals: Record<string, number> = {};
@@ -201,11 +228,15 @@ const TotalSpendingTile = () => {
           tx.category === "Category Not Needed" ||
           tx.category_group === "Starting Balance";
         const isCardPayment = tx.category_group === "Credit Card Payments";
+        const isReconciliation = tx.category_group === "Reconciliation (Hidden)";
+        const isHidden = tx.category ? hiddenCategoryNames.has(tx.category) : false;
         if (
           tx.category === "Ready to Assign" ||
           tx.category === "Ready To Assign" ||
           isStartingBalance ||
           isCardPayment ||
+          isReconciliation ||
+          isHidden ||
           isTransfer
         )
           return;
@@ -221,7 +252,7 @@ const TotalSpendingTile = () => {
     return Object.entries(totals)
       .sort((a, b) => b[1] - a[1])
       .map(([name, value], i) => ({ name, value, color: COLORS[i % COLORS.length] }));
-  }, [accounts, currentMonthDate]);
+  }, [accounts, currentMonthDate, hiddenCategoryNames]);
 
   const totalOutflow = useMemo(
     () => spendingData.reduce((sum, item) => sum + item.value, 0),
@@ -266,7 +297,7 @@ const TotalSpendingTile = () => {
     const historicalRates: number[] = [];
     for (let i = 1; i <= 6; i++) {
       const d = subMonths(currentMonthDate, i);
-      const spending = getSpendingForMonth(accounts, d);
+      const spending = getSpendingForMonth(accounts, d, hiddenCategoryNames);
       if (spending > 0) {
         historicalRates.push(spending / getDaysInMonth(d));
         if (historicalRates.length >= 3) break;
@@ -296,7 +327,7 @@ const TotalSpendingTile = () => {
       daysInMonth,
       currentTotal: totalOutflow,
     };
-  }, [accounts, currentMonthDate, totalOutflow]);
+  }, [accounts, currentMonthDate, totalOutflow, hiddenCategoryNames]);
 
   // ── Category Pace Breakdown ────────────────────────────────────────────────
   const categoryPaceBreakdown = useMemo(() => {
@@ -305,13 +336,13 @@ const TotalSpendingTile = () => {
     const isCurrentRealMonth = isSameMonth(currentMonthDate, today);
     const daysElapsed = isCurrentRealMonth ? Math.max(today.getDate(), 1) : spendingPace.daysInMonth;
 
-    const currentCatSpend = getCategorySpendingForMonth(accounts, currentMonthDate);
+    const currentCatSpend = getCategorySpendingForMonth(accounts, currentMonthDate, hiddenCategoryNames);
 
     // Gather historical per-category spending for up to 3 past months
     const historicalMonths: Array<{ spending: Record<string, number>; days: number }> = [];
     for (let i = 1; i <= 6; i++) {
       const d = subMonths(currentMonthDate, i);
-      const spending = getCategorySpendingForMonth(accounts, d);
+      const spending = getCategorySpendingForMonth(accounts, d, hiddenCategoryNames);
       if (Object.keys(spending).length > 0) {
         historicalMonths.push({ spending, days: getDaysInMonth(d) });
         if (historicalMonths.length >= 3) break;
@@ -338,7 +369,7 @@ const TotalSpendingTile = () => {
       })
       .filter((c) => Math.abs(c.diff) > 0.5 || c.isNew)
       .sort((a, b) => b.diff - a.diff);
-  }, [spendingPace, accounts, currentMonthDate]);
+  }, [spendingPace, accounts, currentMonthDate, hiddenCategoryNames]);
 
   // ── Monthly trend ──────────────────────────────────────────────────────────
   const monthlyTrend = useMemo(() => {
@@ -346,10 +377,10 @@ const TotalSpendingTile = () => {
       const d = subMonths(currentMonthDate, 5 - i);
       return {
         label: i === 5 ? "Now" : format(d, "MMM"),
-        spending: getSpendingForMonth(accounts, d),
+        spending: getSpendingForMonth(accounts, d, hiddenCategoryNames),
       };
     });
-  }, [accounts, currentMonthDate]);
+  }, [accounts, currentMonthDate, hiddenCategoryNames]);
 
   // ── Spending vs Budget ─────────────────────────────────────────────────────
   const budgetVsSpending = useMemo(() => {
@@ -440,7 +471,7 @@ const TotalSpendingTile = () => {
           </button>
 
           {selectorOpen && (
-            <div className="absolute right-0 top-full mt-1 w-52 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg z-50 p-3">
+            <div className="absolute right-0 top-full mt-1 w-52 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 shadow-lg z-50 p-3">
               <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-2 px-1">
                 Visible Widgets
               </p>
@@ -457,7 +488,7 @@ const TotalSpendingTile = () => {
                         className={cn(
                           "w-4 h-4 flex-shrink-0 rounded border flex items-center justify-center transition-colors",
                           active
-                            ? "bg-teal-500 border-teal-500"
+                            ? "bg-ledger-500 border-ledger-500"
                             : "border-slate-300 dark:border-slate-600"
                         )}
                       >
@@ -487,7 +518,7 @@ const TotalSpendingTile = () => {
       {show("ynab-stats") && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           {/* Assigned */}
-          <div className="relative overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900 p-4 shadow-sm">
+          <div className="relative overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900 p-4 shadow-sm">
             <div className="absolute top-0 inset-x-0 h-[3px] bg-violet-500 rounded-t-xl" />
             <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-2">
               Assigned This Month
@@ -501,7 +532,7 @@ const TotalSpendingTile = () => {
           </div>
 
           {/* Spent */}
-          <div className="relative overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900 p-4 shadow-sm">
+          <div className="relative overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900 p-4 shadow-sm">
             <div className="absolute top-0 inset-x-0 h-[3px] bg-orange-500 rounded-t-xl" />
             <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-2">
               Spent This Month
@@ -517,11 +548,11 @@ const TotalSpendingTile = () => {
           </div>
 
           {/* Available */}
-          <div className="relative overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900 p-4 shadow-sm">
+          <div className="relative overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900 p-4 shadow-sm">
             <div
               className={cn(
                 "absolute top-0 inset-x-0 h-[3px] rounded-t-xl",
-                ynabStats.available >= 0 ? "bg-teal-500" : "bg-red-500"
+                ynabStats.available >= 0 ? "bg-ledger-500" : "bg-red-500"
               )}
             />
             <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-2">
@@ -531,7 +562,7 @@ const TotalSpendingTile = () => {
               className={cn(
                 "font-mono text-xl font-semibold",
                 ynabStats.available >= 0
-                  ? "text-teal-600 dark:text-teal-400"
+                  ? "text-ledger-600 dark:text-ledger-400"
                   : "text-red-600 dark:text-red-400"
               )}
             >
@@ -548,18 +579,18 @@ const TotalSpendingTile = () => {
       {/* ── Classic Income / Savings stat cards ── */}
       {show("classic-stats") && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div className="relative overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900 p-4 shadow-sm">
-            <div className="absolute top-0 inset-x-0 h-[3px] bg-teal-500 rounded-t-xl" />
+          <div className="relative overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900 p-4 shadow-sm">
+            <div className="absolute top-0 inset-x-0 h-[3px] bg-ledger-500 rounded-t-xl" />
             <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-2">
               Total Income
             </p>
-            <p className="font-mono text-xl font-semibold text-teal-600 dark:text-teal-400">
+            <p className="font-mono text-xl font-semibold text-ledger-600 dark:text-ledger-400">
               {formatToUSD(totalInflow)}
             </p>
             <p className="text-xs text-slate-500 dark:text-slate-500 mt-1">{monthLabel}</p>
           </div>
 
-          <div className="relative overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900 p-4 shadow-sm">
+          <div className="relative overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900 p-4 shadow-sm">
             <div className="absolute top-0 inset-x-0 h-[3px] bg-red-500 rounded-t-xl" />
             <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-2">
               Total Spending
@@ -574,7 +605,7 @@ const TotalSpendingTile = () => {
             </p>
           </div>
 
-          <div className="relative overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900 p-4 shadow-sm">
+          <div className="relative overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900 p-4 shadow-sm">
             <div className="absolute top-0 inset-x-0 h-[3px] bg-blue-500 rounded-t-xl" />
             <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-2">
               Net Saved
@@ -598,7 +629,7 @@ const TotalSpendingTile = () => {
 
       {/* ── Spending Pace ── */}
       {show("spending-pace") && spendingPace && (
-        <div className="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900 p-3.5 shadow-sm">
+        <div className="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900 p-3.5 shadow-sm">
           {/* Header row */}
           <div className="flex items-center justify-between mb-2">
             <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
@@ -615,7 +646,7 @@ const TotalSpendingTile = () => {
               "flex flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2 rounded-lg text-sm font-semibold mb-3",
               spendingPace.isAhead
                 ? "bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-400"
-                : "bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-400"
+                : "bg-ledger-50 dark:bg-ledger-950/40 text-ledger-700 dark:text-ledger-400"
             )}
           >
             {spendingPace.isAhead ? (
@@ -654,7 +685,7 @@ const TotalSpendingTile = () => {
                 "font-mono text-sm font-semibold truncate",
                 spendingPace.projectedMonthTotal > spendingPace.avgMonthTotal
                   ? "text-red-600 dark:text-red-400"
-                  : "text-teal-600 dark:text-teal-400"
+                  : "text-ledger-600 dark:text-ledger-400"
               )}>
                 {formatToUSD(spendingPace.projectedMonthTotal)}
               </p>
@@ -680,7 +711,7 @@ const TotalSpendingTile = () => {
                 <div
                   className={cn(
                     "h-full rounded-full transition-all",
-                    spendingPace.isAhead ? "bg-red-500" : "bg-teal-500"
+                    spendingPace.isAhead ? "bg-red-500" : "bg-ledger-500"
                   )}
                   style={{
                     width: `${Math.min(
@@ -765,7 +796,7 @@ const TotalSpendingTile = () => {
                             "text-[11px] font-medium px-1.5 py-0.5 rounded whitespace-nowrap",
                             cat.diff > 0
                               ? "bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400"
-                              : "bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-400"
+                              : "bg-ledger-50 dark:bg-ledger-950/40 text-ledger-700 dark:text-ledger-400"
                           )}
                         >
                           {cat.diff > 0 ? `+${formatToUSD(cat.diff)}` : `-${formatToUSD(Math.abs(cat.diff))}`}
@@ -786,7 +817,7 @@ const TotalSpendingTile = () => {
 
           {/* Spending Breakdown donut */}
           {show("donut") && (
-            <div className="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900 p-4 shadow-sm">
+            <div className="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900 p-4 shadow-sm">
               <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-0.5">
                 Spending Breakdown
               </p>
@@ -814,7 +845,7 @@ const TotalSpendingTile = () => {
                       <Tooltip
                         formatter={(v) => [formatToUSD(v as number), "Amount"]}
                         contentStyle={{
-                          backgroundColor: isDark ? "#0f172a" : "#ffffff",
+                          backgroundColor: isDark ? "#0f172a" : "#f8fafc",
                           border: isDark ? "1px solid #334155" : "1px solid #e2e8f0",
                           borderRadius: "6px",
                           padding: "6px 10px",
@@ -857,7 +888,7 @@ const TotalSpendingTile = () => {
 
           {/* Spending vs Budget bars */}
           {show("budget-bars") && (
-            <div className="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900 p-4 shadow-sm">
+            <div className="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900 p-4 shadow-sm">
               <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-0.5">
                 Spending vs Budget
               </p>
@@ -898,7 +929,7 @@ const TotalSpendingTile = () => {
               </div>
               <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 flex gap-4">
                 <div className="flex items-center gap-1.5 text-[10px] text-slate-400 dark:text-slate-500">
-                  <div className="w-4 h-[3px] bg-teal-500 rounded" />
+                  <div className="w-4 h-[3px] bg-ledger-500 rounded" />
                   Within budget
                 </div>
                 <div className="flex items-center gap-1.5 text-[10px] text-slate-400 dark:text-slate-500">
@@ -913,7 +944,7 @@ const TotalSpendingTile = () => {
 
       {/* ── Monthly Trend Sparkline ── */}
       {show("trend") && (
-        <div className="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900 p-4 shadow-sm">
+        <div className="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900 p-4 shadow-sm">
           <div className="flex items-center justify-between mb-3">
             <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
               Monthly Spending Trend
@@ -976,7 +1007,7 @@ const TotalSpendingTile = () => {
                       cy={y}
                       r={isLast ? 4 : 3}
                       fill="#00c9a7"
-                      stroke={isLast ? (isDark ? "#0f172a" : "#ffffff") : "none"}
+                      stroke={isLast ? (isDark ? "#0f172a" : "#f8fafc") : "none"}
                       strokeWidth={isLast ? 2 : 0}
                     />
                   );
@@ -989,7 +1020,7 @@ const TotalSpendingTile = () => {
                     className={cn(
                       "text-[10px]",
                       i === monthlyTrend.length - 1
-                        ? "text-teal-600 dark:text-teal-400 font-semibold"
+                        ? "text-ledger-600 dark:text-ledger-400 font-semibold"
                         : "text-slate-400 dark:text-slate-500"
                     )}
                   >
@@ -1004,7 +1035,7 @@ const TotalSpendingTile = () => {
 
       {/* ── Category Breakdown Table ── */}
       {show("category-table") && categoryBreakdown.length > 0 && (
-        <div className="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900 p-4 shadow-sm">
+        <div className="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900 p-4 shadow-sm">
           <div className="flex items-center justify-between mb-3">
             <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
               Category Breakdown
@@ -1056,7 +1087,7 @@ const TotalSpendingTile = () => {
                     className={cn(
                       "py-2.5 text-right font-mono text-xs font-medium",
                       item.remaining >= 0
-                        ? "text-teal-600 dark:text-teal-400"
+                        ? "text-ledger-600 dark:text-ledger-400"
                         : "text-red-600 dark:text-red-400"
                     )}
                   >
@@ -1076,7 +1107,7 @@ const TotalSpendingTile = () => {
 
       {/* Empty state */}
       {spendingData.length === 0 && totalOutflow === 0 && (
-        <div className="flex-1 flex items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 py-16">
+        <div className="flex-1 flex items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 py-16">
           <div className="text-center">
             <div className="text-5xl mb-4 opacity-20">📊</div>
             <p className="text-base font-medium text-slate-600 dark:text-slate-400">

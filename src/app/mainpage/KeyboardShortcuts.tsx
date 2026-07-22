@@ -41,7 +41,7 @@ export default function KeyboardShortcuts({
           <span className="hidden sm:inline">Shortcuts</span>
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-md bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700">
+      <DialogContent className="max-w-md bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700">
         <DialogHeader>
           <DialogTitle className="text-slate-900 dark:text-slate-100">Keyboard Shortcuts</DialogTitle>
         </DialogHeader>

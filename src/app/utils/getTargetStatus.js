@@ -55,7 +55,7 @@ export const getTargetStatus = (item) => {
 
   return {
     message: `${formatToUSD(assigned)} / ${formatToUSD(needed)}`,
-    color: "text-gray-600",
+    color: "text-slate-600",
     type: "partial",
   };
 };

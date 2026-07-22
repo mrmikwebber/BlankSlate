@@ -4,9 +4,9 @@ import * as React from "react";
 import { Account } from "@/app/context/AccountContext";
 import { formatToUSD } from "@/app/utils/formatToUSD";
 import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { redirect } from "next/navigation";
-import { WifiOff } from "lucide-react";
 
 interface Props {
   account: Account;
@@ -51,11 +51,7 @@ export default function AccountCardCompact({
 
   // ── Row variant ──────────────────────────────────────────────────────────────
   if (variant === "row") {
-    const dotColor = account.tellerDisconnected
-      ? "bg-red-400 dark:bg-red-500"
-      : account.type === "credit"
-      ? "bg-amber-400"
-      : "bg-emerald-500";
+    const dotColor = account.type === "credit" ? "bg-amber-400" : "bg-emerald-500";
 
     return (
       <div
@@ -75,10 +71,7 @@ export default function AccountCardCompact({
         </span>
 
         {/* Status indicators */}
-        {account.tellerDisconnected && (
-          <WifiOff className="h-3 w-3 text-red-400 dark:text-red-500 flex-shrink-0" />
-        )}
-        {!account.tellerDisconnected && pendingCount > 0 && (
+        {pendingCount > 0 && (
           <span className="text-[10px] font-semibold text-amber-600 dark:text-amber-400 flex-shrink-0 tabular-nums">
             {pendingCount}
           </span>
@@ -124,7 +117,7 @@ export default function AccountCardCompact({
       onContextMenu={onContextMenu}
       className={cn(
         "group w-full cursor-pointer rounded-lg border transition-all overflow-hidden relative",
-        "bg-white dark:bg-slate-900 hover:shadow-md dark:hover:shadow-lg hover:border-slate-300 dark:hover:border-slate-700",
+        "bg-slate-50 dark:bg-slate-900 hover:shadow-md dark:hover:shadow-lg hover:border-slate-300 dark:hover:border-slate-700",
         isNegative && "border-red-200 dark:border-red-900/50 bg-red-50/40 dark:bg-red-950/20 hover:border-red-300 dark:hover:border-red-800"
       )}
     >
@@ -142,19 +135,13 @@ export default function AccountCardCompact({
 
         <div className="flex flex-col items-end gap-1">
           <p className={cn(
-            "text-base font-semibold font-mono leading-none",
+            "text-base font-semibold font-mono tabular-nums leading-none",
             isNegative ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400"
           )}>
             {formatToUSD(computedBalance)}
           </p>
-          {account.tellerDisconnected ? (
-            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-400 leading-none">
-              Disconnected
-            </span>
-          ) : pendingCount > 0 ? (
-            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400 leading-none">
-              {pendingCount} pending
-            </span>
+          {pendingCount > 0 ? (
+            <Badge variant="warning">{pendingCount} pending</Badge>
           ) : null}
         </div>
       </div>

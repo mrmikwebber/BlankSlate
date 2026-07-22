@@ -54,7 +54,7 @@ export default function AccountTile({ account: initialAccount }) {
       className="relative cursor-pointer bg-slate-50 rounded-2xl p-4 shadow-sm hover:shadow-lg transition-shadow flex flex-col justify-between min-h-[180px]"
     >
       {/* Top Row: Icon and Delete */}
-      <div className="flex justify-between items-center text-xs text-gray-500">
+      <div className="flex justify-between items-center text-xs text-slate-500">
         <div>
           {account?.type === "credit" ? (
             <span className="text-sm">💳 Credit</span>
@@ -64,7 +64,7 @@ export default function AccountTile({ account: initialAccount }) {
         </div>
         <button
           onClick={handleDelete}
-          className="text-gray-400 hover:text-red-500"
+          className="text-slate-400 hover:text-red-500"
         >
           🗑️
         </button>
@@ -85,7 +85,7 @@ export default function AccountTile({ account: initialAccount }) {
           <span className="text-xs text-orange-500 font-semibold">Discover</span>
         )}
 
-        <h2 className="mt-1 text-sm font-medium text-gray-800 truncate">
+        <h2 className="mt-1 text-sm font-medium text-slate-800 truncate">
           {account?.name?.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())}
         </h2>
       </div>
@@ -101,9 +101,9 @@ export default function AccountTile({ account: initialAccount }) {
 
       {/* Confirm Delete Modal */}
       {showConfirm && (
-        <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-90 z-10">
-          <div className="bg-white p-4 border rounded shadow text-sm">
-            <p className="mb-2 text-gray-700">
+        <div className="absolute inset-0 flex items-center justify-center bg-slate-50 bg-opacity-90 z-10">
+          <div className="bg-slate-50 p-4 border rounded shadow text-sm">
+            <p className="mb-2 text-slate-700">
               Are you sure you want to delete this account?
             </p>
             <div className="flex gap-2 justify-end">
@@ -121,7 +121,7 @@ export default function AccountTile({ account: initialAccount }) {
                   e.stopPropagation();
                   cancelDelete();
                 }}
-                className="bg-gray-200 px-4 py-1 rounded hover:bg-gray-300"
+                className="bg-slate-200 px-4 py-1 rounded hover:bg-slate-300"
               >
                 Cancel
               </button>

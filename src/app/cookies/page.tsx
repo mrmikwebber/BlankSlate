@@ -7,9 +7,9 @@ export default function CookiesPage() {
   return (
     <main className="mx-auto max-w-3xl px-4 py-10">
       <h1 className="text-2xl font-semibold">Cookies Policy</h1>
-      <p className="mt-2 text-sm text-neutral-600">Last updated: December 20, 2025</p>
+      <p className="mt-2 text-sm text-slate-600">Last updated: December 20, 2025</p>
 
-      <section className="mt-6 space-y-4 text-neutral-800 dark:text-neutral-200">
+      <section className="mt-6 space-y-4 text-slate-800 dark:text-slate-200">
         <p>
           This Cookies Policy explains how BlankSlate uses cookies and similar technologies.
         </p>

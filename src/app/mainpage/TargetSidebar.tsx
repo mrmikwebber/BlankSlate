@@ -45,7 +45,7 @@ export const TargetSidebar = ({ itemName, onClose }) => {
     if (foundItem) {
       const existingTarget = foundItem.target || null;
       setTarget(existingTarget);
-      setTargetAmount(existingTarget?.amount || "");
+      setTargetAmount(existingTarget?.amount?.toString() || "");
       setTargetType(
         foundItem.categoryName === "Credit Card Payments"
           ? existingTarget?.type || "Full Payoff"
@@ -161,25 +161,25 @@ export const TargetSidebar = ({ itemName, onClose }) => {
     <>
       <div
         ref={sidebarRef}
-        className={`fixed top-[72px] right-0 bottom-0 w-80 max-h-[calc(100vh-72px)] overflow-y-auto bg-white dark:bg-slate-900 shadow-2xl dark:shadow-2xl border-l border-gray-200 dark:border-slate-700 z-50 transition-transform duration-300 ${
+        className={`fixed top-[72px] right-0 bottom-0 w-80 max-h-[calc(100vh-72px)] overflow-y-auto bg-slate-50 dark:bg-slate-900 shadow-2xl dark:shadow-2xl border-l border-slate-200 dark:border-slate-700 z-50 transition-transform duration-300 ${
           isVisible ? "translate-x-0" : "translate-x-full"
         }`}
       >
-        <div className="p-4 border-b dark:border-slate-700 flex items-center justify-between sticky top-0 bg-white dark:bg-slate-900 z-10">
-          <h2 className="text-base font-semibold text-gray-800 dark:text-slate-100">
+        <div className="p-4 border-b dark:border-slate-700 flex items-center justify-between sticky top-0 bg-slate-50 dark:bg-slate-900 z-10">
+          <h2 className="text-base font-semibold text-slate-800 dark:text-slate-100">
             {categoryItem.name}
           </h2>
           <button
             onClick={handleClose}
-            className="rounded-full p-1 hover:bg-gray-200 dark:hover:bg-slate-800 transition"
+            className="rounded-full p-1 hover:bg-slate-200 dark:hover:bg-slate-800 transition"
           >
-            <X className="h-5 w-5 text-gray-500 dark:text-slate-400" />
+            <X className="h-5 w-5 text-slate-500 dark:text-slate-400" />
           </button>
         </div>
 
         <div className="px-4 py-4 text-sm space-y-3">
           <div>
-            <p className="text-gray-600 dark:text-slate-400">
+            <p className="text-slate-600 dark:text-slate-400">
               <strong>Group:</strong> {categoryItem.categoryName}
             </p>
             {!isCreditCard && (
@@ -201,7 +201,7 @@ export const TargetSidebar = ({ itemName, onClose }) => {
               <p>
                 <strong>Last Month Leftover:</strong>{" "}
                 {formatToUSD(
-                  budgetData?.[currentMonth]?.previousMonthAvailable || 0
+                  0
                 )}
               </p>
               <p>
@@ -222,7 +222,7 @@ export const TargetSidebar = ({ itemName, onClose }) => {
               <select
                 value={targetType}
                 onChange={(e) => setTargetType(e.target.value)}
-                className="w-full rounded border border-gray-300 dark:border-slate-700 p-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                className="w-full rounded border border-slate-300 dark:border-slate-700 p-2 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
               >
                 <option value="Full Payoff">Pay Full Balance by Date</option>
                 <option value="monthly">Fixed Monthly Payment</option>
@@ -231,7 +231,7 @@ export const TargetSidebar = ({ itemName, onClose }) => {
           )}
 
           {target && targetType !== "Full Payoff" && (
-            <div className="p-3 bg-gray-100 dark:bg-slate-800 border dark:border-slate-700 rounded">
+            <div className="p-3 bg-slate-100 dark:bg-slate-800 border dark:border-slate-700 rounded">
               <p className="text-slate-900 dark:text-slate-100">
                 <strong>Current:</strong> {target.type} — ${target.amount}
               </p>
@@ -252,7 +252,7 @@ export const TargetSidebar = ({ itemName, onClose }) => {
                 type="month"
                 value={customTargetDate}
                 onChange={(e) => setCustomTargetDate(e.target.value)}
-                className="w-full p-2 border rounded border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                className="w-full p-2 border rounded border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
               />
             </div>
           )}
@@ -264,7 +264,7 @@ export const TargetSidebar = ({ itemName, onClose }) => {
                 type="number"
                 value={targetAmount}
                 onChange={(e) => setTargetAmount(e.target.value)}
-                className="w-full p-2 border rounded border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                className="w-full p-2 border rounded border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
               />
             </div>
           )}
@@ -275,7 +275,7 @@ export const TargetSidebar = ({ itemName, onClose }) => {
               <select
                 value={targetType}
                 onChange={(e) => setTargetType(e.target.value)}
-                className="w-full p-2 border rounded border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                className="w-full p-2 border rounded border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
               >
                 <option value="monthly">Monthly</option>
                 <option value="Weekly">Weekly</option>
@@ -291,7 +291,7 @@ export const TargetSidebar = ({ itemName, onClose }) => {
                 type="date"
                 value={customTargetDate}
                 onChange={(e) => setCustomTargetDate(e.target.value)}
-                className="w-full p-2 border rounded border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                className="w-full p-2 border rounded border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-100"
               />
             </div>
           )}
@@ -303,7 +303,7 @@ export const TargetSidebar = ({ itemName, onClose }) => {
 
           <button
             onClick={handleSave}
-            className="w-full bg-teal-600 dark:bg-teal-700 text-white py-2 rounded hover:bg-teal-500 dark:hover:bg-teal-600 transition"
+            className="w-full bg-ledger-600 dark:bg-ledger-700 text-white py-2 rounded hover:bg-ledger-500 dark:hover:bg-ledger-600 transition"
           >
             {target ? "Update Target" : "Save Target"}
           </button>
@@ -311,7 +311,7 @@ export const TargetSidebar = ({ itemName, onClose }) => {
           {target && (
             <button
               onClick={handleRemoveTarget}
-              className="w-full bg-gray-200 dark:bg-slate-700 text-gray-800 dark:text-slate-200 py-2 rounded hover:bg-gray-300 dark:hover:bg-slate-600 transition"
+              className="w-full bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 py-2 rounded hover:bg-slate-300 dark:hover:bg-slate-600 transition"
             >
               Remove Target
             </button>

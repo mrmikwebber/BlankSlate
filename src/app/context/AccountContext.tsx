@@ -18,6 +18,7 @@ export interface Transaction {
   payee: string;
   category: string;
   category_group: string;
+  category_item_id?: string | null;
   account: string;
   balance: number;
   cleared: boolean;
@@ -31,7 +32,6 @@ export interface Account {
   transactions: Transaction[];
   issuer: "amex" | "visa" | "mastercard" | "discover";
   type: "credit" | "debit";
-  tellerDisconnected?: boolean;
 }
 
 export interface SavedPayee {
@@ -52,6 +52,7 @@ interface AccountContextType {
 interface AccountContextType {
   toggleCleared: (accountId: string | number, transactionId: string | number) => Promise<void>;
   accounts: Account[];
+  accountsLoading: boolean;
   recentTransactions: Transaction[];
   addTransaction: (accountId: string | number, transaction: Record<string, unknown>) => void;
   addTransactionWithMirror: (accountId: string | number, transaction: Record<string, unknown>, mirrorAccountId: string | number, mirrorTransaction: Record<string, unknown>) => Promise<void>;
@@ -91,6 +92,7 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const { registerAction } = useUndoRedo();
 
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [accountsLoading, setAccountsLoading] = useState(true);
   const [savedPayees, setSavedPayees] = useState<SavedPayee[]>([]);
   const [recentTransactions, setRecentTransactions] = useState([]);
   const fetchGenRef = useRef(0);
@@ -162,45 +164,29 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     if (error) {
       console.error("[AccountContext] fetchAccounts error:", error.message, error);
+      setAccountsLoading(false);
       return;
     }
 
     console.log(`[AccountContext] fetchAccounts complete — gen=${gen} returned ${data?.length ?? 0} accounts:`, data?.map(a => `${a.id}:${a.name}`));
     if (data) {
       const normalized = (data as unknown as Account[]).map((acc) => normalizeAccount(acc));
-
-      // Fetch disconnected Teller enrollments to show reconnect prompts
-      const { data: disconnectedEnrollments, error: disconnectedError } = await supabase
-        .from("teller_enrollments")
-        .select("account_id")
-        .eq("user_id", user.id)
-        .eq("teller_status", "disconnected");
-
-      console.log("[AccountContext] disconnected enrollments query →", { disconnectedEnrollments, disconnectedError });
-
-      const disconnectedIds = new Set(
-        (disconnectedEnrollments ?? []).map((e: { account_id: string }) => String(e.account_id))
-      );
-
-      const withStatus = normalized.map((acc) => ({
-        ...acc,
-        tellerDisconnected: disconnectedIds.has(String(acc.id)),
-      }));
-
-      console.log("[AccountContext] accounts with teller status →", withStatus.map(a => ({ id: a.id, name: a.name, tellerDisconnected: a.tellerDisconnected })));
-
-      const ordered = applyOrder(withStatus, loadOrder());
+      const ordered = applyOrder(normalized, loadOrder());
       setAccounts(ordered);
     }
+    setAccountsLoading(false);
   };
 
   useEffect(() => {
     console.log("[AccountContext] user changed — id:", user?.id ?? "null", "isRecoverySession:", isRecoverySession);
-    if (!user || isRecoverySession) return;
+    if (!user || isRecoverySession) {
+      setAccountsLoading(false);
+      return;
+    }
     fetchAccounts();
   }, [user]);
 
-  // Realtime: refresh an account whenever a transaction is inserted (e.g. via Teller webhook)
+  // Realtime: refresh an account whenever a transaction is inserted
   useEffect(() => {
     if (!user) return;
 
@@ -462,6 +448,7 @@ const upsertPayee = async (name: string) => {
         payee: updatedTransaction.payee,
         category: updatedTransaction.category,
         category_group: updatedTransaction.category_group,
+        category_item_id: updatedTransaction.category_item_id ?? null,
         balance: updatedTransaction.balance,
         cleared: updatedTransaction.cleared ?? false,
       })
@@ -671,17 +658,6 @@ const upsertPayee = async (name: string) => {
       return;
     }
 
-    // Revoke Teller enrollment if one exists (handles both Teller API + local DB cleanup)
-    try {
-      await fetch("/api/teller/disconnect", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ accountId }),
-      });
-    } catch {
-      // ignore — account deletion still proceeds
-    }
-
     const { error } = await supabase
       .from("accounts")
       .delete()
@@ -747,6 +723,7 @@ const upsertPayee = async (name: string) => {
                 payee: deletedTransaction.payee,
                 category: deletedTransaction.category,
                 category_group: deletedTransaction.category_group,
+                category_item_id: deletedTransaction.category_item_id ?? null,
                 balance: deletedTransaction.balance,
                 user_id: user?.id,
                 account_id: accountId,
@@ -830,6 +807,7 @@ const upsertPayee = async (name: string) => {
             payee: transaction.payee,
             category: transaction.category,
             category_group: transaction.category_group,
+            category_item_id: transaction.category_item_id ?? null,
             balance: transaction.balance,
             user_id: user?.id,
             account_id: accountId,
@@ -848,6 +826,7 @@ const upsertPayee = async (name: string) => {
               payee: mirrorTransaction.payee,
               category: mirrorTransaction.category,
               category_group: mirrorTransaction.category_group,
+              category_item_id: mirrorTransaction.category_item_id ?? null,
               balance: mirrorTransaction.balance,
               user_id: user?.id,
               account_id: mirrorAccount.id,
@@ -920,6 +899,7 @@ const upsertPayee = async (name: string) => {
   const contextValue = useMemo(
     () => ({
       accounts,
+      accountsLoading,
       addTransaction,
       addTransactionWithMirror,
       addAccount,
@@ -939,7 +919,7 @@ const upsertPayee = async (name: string) => {
       refetchAccounts: fetchAccounts,
       reorderAccounts,
     }),
-    [accounts, recentTransactions, savedPayees, reorderAccounts]
+    [accounts, accountsLoading, recentTransactions, savedPayees, reorderAccounts]
   );
 
   return (

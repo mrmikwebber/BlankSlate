@@ -4,6 +4,7 @@ import { SpeedInsights } from "@vercel/speed-insights/next"
 import "./globals.css";
 import Navbar from "./navigation/navbar";
 import CookieConsent from "../components/ui/CookieConsent";
+import { Toaster } from "../components/ui/toaster";
 import { AccountProvider } from "./context/AccountContext";
 import { BudgetProvider } from "./context/BudgetContext";
 import { AuthProvider } from "./context/AuthContext";
@@ -57,6 +58,7 @@ export default function RootLayout({
         {process.env.NEXT_PUBLIC_ENABLE_COOKIE_BANNER === "true" && (
           <CookieConsent />
         )}
+        <Toaster />
       </body>
     </html>
   );

@@ -33,13 +33,13 @@ const CHART_COLORS = [
 
 // ── Slide gradient themes ──────────────────────────────────────────────────────
 const SLIDE_THEMES = [
-  "from-teal-950 via-slate-900 to-slate-950",        // 0 - title
+  "from-ledger-950 via-slate-900 to-slate-950",        // 0 - title
   "from-blue-950 via-slate-900 to-slate-950",         // 1 - total spending
   "from-violet-950 via-slate-900 to-slate-950",       // 2 - top categories
   "from-orange-950 via-slate-900 to-slate-950",       // 3 - biggest splurge
   "from-emerald-950 via-slate-900 to-slate-950",      // 4 - budget health
   "from-cyan-950 via-slate-900 to-slate-950",         // 5 - savings
-  "from-teal-950 via-slate-900 to-slate-950",         // 6 - final summary
+  "from-ledger-950 via-slate-900 to-slate-950",         // 6 - final summary
 ];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -127,7 +127,7 @@ function getBudgetGrade(onBudget: number, overBudget: number, total: number): { 
   if (total === 0) return { grade: "N/A", color: "text-slate-400", message: "No budget data for this month." };
   const score = total > 0 ? onBudget / total : 0;
   if (score >= 0.9) return { grade: "A", color: "text-emerald-400", message: "Exceptional discipline. Your future self thanks you." };
-  if (score >= 0.75) return { grade: "B", color: "text-teal-400", message: "Solid month. A few areas to tighten up." };
+  if (score >= 0.75) return { grade: "B", color: "text-ledger-400", message: "Solid month. A few areas to tighten up." };
   if (score >= 0.6) return { grade: "C", color: "text-yellow-400", message: "Decent effort, but room for improvement." };
   if (score >= 0.4) return { grade: "D", color: "text-orange-400", message: "Several categories went over. Let's reset next month." };
   return { grade: "F", color: "text-red-400", message: "Rough month. But awareness is the first step." };
@@ -139,14 +139,14 @@ function TitleSlide({ monthLabel }: { monthLabel: string }) {
   return (
     <div className="flex flex-col items-center justify-center h-full gap-6 text-center px-8">
       <div className="text-6xl mb-2">📊</div>
-      <p className="text-teal-400 text-sm uppercase tracking-[0.3em] font-semibold">Monthly Audit</p>
+      <p className="text-ledger-400 text-sm uppercase tracking-[0.3em] font-semibold">Monthly Audit</p>
       <h1 className="text-5xl md:text-6xl font-black text-white leading-tight">
         {monthLabel}
       </h1>
       <p className="text-slate-400 text-lg mt-2">Let&apos;s see how you did.</p>
       <div className="mt-8 flex items-center gap-2 text-slate-500 text-sm animate-bounce">
         <span>tap or press</span>
-        <span className="text-teal-400 font-semibold">→</span>
+        <span className="text-ledger-400 font-semibold">→</span>
         <span>to begin</span>
       </div>
     </div>
@@ -475,7 +475,7 @@ function SummarySlide({
 
   return (
     <div className="flex flex-col items-center justify-center h-full gap-5 text-center px-8">
-      <p className="text-teal-400 text-sm uppercase tracking-[0.3em] font-semibold">Your Score</p>
+      <p className="text-ledger-400 text-sm uppercase tracking-[0.3em] font-semibold">Your Score</p>
       <div className={`text-9xl font-black leading-none ${color}`}>{grade}</div>
       <p className="text-slate-300 text-lg max-w-xs">{message}</p>
 
@@ -486,7 +486,7 @@ function SummarySlide({
           </span>
         )}
         {net > 0 && (
-          <span className="bg-teal-500/10 border border-teal-500/30 text-teal-400 text-xs px-3 py-1.5 rounded-full">
+          <span className="bg-ledger-500/10 border border-ledger-500/30 text-ledger-400 text-xs px-3 py-1.5 rounded-full">
             ✓ Positive net savings
           </span>
         )}
@@ -587,10 +587,10 @@ export default function MonthlyAuditModal({ onClose }: MonthlyAuditModalProps) {
               onClick={() => goTo(i, i > slideIndex ? "forward" : "back")}
               className={`h-1 rounded-full transition-all duration-300 ${
                 i === slideIndex
-                  ? "bg-white w-6"
+                  ? "bg-slate-50 w-6"
                   : i < slideIndex
-                  ? "bg-white/50 w-3"
-                  : "bg-white/20 w-3"
+                  ? "bg-slate-50/50 w-3"
+                  : "bg-slate-50/20 w-3"
               }`}
             />
           ))}
@@ -636,7 +636,7 @@ export default function MonthlyAuditModal({ onClose }: MonthlyAuditModalProps) {
           <button
             onClick={prev}
             disabled={slideIndex === 0}
-            className={`w-10 h-10 rounded-full border border-white/10 bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/60 hover:text-white transition-all ${
+            className={`w-10 h-10 rounded-full border border-white/10 bg-slate-50/5 hover:bg-slate-50/10 flex items-center justify-center text-white/60 hover:text-white transition-all ${
               slideIndex === 0 ? "opacity-0 pointer-events-none" : "opacity-100"
             }`}
           >
@@ -648,7 +648,7 @@ export default function MonthlyAuditModal({ onClose }: MonthlyAuditModalProps) {
           <button
             onClick={next}
             disabled={slideIndex === TOTAL_SLIDES - 1}
-            className={`w-10 h-10 rounded-full border border-white/10 bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/60 hover:text-white transition-all ${
+            className={`w-10 h-10 rounded-full border border-white/10 bg-slate-50/5 hover:bg-slate-50/10 flex items-center justify-center text-white/60 hover:text-white transition-all ${
               slideIndex === TOTAL_SLIDES - 1 ? "opacity-0 pointer-events-none" : "opacity-100"
             }`}
           >

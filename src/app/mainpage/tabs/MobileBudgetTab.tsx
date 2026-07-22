@@ -3,7 +3,7 @@
 import { useBudgetContext } from "@/app/context/BudgetContext";
 import { formatToUSD } from "@/app/utils/formatToUSD";
 import MonthNav from "../MonthNav";
-import { ChevronDown, ChevronRight, Plus } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus, Wallet } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import {
@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 
 type SelectedItem = { groupName: string; itemName: string };
 
@@ -46,6 +47,7 @@ export default function MobileBudgetTab() {
     refreshAllReadyToAssign,
     setIsDirty,
     setRecentChanges,
+    getGroupIdByName,
   } = useBudgetContext();
 
   const [selectedItem, setSelectedItem] = useState<SelectedItem | null>(null);
@@ -159,7 +161,7 @@ export default function MobileBudgetTab() {
       );
 
       updated[currentMonth].categories = updatedWithCC;
-      refreshAllReadyToAssign(updated);
+      refreshAllReadyToAssign();
       return updated;
     });
 
@@ -180,7 +182,7 @@ export default function MobileBudgetTab() {
     setEditAssigned(String(current + amount));
   };
 
-  const cumulativeAvailable = getCumulativeAvailable(currentMonth);
+  const cumulativeAvailable = getCumulativeAvailable(null, "", "");
 
   if (!budgetMonth) {
     return (
@@ -207,16 +209,16 @@ export default function MobileBudgetTab() {
       </div>
 
       {/* Ready to Assign banner */}
-      <div className="mx-0 mb-4 px-4 py-3 bg-teal-50 dark:bg-teal-900/30 border-y border-teal-100 dark:border-teal-800/40 flex items-center justify-between">
+      <div className="mx-0 mb-4 px-5 py-4 bg-ledger-50 dark:bg-ledger-900/30 border-y border-ledger-100 dark:border-ledger-800/40 flex items-center justify-between">
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-teal-600 dark:text-teal-400">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-ledger-600 dark:text-ledger-400">
             Ready to Assign
           </p>
-          <p className="font-mono text-[22px] font-bold text-teal-700 dark:text-teal-300 leading-tight">
+          <p className="font-mono tabular-nums text-[32px] font-bold text-ledger-700 dark:text-ledger-300 leading-tight tracking-tight">
             {formatToUSD(cumulativeAvailable)}
           </p>
         </div>
-        <div className="text-2xl opacity-30">💰</div>
+        <Wallet className="h-6 w-6 text-ledger-400 dark:text-ledger-600 opacity-40" />
       </div>
 
       {/* Category groups */}
@@ -243,11 +245,7 @@ export default function MobileBudgetTab() {
               <span className="flex-1 text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
                 {group.name}
               </span>
-              {hasOverspent && (
-                <span className="text-[9px] font-bold bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 px-1.5 py-0.5 rounded">
-                  Over
-                </span>
-              )}
+              {hasOverspent && <Badge variant="negative">Over</Badge>}
               <span className="font-mono text-[11px] text-slate-400 dark:text-slate-500 ml-1">
                 {formatToUSD(groupAssigned)}
               </span>
@@ -271,7 +269,7 @@ export default function MobileBudgetTab() {
                   return (
                     <button
                       key={item.name}
-                      className="w-full flex items-center px-4 py-3 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 text-left active:bg-slate-50 dark:active:bg-slate-800/50 min-h-[56px]"
+                      className="w-full flex items-center px-4 py-3 bg-slate-50 dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 text-left active:bg-slate-50 dark:active:bg-slate-800/50 min-h-[56px]"
                       onTouchStart={(e) => {
                         const t = e.touches[0];
                         touchStartRef.current = { x: t.clientX, y: t.clientY };
@@ -299,7 +297,7 @@ export default function MobileBudgetTab() {
                                 ? "text-red-600 dark:text-red-400"
                                 : item.available === 0
                                 ? "text-slate-300 dark:text-slate-600"
-                                : "text-teal-600 dark:text-teal-400"
+                                : "text-ledger-600 dark:text-ledger-400"
                             )}
                           >
                             {isOverspent && "−"}
@@ -325,7 +323,7 @@ export default function MobileBudgetTab() {
                             <div
                               className={cn(
                                 "h-full rounded-full transition-all",
-                                isOverspent ? "bg-red-500" : "bg-teal-500"
+                                isOverspent ? "bg-red-500" : "bg-ledger-500"
                               )}
                               style={{ width: `${progress}%` }}
                             />
@@ -345,7 +343,7 @@ export default function MobileBudgetTab() {
                     setAddToGroup(group.name);
                     setNewItemName("");
                   }}
-                  className="w-full flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 text-slate-400 dark:text-slate-500 text-[12px] hover:text-teal-600 dark:hover:text-teal-400 transition-colors"
+                  className="w-full flex items-center gap-2 px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 text-slate-400 dark:text-slate-500 text-[12px] hover:text-ledger-600 dark:hover:text-ledger-400 transition-colors"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   Add category
@@ -359,7 +357,7 @@ export default function MobileBudgetTab() {
       {/* Add group button */}
       <button
         onClick={() => { setAddGroupOpen(true); setNewGroupName(""); }}
-        className="w-full flex items-center gap-2 px-4 py-3 text-slate-400 dark:text-slate-500 text-[12px] hover:text-teal-600 dark:hover:text-teal-400 transition-colors border-b border-slate-100 dark:border-slate-800"
+        className="w-full flex items-center gap-2 px-4 py-3 text-slate-400 dark:text-slate-500 text-[12px] hover:text-ledger-600 dark:hover:text-ledger-400 transition-colors border-b border-slate-100 dark:border-slate-800"
       >
         <Plus className="w-3.5 h-3.5" />
         Add category group
@@ -370,7 +368,7 @@ export default function MobileBudgetTab() {
         open={Boolean(selectedItem)}
         onOpenChange={(o) => !o && setSelectedItem(null)}
       >
-        <DialogContent className="p-0 overflow-hidden rounded-t-2xl sm:rounded-2xl bg-white dark:bg-slate-900 border-0 shadow-2xl left-0 bottom-0 top-auto translate-x-0 translate-y-0 w-full max-w-none sm:left-[50%] sm:bottom-auto sm:top-[50%] sm:translate-x-[-50%] sm:translate-y-[-50%] sm:w-[96vw] sm:max-w-sm max-h-[90dvh] overflow-y-auto">
+        <DialogContent className="p-0 overflow-hidden rounded-t-2xl sm:rounded-2xl bg-slate-50 dark:bg-slate-900 border-0 shadow-2xl left-0 bottom-0 top-auto translate-x-0 translate-y-0 w-full max-w-none sm:left-[50%] sm:bottom-auto sm:top-[50%] sm:translate-x-[-50%] sm:translate-y-[-50%] sm:w-[96vw] sm:max-w-sm max-h-[90dvh] overflow-y-auto">
           {/* Header */}
           <div className="flex items-start justify-between px-5 pt-5 pb-3 border-b border-slate-100 dark:border-slate-800">
             <div>
@@ -398,7 +396,7 @@ export default function MobileBudgetTab() {
                     color:
                       editingItem.available < 0
                         ? "text-red-600 dark:text-red-400"
-                        : "text-teal-600 dark:text-teal-400",
+                        : "text-ledger-600 dark:text-ledger-400",
                   },
                 ].map((stat) => (
                   <div
@@ -459,7 +457,7 @@ export default function MobileBudgetTab() {
                 Clear
               </Button>
               <Button
-                className="flex-1 h-11 bg-teal-600 hover:bg-teal-700 dark:bg-teal-700 dark:hover:bg-teal-600 text-white font-semibold"
+                className="flex-1 h-11 bg-ledger-600 hover:bg-ledger-700 dark:bg-ledger-700 dark:hover:bg-ledger-600 text-white font-semibold"
                 onClick={handleSave}
               >
                 Save
@@ -474,7 +472,7 @@ export default function MobileBudgetTab() {
         open={Boolean(addToGroup)}
         onOpenChange={(o) => !o && setAddToGroup(null)}
       >
-        <DialogContent className="max-w-none w-[96vw] sm:max-w-sm rounded-2xl bg-white dark:bg-slate-900">
+        <DialogContent className="max-w-none w-[96vw] sm:max-w-sm rounded-2xl bg-slate-50 dark:bg-slate-900">
           <DialogHeader>
             <DialogTitle className="text-[15px]">
               Add to {addToGroup}
@@ -491,12 +489,8 @@ export default function MobileBudgetTab() {
                 if (e.key === "Enter") {
                   e.preventDefault();
                   if (!addToGroup || !newItemName.trim()) return;
-                  addItemToCategory(addToGroup, {
-                    name: newItemName.trim(),
-                    assigned: 0,
-                    activity: 0,
-                    available: 0,
-                  });
+                  const gid = getGroupIdByName(addToGroup);
+                  if (gid) addItemToCategory(gid, newItemName.trim());
                   setAddToGroup(null);
                   setNewItemName("");
                 }
@@ -511,15 +505,11 @@ export default function MobileBudgetTab() {
                 Cancel
               </Button>
               <Button
-                className="flex-1 bg-teal-600 dark:bg-teal-700 text-white hover:bg-teal-500 dark:hover:bg-teal-600"
+                className="flex-1 bg-ledger-600 dark:bg-ledger-700 text-white hover:bg-ledger-500 dark:hover:bg-ledger-600"
                 onClick={() => {
                   if (!addToGroup || !newItemName.trim()) return;
-                  addItemToCategory(addToGroup, {
-                    name: newItemName.trim(),
-                    assigned: 0,
-                    activity: 0,
-                    available: 0,
-                  });
+                  const gid = getGroupIdByName(addToGroup);
+                  if (gid) addItemToCategory(gid, newItemName.trim());
                   setAddToGroup(null);
                   setNewItemName("");
                 }}
@@ -532,7 +522,7 @@ export default function MobileBudgetTab() {
       </Dialog>
       {/* ── Add category group dialog ── */}
       <Dialog open={addGroupOpen} onOpenChange={(o) => !o && setAddGroupOpen(false)}>
-        <DialogContent className="max-w-none w-[96vw] sm:max-w-sm rounded-2xl bg-white dark:bg-slate-900">
+        <DialogContent className="max-w-none w-[96vw] sm:max-w-sm rounded-2xl bg-slate-50 dark:bg-slate-900">
           <DialogHeader>
             <DialogTitle className="text-[15px]">Add category group</DialogTitle>
           </DialogHeader>
@@ -558,7 +548,7 @@ export default function MobileBudgetTab() {
                 Cancel
               </Button>
               <Button
-                className="flex-1 bg-teal-600 dark:bg-teal-700 text-white hover:bg-teal-500 dark:hover:bg-teal-600"
+                className="flex-1 bg-ledger-600 dark:bg-ledger-700 text-white hover:bg-ledger-500 dark:hover:bg-ledger-600"
                 onClick={() => {
                   if (!newGroupName.trim()) return;
                   addCategoryGroup(newGroupName.trim());
