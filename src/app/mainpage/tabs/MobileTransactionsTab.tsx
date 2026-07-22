@@ -31,6 +31,7 @@ type SavedPayeeLike = { name?: string | null };
 export default function MobileTransactionsTab({ accountId, onBack }: Props) {
   const {
     accounts,
+    accountsLoading,
     addTransaction,
     upsertPayee,
     savedPayees,
@@ -38,7 +39,7 @@ export default function MobileTransactionsTab({ accountId, onBack }: Props) {
     editTransaction,
     addTransactionWithMirror,
   } = useAccountContext();
-  const { budgetData, currentMonth } = useBudgetContext();
+  const { budgetData, currentMonth, getGroupIdByName, getItemIdByName, addItemToCategory } = useBudgetContext();
 
   const account = useMemo(
     () => accounts.find((a) => a.id === accountId) ?? null,
@@ -152,6 +153,23 @@ export default function MobileTransactionsTab({ accountId, onBack }: Props) {
     }
   };
 
+  // Resolves a group/item name pair to the category_item's stable UUID — the
+  // canonical FK the budget calc engine reads (mirrors InlineTransactionRow).
+  // Creates the item if it doesn't exist yet.
+  const resolveCategoryItemId = async (
+    resolveGroupName: string | null,
+    resolveItemName: string | null
+  ): Promise<string | null> => {
+    if (!resolveGroupName || !resolveItemName || resolveGroupName === "Ready to Assign") {
+      return null;
+    }
+    const groupId = getGroupIdByName(resolveGroupName);
+    if (!groupId) return null;
+    const existingId = getItemIdByName(resolveGroupName, resolveItemName);
+    if (existingId) return existingId;
+    return addItemToCategory(groupId, resolveItemName);
+  };
+
   const handleSubmit = async () => {
     if (!formPayee.trim() || !formAmount) return;
     const amt = parseFloat(formAmount);
@@ -184,11 +202,16 @@ export default function MobileTransactionsTab({ accountId, onBack }: Props) {
         ? null
         : formCategoryGroup || null;
 
+    const mainCategoryItemId = isTransfer && !isCreditPayment
+      ? null
+      : await resolveCategoryItemId(effectiveGroup, effectiveCategory);
+
     const txPayload = {
       date: formDate,
       payee: payeeLabel,
       category: effectiveCategory,
       category_group: effectiveGroup,
+      category_item_id: mainCategoryItemId,
       balance,
     };
 
@@ -198,11 +221,15 @@ export default function MobileTransactionsTab({ accountId, onBack }: Props) {
       const mirrorPayee = getMirrorPayeeLabel(otherAccount.name, balance);
       const mirrorCategory = isOtherCredit ? otherAccount.name : null;
       const mirrorGroup = isOtherCredit ? "Credit Card Payments" : null;
+      const mirrorCategoryItemId = isOtherCredit
+        ? await resolveCategoryItemId("Credit Card Payments", otherAccount.name)
+        : null;
       await addTransactionWithMirror(accountId, txPayload, otherAccount.id, {
         date: formDate,
         payee: mirrorPayee,
         category: mirrorCategory,
         category_group: mirrorGroup,
+        category_item_id: mirrorCategoryItemId,
         balance: -balance,
       });
     } else {
@@ -301,7 +328,7 @@ export default function MobileTransactionsTab({ accountId, onBack }: Props) {
   if (!account) {
     return (
       <div className="flex items-center justify-center py-24 text-slate-400">
-        Account not found
+        {accountsLoading ? "Loading…" : "Account not found"}
       </div>
     );
   }
@@ -538,7 +565,7 @@ export default function MobileTransactionsTab({ accountId, onBack }: Props) {
                 <Input
                   inputMode="decimal"
                   value={formAmount}
-                  onChange={(e) => setFormAmount(e.target.value)}
+                  onChange={(e) => setFormAmount(e.target.value.replace(/,/g, ""))}
                   placeholder="0.00"
                   className="h-11 font-mono text-[16px]"
                   autoFocus={!editingTxId}

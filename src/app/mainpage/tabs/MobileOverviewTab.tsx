@@ -10,7 +10,18 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 
 export default function MobileOverviewTab() {
   const { accounts } = useAccountContext();
-  const { currentMonth } = useBudgetContext();
+  const { currentMonth, budgetView } = useBudgetContext();
+
+  // Category names the user has flagged to exclude from Insights charts.
+  const hiddenCategoryNames = useMemo(() => {
+    const names = new Set<string>();
+    budgetView?.categories.forEach((g) =>
+      g.categoryItems.forEach((i) => {
+        if (i.isHiddenFromInsights) names.add(i.name);
+      })
+    );
+    return names;
+  }, [budgetView]);
 
   const COLORS = [
     "#0088FE",
@@ -43,7 +54,12 @@ export default function MobileOverviewTab() {
 
     accounts.forEach((account) => {
       account.transactions.forEach((tx) => {
-        if (tx.category === "Ready to Assign" || accountNames.has(tx.category))
+        if (
+          tx.category === "Ready to Assign" ||
+          tx.category_group === "Reconciliation (Hidden)" ||
+          (tx.category && hiddenCategoryNames.has(tx.category)) ||
+          accountNames.has(tx.category)
+        )
           return;
         if (
           tx.balance < 0 &&
@@ -68,7 +84,7 @@ export default function MobileOverviewTab() {
         color: COLORS[index % COLORS.length],
       }))
       .sort((a, b) => b.value - a.value);
-  }, [accounts, currentMonth]);
+  }, [accounts, currentMonth, hiddenCategoryNames]);
 
   const totalSpending = spendingData.reduce(
     (sum, category) => sum + (category.value as number),

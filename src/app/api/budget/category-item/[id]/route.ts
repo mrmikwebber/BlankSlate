@@ -31,6 +31,7 @@ export async function PATCH(
   if (body.target !== undefined) updates.target = body.target;
   if (body.notes !== undefined) updates.notes = body.notes;
   if (body.isDiscretionaryPool !== undefined) updates.is_discretionary_pool = body.isDiscretionaryPool;
+  if (body.isHiddenFromInsights !== undefined) updates.hide_from_insights = body.isHiddenFromInsights;
 
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: "No fields to update" }, { status: 400 });
@@ -41,7 +42,7 @@ export async function PATCH(
     .update(updates)
     .eq("id", id)
     .eq("user_id", user.id)
-    .select("id, group_id, name, sort_order, snoozed, target, notes, notes_history, is_discretionary_pool")
+    .select("id, group_id, name, sort_order, snoozed, target, notes, notes_history, is_discretionary_pool, hide_from_insights")
     .single();
 
   if (error) {

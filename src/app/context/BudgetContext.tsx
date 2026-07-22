@@ -105,7 +105,7 @@ function buildContextValue(_placeholder: null) {
     moveMoney: (sourceItemId: string, destItemId: string, month: string, amount: number) => Promise<void>;
     addCategoryGroup: (name: string) => Promise<void>;
     deleteCategoryGroup: (id: string) => Promise<void>;
-    addItemToCategory: (groupId: string, itemName: string, sortOrder?: number) => Promise<void>;
+    addItemToCategory: (groupId: string, itemName: string, sortOrder?: number) => Promise<string>;
     deleteCategoryItem: (id: string) => Promise<void>;
     renameCategoryGroup: (id: string, newName: string) => Promise<void>;
     renameCategory: (id: string, newName: string) => Promise<void>;
@@ -114,6 +114,7 @@ function buildContextValue(_placeholder: null) {
     setCategorySnooze: (id: string, snoozed: boolean) => Promise<void>;
     setCategoryTarget: (id: string, target: Target | null) => Promise<void>;
     setCategoryDiscretionaryPool: (id: string, isDiscretionaryPool: boolean) => Promise<void>;
+    setCategoryHideFromInsights: (id: string, isHiddenFromInsights: boolean) => Promise<void>;
     updateCategoryGroupNote: (id: string, text: string) => Promise<void>;
     updateCategoryItemNote: (id: string, text: string) => Promise<void>;
     invalidate: () => void;
@@ -328,11 +329,12 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
 
   const addItemToCategory = useCallback(
     async (groupId: string, itemName: string, sortOrder?: number) => {
-      await apiFetch("/api/budget/category-item", {
+      const created = await apiFetch<{ id: string }>("/api/budget/category-item", {
         method: "POST",
         body: JSON.stringify({ groupId, name: itemName, sortOrder }),
       });
       invalidate();
+      return created.id;
     },
     [invalidate]
   );
@@ -488,6 +490,30 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
             ...g,
             categoryItems: g.categoryItems.map((item) =>
               item.id === id ? { ...item, isDiscretionaryPool } : item
+            ),
+          })),
+        });
+      }
+    },
+    [budgetView, applyMutationResult]
+  );
+
+  const setCategoryHideFromInsights = useCallback(
+    async (id: string, isHiddenFromInsights: boolean) => {
+      await apiFetch(`/api/budget/category-item/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ isHiddenFromInsights }),
+      });
+      // Same reasoning as setCategoryDiscretionaryPool — this flag never
+      // feeds budget math, so patch the one item in place rather than
+      // triggering a full invalidate+recompute.
+      if (budgetView) {
+        applyMutationResult({
+          ...budgetView,
+          categories: budgetView.categories.map((g) => ({
+            ...g,
+            categoryItems: g.categoryItems.map((item) =>
+              item.id === id ? { ...item, isHiddenFromInsights } : item
             ),
           })),
         });
@@ -816,6 +842,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
         setCategorySnooze,
         setCategoryTarget,
         setCategoryDiscretionaryPool,
+        setCategoryHideFromInsights,
         updateCategoryGroupNote,
         updateCategoryItemNote,
         invalidate,

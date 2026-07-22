@@ -5,7 +5,7 @@ import { BarChart3, CreditCard, Wallet, TrendingUp, Settings } from "lucide-reac
 import { cn } from "@/lib/utils";
 import { formatToUSD } from "@/app/utils/formatToUSD";
 
-export type TabletView = "budget" | "accounts" | "discretionary" | "insights";
+export type TabletView = "budget" | "accounts" | "discretionary" | "insights" | "settings";
 
 interface Props {
   activeView: TabletView;
@@ -109,7 +109,15 @@ export default function TabletRail({ activeView, onViewChange }: Props) {
 
       {/* Settings at bottom */}
       <div className="relative group mt-auto">
-        <button className="w-9 h-9 rounded-[9px] flex items-center justify-center text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-600 dark:hover:text-slate-300 transition-colors">
+        <button
+          onClick={() => onViewChange("settings")}
+          className={cn(
+            "w-9 h-9 rounded-[9px] flex items-center justify-center transition-colors",
+            activeView === "settings"
+              ? "bg-ledger-50 dark:bg-ledger-900/30 text-ledger-600 dark:text-ledger-400"
+              : "text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-600 dark:hover:text-slate-300"
+          )}
+        >
           <Settings className="w-4 h-4" />
         </button>
         <div className="pointer-events-none absolute left-[calc(100%+8px)] top-1/2 -translate-y-1/2 hidden group-hover:flex items-center bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 text-xs font-medium px-2.5 py-1.5 rounded-lg shadow-lg whitespace-nowrap z-50">

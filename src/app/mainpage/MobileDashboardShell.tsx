@@ -6,33 +6,10 @@ import MobileBudgetTab from "./tabs/MobileBudgetTab";
 import MobileAccountsTab from "./tabs/MobileAccountsTab";
 import MobileTransactionsTab from "./tabs/MobileTransactionsTab";
 import DiscretionaryTab from "./tabs/DiscretionaryTab";
+import SettingsTab from "./tabs/SettingsTab";
 import TotalSpendingTile from "./totalSpendingTile";
-import { useAuth } from "../context/AuthContext";
-import { Settings as SettingsIcon } from "lucide-react";
 
 export type TabType = "budget" | "accounts" | "discretionary" | "insights" | "settings";
-
-function SettingsTab() {
-  const { signOut } = useAuth();
-
-  return (
-    <div className="flex flex-col items-center justify-center py-20 px-8 text-center bg-slate-50 dark:bg-slate-950 min-h-full">
-      <SettingsIcon className="h-12 w-12 mb-4 opacity-20 text-slate-600 dark:text-slate-400" />
-      <p className="text-[15px] font-medium text-slate-600 dark:text-slate-400">
-        Settings
-      </p>
-      <p className="text-[13px] text-slate-400 dark:text-slate-500 mt-1 mb-5">
-        Account actions
-      </p>
-      <button
-        onClick={signOut}
-        className="bg-ledger-600 dark:bg-ledger-700 hover:bg-ledger-500 dark:hover:bg-ledger-600 text-white px-5 py-2 rounded-md text-sm transition-colors"
-      >
-        Sign Out
-      </button>
-    </div>
-  );
-}
 
 export default function MobileDashboardShell() {
   const [activeTab, setActiveTab] = useState<TabType>("budget");

@@ -50,7 +50,8 @@ const DEFAULT_ENABLED: WidgetId[] = WIDGET_DEFS.filter((w) => w.defaultOn).map((
 // ── Helpers ──────────────────────────────────────────────────────────────────
 function getSpendingForMonth(
   accounts: ReturnType<typeof useAccountContext>["accounts"],
-  monthDate: Date
+  monthDate: Date,
+  hiddenCategoryNames?: Set<string>
 ): number {
   return accounts
     .flatMap((a) => a.transactions)
@@ -62,13 +63,17 @@ function getSpendingForMonth(
         tx.category === "Category Not Needed" ||
         tx.category_group === "Starting Balance";
       const isCardPayment = tx.category_group === "Credit Card Payments";
+      const isReconciliation = tx.category_group === "Reconciliation (Hidden)";
+      const isHidden = tx.category ? hiddenCategoryNames?.has(tx.category) : false;
       return (
         tx.balance < 0 &&
         tx.date &&
         isSameMonth(parseISO(tx.date), monthDate) &&
         !isTransfer &&
         !isStartingBalance &&
-        !isCardPayment
+        !isCardPayment &&
+        !isReconciliation &&
+        !isHidden
       );
     })
     .reduce((sum, tx) => sum + Math.abs(tx.balance), 0);
@@ -76,7 +81,8 @@ function getSpendingForMonth(
 
 function getCategorySpendingForMonth(
   accounts: ReturnType<typeof useAccountContext>["accounts"],
-  monthDate: Date
+  monthDate: Date,
+  hiddenCategoryNames?: Set<string>
 ): Record<string, number> {
   const totals: Record<string, number> = {};
   accounts.flatMap((a) => a.transactions).forEach((tx) => {
@@ -87,6 +93,8 @@ function getCategorySpendingForMonth(
       tx.category === "Category Not Needed" ||
       tx.category_group === "Starting Balance";
     const isCardPayment = tx.category_group === "Credit Card Payments";
+    const isReconciliation = tx.category_group === "Reconciliation (Hidden)";
+    const isHidden = tx.category ? hiddenCategoryNames?.has(tx.category) : false;
     if (
       tx.balance < 0 &&
       tx.date &&
@@ -96,7 +104,9 @@ function getCategorySpendingForMonth(
       isSameMonth(parseISO(tx.date), monthDate) &&
       !isTransfer &&
       !isStartingBalance &&
-      !isCardPayment
+      !isCardPayment &&
+      !isReconciliation &&
+      !isHidden
     ) {
       totals[tx.category] = (totals[tx.category] ?? 0) + Math.abs(tx.balance);
     }
@@ -119,7 +129,20 @@ function buildSparklinePath(values: number[], width: number, height: number): st
 // ── Component ────────────────────────────────────────────────────────────────
 const TotalSpendingTile = () => {
   const { accounts } = useAccountContext();
-  const { currentMonth, budgetData } = useBudgetContext();
+  const { currentMonth, budgetData, budgetView } = useBudgetContext();
+
+  // Category names the user has flagged to exclude from Insights charts
+  // (e.g. a reimbursed personal loan) — category-level, so the same set
+  // applies regardless of which month is being viewed.
+  const hiddenCategoryNames = useMemo(() => {
+    const names = new Set<string>();
+    budgetView?.categories.forEach((g) =>
+      g.categoryItems.forEach((i) => {
+        if (i.isHiddenFromInsights) names.add(i.name);
+      })
+    );
+    return names;
+  }, [budgetView]);
 
   // Widget visibility state (persisted to localStorage)
   const [enabledWidgets, setEnabledWidgets] = useState<WidgetId[]>(DEFAULT_ENABLED);
@@ -178,17 +201,21 @@ const TotalSpendingTile = () => {
           tx.category === "Category Not Needed" ||
           tx.category_group === "Starting Balance";
         const isCardPayment = tx.category_group === "Credit Card Payments";
+        const isReconciliation = tx.category_group === "Reconciliation (Hidden)";
+        const isHidden = tx.category ? hiddenCategoryNames.has(tx.category) : false;
         return (
           tx.balance > 0 &&
           tx.date &&
           isSameMonth(parseISO(tx.date), currentMonthDate) &&
           !isTransfer &&
           !isStartingBalance &&
-          !isCardPayment
+          !isCardPayment &&
+          !isReconciliation &&
+          !isHidden
         );
       })
       .reduce((sum, tx) => sum + tx.balance, 0);
-  }, [accounts, currentMonthDate]);
+  }, [accounts, currentMonthDate, hiddenCategoryNames]);
 
   const spendingData = useMemo(() => {
     const totals: Record<string, number> = {};
@@ -201,11 +228,15 @@ const TotalSpendingTile = () => {
           tx.category === "Category Not Needed" ||
           tx.category_group === "Starting Balance";
         const isCardPayment = tx.category_group === "Credit Card Payments";
+        const isReconciliation = tx.category_group === "Reconciliation (Hidden)";
+        const isHidden = tx.category ? hiddenCategoryNames.has(tx.category) : false;
         if (
           tx.category === "Ready to Assign" ||
           tx.category === "Ready To Assign" ||
           isStartingBalance ||
           isCardPayment ||
+          isReconciliation ||
+          isHidden ||
           isTransfer
         )
           return;
@@ -221,7 +252,7 @@ const TotalSpendingTile = () => {
     return Object.entries(totals)
       .sort((a, b) => b[1] - a[1])
       .map(([name, value], i) => ({ name, value, color: COLORS[i % COLORS.length] }));
-  }, [accounts, currentMonthDate]);
+  }, [accounts, currentMonthDate, hiddenCategoryNames]);
 
   const totalOutflow = useMemo(
     () => spendingData.reduce((sum, item) => sum + item.value, 0),
@@ -266,7 +297,7 @@ const TotalSpendingTile = () => {
     const historicalRates: number[] = [];
     for (let i = 1; i <= 6; i++) {
       const d = subMonths(currentMonthDate, i);
-      const spending = getSpendingForMonth(accounts, d);
+      const spending = getSpendingForMonth(accounts, d, hiddenCategoryNames);
       if (spending > 0) {
         historicalRates.push(spending / getDaysInMonth(d));
         if (historicalRates.length >= 3) break;
@@ -296,7 +327,7 @@ const TotalSpendingTile = () => {
       daysInMonth,
       currentTotal: totalOutflow,
     };
-  }, [accounts, currentMonthDate, totalOutflow]);
+  }, [accounts, currentMonthDate, totalOutflow, hiddenCategoryNames]);
 
   // ── Category Pace Breakdown ────────────────────────────────────────────────
   const categoryPaceBreakdown = useMemo(() => {
@@ -305,13 +336,13 @@ const TotalSpendingTile = () => {
     const isCurrentRealMonth = isSameMonth(currentMonthDate, today);
     const daysElapsed = isCurrentRealMonth ? Math.max(today.getDate(), 1) : spendingPace.daysInMonth;
 
-    const currentCatSpend = getCategorySpendingForMonth(accounts, currentMonthDate);
+    const currentCatSpend = getCategorySpendingForMonth(accounts, currentMonthDate, hiddenCategoryNames);
 
     // Gather historical per-category spending for up to 3 past months
     const historicalMonths: Array<{ spending: Record<string, number>; days: number }> = [];
     for (let i = 1; i <= 6; i++) {
       const d = subMonths(currentMonthDate, i);
-      const spending = getCategorySpendingForMonth(accounts, d);
+      const spending = getCategorySpendingForMonth(accounts, d, hiddenCategoryNames);
       if (Object.keys(spending).length > 0) {
         historicalMonths.push({ spending, days: getDaysInMonth(d) });
         if (historicalMonths.length >= 3) break;
@@ -338,7 +369,7 @@ const TotalSpendingTile = () => {
       })
       .filter((c) => Math.abs(c.diff) > 0.5 || c.isNew)
       .sort((a, b) => b.diff - a.diff);
-  }, [spendingPace, accounts, currentMonthDate]);
+  }, [spendingPace, accounts, currentMonthDate, hiddenCategoryNames]);
 
   // ── Monthly trend ──────────────────────────────────────────────────────────
   const monthlyTrend = useMemo(() => {
@@ -346,10 +377,10 @@ const TotalSpendingTile = () => {
       const d = subMonths(currentMonthDate, 5 - i);
       return {
         label: i === 5 ? "Now" : format(d, "MMM"),
-        spending: getSpendingForMonth(accounts, d),
+        spending: getSpendingForMonth(accounts, d, hiddenCategoryNames),
       };
     });
-  }, [accounts, currentMonthDate]);
+  }, [accounts, currentMonthDate, hiddenCategoryNames]);
 
   // ── Spending vs Budget ─────────────────────────────────────────────────────
   const budgetVsSpending = useMemo(() => {

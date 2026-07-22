@@ -18,6 +18,7 @@ export interface Transaction {
   payee: string;
   category: string;
   category_group: string;
+  category_item_id?: string | null;
   account: string;
   balance: number;
   cleared: boolean;
@@ -51,6 +52,7 @@ interface AccountContextType {
 interface AccountContextType {
   toggleCleared: (accountId: string | number, transactionId: string | number) => Promise<void>;
   accounts: Account[];
+  accountsLoading: boolean;
   recentTransactions: Transaction[];
   addTransaction: (accountId: string | number, transaction: Record<string, unknown>) => void;
   addTransactionWithMirror: (accountId: string | number, transaction: Record<string, unknown>, mirrorAccountId: string | number, mirrorTransaction: Record<string, unknown>) => Promise<void>;
@@ -90,6 +92,7 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const { registerAction } = useUndoRedo();
 
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [accountsLoading, setAccountsLoading] = useState(true);
   const [savedPayees, setSavedPayees] = useState<SavedPayee[]>([]);
   const [recentTransactions, setRecentTransactions] = useState([]);
   const fetchGenRef = useRef(0);
@@ -161,6 +164,7 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     if (error) {
       console.error("[AccountContext] fetchAccounts error:", error.message, error);
+      setAccountsLoading(false);
       return;
     }
 
@@ -170,11 +174,15 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const ordered = applyOrder(normalized, loadOrder());
       setAccounts(ordered);
     }
+    setAccountsLoading(false);
   };
 
   useEffect(() => {
     console.log("[AccountContext] user changed — id:", user?.id ?? "null", "isRecoverySession:", isRecoverySession);
-    if (!user || isRecoverySession) return;
+    if (!user || isRecoverySession) {
+      setAccountsLoading(false);
+      return;
+    }
     fetchAccounts();
   }, [user]);
 
@@ -440,6 +448,7 @@ const upsertPayee = async (name: string) => {
         payee: updatedTransaction.payee,
         category: updatedTransaction.category,
         category_group: updatedTransaction.category_group,
+        category_item_id: updatedTransaction.category_item_id ?? null,
         balance: updatedTransaction.balance,
         cleared: updatedTransaction.cleared ?? false,
       })
@@ -714,6 +723,7 @@ const upsertPayee = async (name: string) => {
                 payee: deletedTransaction.payee,
                 category: deletedTransaction.category,
                 category_group: deletedTransaction.category_group,
+                category_item_id: deletedTransaction.category_item_id ?? null,
                 balance: deletedTransaction.balance,
                 user_id: user?.id,
                 account_id: accountId,
@@ -797,6 +807,7 @@ const upsertPayee = async (name: string) => {
             payee: transaction.payee,
             category: transaction.category,
             category_group: transaction.category_group,
+            category_item_id: transaction.category_item_id ?? null,
             balance: transaction.balance,
             user_id: user?.id,
             account_id: accountId,
@@ -815,6 +826,7 @@ const upsertPayee = async (name: string) => {
               payee: mirrorTransaction.payee,
               category: mirrorTransaction.category,
               category_group: mirrorTransaction.category_group,
+              category_item_id: mirrorTransaction.category_item_id ?? null,
               balance: mirrorTransaction.balance,
               user_id: user?.id,
               account_id: mirrorAccount.id,
@@ -887,6 +899,7 @@ const upsertPayee = async (name: string) => {
   const contextValue = useMemo(
     () => ({
       accounts,
+      accountsLoading,
       addTransaction,
       addTransactionWithMirror,
       addAccount,
@@ -906,7 +919,7 @@ const upsertPayee = async (name: string) => {
       refetchAccounts: fetchAccounts,
       reorderAccounts,
     }),
-    [accounts, recentTransactions, savedPayees, reorderAccounts]
+    [accounts, accountsLoading, recentTransactions, savedPayees, reorderAccounts]
   );
 
   return (

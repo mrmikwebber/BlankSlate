@@ -1095,6 +1095,7 @@ export function serializeMonthView(
         notes: item.notes,
         notes_history: item.notes_history,
         isDiscretionaryPool: item.isDiscretionaryPool,
+        isHiddenFromInsights: item.isHiddenFromInsights,
       };
     }),
   }));

@@ -13,13 +13,14 @@ import MonthNav from "./MonthNav";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-import { BarChart3, CreditCard, Wallet, TrendingUp, Plus } from "lucide-react";
+import { BarChart3, CreditCard, Wallet, TrendingUp, Settings, Plus } from "lucide-react";
 
 const NAV_ITEMS: { id: TabletView; icon: React.ReactNode; label: string }[] = [
   { id: "budget",        icon: <BarChart3  className="h-3.5 w-3.5" />, label: "Budget"   },
   { id: "accounts",      icon: <CreditCard className="h-3.5 w-3.5" />, label: "Accounts" },
   { id: "discretionary", icon: <Wallet     className="h-3.5 w-3.5" />, label: "Spend"    },
   { id: "insights",      icon: <TrendingUp className="h-3.5 w-3.5" />, label: "Insights" },
+  { id: "settings",      icon: <Settings   className="h-3.5 w-3.5" />, label: "Settings" },
 ];
 
 interface SidebarPanelProps {
@@ -48,6 +49,19 @@ export default function SidebarPanel({ activeView, onViewChange }: SidebarPanelP
 
   const currentMonthDate = parseISO(`${budgetCtx?.currentMonth ?? format(new Date(), "yyyy-MM")}-01`);
 
+  // Category names the user has flagged to exclude from Insights charts —
+  // must match the same exclusion applied in totalSpendingTile.tsx and
+  // MobileOverviewTab.tsx so this sidebar pace figure agrees with them.
+  const hiddenCategoryNames = useMemo(() => {
+    const names = new Set<string>();
+    budgetCtx?.budgetView?.categories.forEach((g) =>
+      g.categoryItems.forEach((i) => {
+        if (i.isHiddenFromInsights) names.add(i.name);
+      })
+    );
+    return names;
+  }, [budgetCtx?.budgetView]);
+
   const spendingPace = useMemo(() => {
     const today = new Date();
     const isCurrentRealMonth = isSameMonth(currentMonthDate, today);
@@ -59,7 +73,9 @@ export default function SidebarPanel({ activeView, onViewChange }: SidebarPanelP
         const isTransfer = (!tx.category && !tx.category_group) || tx.payee?.toLowerCase().includes("transfer");
         const isStartingBalance = tx.category === "Category Not Needed" || tx.category_group === "Starting Balance";
         const isCardPayment = tx.category_group === "Credit Card Payments";
-        return tx.balance < 0 && tx.date && isSameMonth(parseISO(tx.date), monthDate) && !isTransfer && !isStartingBalance && !isCardPayment;
+        const isReconciliation = tx.category_group === "Reconciliation (Hidden)";
+        const isHidden = tx.category ? hiddenCategoryNames.has(tx.category) : false;
+        return tx.balance < 0 && tx.date && isSameMonth(parseISO(tx.date), monthDate) && !isTransfer && !isStartingBalance && !isCardPayment && !isReconciliation && !isHidden;
       }).reduce((sum, tx) => sum + Math.abs(tx.balance), 0);
 
     const totalOutflow = getMonthOutflow(currentMonthDate);
@@ -91,7 +107,7 @@ export default function SidebarPanel({ activeView, onViewChange }: SidebarPanelP
       daysElapsed,
       daysInMonth,
     };
-  }, [accounts, currentMonthDate]);
+  }, [accounts, currentMonthDate, hiddenCategoryNames]);
   const [draggingId, setDraggingId] = useState<string | number | null>(null);
   const [dragOver, setDragOver] = useState<{
     id: string | number;

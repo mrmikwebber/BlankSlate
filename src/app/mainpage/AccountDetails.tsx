@@ -19,13 +19,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Plus, Edit2, Trash2, ArrowLeft, CheckCircle2, Circle, Flag } from "lucide-react";
+import { Plus, Edit2, Trash2, ArrowLeft, CheckCircle2, Circle, Flag, Search, X } from "lucide-react";
 
 export default function AccountDetails() {
   const { id } = useParams();
   const router = useRouter();
   const { user } = useAuth();
-  const { accounts, addTransaction, addTransactionWithMirror, deleteTransactionWithMirror, editAccountName, refreshSingleAccount, toggleCleared, toggleApproved, approveAll } =
+  const { accounts, accountsLoading, addTransaction, addTransactionWithMirror, deleteTransactionWithMirror, editAccountName, refreshSingleAccount, toggleCleared, toggleApproved, approveAll } =
     useAccountContext();
   const { registerAction } = useUndoRedo();
 
@@ -56,6 +56,7 @@ export default function AccountDetails() {
   const [reconcileOpen, setReconcileOpen] = useState(false);
   const [reconcileInput, setReconcileInput] = useState("");
   const [reconcileError, setReconcileError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const account = accounts.find((acc) => acc.id.toString() === id);
   const accountBalance =
@@ -246,7 +247,14 @@ export default function AccountDetails() {
 
   const sortedTransactions = useMemo(() => {
     if (!account) return [];
-    const txs = [...account.transactions];
+    const q = searchQuery.trim().toLowerCase();
+    const txs = q
+      ? account.transactions.filter(
+          (tx) =>
+            tx.payee?.toLowerCase().includes(q) ||
+            categoryLabel(tx).toLowerCase().includes(q)
+        )
+      : [...account.transactions];
     const dir = sortConfig.direction === "asc" ? 1 : -1;
 
     txs.sort((a, b) => {
@@ -270,7 +278,7 @@ export default function AccountDetails() {
     });
 
     return txs;
-  }, [account, sortConfig, categoryLabel]);
+  }, [account, sortConfig, categoryLabel, searchQuery]);
 
   const toggleSort = (key: "date" | "payee" | "category" | "amount") => {
     setSortConfig((prev) => {
@@ -384,6 +392,9 @@ export default function AccountDetails() {
   }, [account, selectedTxId, showForm, editingTransactionId, deleteTransactionWithMirror, sortedTransactions]);
 
   if (!account) {
+    if (accountsLoading) {
+      return <p className="text-center mt-10 text-slate-400 dark:text-slate-500">Loading account…</p>;
+    }
     return <p className="text-center mt-10">Account not found.</p>;
   }
 
@@ -519,6 +530,25 @@ export default function AccountDetails() {
         </div>
 
         <div className="flex items-center gap-2">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+            <Input
+              data-cy="account-search-input"
+              type="text"
+              placeholder="Search payee or category…"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="h-8 w-56 pl-8 pr-7 text-xs"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
           <Button
             onClick={() => { setReconcileInput(accountBalance.toFixed(2)); setReconcileError(null); setReconcileOpen(true); }}
             variant="outline"
@@ -797,10 +827,11 @@ export default function AccountDetails() {
             </label>
             <Input
               id="reconcile-balance"
-              type="number"
+              type="text"
+              inputMode="decimal"
               value={reconcileInput}
               onChange={(e) => {
-                setReconcileInput(e.target.value);
+                setReconcileInput(e.target.value.replace(/,/g, ""));
                 setReconcileError(null);
               }}
               onKeyDown={(e) => {

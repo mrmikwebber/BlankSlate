@@ -38,6 +38,11 @@ export interface ComputedCategoryItem {
   // compute engine). Safe-to-Spend derives its pace entirely from this
   // item's real `available` above; there's no separate ceiling to track.
   isDiscretionaryPool?: boolean;
+
+  // Excludes this category's transactions from Insights charts (donut,
+  // spending pace, trend, category table) without affecting the budget
+  // itself — e.g. a reimbursed personal loan that isn't real spending.
+  isHiddenFromInsights?: boolean;
 }
 
 export interface ComputedCategory {
@@ -101,6 +106,7 @@ export interface CategoryItemMeta {
   notes?: string;
   notes_history?: NoteEntry[];
   isDiscretionaryPool?: boolean;
+  isHiddenFromInsights?: boolean;
 }
 
 export interface CategoryGroupMeta {
@@ -195,6 +201,7 @@ export interface UpdateItemRequest {
   target?: Target | null;
   notes?: string;
   isDiscretionaryPool?: boolean;
+  isHiddenFromInsights?: boolean;
 }
 
 export interface RecomputeRequest {

@@ -9,6 +9,7 @@ import SidebarPanel from "../mainpage/SidebarPanel";
 import MobileDashboardShell from "../mainpage/MobileDashboardShell";
 import TabletRail, { TabletView } from "../mainpage/TabletRail";
 import DiscretionaryTab from "../mainpage/tabs/DiscretionaryTab";
+import SettingsTab from "../mainpage/tabs/SettingsTab";
 import DashboardToolbar from "../mainpage/DashboardToolbar";
 
 export default function Home() {
@@ -70,6 +71,11 @@ export default function Home() {
                 <TotalSpendingTile />
               </div>
             )}
+            {tabletView === "settings" && (
+              <div className="h-full overflow-auto">
+                <SettingsTab />
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -100,6 +106,11 @@ export default function Home() {
             {desktopView === "discretionary" && (
               <div className="flex-1 min-h-0 min-w-0 p-4 overflow-auto">
                 <DiscretionaryTab />
+              </div>
+            )}
+            {desktopView === "settings" && (
+              <div className="flex-1 min-h-0 min-w-0 p-4 overflow-auto">
+                <SettingsTab />
               </div>
             )}
           </div>
