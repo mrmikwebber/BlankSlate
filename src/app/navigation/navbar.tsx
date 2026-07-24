@@ -5,16 +5,74 @@ import { useAuth } from "../context/AuthContext";
 import { useDarkMode } from "../context/DarkModeContext";
 import { supabase } from "../../utils/supabaseClient";
 import { createPortal } from "react-dom";
-import { Moon, Sun, User } from "lucide-react";
+import { Moon, Sun, User, MoreHorizontal } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { isAdminUser, normalizeAdminList } from "@/lib/admin";
 import dynamic from "next/dynamic";
 import { getDaysInMonth, getDate } from "date-fns";
 
 const MonthlyAuditModal = dynamic(() => import("../mainpage/MonthlyAuditModal"), { ssr: false });
 
+function UtilityMenu({
+  isAdmin,
+  onExport,
+  onReportBug,
+  onSuggestFeature,
+  onReset,
+  compact,
+}: {
+  isAdmin: boolean;
+  onExport: () => void;
+  onReportBug: () => void;
+  onSuggestFeature: () => void;
+  onReset: () => void;
+  compact?: boolean;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label="More options"
+          className={
+            compact
+              ? "h-8 w-8 flex items-center justify-center rounded-md text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              : "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+          }
+        >
+          <MoreHorizontal className="h-4 w-4" />
+          {!compact && <span>Menu</span>}
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-52">
+        <DropdownMenuItem onSelect={onExport}>Export Data</DropdownMenuItem>
+        <DropdownMenuItem onSelect={onReportBug}>Report Bug</DropdownMenuItem>
+        <DropdownMenuItem onSelect={onSuggestFeature}>Suggest Feature</DropdownMenuItem>
+        {isAdmin && (
+          <DropdownMenuItem asChild>
+            <Link href="/admin/port-user-data">Admin Tools</Link>
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          onSelect={onReset}
+          className="text-red-600 dark:text-red-400 focus:bg-red-50 dark:focus:bg-red-950 focus:text-red-700 dark:focus:text-red-300"
+        >
+          Reset Transactions
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 export default function Navbar() {
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showAuditModal, setShowAuditModal] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
   const [showBugModal, setShowBugModal] = useState(false);
@@ -53,10 +111,6 @@ export default function Navbar() {
     window.addEventListener("keydown", handleEscape);
     return () => window.removeEventListener("keydown", handleEscape);
   }, [showResetModal]);
-  
-  const toggleMobileMenu = () => {
-    setIsMobileMenuOpen(!isMobileMenuOpen);
-  };
   
   const { user, signOut } = useAuth();
   const name = user?.user_metadata?.first_name;
@@ -112,6 +166,36 @@ export default function Navbar() {
     }
   };
 
+  const handleExportData = async () => {
+    const [planRes, regRes] = await Promise.all([
+      fetch("/api/export/plan"),
+      fetch("/api/export/register"),
+    ]);
+    for (const [res, name] of [[planRes, "plan"], [regRes, "register"]] as const) {
+      if (!res.ok) continue;
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const cd = res.headers.get("Content-Disposition") ?? "";
+      a.download = cd.match(/filename="([^"]+)"/)?.[1] ?? `blankslate-${name}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+  };
+
+  const openReportBug = () => {
+    setShowBugModal(true);
+    setBugError(null);
+    setBugSuccess(null);
+  };
+
+  const openSuggestFeature = () => {
+    setShowSuggestionModal(true);
+    setSuggestionError(null);
+    setSuggestionSuccess(null);
+  };
+
   return (
     <div>
       <nav className="block w-full px-3 py-2 mx-auto bg-slate-50 dark:bg-slate-900 sticky top-0 shadow-sm dark:shadow lg:px-4 z-[9999]">
@@ -135,27 +219,16 @@ export default function Navbar() {
                 <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-ledger-500" />
               </button>
             )}
-            <button
-              className="relative ml-auto h-6 max-h-[40px] w-6 max-w-[40px] select-none rounded-lg text-center align-middle text-xs font-medium uppercase text-inherit transition-all hover:bg-transparent focus:bg-transparent active:bg-transparent disabled:pointer-events-none disabled:opacity-50 disabled:shadow-none"
-              onClick={toggleMobileMenu}
-              type="button"
-            >
-              <span className="absolute transform -translate-x-1/2 -translate-y-1/2 top-1/2 left-1/2">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="w-8 h-8"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M4 6h16M4 12h16M4 18h16"
-                  ></path>
-                </svg>
-              </span>
-            </button>
+            {user && (
+              <UtilityMenu
+                isAdmin={isAdmin}
+                onExport={handleExportData}
+                onReportBug={openReportBug}
+                onSuggestFeature={openSuggestFeature}
+                onReset={() => setShowResetModal(true)}
+                compact
+              />
+            )}
           </div>
 
           <div className="hidden lg:block">
@@ -212,14 +285,6 @@ export default function Navbar() {
                         <Moon className={`absolute inset-0 h-4 w-4 text-slate-600 transition-opacity duration-100 ${isDarkMode ? "opacity-0" : "opacity-100"}`} />
                       </span>
                     </button>
-                    {isAdmin && (
-                      <Link
-                        href="/admin/port-user-data"
-                        className="px-3 py-1.5 rounded-md text-xs border border-ledger-300 dark:border-ledger-700 text-ledger-800 dark:text-ledger-300 bg-transparent hover:bg-ledger-50 dark:hover:bg-ledger-950 transition-colors"
-                      >
-                        Admin Tools
-                      </Link>
-                    )}
                     {isEndOfMonth && (
                       <button
                         onClick={() => setShowAuditModal(true)}
@@ -230,54 +295,13 @@ export default function Navbar() {
                         <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-ledger-500" />
                       </button>
                     )}
-                    <button
-                      onClick={async () => {
-                        const [planRes, regRes] = await Promise.all([
-                          fetch("/api/export/plan"),
-                          fetch("/api/export/register"),
-                        ]);
-                        for (const [res, name] of [[planRes, "plan"], [regRes, "register"]] as const) {
-                          if (!res.ok) continue;
-                          const blob = await res.blob();
-                          const url = URL.createObjectURL(blob);
-                          const a = document.createElement("a");
-                          a.href = url;
-                          const cd = res.headers.get("Content-Disposition") ?? "";
-                          a.download = cd.match(/filename="([^"]+)"/)?.[1] ?? `blankslate-${name}.csv`;
-                          a.click();
-                          URL.revokeObjectURL(url);
-                        }
-                      }}
-                      className="px-3 py-1.5 rounded-md text-xs border border-ledger-300 dark:border-ledger-700 text-ledger-700 dark:text-ledger-300 bg-transparent hover:bg-ledger-50 dark:hover:bg-ledger-950 transition-colors"
-                    >
-                      Export Data
-                    </button>
-                    <button
-                      onClick={() => setShowResetModal(true)}
-                      className="px-3 py-1.5 rounded-md text-xs border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                    >
-                      Reset Transactions
-                    </button>
-                    <button
-                      onClick={() => {
-                        setShowBugModal(true);
-                        setBugError(null);
-                        setBugSuccess(null);
-                      }}
-                      className="px-3 py-1.5 rounded-md text-xs border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300 bg-transparent hover:bg-amber-50 dark:hover:bg-amber-950 transition-colors"
-                    >
-                      Report Bug
-                    </button>
-                    <button
-                      onClick={() => {
-                        setShowSuggestionModal(true);
-                        setSuggestionError(null);
-                        setSuggestionSuccess(null);
-                      }}
-                      className="px-3 py-1.5 rounded-md text-xs border border-blue-300 dark:border-blue-700 text-blue-800 dark:text-blue-300 bg-transparent hover:bg-blue-50 dark:hover:bg-blue-950 transition-colors"
-                    >
-                      Suggest Feature
-                    </button>
+                    <UtilityMenu
+                      isAdmin={isAdmin}
+                      onExport={handleExportData}
+                      onReportBug={openReportBug}
+                      onSuggestFeature={openSuggestFeature}
+                      onReset={() => setShowResetModal(true)}
+                    />
                     <button onClick={signOut} className="bg-ledger-600 dark:bg-ledger-700 hover:bg-ledger-500 dark:hover:bg-ledger-600 text-white px-5 py-1.5 rounded-md text-xs transition-colors">
                       Sign Out
                     </button>

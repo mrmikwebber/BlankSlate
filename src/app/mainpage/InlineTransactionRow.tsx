@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { CheckCircle2, Circle } from "lucide-react";
+import { findLastCategoryForPayee } from "@/app/utils/lastCategoryForPayee";
 
 const DROPDOWN_MAX_HEIGHT = 240; // matches max-h-60
 const DROPDOWN_GAP = 4;
@@ -309,6 +310,32 @@ export default function InlineTransactionRow({
           : `Payment from ${targetName}`;
       return `Transfer from ${targetName}`;
     }
+  };
+
+  // On selecting a real (non-transfer) payee while adding a new transaction,
+  // prefill the category from that payee's most recent transaction — mirrors
+  // YNAB's payee autofill. Never runs in edit mode, so changing a payee on
+  // an existing transaction never clobbers its already-set category.
+  const applyPayeeAutofillCategory = (name: string) => {
+    if (isEdit) return;
+    const match = findLastCategoryForPayee(accounts, name);
+    if (!match) {
+      setSelectedGroup("");
+      setSelectedItem("");
+      setCategoryInput("");
+      return;
+    }
+    if (match.category === "Ready to Assign") {
+      setSelectedGroup("Ready to Assign");
+      setSelectedItem("");
+      setCategoryInput("Ready to Assign");
+      return;
+    }
+    setSelectedGroup(match.categoryGroup ?? "");
+    setSelectedItem(match.category);
+    setCategoryInput(
+      match.categoryGroup ? `${match.categoryGroup} ▸ ${match.category}` : match.category
+    );
   };
 
   const handleKeyDown = (e: KeyboardEvent) => {
@@ -710,9 +737,7 @@ export default function InlineTransactionRow({
                   } else {
                     setTransferPayee(match.label);
                     setSelectedPayeeAccountName(null);
-                    setSelectedGroup("");
-                    setSelectedItem("");
-                    setCategoryInput("");
+                    applyPayeeAutofillCategory(match.label);
                   }
                   setPayeeInput(match.label);
                   setPayeeDropdownOpen(false);
@@ -853,9 +878,7 @@ export default function InlineTransactionRow({
                             setIsTypingPayee(false);
                             setTransferPayee(suggestion.label);
                             setSelectedPayeeAccountName(null);
-                            setSelectedGroup("");
-                            setSelectedItem("");
-                            setCategoryInput("");
+                            applyPayeeAutofillCategory(suggestion.label);
                             setPayeeInput(suggestion.label);
                             setPayeeDropdownOpen(false);
                           }}

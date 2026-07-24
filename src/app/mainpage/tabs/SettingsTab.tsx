@@ -375,6 +375,9 @@ function BankConnectionSection() {
                 Disconnect
               </Button>
             </div>
+            <p className="text-[11px] text-slate-400 dark:text-slate-500">
+              Also syncs automatically once a day — use Sync Now if you want the latest transactions right away.
+            </p>
           </div>
         )}
       </CardContent>
