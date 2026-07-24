@@ -55,10 +55,22 @@
       "Bash(RTA_DEBUG=1 npx vitest run tests/tmp-rta-verify.test.ts)",
       "Bash(grep -v '\"\\\\$0.00\",\"\\\\$0.00\",\"\\\\$0.00\"' \"blankslate-plan-2026-07-22.csv\")",
       "Bash(awk -F'\",\"' '{print $1}')",
-      "Bash(awk -F'\",\"' '{gsub\\(/\"/,\"\"\\); if \\($5 != \"$0.00\" && $1 !~ /Jun 2026|Jul 2026/ && NR>1\\) print}' \"blankslate-plan-2026-07-22.csv\")"
+      "Bash(awk -F'\",\"' '{gsub\\(/\"/,\"\"\\); if \\($5 != \"$0.00\" && $1 !~ /Jun 2026|Jul 2026/ && NR>1\\) print}' \"blankslate-plan-2026-07-22.csv\")",
+      "Bash(npx next *)",
+      "Bash(npm run dev > /tmp/blankslate-dev.log 2>&1 & *)",
+      "Bash(curl -s -o /dev/null -w \"status:%{http_code}\\\\n\" http://localhost:3000/auth)",
+      "Bash(curl -s -o /dev/null -w \"root: %{http_code}\\\\n\" http://localhost:3001/)",
+      "Bash(curl -s -w \"\\\\nhttp:%{http_code}\\\\n\" http://localhost:3001/api/cron/simplefin-sync)",
+      "Bash(curl -s -w \"\\\\nhttp:%{http_code}\\\\n\" -X POST http://localhost:3001/api/simplefin/sync)",
+      "Bash(powershell -NoProfile -Command \"Get-Process -Id 1545,1553 -ErrorAction SilentlyContinue | Stop-Process -Force\")",
+      "Bash(curl -s -o /dev/null -w \"status:%{http_code}\\\\n\" http://localhost:3001/auth)",
+      "PowerShell(Get-NetTCPConnection -LocalPort 3001 -State Listen | Select-Object -ExpandProperty OwningProcess -Unique | ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue; \"killed $_\" })",
+      "Bash(curl -s -o /dev/null -w \"status:%{http_code}\\\\n\" --max-time 3 http://localhost:3001/auth)",
+      "Bash(node -e \"console.log\\(require\\('crypto'\\).randomBytes\\(32\\).toString\\('hex'\\)\\)\")"
     ],
     "additionalDirectories": [
-      "/Users/michaelwebb/Documents/GitHub/BlankSlate/src/app/api/budget/month"
+      "/Users/michaelwebb/Documents/GitHub/BlankSlate/src/app/api/budget/month",
+      "\\tmp"
     ]
   }
 }

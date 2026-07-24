@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/simplefin-sync",
+      "schedule": "0 13 * * *"
+    }
+  ]
+}

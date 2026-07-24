@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { findLastCategoryForPayee } from "@/app/utils/lastCategoryForPayee";
 
 interface Props {
   accountId: number;
@@ -151,6 +152,27 @@ export default function MobileTransactionsTab({ accountId, onBack }: Props) {
       if (isOtherCredit) return `Transfer to ${thisAcc.name}`;
       return isThisCredit ? `Payment to ${thisAcc.name}` : `Transfer to ${thisAcc.name}`;
     }
+  };
+
+  // On selecting a real (non-account) payee while adding a new transaction,
+  // prefill the category from that payee's most recent transaction (mirrors
+  // InlineTransactionRow's desktop behavior). Never runs when editing, so
+  // changing a payee on an existing transaction never clobbers its category.
+  const applyPayeeAutofillCategory = (name: string) => {
+    if (editingTxId) return;
+    const match = findLastCategoryForPayee(accounts, name);
+    if (!match) {
+      setFormCategory("");
+      setFormCategoryGroup("");
+      return;
+    }
+    if (match.category === "Ready to Assign") {
+      setFormCategory("Ready to Assign");
+      setFormCategoryGroup("");
+      return;
+    }
+    setFormCategory(match.category);
+    setFormCategoryGroup(match.categoryGroup ?? "");
   };
 
   // Resolves a group/item name pair to the category_item's stable UUID — the
@@ -649,6 +671,7 @@ export default function MobileTransactionsTab({ accountId, onBack }: Props) {
                             }
                           } else {
                             setSelectedPayeeAccount(null);
+                            applyPayeeAutofillCategory(p.name);
                           }
                           setPayeeSuggestionsOpen(false);
                         }}
