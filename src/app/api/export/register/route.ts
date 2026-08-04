@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { format, parseISO } from "date-fns";
+import { getCurrentBudgetId } from "@/lib/budgets";
 
 function formatAmount(value: number): string {
   return `$${Math.abs(value).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",")}`;
@@ -17,15 +18,18 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
+    const budgetId = await getCurrentBudgetId(supabase, user.id);
+
     const [txResult, accountResult, itemResult, groupResult] = await Promise.all([
       supabase
         .from("transactions")
         .select("id, account_id, date, payee, category, category_group, balance, category_item_id, cleared, approved")
         .eq("user_id", user.id)
+        .eq("budget_id", budgetId)
         .order("date", { ascending: false }),
       supabase.from("accounts").select("id, name").eq("user_id", user.id),
-      supabase.from("category_items").select("id, name, group_id").eq("user_id", user.id),
-      supabase.from("category_groups").select("id, name").eq("user_id", user.id),
+      supabase.from("category_items").select("id, name, group_id").eq("user_id", user.id).eq("budget_id", budgetId),
+      supabase.from("category_groups").select("id, name").eq("user_id", user.id).eq("budget_id", budgetId),
     ]);
 
     if (txResult.error) throw txResult.error;

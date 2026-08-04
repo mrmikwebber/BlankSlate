@@ -1,17 +1,15 @@
 "use client";
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useDarkMode } from "../context/DarkModeContext";
-import { supabase } from "../../utils/supabaseClient";
 import { createPortal } from "react-dom";
-import { Moon, Sun, User, MoreHorizontal } from "lucide-react";
+import { Moon, Sun, User, MoreHorizontal, Sparkles } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { isAdminUser, normalizeAdminList } from "@/lib/admin";
@@ -19,20 +17,19 @@ import dynamic from "next/dynamic";
 import { getDaysInMonth, getDate } from "date-fns";
 
 const MonthlyAuditModal = dynamic(() => import("../mainpage/MonthlyAuditModal"), { ssr: false });
+const ChatPanel = dynamic(() => import("../mainpage/ChatPanel"), { ssr: false });
 
 function UtilityMenu({
   isAdmin,
   onExport,
   onReportBug,
   onSuggestFeature,
-  onReset,
   compact,
 }: {
   isAdmin: boolean;
   onExport: () => void;
   onReportBug: () => void;
   onSuggestFeature: () => void;
-  onReset: () => void;
   compact?: boolean;
 }) {
   return (
@@ -60,13 +57,6 @@ function UtilityMenu({
             <Link href="/admin/port-user-data">Admin Tools</Link>
           </DropdownMenuItem>
         )}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          onSelect={onReset}
-          className="text-red-600 dark:text-red-400 focus:bg-red-50 dark:focus:bg-red-950 focus:text-red-700 dark:focus:text-red-300"
-        >
-          Reset Transactions
-        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -74,7 +64,7 @@ function UtilityMenu({
 
 export default function Navbar() {
   const [showAuditModal, setShowAuditModal] = useState(false);
-  const [showResetModal, setShowResetModal] = useState(false);
+  const [showChatPanel, setShowChatPanel] = useState(false);
   const [showBugModal, setShowBugModal] = useState(false);
   const [showSuggestionModal, setShowSuggestionModal] = useState(false);
   const [bugSubmitting, setBugSubmitting] = useState(false);
@@ -92,7 +82,6 @@ export default function Navbar() {
   const [suggestionDescription, setSuggestionDescription] = useState("");
   const [suggestionUseCase, setSuggestionUseCase] = useState("");
   const [suggestionContact, setSuggestionContact] = useState("");
-  const [isResetting, setIsResetting] = useState(false);
   const { isDarkMode, toggleDarkMode } = useDarkMode();
   const appVersion = process.env.NEXT_PUBLIC_APP_VERSION || "1.0.0";
 
@@ -102,16 +91,6 @@ export default function Navbar() {
     return daysLeft <= 6;
   })();
   
-  useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && showResetModal) {
-        setShowResetModal(false);
-      }
-    };
-    window.addEventListener("keydown", handleEscape);
-    return () => window.removeEventListener("keydown", handleEscape);
-  }, [showResetModal]);
-  
   const { user, signOut } = useAuth();
   const name = user?.user_metadata?.first_name;
   const adminEmails = normalizeAdminList(process.env.NEXT_PUBLIC_ADMIN_EMAILS);
@@ -120,51 +99,6 @@ export default function Navbar() {
     { email: user?.email, id: user?.id },
     { emails: adminEmails, ids: adminIds }
   );
-
-  const handleResetTransactions = async () => {
-    if (!user) return;
-
-    setIsResetting(true);
-
-    try {
-      const userId = user.id;
-
-      // Delete all transactions — accounts and categories/plan are kept intact
-      const { error: txError } = await supabase
-        .from('transactions')
-        .delete()
-        .eq('user_id', userId);
-
-      if (txError) throw txError;
-
-      // Delete assigned money for every category — the category/plan
-      // structure itself (category_groups, category_items) stays
-      const { error: assignmentsError } = await supabase
-        .from('budget_assignments')
-        .delete()
-        .eq('user_id', userId);
-
-      if (assignmentsError) throw assignmentsError;
-
-      // Clear legacy per-month budget_data rows (superseded by budget_assignments)
-      const { error: budgetError } = await supabase
-        .from('budget_data')
-        .delete()
-        .eq('user_id', userId);
-
-      if (budgetError) throw budgetError;
-
-      // Close modal and refresh the page to show clean state
-      setShowResetModal(false);
-      setIsResetting(false);
-      window.location.reload();
-
-    } catch (error) {
-      console.error('Error resetting transactions:', error);
-      alert('Failed to reset transactions. Please try again.');
-      setIsResetting(false);
-    }
-  };
 
   const handleExportData = async () => {
     const [planRes, regRes] = await Promise.all([
@@ -220,12 +154,21 @@ export default function Navbar() {
               </button>
             )}
             {user && (
+              <button
+                onClick={() => setShowChatPanel(true)}
+                title="Spending Assistant"
+                aria-label="Open spending assistant"
+                className="h-8 w-8 flex items-center justify-center rounded-md text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              >
+                <Sparkles className="h-4 w-4" />
+              </button>
+            )}
+            {user && (
               <UtilityMenu
                 isAdmin={isAdmin}
                 onExport={handleExportData}
                 onReportBug={openReportBug}
                 onSuggestFeature={openSuggestFeature}
-                onReset={() => setShowResetModal(true)}
                 compact
               />
             )}
@@ -295,12 +238,18 @@ export default function Navbar() {
                         <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-ledger-500" />
                       </button>
                     )}
+                    <button
+                      onClick={() => setShowChatPanel(true)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs border border-ledger-400 dark:border-ledger-500 text-ledger-700 dark:text-ledger-300 bg-transparent hover:bg-ledger-50 dark:hover:bg-ledger-950 transition-colors font-semibold"
+                    >
+                      <Sparkles className="h-3.5 w-3.5" />
+                      Ask AI
+                    </button>
                     <UtilityMenu
                       isAdmin={isAdmin}
                       onExport={handleExportData}
                       onReportBug={openReportBug}
                       onSuggestFeature={openSuggestFeature}
-                      onReset={() => setShowResetModal(true)}
                     />
                     <button onClick={signOut} className="bg-ledger-600 dark:bg-ledger-700 hover:bg-ledger-500 dark:hover:bg-ledger-600 text-white px-5 py-1.5 rounded-md text-xs transition-colors">
                       Sign Out
@@ -317,52 +266,9 @@ export default function Navbar() {
         <MonthlyAuditModal onClose={() => setShowAuditModal(false)} />
       )}
 
-      {/* Reset Transactions Confirmation Modal */}
-      {showResetModal && createPortal(
-        <div
-          className="fixed inset-0 bg-black/30 dark:bg-black/60 z-[10000] flex items-center justify-center"
-          onClick={() => setShowResetModal(false)}
-        >
-          <div
-            className="bg-slate-50 dark:bg-slate-900 p-6 rounded-lg shadow-lg dark:shadow-xl w-full max-w-md space-y-4 border dark:border-slate-700"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 className="text-xl font-semibold text-red-600 dark:text-red-400">
-              Reset Transactions?
-            </h2>
-            <p className="text-sm text-slate-700 dark:text-slate-300">
-              This will permanently delete:
-            </p>
-            <ul className="text-sm text-slate-700 dark:text-slate-300 list-disc list-inside space-y-1">
-              <li>All transactions</li>
-              <li>All assigned money for every category</li>
-            </ul>
-            <p className="text-sm text-slate-700 dark:text-slate-300">
-              Your accounts and categories are kept.
-            </p>
-            <p className="text-sm font-semibold text-red-600 dark:text-red-400">
-              This action cannot be undone!
-            </p>
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                className="px-4 py-2 text-sm rounded-md border border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 dark:text-slate-300 transition-colors"
-                onClick={() => setShowResetModal(false)}
-                disabled={isResetting}
-              >
-                Cancel
-              </button>
-              <button
-                className="px-4 py-2 text-sm rounded-md bg-red-600 dark:bg-red-700 text-white hover:bg-red-700 dark:hover:bg-red-600 disabled:opacity-50 transition-colors"
-                onClick={handleResetTransactions}
-                disabled={isResetting}
-              >
-                {isResetting ? 'Resetting...' : 'Yes, Reset Transactions'}
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
+      {/* Spending Assistant chat panel — mounted whenever a user is signed in
+          (not just when open) so the slide-in/out transition can animate */}
+      {user && <ChatPanel open={showChatPanel} onClose={() => setShowChatPanel(false)} />}
 
       {/* Report Bug Modal */}
       {showBugModal && createPortal(

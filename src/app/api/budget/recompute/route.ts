@@ -6,6 +6,7 @@ import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { loadBudgetState } from "@/lib/budgetLoader";
+import { getCurrentBudgetId } from "@/lib/budgets";
 import { serializeMonthView } from "../../../../../lib/budgetMath";
 import type { RecomputeRequest } from "@/types/budget";
 
@@ -27,7 +28,8 @@ export async function POST(req: Request) {
   }
 
   try {
-    const state = await loadBudgetState(supabase, user.id);
+    const budgetId = await getCurrentBudgetId(supabase, user.id);
+    const state = await loadBudgetState(supabase, user.id, budgetId);
 
     const allMonths = [...state.months.keys()].sort();
     const targetMonths =

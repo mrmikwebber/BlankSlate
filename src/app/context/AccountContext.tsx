@@ -12,6 +12,7 @@ import {
 import { useAuth } from "./AuthContext";
 import { supabase } from "@/utils/supabaseClient";
 import { useUndoRedo } from "./UndoRedoContext";
+import { useBudgetSelection } from "./BudgetSelectionContext";
 export interface Transaction {
   id: number;
   date: string;
@@ -23,6 +24,8 @@ export interface Transaction {
   balance: number;
   cleared: boolean;
   approved: boolean;
+  pending?: boolean;
+  created_at?: string;
 }
 
 export interface Account {
@@ -90,6 +93,7 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const { user, isRecoverySession } = useAuth() || { user: null, isRecoverySession: false };
   const { registerAction } = useUndoRedo();
+  const { currentBudgetId } = useBudgetSelection();
 
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [accountsLoading, setAccountsLoading] = useState(true);
@@ -145,32 +149,52 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return ordered;
   };
   const fetchAccounts = async () => {
-    if (!user || isRecoverySession) {
-      console.log("[AccountContext] fetchAccounts skipped — user:", !!user, "isRecoverySession:", isRecoverySession);
+    if (!user || isRecoverySession || !currentBudgetId) {
+      console.log("[AccountContext] fetchAccounts skipped — user:", !!user, "isRecoverySession:", isRecoverySession, "currentBudgetId:", currentBudgetId);
       return;
     }
     const gen = ++fetchGenRef.current;
-    console.log(`[AccountContext] fetchAccounts start — gen=${gen} user=${user.id}`);
+    console.log(`[AccountContext] fetchAccounts start — gen=${gen} user=${user.id} budget=${currentBudgetId}`);
 
-    const { data, error } = await supabase
-      .from("accounts")
-      .select("*, transactions(*)")
-      .eq("user_id", user.id);
+    // Two separate queries rather than an embedded `accounts(*, transactions(*))`
+    // select: accounts stay budget-agnostic, but a dot-filter on an embedded
+    // (non-`!inner`) resource is a Supabase no-op — it would silently return
+    // every transaction across every budget mixed together. Filtering and
+    // stitching client-side avoids that footgun.
+    const [{ data: accountsData, error: accountsError }, { data: txData, error: txError }] =
+      await Promise.all([
+        supabase.from("accounts").select("*").eq("user_id", user.id),
+        supabase
+          .from("transactions")
+          .select("*")
+          .eq("user_id", user.id)
+          .eq("budget_id", currentBudgetId),
+      ]);
 
     if (gen !== fetchGenRef.current) {
       console.warn(`[AccountContext] fetchAccounts stale result dropped — gen=${gen} current=${fetchGenRef.current}`);
       return;
     }
 
-    if (error) {
-      console.error("[AccountContext] fetchAccounts error:", error.message, error);
+    if (accountsError || txError) {
+      console.error("[AccountContext] fetchAccounts error:", accountsError?.message, txError?.message);
       setAccountsLoading(false);
       return;
     }
 
-    console.log(`[AccountContext] fetchAccounts complete — gen=${gen} returned ${data?.length ?? 0} accounts:`, data?.map(a => `${a.id}:${a.name}`));
-    if (data) {
-      const normalized = (data as unknown as Account[]).map((acc) => normalizeAccount(acc));
+    console.log(`[AccountContext] fetchAccounts complete — gen=${gen} returned ${accountsData?.length ?? 0} accounts:`, accountsData?.map(a => `${a.id}:${a.name}`));
+    if (accountsData) {
+      const txByAccount = new Map<string, unknown[]>();
+      for (const tx of txData ?? []) {
+        const key = String((tx as { account_id: string }).account_id);
+        if (!txByAccount.has(key)) txByAccount.set(key, []);
+        txByAccount.get(key)!.push(tx);
+      }
+      const withTransactions = accountsData.map((acc) => ({
+        ...acc,
+        transactions: txByAccount.get(String(acc.id)) ?? [],
+      }));
+      const normalized = (withTransactions as unknown as Account[]).map((acc) => normalizeAccount(acc));
       const ordered = applyOrder(normalized, loadOrder());
       setAccounts(ordered);
     }
@@ -178,17 +202,24 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   useEffect(() => {
-    console.log("[AccountContext] user changed — id:", user?.id ?? "null", "isRecoverySession:", isRecoverySession);
+    console.log("[AccountContext] user changed — id:", user?.id ?? "null", "isRecoverySession:", isRecoverySession, "currentBudgetId:", currentBudgetId);
     if (!user || isRecoverySession) {
       setAccountsLoading(false);
       return;
     }
+    if (!currentBudgetId) {
+      // Still waiting on BudgetSelectionContext to resolve — stay loading.
+      return;
+    }
     fetchAccounts();
-  }, [user]);
+  }, [user, isRecoverySession, currentBudgetId]);
 
   // Realtime: refresh an account whenever a transaction is inserted
   useEffect(() => {
-    if (!user) return;
+    // Also re-subscribe once currentBudgetId resolves — refreshSingleAccount
+    // closes over it and no-ops while it's null, which it is on first mount
+    // (BudgetSelectionContext resolves asynchronously after `user`).
+    if (!user || !currentBudgetId) return;
 
     const channel = supabase
       .channel("transactions-insert")
@@ -210,7 +241,7 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user]);
+  }, [user, currentBudgetId]);
 
   useEffect(() => {
   if (!user) {
@@ -273,6 +304,7 @@ const upsertPayee = async (name: string) => {
       {
         ...transaction,
         user_id: user?.id,
+        budget_id: currentBudgetId,
         account_id: accountId,
       },
     ]).select();
@@ -299,6 +331,7 @@ const upsertPayee = async (name: string) => {
           {
             ...transactionData,
             user_id: user?.id,
+            budget_id: currentBudgetId,
             account_id: accountId,
           },
         ]).select();
@@ -336,6 +369,7 @@ const upsertPayee = async (name: string) => {
       {
         ...transaction,
         user_id: user?.id,
+        budget_id: currentBudgetId,
         account_id: accountId,
       },
     ]).select();
@@ -349,6 +383,7 @@ const upsertPayee = async (name: string) => {
       {
         ...mirrorTransaction,
         user_id: user?.id,
+        budget_id: currentBudgetId,
         account_id: mirrorAccountId,
       },
     ]).select();
@@ -379,6 +414,7 @@ const upsertPayee = async (name: string) => {
           {
             ...tx1Data,
             user_id: user?.id,
+            budget_id: currentBudgetId,
             account_id: accountId,
           },
         ]).select();
@@ -387,6 +423,7 @@ const upsertPayee = async (name: string) => {
           {
             ...tx2Data,
             user_id: user?.id,
+            budget_id: currentBudgetId,
             account_id: mirrorAccountId,
           },
         ]).select();
@@ -599,11 +636,12 @@ const upsertPayee = async (name: string) => {
     // the matching category item's name in sync whenever the account is
     // renamed. Not reflected in BudgetContext's cache until its next
     // fetch/month-navigation.
-    if (account?.type === "credit" && account.name !== newName && user?.id) {
+    if (account?.type === "credit" && account.name !== newName && user?.id && currentBudgetId) {
       const { data: ccGroup } = await supabase
         .from("category_groups")
         .select("id")
         .eq("user_id", user.id)
+        .eq("budget_id", currentBudgetId)
         .eq("name", "Credit Card Payments")
         .maybeSingle();
 
@@ -638,19 +676,20 @@ const upsertPayee = async (name: string) => {
   }
 
   const refreshSingleAccount = async (accountId) => {
-    console.log("[AccountContext] refreshSingleAccount — accountId:", accountId);
-    const { data, error } = await supabase
-      .from("accounts")
-      .select("*, transactions(*)")
-      .eq("id", accountId)
-      .single();
+    console.log("[AccountContext] refreshSingleAccount — accountId:", accountId, "budget:", currentBudgetId);
+    if (!currentBudgetId) return;
 
-    if (error || !data) {
-      console.error("❌ Error refreshing account:", error);
+    const [{ data, error }, { data: txData, error: txError }] = await Promise.all([
+      supabase.from("accounts").select("*").eq("id", accountId).single(),
+      supabase.from("transactions").select("*").eq("account_id", accountId).eq("budget_id", currentBudgetId),
+    ]);
+
+    if (error || !data || txError) {
+      console.error("❌ Error refreshing account:", error, txError);
       return;
     }
 
-    const updated = normalizeAccount(data);
+    const updated = normalizeAccount({ ...data, transactions: txData ?? [] });
 
     setAccounts((prev) => {
       return prev.map((acc) => (acc.id === accountId ? updated : acc));
@@ -762,6 +801,7 @@ const upsertPayee = async (name: string) => {
                 category_item_id: deletedTransaction.category_item_id ?? null,
                 balance: deletedTransaction.balance,
                 user_id: user?.id,
+                budget_id: currentBudgetId,
                 account_id: accountId,
               },
             ]).select();
@@ -846,6 +886,7 @@ const upsertPayee = async (name: string) => {
             category_item_id: transaction.category_item_id ?? null,
             balance: transaction.balance,
             user_id: user?.id,
+            budget_id: currentBudgetId,
             account_id: accountId,
           },
         ]).select();
@@ -865,6 +906,7 @@ const upsertPayee = async (name: string) => {
               category_item_id: mirrorTransaction.category_item_id ?? null,
               balance: mirrorTransaction.balance,
               user_id: user?.id,
+              budget_id: currentBudgetId,
               account_id: mirrorAccount.id,
             },
           ]).select();
@@ -955,7 +997,7 @@ const upsertPayee = async (name: string) => {
       refetchAccounts: fetchAccounts,
       reorderAccounts,
     }),
-    [accounts, accountsLoading, recentTransactions, savedPayees, reorderAccounts]
+    [accounts, accountsLoading, recentTransactions, savedPayees, reorderAccounts, currentBudgetId]
   );
 
   return (

@@ -66,11 +66,34 @@
       "Bash(curl -s -o /dev/null -w \"status:%{http_code}\\\\n\" http://localhost:3001/auth)",
       "PowerShell(Get-NetTCPConnection -LocalPort 3001 -State Listen | Select-Object -ExpandProperty OwningProcess -Unique | ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue; \"killed $_\" })",
       "Bash(curl -s -o /dev/null -w \"status:%{http_code}\\\\n\" --max-time 3 http://localhost:3001/auth)",
-      "Bash(node -e \"console.log\\(require\\('crypto'\\).randomBytes\\(32\\).toString\\('hex'\\)\\)\")"
+      "Bash(node -e \"console.log\\(require\\('crypto'\\).randomBytes\\(32\\).toString\\('hex'\\)\\)\")",
+      "Bash(tee /tmp/tsc-full.log)",
+      "Bash(curl -s -w \"\\\\nhttp:%{http_code}\\\\n\" -X POST http://localhost:3001/api/chat/spending-assistant -H \"Content-Type: application/json\" -d '{\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}')",
+      "Bash(curl -s -o /dev/null -w \"status:%{http_code}\\\\n\" --max-time 3 http://localhost:3001/dashboard)",
+      "Bash(node -e \"console.log\\(require\\('e:/Github/BlankSlate/node_modules/dotenv/package.json'\\).version\\)\")",
+      "Bash(node scripts/resetSimplefinSync.mjs)",
+      "Bash(node scripts/listReconciliations.mjs)",
+      "Bash(node scripts/checkRtaNegatives.mjs)",
+      "Bash(node scripts/inspectRows.mjs)",
+      "Bash(node scripts/inspectRows2.mjs)",
+      "Bash(npx tsx *)",
+      "Bash(mkdir -p \"e:/Github/BlankSlate/src/app/api/budgets/[id]/snapshot\")",
+      "Bash(mkdir -p \"e:/Github/BlankSlate/src/app/archived/[budgetId]\")",
+      "Bash(git worktree *)",
+      "Bash(node -e \"console.log\\(require\\('@supabase/supabase-js'\\) ? 'ok' : 'no'\\)\")",
+      "Bash(node -e \"require.resolve\\('dotenv'\\); console.log\\('has dotenv'\\)\")",
+      "Bash(node -r dotenv/config \"C:/Users/miweb/AppData/Local/Temp/claude/e--Github-BlankSlate/ce784e8f-3b93-4cfd-91fe-8f46a78ee703/scratchpad/investigate.js\" dotenv_config_path=.env.local)",
+      "Bash(node -r dotenv/config scripts/_tmp_investigate.js dotenv_config_path=.env.local)",
+      "WebFetch(domain:www.simplefin.org)",
+      "Bash(node -e \"require.resolve\\('tsx'\\); console.log\\('tsx available'\\)\")",
+      "Bash(node -e \"require.resolve\\('ts-node'\\); console.log\\('ts-node available'\\)\")",
+      "Bash(node -e \"console.log\\(new Date\\(1785758400*1000\\).toISOString\\(\\)\\)\")"
     ],
     "additionalDirectories": [
       "/Users/michaelwebb/Documents/GitHub/BlankSlate/src/app/api/budget/month",
-      "\\tmp"
+      "\\tmp",
+      "e:\\Github\\BlankSlate\\src\\app\\api\\budgets\\[id]",
+      "e:\\Github\\BlankSlate\\src\\app\\archived"
     ]
   }
 }

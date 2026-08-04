@@ -1236,4 +1236,26 @@ describe("computeBudgetState", () => {
         expect(august.ready_to_assign).toBe(700); // $1000 leftover - $300 assigned in August itself
     });
 
+    it("counts a negative Ready to Assign transaction against ready_to_assign (debit reconcile shortfall)", () => {
+        const accounts = [{ id: "a-checking", name: "Checking", type: "debit" as const }];
+        const rawTransactions: RawDbTransaction[] = [
+            {
+                id: "tx-shortfall", account_id: "a-checking", date: "2026-05-05",
+                payee: "Reconciliation Adjustment", category: "Ready to Assign", category_group: "Ready to Assign",
+                balance: -40, category_item_id: null, cleared: true, approved: true,
+            },
+        ];
+
+        const state = computeBudgetState({
+            userId: "u1",
+            accounts,
+            transactions: normalizeTransactions(rawTransactions, accounts),
+            assignments: [],
+            categoryGroups: [],
+        });
+
+        const may = serializeMonthView(state, "2026-05");
+        expect(may.ready_to_assign).toBe(-40);
+    });
+
 });

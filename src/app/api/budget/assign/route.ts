@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { loadBudgetState } from "@/lib/budgetLoader";
+import { getCurrentBudgetId } from "@/lib/budgets";
 import { serializeMonthView } from "../../../../../lib/budgetMath";
 import type { AssignRequest } from "@/types/budget";
 
@@ -34,12 +35,15 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: "assigned must be a number" }, { status: 400 });
   }
 
-  // Verify the category item belongs to this user
+  const currentBudgetId = await getCurrentBudgetId(supabase, user.id);
+
+  // Verify the category item belongs to this user's current budget
   const { data: item, error: itemError } = await supabase
     .from("category_items")
     .select("id")
     .eq("id", categoryItemId)
     .eq("user_id", user.id)
+    .eq("budget_id", currentBudgetId)
     .single();
 
   if (itemError || !item) {
@@ -52,6 +56,7 @@ export async function PATCH(req: Request) {
     .upsert(
       {
         user_id: user.id,
+        budget_id: currentBudgetId,
         category_item_id: categoryItemId,
         month,
         assigned,
@@ -65,7 +70,7 @@ export async function PATCH(req: Request) {
   }
 
   try {
-    const state = await loadBudgetState(supabase, user.id);
+    const state = await loadBudgetState(supabase, user.id, currentBudgetId);
     const view = serializeMonthView(state, month);
     return NextResponse.json(view);
   } catch (err) {

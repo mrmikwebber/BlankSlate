@@ -12,11 +12,21 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Settings as SettingsIcon, Link2, RefreshCw, Unlink, EyeOff } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Settings as SettingsIcon, Link2, RefreshCw, Unlink, EyeOff, Sparkles, Layers } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "../../context/AuthContext";
 import { useAccountContext } from "../../context/AccountContext";
 import { useBudgetContext } from "../../context/BudgetContext";
+import { useBudgetSelection } from "../../context/BudgetSelectionContext";
 
 interface SimplefinAvailableAccount {
   id: string;
@@ -385,6 +395,182 @@ function BankConnectionSection() {
   );
 }
 
+interface FreshStartResult {
+  archivedBudgetId: string;
+  newBudgetId: string;
+  seeded: Array<{ accountId: string; accountName: string; balance: number; source: "simplefin" | "manual" }>;
+  skipped: Array<{ accountId: string; accountName: string }>;
+}
+
+function FreshStartSection() {
+  const { toast } = useToast();
+  const { refetchAccounts } = useAccountContext();
+  const { invalidateAll } = useBudgetContext();
+  const { refreshBudgets } = useBudgetSelection();
+
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [archivedName, setArchivedName] = useState("");
+  const [running, setRunning] = useState(false);
+  const [lastResult, setLastResult] = useState<FreshStartResult | null>(null);
+
+  const handleFreshStart = async () => {
+    if (!archivedName.trim()) return;
+    setRunning(true);
+    try {
+      const res = await fetch("/api/budget/fresh-start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ archivedBudgetName: archivedName.trim() }),
+      });
+      const data: FreshStartResult = await jsonOrThrow(res);
+      setLastResult(data);
+      await Promise.all([refetchAccounts(), refreshBudgets()]);
+      invalidateAll();
+      toast({
+        title: "Fresh Start complete",
+        description: `"${archivedName.trim()}" archived. ${data.seeded.length} account(s) seeded in the new budget.`,
+      });
+      setConfirmOpen(false);
+      setArchivedName("");
+    } catch (err) {
+      toast({
+        title: "Fresh Start failed",
+        description: err instanceof Error ? err.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  return (
+    <Card className="border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
+      <CardContent className="pt-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <Sparkles className="h-4 w-4 text-ledger-600 dark:text-ledger-400" />
+          <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Fresh Start</p>
+        </div>
+        <p className="text-xs text-slate-500 dark:text-slate-400">
+          Archive your current budget under a name you choose and start a genuinely new one — same
+          category structure, $0 assigned/activity, and every SimpleFin-linked account trued up to
+          its real current bank balance. Nothing gets deleted; the archived budget stays fully
+          browsable from the Budgets list below.
+        </p>
+
+        <Button onClick={() => setConfirmOpen(true)} variant="outline" className="w-fit">
+          Start Fresh
+        </Button>
+
+        {lastResult && (
+          <div className="rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden text-xs">
+            <p className="px-3 py-2 bg-slate-100 dark:bg-slate-800 font-medium text-slate-600 dark:text-slate-300">
+              New budget seeded
+            </p>
+            {lastResult.seeded.map((a) => (
+              <div
+                key={a.accountId}
+                className="flex items-center justify-between px-3 py-1.5 border-t border-slate-100 dark:border-slate-800"
+              >
+                <span className="text-slate-600 dark:text-slate-300">
+                  {a.accountName} <span className="text-slate-400 dark:text-slate-500">({a.source === "simplefin" ? "bank balance" : "carried forward"})</span>
+                </span>
+                <span className={a.balance < 0 ? "text-red-600 dark:text-red-400" : "text-green-700 dark:text-green-300"}>
+                  {a.balance.toLocaleString("en-US", { style: "currency", currency: "USD" })}
+                </span>
+              </div>
+            ))}
+            {lastResult.skipped.length > 0 && (
+              <div className="px-3 py-1.5 border-t border-slate-100 dark:border-slate-800 text-slate-400 dark:text-slate-500">
+                Already at $0, no starting balance needed: {lastResult.skipped.map((a) => a.accountName).join(", ")}
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+
+      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Start Fresh?</DialogTitle>
+            <DialogDescription>
+              Your current budget will be archived under the name below — its categories,
+              transactions, and history stay exactly as they are, fully browsable afterward. A new
+              budget starts with the same category groups/items but $0 assigned and no activity,
+              and each account is seeded with its real current balance.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <label htmlFor="archived-budget-name" className="text-sm font-medium text-slate-700 dark:text-slate-200">
+              Name this budget before archiving it
+            </label>
+            <Input
+              id="archived-budget-name"
+              type="text"
+              placeholder="e.g. Phoenix"
+              value={archivedName}
+              onChange={(e) => setArchivedName(e.target.value)}
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => void handleFreshStart()}
+              disabled={running || !archivedName.trim()}
+              className="bg-ledger-600 hover:bg-ledger-700 text-white"
+            >
+              {running ? "Starting…" : "Start Fresh"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </Card>
+  );
+}
+
+function BudgetsSection() {
+  const { budgets, currentBudgetId, budgetsLoading } = useBudgetSelection();
+  const router = useRouter();
+
+  if (budgetsLoading) return null;
+
+  return (
+    <Card className="border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
+      <CardContent className="pt-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <Layers className="h-4 w-4 text-ledger-600 dark:text-ledger-400" />
+          <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Budgets</p>
+        </div>
+        <div className="rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+          {budgets.map((b) => {
+            const isCurrent = b.id === currentBudgetId;
+            return (
+              <button
+                key={b.id}
+                type="button"
+                disabled={isCurrent}
+                onClick={() => router.push(`/archived/${b.id}`)}
+                className={`w-full flex items-center justify-between px-3 py-2 text-left border-t border-slate-100 dark:border-slate-800 first:border-t-0 text-sm ${
+                  isCurrent
+                    ? "text-slate-700 dark:text-slate-200 cursor-default"
+                    : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                }`}
+              >
+                <span>{b.name}</span>
+                <span className="text-xs text-slate-400 dark:text-slate-500">
+                  {isCurrent ? "Current" : `Archived ${new Date(b.archived_at!).toLocaleDateString()}`}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function InsightsExclusionsSection() {
   const { budgetView, setCategoryHideFromInsights } = useBudgetContext();
 
@@ -447,6 +633,8 @@ export default function SettingsTab() {
       </div>
 
       <BankConnectionSection />
+      <FreshStartSection />
+      <BudgetsSection />
       <InsightsExclusionsSection />
 
       <Button

@@ -19,7 +19,8 @@ import type {
 
 export async function loadBudgetState(
   supabase: SupabaseClient,
-  userId: string
+  userId: string,
+  budgetId: string
 ): Promise<BudgetState> {
   const [accountsResult, transactionsResult, groupsResult, itemsResult, assignmentsResult] =
     await Promise.all([
@@ -34,12 +35,14 @@ export async function loadBudgetState(
           "id, account_id, date, payee, category, category_group, balance, category_item_id, cleared, approved"
         )
         .eq("user_id", userId)
+        .eq("budget_id", budgetId)
         .order("date", { ascending: true }),
 
       supabase
         .from("category_groups")
         .select("id, name, sort_order")
         .eq("user_id", userId)
+        .eq("budget_id", budgetId)
         .order("sort_order", { ascending: true }),
 
       supabase
@@ -48,12 +51,14 @@ export async function loadBudgetState(
           "id, group_id, name, sort_order, snoozed, target, notes, notes_history, is_discretionary_pool, hide_from_insights"
         )
         .eq("user_id", userId)
+        .eq("budget_id", budgetId)
         .order("sort_order", { ascending: true }),
 
       supabase
         .from("budget_assignments")
         .select("category_item_id, month, assigned")
-        .eq("user_id", userId),
+        .eq("user_id", userId)
+        .eq("budget_id", budgetId),
     ]);
 
   if (accountsResult.error) throw accountsResult.error;

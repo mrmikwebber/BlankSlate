@@ -95,7 +95,7 @@ export default function InlineTargetEditor({
           : null,
       amountNeeded: needed,
     };
-    setCategoryTarget(itemName, newTarget);
+    setCategoryTarget(categoryItem.id, newTarget);
     onClose();
   };
 

@@ -121,7 +121,7 @@ export const TargetSidebar = ({ itemName, onClose }) => {
             : null,
         amountNeeded: neededAmount,
       };
-      setCategoryTarget(categoryItem.name, newTarget);
+      setCategoryTarget(categoryItem.id, newTarget);
       setTarget(newTarget);
     }
   };
@@ -145,7 +145,7 @@ export const TargetSidebar = ({ itemName, onClose }) => {
   };
 
   const handleRemoveTarget = () => {
-    setCategoryTarget(categoryItem.name, null);
+    setCategoryTarget(categoryItem.id, null);
     handleClose();
   };
 
