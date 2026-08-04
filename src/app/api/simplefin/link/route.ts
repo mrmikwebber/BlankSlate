@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { fetchSimplefinAccounts } from "@/lib/simplefin";
+import { getCurrentBudgetId } from "@/lib/budgets";
 
 interface LinkRequest {
   simplefinAccountId: string;
@@ -82,8 +83,10 @@ export async function POST(req: Request) {
 
         if (simplefinAccount) {
           const isCredit = body.newAccount.type === "credit";
+          const currentBudgetId = await getCurrentBudgetId(supabase, user.id);
           const { error: startingBalanceError } = await supabase.from("transactions").insert({
             user_id: user.id,
+            budget_id: currentBudgetId,
             account_id: blankslateAccountId,
             date: new Date().toISOString(),
             payee: "Starting Balance",

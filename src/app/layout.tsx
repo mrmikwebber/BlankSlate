@@ -8,6 +8,7 @@ import { Toaster } from "../components/ui/toaster";
 import { AccountProvider } from "./context/AccountContext";
 import { BudgetProvider } from "./context/BudgetContext";
 import { AuthProvider } from "./context/AuthContext";
+import { BudgetSelectionProvider } from "./context/BudgetSelectionContext";
 import { UndoRedoProvider } from "./context/UndoRedoContext";
 import { DarkModeProvider } from "./context/DarkModeContext";
 import AuthListener from "./auth/AuthListener";
@@ -44,14 +45,16 @@ export default function RootLayout({
         <SpeedInsights />
         <DarkModeProvider>
           <AuthProvider>
-            <UndoRedoProvider>
-              <AccountProvider>
-                <BudgetProvider>
-                  <Navbar />
-                  {children}
-                </BudgetProvider>
-              </AccountProvider>
-            </UndoRedoProvider>
+            <BudgetSelectionProvider>
+              <UndoRedoProvider>
+                <AccountProvider>
+                  <BudgetProvider>
+                    <Navbar />
+                    {children}
+                  </BudgetProvider>
+                </AccountProvider>
+              </UndoRedoProvider>
+            </BudgetSelectionProvider>
           </AuthProvider>
         </DarkModeProvider>
         {/* Cookie consent banner (only if non-essential cookies used) */}

@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { createClient } from "@supabase/supabase-js";
 import { isAdminUser, normalizeAdminList } from "@/lib/admin";
+import { getCurrentBudgetId } from "@/lib/budgets";
 
 type PortUserPayload = {
   sourceUserId?: string;
@@ -188,11 +189,18 @@ export async function POST(req: Request) {
   }
 
   if (sourceTransactions.length > 0) {
+    // Ported transactions land in the target user's current budget — this
+    // tool doesn't copy category_groups/items/budget_assignments (a
+    // pre-existing gap predating multi-budget support, not introduced
+    // here), so category_item_id on ported rows won't resolve to a real
+    // target-side category either way.
+    const targetBudgetId = await getCurrentBudgetId(adminClient, targetUserId);
+
     const txPayload: Record<string, unknown>[] = [];
     for (const tx of sourceTransactions) {
       const txRow = tx as Record<string, unknown>;
       const accountId = txRow.account_id;
-      const txBody = omitKeys(txRow, ["id", "user_id", "account_id"]);
+      const txBody = omitKeys(txRow, ["id", "user_id", "account_id", "budget_id"]);
       const newAccountId = accountIdMap.get(String(accountId));
       if (!newAccountId) {
         return NextResponse.json(
@@ -203,6 +211,7 @@ export async function POST(req: Request) {
       txPayload.push({
         ...txBody,
         user_id: targetUserId,
+        budget_id: targetBudgetId,
         account_id: newAccountId,
       });
     }

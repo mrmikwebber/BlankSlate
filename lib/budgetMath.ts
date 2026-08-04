@@ -749,8 +749,11 @@ export function normalizeTransactions(
     // "Reconciliation (Hidden)" is a sentinel label, not a real category.
     const isReconciliation = tx.category_group === "Reconciliation (Hidden)";
     const isUncategorized = !tx.category_item_id && tx.category !== "Ready to Assign";
-    // Income: positive transaction in "Ready to Assign" (any account type)
-    const isIncome = !isReconciliation && tx.category === "Ready to Assign" && tx.balance > 0;
+    // Income: any transaction in "Ready to Assign" (any account type), sign
+    // included — a negative one is a real outflow against available-to-budget
+    // money (e.g. a debit-account reconciliation shortfall) and must reduce
+    // Ready to Assign the same way a positive one increases it.
+    const isIncome = !isReconciliation && tx.category === "Ready to Assign";
     // Direct card payment: positive inflow on a credit account that is either
     // explicitly categorized to the card name or represented as a transfer payee.
     const isCCPayment =

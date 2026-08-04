@@ -3,8 +3,10 @@
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Transaction, useAccountContext } from "@/app/context/AccountContext";
+import { useBudgetContext } from "@/app/context/BudgetContext";
 import { useUndoRedo } from "@/app/context/UndoRedoContext";
 import { useAuth } from "@/app/context/AuthContext";
+import { useBudgetSelection } from "@/app/context/BudgetSelectionContext";
 import { supabase } from "@/utils/supabaseClient";
 import { parseISO, format } from "date-fns";
 import InlineTransactionRow from "./InlineTransactionRow";
@@ -25,8 +27,10 @@ export default function AccountDetails() {
   const { id } = useParams();
   const router = useRouter();
   const { user } = useAuth();
+  const { currentBudgetId } = useBudgetSelection();
   const { accounts, accountsLoading, addTransaction, addTransactionWithMirror, deleteTransactionWithMirror, editAccountName, refreshSingleAccount, toggleCleared, toggleApproved, approveAll } =
     useAccountContext();
+  const { invalidateAll } = useBudgetContext();
   const { registerAction } = useUndoRedo();
 
   const [showForm, setShowForm] = useState(false);
@@ -161,6 +165,7 @@ export default function AccountDetails() {
               ...txData,
               account_id: account.id,
               user_id: user?.id,
+              budget_id: currentBudgetId,
             },
           ]).select();
 
@@ -197,13 +202,29 @@ export default function AccountDetails() {
 
     const today = new Date().toISOString().split("T")[0];
 
+    // Debit/asset accounts: the discrepancy is real spendable cash (or a real
+    // shortfall) that isn't reflected in the budget yet, so it should move
+    // Ready to Assign the same way any other income/outflow would. Credit
+    // accounts: a discrepancy there is unlogged card activity or a data error
+    // against debt, not new money — crediting Ready to Assign would let you
+    // spend against debt, so it stays fully hidden from budget math (see
+    // isReconciliation handling in lib/budgetMath.ts).
+    const isDebitAccount = account.type === "debit";
+
     await addTransaction(account.id, {
       date: today,
       payee: "Reconciliation Adjustment",
-      category: "Reconciliation (Hidden)",
-      category_group: "Reconciliation (Hidden)",
+      category: isDebitAccount ? "Ready to Assign" : "Reconciliation (Hidden)",
+      category_group: isDebitAccount ? "Ready to Assign" : "Reconciliation (Hidden)",
       balance: difference,
     });
+
+    // A debit-account reconciliation adjustment moves Ready to Assign, but
+    // BudgetContext's cached month view never hears about AccountContext
+    // mutations on its own (same gotcha as adding/editing a transaction in
+    // InlineTransactionRow) — force a refetch so the dashboard doesn't show
+    // a stale RTA until a hard refresh.
+    invalidateAll();
 
     setReconcileOpen(false);
     setReconcileError(null);
@@ -236,7 +257,17 @@ export default function AccountDetails() {
   const categoryLabel = useMemo(
     () =>
       (tx: Transaction) => {
-        if (tx.payee && (tx.payee.startsWith("Transfer") || tx.payee.startsWith("Payment"))) {
+        // Real (uncategorized) transfers store no category at all, so the
+        // payee text ("Transfer to X") is the only useful label. But some
+        // banks describe ordinary payments with wording like "Transfer To
+        // Cash App" — once a transaction like that has a real category, the
+        // category must win over the payee text, not the other way around.
+        const hasRealCategory = Boolean(tx.category) || Boolean(tx.category_group);
+        if (
+          !hasRealCategory &&
+          tx.payee &&
+          (tx.payee.startsWith("Transfer") || tx.payee.startsWith("Payment"))
+        ) {
           return tx.payee;
         }
         if (tx.category_group && tx.category) return `${tx.category_group}: ${tx.category}`;
@@ -257,12 +288,22 @@ export default function AccountDetails() {
       : [...account.transactions];
     const dir = sortConfig.direction === "asc" ? 1 : -1;
 
+    // Transaction ids are UUID strings, not sequential numbers — subtracting
+    // them for a tiebreak silently produced NaN, which Array.sort treats as
+    // "equal," so same-day ties used to just fall back to insertion order
+    // (i.e. a newly added transaction landed at the bottom of its day).
+    // created_at is a real timestamp and actually reflects insertion order.
+    const createdAtCompare = (a: Transaction, b: Transaction) =>
+      new Date(a.created_at ?? 0).getTime() - new Date(b.created_at ?? 0).getTime();
+
     txs.sort((a, b) => {
       if (sortConfig.key === "date") {
         const dateCompare = (new Date(a.date).getTime() - new Date(b.date).getTime()) * dir;
-        // If dates are equal, sort by ID descending (newest first) for desc, or ascending for asc
+        // Same-day tie: newest-added first when sorting newest-date-first,
+        // oldest-added first when sorting oldest-date-first — keeps a same
+        // day's cluster reading in the same direction as the outer sort.
         if (dateCompare === 0) {
-          return dir === -1 ? b.id - a.id : a.id - b.id;
+          return createdAtCompare(a, b) * dir;
         }
         return dateCompare;
       }
@@ -273,7 +314,7 @@ export default function AccountDetails() {
         return categoryLabel(a).localeCompare(categoryLabel(b)) * dir;
       }
       // amount
-      if (a.balance === b.balance) return a.id - b.id;
+      if (a.balance === b.balance) return createdAtCompare(a, b);
       return (a.balance - b.balance) * dir;
     });
 
@@ -753,9 +794,17 @@ export default function AccountDetails() {
                   </td>
                   <td className="px-3 py-2.5 truncate max-w-xs text-[13px] font-medium text-slate-800 dark:text-slate-100">
                     {tx.payee}
+                    {tx.pending && (
+                      <span
+                        title="Not yet posted by your bank — amount or payee may still change"
+                        className="ml-1.5 align-middle text-[10px] uppercase tracking-wide bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 rounded px-1 py-0.5"
+                      >
+                        Pending
+                      </span>
+                    )}
                   </td>
                   <td className="px-3 py-2.5 truncate max-w-xs text-[12px] text-slate-500 dark:text-slate-400">
-                    {tx.payee && (tx.payee.startsWith("Transfer") || tx.payee.startsWith("Payment"))
+                    {!tx.category && !tx.category_group && tx.payee && (tx.payee.startsWith("Transfer") || tx.payee.startsWith("Payment"))
                       ? <span className="text-slate-400 dark:text-slate-500 italic">{tx.payee}</span>
                       : tx.category === "Ready to Assign" || tx.category_group === "Ready to Assign"
                         ? "Ready to Assign"
@@ -814,7 +863,10 @@ export default function AccountDetails() {
           <DialogHeader>
             <DialogTitle>Reconcile balance</DialogTitle>
             <DialogDescription>
-              Enter the real-world balance for this account. If it differs, a hidden reconciliation transaction will be added without touching your budget categories.
+              Enter the real-world balance for this account. If it differs, an adjustment transaction will be added
+              {account?.type === "debit"
+                ? " to Ready to Assign."
+                : " as a hidden reconciliation entry, without touching your budget categories."}
             </DialogDescription>
           </DialogHeader>
 

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { loadBudgetState } from "@/lib/budgetLoader";
+import { getCurrentBudgetId } from "@/lib/budgets";
 import { serializeMonthView } from "../../../../../lib/budgetMath";
 import type { MoveMoneRequest } from "@/types/budget";
 
@@ -34,11 +35,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "amount must be a positive number" }, { status: 400 });
   }
 
+  const currentBudgetId = await getCurrentBudgetId(supabase, user.id);
+
   // Fetch current assignments for both items
   const { data: existingAssignments } = await supabase
     .from("budget_assignments")
     .select("category_item_id, assigned")
     .eq("user_id", user.id)
+    .eq("budget_id", currentBudgetId)
     .eq("month", month)
     .in("category_item_id", [sourceItemId, destinationItemId]);
 
@@ -53,8 +57,8 @@ export async function POST(req: Request) {
     .from("budget_assignments")
     .upsert(
       [
-        { user_id: user.id, category_item_id: sourceItemId, month, assigned: sourceAssigned },
-        { user_id: user.id, category_item_id: destinationItemId, month, assigned: destAssigned },
+        { user_id: user.id, budget_id: currentBudgetId, category_item_id: sourceItemId, month, assigned: sourceAssigned },
+        { user_id: user.id, budget_id: currentBudgetId, category_item_id: destinationItemId, month, assigned: destAssigned },
       ],
       { onConflict: "user_id,category_item_id,month" }
     );
@@ -65,7 +69,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const state = await loadBudgetState(supabase, user.id);
+    const state = await loadBudgetState(supabase, user.id, currentBudgetId);
     const view = serializeMonthView(state, month);
     return NextResponse.json(view);
   } catch (err) {

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
+import { getCurrentBudgetId } from "@/lib/budgets";
 import type { UpdateItemRequest } from "@/types/budget";
 
 export async function PATCH(
@@ -37,6 +38,8 @@ export async function PATCH(
     return NextResponse.json({ error: "No fields to update" }, { status: 400 });
   }
 
+  const currentBudgetId = await getCurrentBudgetId(supabase, user.id);
+
   // Credit Card Payments items are linked to their account by exact name
   // match (no real foreign key — see lib/budgetMath.ts ccItemToAccountId).
   // If this rename would break that link, capture the pre-rename name so we
@@ -48,6 +51,7 @@ export async function PATCH(
       .select("name, group_id")
       .eq("id", id)
       .eq("user_id", user.id)
+      .eq("budget_id", currentBudgetId)
       .single();
 
     if (existing && existing.name !== updates.name) {
@@ -56,6 +60,7 @@ export async function PATCH(
         .select("name")
         .eq("id", existing.group_id)
         .eq("user_id", user.id)
+        .eq("budget_id", currentBudgetId)
         .single();
       if (groupRow?.name === "Credit Card Payments") {
         oldNameForCcSync = existing.name;
@@ -68,6 +73,7 @@ export async function PATCH(
     .update(updates)
     .eq("id", id)
     .eq("user_id", user.id)
+    .eq("budget_id", currentBudgetId)
     .select("id, group_id, name, sort_order, snoozed, target, notes, notes_history, is_discretionary_pool, hide_from_insights")
     .single();
 
@@ -105,12 +111,15 @@ export async function DELETE(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const currentBudgetId = await getCurrentBudgetId(supabase, user.id);
+
   // Cascade deletes budget_assignments via FK constraints
   const { error } = await supabase
     .from("category_items")
     .delete()
     .eq("id", id)
-    .eq("user_id", user.id);
+    .eq("user_id", user.id)
+    .eq("budget_id", currentBudgetId);
 
   if (error) {
     console.error("[category-item/[id]] DELETE error:", error);

@@ -649,6 +649,17 @@ export default function InlineTransactionRow({
         : true
     );
 
+  // "Ready to Assign" is a pinned pseudo-category, not part of
+  // categoryGroups/categorySuggestions — it's rendered as its own row above
+  // the real suggestions whenever the typed text could match it. Keyboard
+  // navigation must treat it as occupying index 0 in that case, or Enter
+  // silently falls through to categorySuggestions[0] instead (a real bug
+  // this shared flag fixes — previously only the JSX render accounted for
+  // the offset, not the ArrowUp/ArrowDown/Enter handlers).
+  const readyToAssignVisible =
+    categoryInput === "" || "ready to assign".includes(categoryInput.toLowerCase());
+  const readyToAssignOffset = readyToAssignVisible ? 1 : 0;
+
 
 
 
@@ -683,7 +694,15 @@ export default function InlineTransactionRow({
           type="date"
           value={date}
           onChange={(e) => setDate(e.target.value)}
-          onKeyDown={handleKeyDown}
+          onKeyDown={(e) => {
+            if (e.repeat) return;
+            if (e.key === "Enter") {
+              e.preventDefault();
+              payeeInputRef.current?.focus();
+              return;
+            }
+            handleKeyDown(e);
+          }}
           className="h-9 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100 focus-visible:ring-ledger-500 dark:focus-visible:ring-ledger-600 dark:[color-scheme:dark]"
         />
       </td>
@@ -717,6 +736,11 @@ export default function InlineTransactionRow({
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 e.preventDefault();
+                // Enter advances through the row (Date → Payee → Category →
+                // Amount, which submits) rather than submitting immediately.
+                // A same-type transfer disables the Category field entirely
+                // (not needed), so skip straight to Amount in that case.
+                let nextRef = categoryInputRef;
                 if (payeeSuggestions.length > 0) {
                   const match = payeeSuggestions[payeeSelectedIndex] || payeeSuggestions[0];
                   setIsTypingPayee(false);
@@ -734,6 +758,9 @@ export default function InlineTransactionRow({
                       setSelectedItem("");
                       setCategoryInput("");
                     }
+                    if (thisAccount && acc && thisAccount.type === acc.type) {
+                      nextRef = amountInputRef;
+                    }
                   } else {
                     setTransferPayee(match.label);
                     setSelectedPayeeAccountName(null);
@@ -747,7 +774,7 @@ export default function InlineTransactionRow({
                   setSelectedPayeeAccountName(null);
                   setPayeeDropdownOpen(false);
                 }
-                void handleSubmit();
+                nextRef.current?.focus();
               } else if (e.key === "Escape") {
                 e.preventDefault();
                 setPayeeDropdownOpen(false);
@@ -1042,8 +1069,26 @@ export default function InlineTransactionRow({
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   e.preventDefault();
-                  if (categorySuggestions.length > 0) {
-                    const match = categorySuggestions[categorySelectedIndex] || categorySuggestions[0];
+                  if (readyToAssignVisible && categorySelectedIndex === 0) {
+                    // Highlighted row is the pinned "Ready to Assign" entry,
+                    // not categorySuggestions[0] — must be handled here or
+                    // Enter silently picks whatever real category is first.
+                    setIsTypingCategory(false);
+                    setSelectedGroup("Ready to Assign");
+                    setSelectedItem("");
+                    setCategoryInput("Ready to Assign");
+                    if (selectedPayeeAccountName) {
+                      const acc = accounts.find((a) => a.name === selectedPayeeAccountName);
+                      if (acc?.type === "credit") {
+                        setTransferPayee("");
+                        setSelectedPayeeAccountName(null);
+                        setPayeeInput("");
+                      }
+                    }
+                    setCategoryDropdownOpen(false);
+                  } else if (categorySuggestions.length > 0) {
+                    const realIndex = categorySelectedIndex - readyToAssignOffset;
+                    const match = categorySuggestions[realIndex] || categorySuggestions[0];
                     setIsTypingCategory(false);
                     setSelectedGroup(match.groupName);
                     setSelectedItem(match.itemName);
@@ -1072,19 +1117,26 @@ export default function InlineTransactionRow({
                     setCategoryInput("Ready to Assign");
                     setCategoryDropdownOpen(false);
                   } else {
-                    // Start creating new category
+                    // Start creating new category — the existing
+                    // newCategoryMode autofocus effect moves focus to the
+                    // new-category-name input, so no explicit focus() here.
                     setNewCategoryMode(true);
                     setNewCategoryName(categoryInput);
                     setCategoryDropdownOpen(false);
+                    return;
                   }
-                  void handleSubmit();
+                  // Enter advances to Amount rather than submitting — only
+                  // the Amount field's own Enter handler submits the row.
+                  amountInputRef.current?.focus();
                 } else if (e.key === "Escape") {
                   e.preventDefault();
                   setCategoryDropdownOpen(false);
                   onCancel?.();
                 } else if (e.key === "ArrowDown" && categoryDropdownOpen) {
                   e.preventDefault();
-                  setCategorySelectedIndex((prev) => Math.min(prev + 1, categorySuggestions.length - 1));
+                  setCategorySelectedIndex((prev) =>
+                    Math.min(prev + 1, categorySuggestions.length - 1 + readyToAssignOffset)
+                  );
                 } else if (e.key === "ArrowUp" && categoryDropdownOpen) {
                   e.preventDefault();
                   setCategorySelectedIndex((prev) => Math.max(prev - 1, 0));
@@ -1113,7 +1165,7 @@ export default function InlineTransactionRow({
                   width: `${categoryDropdownPos.width}px`,
                 }}
               >
-                {categorySuggestions.length === 0 && !categoryInput.toLowerCase().includes("ready to assign") ? (
+                {categorySuggestions.length === 0 && !readyToAssignVisible ? (
                   <div
                     className="px-3 py-2 hover:bg-ledger-50 dark:hover:bg-ledger-950 cursor-pointer text-sm text-ledger-600 dark:text-ledger-400 font-medium"
                     onClick={() => {
@@ -1126,7 +1178,7 @@ export default function InlineTransactionRow({
                   </div>
                 ) : (
                   <>
-                    {(categoryInput === "" || "ready to assign".includes(categoryInput.toLowerCase())) && (
+                    {readyToAssignVisible && (
                       <div
                         className={`px-3 py-2 cursor-pointer text-sm font-semibold ${
                           categorySelectedIndex === 0
@@ -1147,7 +1199,6 @@ export default function InlineTransactionRow({
                       const prevGroup = idx > 0 ? categorySuggestions[idx - 1].groupName : null;
                       const showHeader = suggestion.groupName !== prevGroup;
                       // Index in the rendered list (accounting for "Ready to Assign" if visible)
-                      const readyToAssignOffset = (categoryInput === "" || "ready to assign".includes(categoryInput.toLowerCase())) ? 1 : 0;
                       const itemIndex = readyToAssignOffset + idx;
                       const isSelected = itemIndex === categorySelectedIndex;
                       const catGroup = categoryGroups.find((g) => g.name === suggestion.groupName);

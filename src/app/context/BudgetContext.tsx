@@ -10,6 +10,7 @@ import {
 } from "react";
 import { format, subMonths, parseISO } from "date-fns";
 import { useAuth } from "./AuthContext";
+import { useBudgetSelection } from "./BudgetSelectionContext";
 import { supabase } from "@/utils/supabaseClient";
 import { useAccountContext, type Account } from "./AccountContext";
 import { useUndoRedo } from "./UndoRedoContext";
@@ -32,6 +33,7 @@ import type {
 // New components should use budgetView (ComputedMonthView) directly.
 // ---------------------------------------------------------------------------
 interface LegacyCategoryItem {
+  id: string;
   name: string;
   assigned: number;
   activity: number;
@@ -158,6 +160,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
   const { user } = useAuth() || { user: null };
   const { registerAction, clearHistory } = useUndoRedo();
   const { accounts, setAccounts } = useAccountContext();
+  const { currentBudgetId } = useBudgetSelection();
 
   const [currentMonth, setCurrentMonthState] = useState(format(new Date(), "yyyy-MM"));
   const [sandboxMode, setSandboxMode] = useState(false);
@@ -551,14 +554,18 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
   const importYnabData = useCallback(
     async (registerFile: File, planFile: File) => {
       if (!user?.id) throw new Error("Please sign in before importing.");
+      if (!currentBudgetId) throw new Error("No current budget resolved yet — try again in a moment.");
 
       // Snapshot for undo
       importedAccountIdsRef.current = [];
       importedCategoryGroupIdsRef.current = [];
 
-      // Delete existing data (cascades to transactions, items, assignments)
+      // Delete existing data. Accounts stay budget-agnostic — a YNAB import
+      // always replaces the full account list. category_groups (and its
+      // cascade to items/assignments/transactions via budget_id) is scoped
+      // to only the current budget, so archived budgets are untouched.
       await supabase.from("accounts").delete().eq("user_id", user.id);
-      await supabase.from("category_groups").delete().eq("user_id", user.id);
+      await supabase.from("category_groups").delete().eq("user_id", user.id).eq("budget_id", currentBudgetId);
 
       const [registerText, planText] = await Promise.all([registerFile.text(), planFile.text()]);
       const registerParsed = parseYnabRegister(registerText);
@@ -623,7 +630,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
         const groupName = groupOrder[i];
         const { data: group, error: groupError } = await supabase
           .from("category_groups")
-          .insert({ user_id: user.id, name: groupName, sort_order: i })
+          .insert({ user_id: user.id, budget_id: currentBudgetId, name: groupName, sort_order: i })
           .select("id")
           .single();
         if (groupError || !group) throw new Error(`Failed to create category group '${groupName}': ${groupError?.message ?? "unknown"}`);
@@ -641,7 +648,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
           const meta = itemMeta[`${groupName}::${itemName}`] ?? {};
           const { data: item, error: itemError } = await supabase
             .from("category_items")
-            .insert({ user_id: user.id, group_id: groupId, name: itemName, sort_order: j, snoozed: meta.snoozed ?? false, target: meta.target ?? null, notes: meta.notes ?? null, notes_history: meta.notes_history ?? null })
+            .insert({ user_id: user.id, budget_id: currentBudgetId, group_id: groupId, name: itemName, sort_order: j, snoozed: meta.snoozed ?? false, target: meta.target ?? null, notes: meta.notes ?? null, notes_history: meta.notes_history ?? null })
             .select("id")
             .single();
           if (itemError || !item) throw new Error(`Failed to create category item '${itemName}': ${itemError?.message ?? "unknown"}`);
@@ -652,6 +659,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
       // Phase 3: insert transactions now that category_item_id can be resolved
       const txPayloadAll = pendingTransactions.map(({ accountId, accountName, tx }) => ({
         user_id: user.id,
+        budget_id: currentBudgetId,
         account_id: accountId,
         date: tx.date,
         payee: tx.payee,
@@ -667,14 +675,14 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
       }
 
       // Insert budget_assignments
-      const assignmentRows: { user_id: string; category_item_id: string; month: string; assigned: number }[] = [];
+      const assignmentRows: { user_id: string; budget_id: string; category_item_id: string; month: string; assigned: number }[] = [];
       for (const [month, monthData] of Object.entries(planParsed.budgetData)) {
         for (const cat of monthData.categories || []) {
           for (const item of cat.categoryItems || []) {
             if (!item.assigned) continue;
             const itemId = itemKeyToId.get(`${cat.name}::${item.name}`);
             if (!itemId) continue;
-            assignmentRows.push({ user_id: user.id, category_item_id: itemId, month, assigned: item.assigned });
+            assignmentRows.push({ user_id: user.id, budget_id: currentBudgetId, category_item_id: itemId, month, assigned: item.assigned });
           }
         }
       }
@@ -686,12 +694,32 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
         if (assignError) throw new Error(`Failed to import assignments: ${assignError.message}`);
       }
 
-      // Update accounts in context
-      const { data: refreshedAccounts } = await supabase
-        .from("accounts")
-        .select("*, transactions(*)")
-        .order("date", { foreignTable: "transactions", ascending: true });
-      if (refreshedAccounts) setAccounts(refreshedAccounts as Account[]);
+      // Update accounts in context. Two separate queries, not an embedded
+      // `accounts(*, transactions(*))` select — same reasoning as
+      // AccountContext.fetchAccounts: a dot-filter on a non-`!inner` embed
+      // doesn't actually filter, so budget_id has to be applied client-side.
+      const [{ data: refreshedAccounts }, { data: refreshedTx }] = await Promise.all([
+        supabase.from("accounts").select("*"),
+        supabase
+          .from("transactions")
+          .select("*")
+          .eq("user_id", user.id)
+          .eq("budget_id", currentBudgetId)
+          .order("date", { ascending: true }),
+      ]);
+      if (refreshedAccounts) {
+        const txByAccount = new Map<string, unknown[]>();
+        for (const tx of refreshedTx ?? []) {
+          const key = String((tx as { account_id: string }).account_id);
+          if (!txByAccount.has(key)) txByAccount.set(key, []);
+          txByAccount.get(key)!.push(tx);
+        }
+        const withTransactions = refreshedAccounts.map((acc) => ({
+          ...acc,
+          transactions: txByAccount.get(String(acc.id)) ?? [],
+        }));
+        setAccounts(withTransactions as unknown as Account[]);
+      }
 
       // Set latest month and clear all caches, then force a re-fetch
       const months = Object.keys(planParsed.budgetData).sort();
@@ -712,7 +740,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
         createdAccounts: createdAccounts,
       };
     },
-    [user?.id, clearHistory, setAccounts, hookInvalidate]
+    [user?.id, currentBudgetId, clearHistory, setAccounts, hookInvalidate]
   );
 
   const confirmImport = useCallback(async () => {
@@ -723,17 +751,19 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
   }, [importPending]);
 
   const undoImport = useCallback(async () => {
-    if (!importPending || !user?.id) return;
-    // The import wiped all existing accounts and category groups before creating new ones,
-    // so undo can safely delete all of them — nothing pre-import needs to be preserved.
+    if (!importPending || !user?.id || !currentBudgetId) return;
+    // The import wiped all existing accounts and the current budget's
+    // category groups before creating new ones, so undo can safely delete
+    // all of them — nothing pre-import needs to be preserved. Other budgets'
+    // category_groups (and their cascade) are untouched, same as the import.
     await supabase.from("accounts").delete().eq("user_id", user.id);
-    await supabase.from("category_groups").delete().eq("user_id", user.id);
+    await supabase.from("category_groups").delete().eq("user_id", user.id).eq("budget_id", currentBudgetId);
     setImportPending(false);
     importedAccountIdsRef.current = [];
     importedCategoryGroupIdsRef.current = [];
     invalidateAllCachedMonths();
     setMutationView(null);
-  }, [importPending, user?.id]);
+  }, [importPending, user?.id, currentBudgetId]);
 
   // ---------------------------------------------------------------------------
   // Sandbox mode
@@ -785,6 +815,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
           notes: c.notes,
           notes_history: c.notes_history,
           categoryItems: c.categoryItems.map((i) => ({
+            id: i.id,
             name: i.name,
             assigned: i.assigned,
             activity: i.activity,

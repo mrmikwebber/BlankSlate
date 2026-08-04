@@ -545,6 +545,12 @@ export default function BudgetTable() {
       const transferAmount = toAvailable < 0 ? Math.abs(toAvailable) : Math.max(sourceAvailable, 0);
       if (transferAmount <= 0) return;
 
+      // Close on selection rather than waiting for the transfer to finish —
+      // patchAssigned/moveMoney apply optimistically in the background like
+      // every other budget mutation in this app, so there's no reason to
+      // keep the picker open (or risk it never closing) while that's in flight.
+      setOpenMoveMoneyFor(null);
+
       const isMovingFromRTA = source.type === "rta";
       let sourceItemId: string | null = null;
       if (source.type === "category") {
@@ -588,8 +594,6 @@ export default function BudgetTable() {
       } else if (sourceItemId) {
         await moveMoney(sourceItemId, destItemId, currentMonth, transferAmount);
       }
-
-      setOpenMoveMoneyFor(null);
     },
     [budgetView, currentMonth, moveMoney, patchAssigned, registerAction, getItemIdByName, displayedRta]
   );

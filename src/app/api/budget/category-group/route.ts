@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
+import { getCurrentBudgetId } from "@/lib/budgets";
 import type { CreateGroupRequest } from "@/types/budget";
 
 export async function POST(req: Request) {
@@ -24,11 +25,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "name is required" }, { status: 400 });
   }
 
+  const currentBudgetId = await getCurrentBudgetId(supabase, user.id);
+
   // Determine next sort_order
   const { data: existing } = await supabase
     .from("category_groups")
     .select("sort_order")
     .eq("user_id", user.id)
+    .eq("budget_id", currentBudgetId)
     .order("sort_order", { ascending: false })
     .limit(1);
 
@@ -36,7 +40,7 @@ export async function POST(req: Request) {
 
   const { data: group, error } = await supabase
     .from("category_groups")
-    .insert({ user_id: user.id, name: body.name.trim(), sort_order: nextOrder })
+    .insert({ user_id: user.id, budget_id: currentBudgetId, name: body.name.trim(), sort_order: nextOrder })
     .select("id, name, sort_order")
     .single();
 

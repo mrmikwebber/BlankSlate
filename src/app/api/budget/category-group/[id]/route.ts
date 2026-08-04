@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
+import { getCurrentBudgetId } from "@/lib/budgets";
 import type { UpdateGroupRequest } from "@/types/budget";
 
 export async function PATCH(
@@ -33,11 +34,14 @@ export async function PATCH(
     return NextResponse.json({ error: "No fields to update" }, { status: 400 });
   }
 
+  const currentBudgetId = await getCurrentBudgetId(supabase, user.id);
+
   const { data, error } = await supabase
     .from("category_groups")
     .update(updates)
     .eq("id", id)
     .eq("user_id", user.id)
+    .eq("budget_id", currentBudgetId)
     .select("id, name, sort_order")
     .single();
 
@@ -63,12 +67,15 @@ export async function DELETE(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const currentBudgetId = await getCurrentBudgetId(supabase, user.id);
+
   // Cascade deletes items and assignments via FK constraints
   const { error } = await supabase
     .from("category_groups")
     .delete()
     .eq("id", id)
-    .eq("user_id", user.id);
+    .eq("user_id", user.id)
+    .eq("budget_id", currentBudgetId);
 
   if (error) {
     console.error("[category-group/[id]] DELETE error:", error);

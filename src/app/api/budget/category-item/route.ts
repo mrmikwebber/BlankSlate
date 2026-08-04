@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
+import { getCurrentBudgetId } from "@/lib/budgets";
 import type { CreateItemRequest } from "@/types/budget";
 
 export async function POST(req: Request) {
@@ -27,12 +28,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "name is required" }, { status: 400 });
   }
 
-  // Verify the group belongs to this user
+  const currentBudgetId = await getCurrentBudgetId(supabase, user.id);
+
+  // Verify the group belongs to this user's current budget
   const { data: group, error: groupError } = await supabase
     .from("category_groups")
     .select("id")
     .eq("id", body.groupId)
     .eq("user_id", user.id)
+    .eq("budget_id", currentBudgetId)
     .single();
 
   if (groupError || !group) {
@@ -56,6 +60,7 @@ export async function POST(req: Request) {
     .from("category_items")
     .insert({
       user_id: user.id,
+      budget_id: currentBudgetId,
       group_id: body.groupId,
       name: body.name.trim(),
       sort_order: nextOrder,

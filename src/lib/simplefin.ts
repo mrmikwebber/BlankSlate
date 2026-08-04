@@ -4,7 +4,8 @@
 
 export interface SimplefinTransaction {
   id: string;
-  posted: number; // unix seconds
+  posted: number; // unix seconds — may be 0 while a transaction is pending
+  transacted_at?: number; // unix seconds the transaction actually occurred; set even while pending
   amount: string; // decimal string, signed
   description: string;
   payee?: string;
@@ -67,7 +68,7 @@ function parseAccessUrl(accessUrl: string) {
 
 export async function fetchSimplefinAccounts(
   accessUrl: string,
-  opts: { accountIds?: string[]; startDate?: number; balancesOnly?: boolean } = {}
+  opts: { accountIds?: string[]; startDate?: number; balancesOnly?: boolean; pending?: boolean } = {}
 ): Promise<SimplefinAccount[]> {
   const { baseUrl, username, password } = parseAccessUrl(accessUrl);
   const authHeader = "Basic " + Buffer.from(`${username}:${password}`).toString("base64");
@@ -75,6 +76,9 @@ export async function fetchSimplefinAccounts(
   const qs = new URLSearchParams();
   if (opts.startDate) qs.set("start-date", String(opts.startDate));
   if (opts.balancesOnly) qs.set("balances-only", "1");
+  // Pending transactions are opt-in per the SimpleFin protocol — omitted
+  // entirely unless this is set, even for institutions that support them.
+  if (opts.pending) qs.set("pending", "1");
   for (const id of opts.accountIds ?? []) qs.append("account", id);
 
   const res = await fetch(`${baseUrl}/accounts?${qs.toString()}`, {
