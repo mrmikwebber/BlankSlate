@@ -4,7 +4,17 @@ import { useMemo, useRef, useState } from "react";
 import { useAccountContext } from "@/app/context/AccountContext";
 import { useBudgetContext } from "@/app/context/BudgetContext";
 import { format, parseISO } from "date-fns";
-import { ArrowLeft, Plus, Search, X } from "lucide-react";
+import {
+  ArrowDownLeft,
+  ArrowLeft,
+  ArrowUpRight,
+  Pencil,
+  Plus,
+  Receipt,
+  Search,
+  Trash2,
+  X,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatToUSD } from "@/app/utils/formatToUSD";
 import {
@@ -28,6 +38,12 @@ type CategoryOptionGroup = {
 };
 
 type SavedPayeeLike = { name?: string | null };
+
+// Each swipe action button is w-20 (80px); the row must travel the full
+// combined width or the far one stays clipped behind the row's edge.
+const SWIPE_ACTION_WIDTH = 80;
+const SWIPE_REVEAL_WIDTH = SWIPE_ACTION_WIDTH * 2;
+const SWIPE_OPEN_THRESHOLD = SWIPE_REVEAL_WIDTH / 2;
 
 export default function MobileTransactionsTab({ accountId, onBack }: Props) {
   const {
@@ -419,7 +435,9 @@ export default function MobileTransactionsTab({ accountId, onBack }: Props) {
       <div className="flex-1 overflow-y-auto pb-20">
         {sortedTxns.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center px-8">
-            <div className="text-4xl mb-3 opacity-20">💸</div>
+            <div className="w-14 h-14 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center mb-3">
+              <Receipt className="w-6 h-6 text-slate-300 dark:text-slate-600" />
+            </div>
             <p className="text-[14px] font-medium text-slate-500 dark:text-slate-400">
               {searchQuery ? "No matching transactions" : "No transactions yet"}
             </p>
@@ -438,7 +456,7 @@ export default function MobileTransactionsTab({ accountId, onBack }: Props) {
               {group.items.map((tx) => {
                 const isIncome = tx.balance > 0;
                 const offset = swipeOffsets.current[tx.id] ?? 0;
-                const isRevealed = swipedTxId === tx.id && offset < -60;
+                const isRevealed = swipedTxId === tx.id && offset < -SWIPE_OPEN_THRESHOLD;
 
                 return (
                   <div
@@ -451,8 +469,9 @@ export default function MobileTransactionsTab({ accountId, onBack }: Props) {
                         onClick={() => {
                           openEdit(tx);
                         }}
-                        className="h-full w-20 bg-ledger-500 flex flex-col items-center justify-center text-white text-[11px] font-semibold gap-0.5"
+                        className="h-full w-20 bg-ledger-600 dark:bg-ledger-700 flex flex-col items-center justify-center text-white text-[11px] font-semibold gap-1"
                       >
+                        <Pencil className="w-4 h-4" />
                         Edit
                       </button>
                       <button
@@ -460,8 +479,9 @@ export default function MobileTransactionsTab({ accountId, onBack }: Props) {
                           deleteTransactionWithMirror(accountId, tx.id);
                           setSwipedTxId(null);
                         }}
-                        className="h-full w-20 bg-red-500 flex flex-col items-center justify-center text-white text-[11px] font-semibold gap-0.5"
+                        className="h-full w-20 bg-red-600 dark:bg-red-700 flex flex-col items-center justify-center text-white text-[11px] font-semibold gap-1"
                       >
+                        <Trash2 className="w-4 h-4" />
                         Delete
                       </button>
                     </div>
@@ -483,15 +503,15 @@ export default function MobileTransactionsTab({ accountId, onBack }: Props) {
                         if (touchStartX.current === null) return;
                         const delta =
                           e.touches[0].clientX - touchStartX.current;
-                        const clamped = Math.max(-140, Math.min(0, delta));
+                        const clamped = Math.max(-SWIPE_REVEAL_WIDTH, Math.min(0, delta));
                         swipeOffsets.current[tx.id] = clamped;
                         forceUpdate((n) => n + 1);
                       }}
                       onTouchEnd={() => {
                         touchStartX.current = null;
                         const offset = swipeOffsets.current[tx.id] ?? 0;
-                        if (offset < -60) {
-                          swipeOffsets.current[tx.id] = -140;
+                        if (offset < -SWIPE_OPEN_THRESHOLD) {
+                          swipeOffsets.current[tx.id] = -SWIPE_REVEAL_WIDTH;
                           setSwipedTxId(tx.id);
                         } else {
                           swipeOffsets.current[tx.id] = 0;
@@ -507,9 +527,20 @@ export default function MobileTransactionsTab({ accountId, onBack }: Props) {
                         }
                       }}
                     >
-                      {/* Payee icon */}
-                      <div className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-[14px] flex-shrink-0">
-                        {isIncome ? "💰" : "💸"}
+                      {/* Direction icon */}
+                      <div
+                        className={cn(
+                          "w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0",
+                          isIncome
+                            ? "bg-ledger-50 dark:bg-ledger-900/30 text-ledger-600 dark:text-ledger-400"
+                            : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
+                        )}
+                      >
+                        {isIncome ? (
+                          <ArrowDownLeft className="w-4 h-4" />
+                        ) : (
+                          <ArrowUpRight className="w-4 h-4" />
+                        )}
                       </div>
 
                       {/* Info */}

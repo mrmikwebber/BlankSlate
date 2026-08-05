@@ -12,6 +12,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  dialogSheetOnMobile,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -48,15 +49,15 @@ function PoolCard({ pool }: { pool: DiscretionaryPool }) {
 
         <p
           className={cn(
-            "text-xl font-bold font-mono tabular-nums leading-none",
+            "text-2xl sm:text-xl font-bold font-mono tabular-nums leading-none",
             isNegative ? "text-red-600 dark:text-red-400" : "text-ledger-600 dark:text-ledger-400"
           )}
         >
           {formatToUSD(allowance.daily)}
           <span className="text-xs font-normal text-slate-400 dark:text-slate-500 ml-1">/day</span>
         </p>
-        <p className="text-[11px] text-slate-500 dark:text-slate-400">
-          {formatToUSD(allowance.weekly)}/week &middot; {formatToUSD(allowance.remaining)} left, {allowance.daysLeft}d
+        <p className="text-xs sm:text-[11px] text-slate-600 dark:text-slate-300">
+          {formatToUSD(allowance.remaining)} left &middot; {allowance.daysLeft}d left
         </p>
 
         <div className="h-[3px] w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
@@ -66,10 +67,27 @@ function PoolCard({ pool }: { pool: DiscretionaryPool }) {
           />
         </div>
 
-        {allowance.isOverPace && (
-          <p className="text-[10px] text-amber-600 dark:text-amber-400">
-            At this pace: {formatToUSD(allowance.projectedEnd)} by month end
-          </p>
+        {pool.targetComparison && (
+          <div className="pt-2 mt-1 border-t border-slate-100 dark:border-slate-800 space-y-0.5">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs sm:text-[11px] text-slate-600 dark:text-slate-300">
+                {formatToUSD(pool.targetComparison.dailyRate)}/day &middot; {formatToUSD(pool.targetComparison.weeklyRate)}/wk target
+              </span>
+              <span
+                className={cn(
+                  "text-[10px] font-semibold px-1.5 py-0.5 rounded flex-shrink-0",
+                  pool.targetComparison.isBehindPace
+                    ? "bg-ledger-50 dark:bg-ledger-900/30 text-ledger-700 dark:text-ledger-400"
+                    : "bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400"
+                )}
+              >
+                {pool.targetComparison.isBehindPace ? "Behind pace" : "Ahead of pace"}
+              </span>
+            </div>
+            <p className="text-xs sm:text-[11px] text-slate-600 dark:text-slate-300">
+              {formatToUSD(pool.targetComparison.remaining)} left by target
+            </p>
+          </div>
         )}
       </CardContent>
     </Card>
@@ -85,7 +103,7 @@ function ManagePoolsModal({
 }) {
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="w-[96vw] max-w-lg max-h-[85dvh] overflow-y-auto">
+      <DialogContent className={cn(dialogSheetOnMobile, "sm:max-w-lg")}>
         <DialogHeader>
           <DialogTitle>Manage Discretionary Pools</DialogTitle>
           <DialogDescription>
@@ -148,28 +166,32 @@ function ShuffleForm({ pools, api }: { pools: DiscretionaryPool[]; api: PoolsApi
         <p className="text-xs font-medium text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
           <ArrowLeftRight className="h-3.5 w-3.5" /> Move money between pools
         </p>
-        <div className="flex flex-wrap items-center gap-2">
-          <Select value={sourceId} onValueChange={setSourceId}>
-            <SelectTrigger className="h-8 text-xs w-32"><SelectValue placeholder="From" /></SelectTrigger>
-            <SelectContent>
-              {pools.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Select value={destId} onValueChange={setDestId}>
-            <SelectTrigger className="h-8 text-xs w-32"><SelectValue placeholder="To" /></SelectTrigger>
-            <SelectContent>
-              {pools.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Input
-            type="number"
-            step="0.01"
-            placeholder="$"
-            className="h-8 text-xs w-20"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-          />
-          <Button size="sm" className="h-8 text-xs" onClick={handleShuffle}>Move</Button>
+        <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2">
+          <div className="flex gap-2">
+            <Select value={sourceId} onValueChange={setSourceId}>
+              <SelectTrigger className="h-10 sm:h-8 text-xs flex-1 sm:w-32"><SelectValue placeholder="From" /></SelectTrigger>
+              <SelectContent>
+                {pools.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={destId} onValueChange={setDestId}>
+              <SelectTrigger className="h-10 sm:h-8 text-xs flex-1 sm:w-32"><SelectValue placeholder="To" /></SelectTrigger>
+              <SelectContent>
+                {pools.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex gap-2">
+            <Input
+              type="number"
+              step="0.01"
+              placeholder="$"
+              className="h-10 sm:h-8 text-xs flex-1 sm:w-20"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+            />
+            <Button size="sm" className="h-10 sm:h-8 text-xs" onClick={handleShuffle}>Move</Button>
+          </div>
         </div>
         {consequence && (
           <p className="text-[11px] text-slate-500 dark:text-slate-400">{consequence}</p>
@@ -181,10 +203,29 @@ function ShuffleForm({ pools, api }: { pools: DiscretionaryPool[]; api: PoolsApi
 
 export default function DiscretionaryTab() {
   const api = useDiscretionaryPools();
-  const { pools, totalDaily, totalWeekly, totalRemaining, isInitialLoading } = api;
+  const { pools, totalDaily, totalRemaining, isInitialLoading } = api;
   const [showManage, setShowManage] = useState(false);
 
   const totalIsNegative = totalRemaining < 0;
+
+  const poolsWithTarget = pools.filter((p) => p.targetComparison);
+  const totalTargetDailyRate = poolsWithTarget.reduce(
+    (sum, p) => sum + p.targetComparison!.dailyRate,
+    0
+  );
+  const totalTargetWeeklyRate = poolsWithTarget.reduce(
+    (sum, p) => sum + p.targetComparison!.weeklyRate,
+    0
+  );
+  const totalTargetRemaining = poolsWithTarget.reduce(
+    (sum, p) => sum + p.targetComparison!.remaining,
+    0
+  );
+  const totalPaceDelta = poolsWithTarget.reduce(
+    (sum, p) => sum + p.targetComparison!.paceDelta,
+    0
+  );
+  const overallBehindPace = totalPaceDelta >= 0;
 
   const header = (
     <div className="flex items-center justify-between">
@@ -228,13 +269,36 @@ export default function DiscretionaryTab() {
               )}>
                 {formatToUSD(totalDaily)}<span className="text-sm font-normal ml-1">/day</span>
               </p>
-              <p className="text-xs text-ledger-700/80 dark:text-ledger-300/80 mt-0.5">
-                {formatToUSD(totalWeekly)}/week &middot; {formatToUSD(totalRemaining)} remaining this period
+              <p className="text-xs text-ledger-800 dark:text-ledger-200 mt-0.5">
+                {formatToUSD(totalRemaining)} remaining this period
               </p>
+
+              {poolsWithTarget.length > 0 && (
+                <div className="pt-2 mt-2 border-t border-ledger-200/60 dark:border-ledger-800/40 space-y-0.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs text-ledger-800 dark:text-ledger-200">
+                      {formatToUSD(totalTargetDailyRate)}/day &middot; {formatToUSD(totalTargetWeeklyRate)}/wk target
+                    </p>
+                    <span
+                      className={cn(
+                        "text-[10px] font-semibold px-1.5 py-0.5 rounded flex-shrink-0",
+                        overallBehindPace
+                          ? "bg-ledger-100 dark:bg-ledger-900/50 text-ledger-700 dark:text-ledger-300"
+                          : "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400"
+                      )}
+                    >
+                      {overallBehindPace ? "Behind pace" : "Ahead of pace"}
+                    </span>
+                  </div>
+                  <p className="text-xs text-ledger-800 dark:text-ledger-200">
+                    {formatToUSD(totalTargetRemaining)} left by target
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {pools.map((pool) => <PoolCard key={pool.id} pool={pool} />)}
           </div>
 

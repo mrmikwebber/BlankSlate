@@ -9,6 +9,7 @@ import {
   DialogTitle,
   DialogDescription,
   DialogTrigger,
+  dialogSheetOnMobile,
 } from "@/components/ui/dialog";
 import { useBudgetContext } from "@/app/context/BudgetContext";
 import { cn } from "@/lib/utils";
@@ -53,7 +54,7 @@ export default function ReadyToAssignBreakdown({ children }: { children: ReactNo
   return (
     <Dialog>
       <DialogTrigger asChild>{children}</DialogTrigger>
-      <DialogContent className="max-w-sm">
+      <DialogContent className={cn(dialogSheetOnMobile, "sm:max-w-sm")}>
         <DialogHeader>
           <DialogTitle>Ready to Assign Breakdown</DialogTitle>
           <DialogDescription>For {monthLabel}</DialogDescription>

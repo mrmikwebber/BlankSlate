@@ -7,9 +7,11 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  dialogSheetOnMobile,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 
 interface AddAccountModalProps {
   onAddAccount: (account: Record<string, unknown>) => void;
@@ -54,7 +56,7 @@ const AddAccountModal = ({ onAddAccount, onClose, isOpen = true }: AddAccountMod
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className={cn(dialogSheetOnMobile, "sm:max-w-md")}>
         <DialogHeader>
           <DialogTitle className="dark:text-slate-100">Add New Account</DialogTitle>
           <DialogDescription className="dark:text-slate-400">

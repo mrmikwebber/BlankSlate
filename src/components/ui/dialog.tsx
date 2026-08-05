@@ -53,6 +53,12 @@ const DialogContent = React.forwardRef<
 ))
 DialogContent.displayName = DialogPrimitive.Content.displayName
 
+// Anchors a DialogContent to the bottom of the viewport as a full-width sheet
+// on mobile, reverting to the standard centered dialog at `sm:` and up. Pair
+// with a `sm:max-w-*` class to set the desktop width (default is max-w-lg).
+export const dialogSheetOnMobile =
+  "left-0 bottom-0 top-auto translate-x-0 translate-y-0 w-full max-w-none rounded-t-2xl border-0 sm:left-[50%] sm:bottom-auto sm:top-[50%] sm:translate-x-[-50%] sm:translate-y-[-50%] sm:w-full sm:rounded-lg sm:border max-h-[85dvh] overflow-y-auto"
+
 const DialogHeader = ({
   className,
   ...props

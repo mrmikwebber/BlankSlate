@@ -4,7 +4,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { useBudgetContext } from "../context/BudgetContext";
 import { useBudgetMonth } from "./useBudgetMonth";
-import { computePoolAllowance, type PoolAllowance } from "../utils/discretionaryMath";
+import {
+  computePoolAllowance,
+  computeTargetComparison,
+  type PoolAllowance,
+  type TargetComparison,
+} from "../utils/discretionaryMath";
 import type { ComputedCategoryItem } from "@/types/budget";
 
 export interface DiscretionaryPool {
@@ -12,6 +17,10 @@ export interface DiscretionaryPool {
   name: string;
   available: number;
   allowance: PoolAllowance;
+  // Only set when the category has a funding target — compares what's
+  // actually left (assigned-based) against what the target implies should
+  // be left this month.
+  targetComparison: TargetComparison | null;
 }
 
 interface DiscretionaryOverride {
@@ -116,14 +125,22 @@ export function useDiscretionaryPools() {
   );
 
   const pools: DiscretionaryPool[] = useMemo(() => {
+    const today = new Date();
     return allCategoryItems
       .filter((item) => item.isDiscretionaryPool)
-      .map((item) => ({
-        id: item.id,
-        name: item.name,
-        available: item.available,
-        allowance: computePoolAllowance(item.available, item.activity, new Date()),
-      }));
+      .map((item) => {
+        const allowance = computePoolAllowance(item.available, item.activity, today);
+        const amountNeeded = item.target?.amountNeeded;
+        return {
+          id: item.id,
+          name: item.name,
+          available: item.available,
+          allowance,
+          targetComparison: amountNeeded
+            ? computeTargetComparison(amountNeeded, item.activity, allowance.velocity, today)
+            : null,
+        };
+      });
   }, [allCategoryItems]);
 
   const totalDaily = pools.reduce((sum, p) => sum + p.allowance.daily, 0);
