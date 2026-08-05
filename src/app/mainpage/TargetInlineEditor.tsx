@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useBudgetContext } from "../context/BudgetContext";
 import { formatToUSD } from "../utils/formatToUSD";
-import { getMonth, parseISO } from "date-fns";
+import { differenceInCalendarMonths, parseISO } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { TableRow, TableCell } from "@/components/ui/table";
+import { useToast } from "@/hooks/use-toast";
 
 interface InlineTargetEditorProps {
   itemName: string;
@@ -16,9 +17,11 @@ export default function InlineTargetEditor({
   onClose,
 }: InlineTargetEditorProps) {
   const { currentMonth, budgetData, setCategoryTarget } = useBudgetContext();
+  const { toast } = useToast();
   const [targetAmount, setTargetAmount] = useState("");
   const [targetType, setTargetType] = useState("monthly");
   const [customTargetDate, setCustomTargetDate] = useState("");
+  const [saving, setSaving] = useState(false);
 
   const categoryItem = useMemo(() => {
     const month = budgetData[currentMonth];
@@ -60,9 +63,10 @@ export default function InlineTargetEditor({
       (targetType === "Custom" || targetType === "Full Payoff") &&
       customTargetDate
     ) {
-      const targetMonthNumber = getMonth(parseISO(customTargetDate)) + 1;
-      const currentMonthNumber = getMonth(parseISO(currentMonth));
-      let monthsUntil = targetMonthNumber - currentMonthNumber;
+      let monthsUntil = differenceInCalendarMonths(
+        parseISO(customTargetDate),
+        parseISO(currentMonth)
+      );
       if (monthsUntil <= 0) monthsUntil = 1;
 
       let totalAssigned = 0;
@@ -81,7 +85,7 @@ export default function InlineTargetEditor({
     return 0;
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const needed = calculateNeededAmount();
     const newTarget = {
       type: targetType,
@@ -95,8 +99,16 @@ export default function InlineTargetEditor({
           : null,
       amountNeeded: needed,
     };
-    setCategoryTarget(categoryItem.id, newTarget);
-    onClose();
+    setSaving(true);
+    try {
+      await setCategoryTarget(categoryItem.id, newTarget);
+      onClose();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to save target";
+      toast({ title: "Couldn't save target", description: message, variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (!categoryItem) return null;
@@ -178,11 +190,12 @@ export default function InlineTargetEditor({
                 size="sm"
                 onClick={handleSave}
                 disabled={
-                  targetType !== "Full Payoff" &&
-                  (targetAmount === "" || isNaN(parseFloat(targetAmount)))
+                  saving ||
+                  (targetType !== "Full Payoff" &&
+                    (targetAmount === "" || isNaN(parseFloat(targetAmount))))
                 }
               >
-                Save
+                {saving ? "Saving…" : "Save"}
               </Button>
             </div>
           </div>
