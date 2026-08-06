@@ -55,3 +55,41 @@ export function computePoolAllowance(
     isOverPace,
   };
 }
+
+export interface TargetComparison {
+  // What would be left this month if this category were funded/spent exactly
+  // at its target's monthly-needed amount.
+  remaining: number;
+  // amountNeeded / days in the month — the average $/day the target allows.
+  dailyRate: number;
+  // dailyRate scaled to a week, for the same at-a-glance comparison the
+  // assigned-based allowance shows.
+  weeklyRate: number;
+  // dailyRate minus actual spend velocity. Positive means spending is
+  // slower than the target's rate — for discretionary money that's the good
+  // outcome (more left over), so it's framed as "behind pace" on purpose.
+  paceDelta: number;
+  isBehindPace: boolean;
+}
+
+/**
+ * Compares actual spend velocity against the rate implied by a category's
+ * target, rather than comparing dollar totals directly — assigned vs. target
+ * dollars alone can't say anything about pace, since both figures move by
+ * the same `activity` and the difference is really just a funding gap.
+ * `today` is injectable for testability; defaults to the real current date.
+ */
+export function computeTargetComparison(
+  amountNeeded: number,
+  activity: number,
+  velocity: number,
+  today: Date = new Date()
+): TargetComparison {
+  const daysInPeriod = getDaysInMonth(today);
+  const remaining = amountNeeded + activity;
+  const dailyRate = amountNeeded / daysInPeriod;
+  const weeklyRate = dailyRate * 7;
+  const paceDelta = dailyRate - velocity;
+
+  return { remaining, dailyRate, weeklyRate, paceDelta, isBehindPace: paceDelta >= 0 };
+}

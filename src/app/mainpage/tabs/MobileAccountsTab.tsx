@@ -4,6 +4,7 @@ import { useAccountContext } from "@/app/context/AccountContext";
 import { formatToUSD } from "@/app/utils/formatToUSD";
 import { cn } from "@/lib/utils";
 import AddAccountModal from "../AddAccountModal";
+import { Landmark } from "lucide-react";
 
 function getAccountAbbr(name: string): string {
   const upper = name.toUpperCase();
@@ -169,7 +170,9 @@ export default function MobileAccountsTab({ onSelectAccount }: Props) {
       {/* Empty state */}
       {accounts.length === 0 && (
         <div className="flex flex-col items-center justify-center py-16 text-center px-8">
-          <div className="text-4xl mb-3 opacity-20">🏦</div>
+          <div className="w-14 h-14 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center mb-3">
+            <Landmark className="w-6 h-6 text-slate-300 dark:text-slate-600" />
+          </div>
           <p className="text-[15px] font-medium text-slate-600 dark:text-slate-400">
             No accounts yet
           </p>

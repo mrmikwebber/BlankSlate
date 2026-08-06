@@ -98,6 +98,8 @@ function buildContextValue(_placeholder: null) {
     importPending: boolean;
     enterSandbox: () => void;
     exitSandbox: () => void;
+    planningMode: "period" | "global";
+    setPlanningMode: (mode: "period" | "global") => void;
 
     // Navigation
     setCurrentMonth: (month: string, direction?: "forward" | "backward") => void;
@@ -115,6 +117,8 @@ function buildContextValue(_placeholder: null) {
     reorderCategoryItems: (orderedIds: { id: string; sortOrder: number }[]) => Promise<void>;
     setCategorySnooze: (id: string, snoozed: boolean) => Promise<void>;
     setCategoryTarget: (id: string, target: Target | null) => Promise<void>;
+    setGlobalAssigned: (categoryItemId: string, month: string, value: number) => Promise<void>;
+    setPlannedIncome: (month: string, amount: number) => Promise<void>;
     setCategoryDiscretionaryPool: (id: string, isDiscretionaryPool: boolean) => Promise<void>;
     setCategoryHideFromInsights: (id: string, isHiddenFromInsights: boolean) => Promise<void>;
     updateCategoryGroupNote: (id: string, text: string) => Promise<void>;
@@ -165,11 +169,14 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
   const [currentMonth, setCurrentMonthState] = useState(format(new Date(), "yyyy-MM"));
   const [sandboxMode, setSandboxMode] = useState(false);
   const [importPending, setImportPending] = useState(false);
+  // Session-only, never persisted — Period (real, unchanged behavior) is
+  // always the default on load. A stale Global toggle silently making a
+  // bigger number look real on next visit would be worse than an extra click.
+  const [planningMode, setPlanningMode] = useState<"period" | "global">("period");
 
   // After a mutation the server returns a fresh view — store it to avoid a re-fetch round-trip
   const [mutationView, setMutationView] = useState<ComputedMonthView | null>(null);
 
-  const sandboxBaselineRef = useRef<ComputedMonthView | null>(null);
   const importedAccountIdsRef = useRef<string[]>([]);
   const importedCategoryGroupIdsRef = useRef<string[]>([]);
 
@@ -258,6 +265,11 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
         patchRTAForward(month, optimisticRta);
       }
 
+      // Sandbox mode never writes real assignments — the optimistic patch
+      // above is the entire effect, and exitSandbox()'s invalidate() call
+      // reverts it by simply refetching the (untouched) real data.
+      if (sandboxMode) return;
+
       try {
         const view = await apiFetch<ComputedMonthView>("/api/budget/assign", {
           method: "PATCH",
@@ -275,18 +287,46 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
         throw err;
       }
     },
-    [applyMutationResult, budgetView]
+    [applyMutationResult, budgetView, sandboxMode]
   );
 
   const moveMoney = useCallback(
     async (sourceItemId: string, destItemId: string, month: string, amount: number) => {
-      const view = await apiFetch<ComputedMonthView>("/api/budget/move-money", {
-        method: "POST",
-        body: JSON.stringify({ month, sourceItemId, destinationItemId: destItemId, amount }),
-      });
-      applyMutationResult(view);
+      // Same-month transfer between two categories — no RTA impact, so the
+      // optimistic patch is just shifting `assigned`/`available` between the
+      // two items.
+      const previousView = budgetView?.month === month ? budgetView : null;
+
+      if (previousView) {
+        applyMutationResult({
+          ...previousView,
+          categories: previousView.categories.map((g) => ({
+            ...g,
+            categoryItems: g.categoryItems.map((i) => {
+              if (i.id === sourceItemId) return { ...i, assigned: i.assigned - amount, available: i.available - amount };
+              if (i.id === destItemId) return { ...i, assigned: i.assigned + amount, available: i.available + amount };
+              return i;
+            }),
+          })),
+        });
+      }
+
+      // Sandbox mode never writes real transfers — the optimistic patch
+      // above is the entire effect, reverted by exitSandbox()'s invalidate().
+      if (sandboxMode) return;
+
+      try {
+        const view = await apiFetch<ComputedMonthView>("/api/budget/move-money", {
+          method: "POST",
+          body: JSON.stringify({ month, sourceItemId, destinationItemId: destItemId, amount }),
+        });
+        applyMutationResult(view);
+      } catch (err) {
+        if (previousView) applyMutationResult(previousView);
+        throw err;
+      }
     },
-    [applyMutationResult]
+    [applyMutationResult, budgetView, sandboxMode]
   );
 
   const addCategoryGroup = useCallback(
@@ -474,6 +514,75 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
       invalidate();
     },
     [invalidate]
+  );
+
+  // Global planning mode — a shadow "assigned" per (item, month), separate
+  // from real budget_assignments. Mirrors patchAssigned's optimistic-delta
+  // shape (instant local patch, reconcile with the server's authoritative
+  // view, roll back on failure) but deliberately does NOT call
+  // patchRTAForward — Global mode is single-month only and must never
+  // cascade into other cached months or touch real RTA.
+  const setGlobalAssigned = useCallback(
+    async (categoryItemId: string, month: string, value: number) => {
+      const previousView = budgetView?.month === month ? budgetView : null;
+
+      if (previousView) {
+        const item = previousView.categories
+          .flatMap((g) => g.categoryItems)
+          .find((i) => i.id === categoryItemId);
+        const delta = value - (item?.globalAssigned ?? 0);
+
+        applyMutationResult({
+          ...previousView,
+          global_ready_to_assign: previousView.global_ready_to_assign - delta,
+          categories: previousView.categories.map((g) => ({
+            ...g,
+            categoryItems: g.categoryItems.map((i) =>
+              i.id === categoryItemId ? { ...i, globalAssigned: value } : i
+            ),
+          })),
+        });
+      }
+
+      try {
+        const view = await apiFetch<ComputedMonthView>("/api/budget/global-assign", {
+          method: "PATCH",
+          body: JSON.stringify({ month, categoryItemId, assigned: value }),
+        });
+        applyMutationResult(view);
+      } catch (err) {
+        if (previousView) applyMutationResult(previousView);
+        throw err;
+      }
+    },
+    [applyMutationResult, budgetView]
+  );
+
+  const setPlannedIncome = useCallback(
+    async (month: string, amount: number) => {
+      const previousView = budgetView?.month === month ? budgetView : null;
+
+      if (previousView) {
+        const delta = amount - previousView.global_planned_income;
+        applyMutationResult({
+          ...previousView,
+          global_planned_income: amount,
+          global_ready_to_assign: previousView.global_ready_to_assign + delta,
+        });
+      }
+
+      try {
+        const view = await apiFetch<ComputedMonthView>("/api/budget/planned-income", {
+          method: "PATCH",
+          body: JSON.stringify({ month, amount }),
+        });
+        applyMutationResult(view);
+      } catch (err) {
+        if (previousView) applyMutationResult(previousView);
+        throw err;
+      }
+    },
+    [applyMutationResult, budgetView]
   );
 
   const setCategoryDiscretionaryPool = useCallback(
@@ -771,16 +880,17 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
 
   const enterSandbox = useCallback(() => {
     if (sandboxMode) return;
-    sandboxBaselineRef.current = budgetView;
     setSandboxMode(true);
     clearHistory();
-  }, [sandboxMode, budgetView, clearHistory]);
+  }, [sandboxMode, clearHistory]);
 
   const exitSandbox = useCallback(() => {
     if (!sandboxMode) return;
-    sandboxBaselineRef.current = null;
     setSandboxMode(false);
     clearHistory();
+    // Nothing was ever written to the server while sandboxMode was true
+    // (patchAssigned/moveMoney both skip their real API call in that state),
+    // so this refetch is the entire "discard changes" behavior.
     invalidate();
   }, [sandboxMode, clearHistory, invalidate]);
 
@@ -833,10 +943,12 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
 
   const getDisplayedRta = useCallback(
     (month: string): number => {
-      if (month === currentMonth) return budgetView?.ready_to_assign ?? 0;
-      return 0; // other months not loaded; component should use budgetView directly
+      if (month !== currentMonth) return 0; // other months not loaded; component should use budgetView directly
+      return planningMode === "global"
+        ? budgetView?.global_ready_to_assign ?? 0
+        : budgetView?.ready_to_assign ?? 0;
     },
-    [currentMonth, budgetView]
+    [currentMonth, budgetView, planningMode]
   );
 
   const rtaCarryByMonth = useMemo(
@@ -857,6 +969,8 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
         importPending,
         enterSandbox,
         exitSandbox,
+        planningMode,
+        setPlanningMode,
 
         setCurrentMonth,
 
@@ -872,6 +986,8 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
         reorderCategoryItems,
         setCategorySnooze,
         setCategoryTarget,
+        setGlobalAssigned,
+        setPlannedIncome,
         setCategoryDiscretionaryPool,
         setCategoryHideFromInsights,
         updateCategoryGroupNote,

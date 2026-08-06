@@ -1259,3 +1259,114 @@ describe("computeBudgetState", () => {
     });
 
 });
+
+describe("Global planning mode", () => {
+    const accounts = [{ id: "a-checking", name: "Checking", type: "debit" as const }];
+
+    // $300 Jan income, $100 Jan rent assigned + $50 Feb rent assigned —
+    // real ready_to_assign is $200 for Jan (300 - 100), $150 for Feb
+    // (200 leftover - 50), matching the sequential-RTA test above.
+    const baseFixture = () => ({
+        userId: "u1",
+        accounts,
+        transactions: normalizeTransactions(
+            [
+                {
+                    id: "tx-income-jan",
+                    account_id: "a-checking",
+                    date: "2026-01-05",
+                    payee: "Paycheck",
+                    category: "Ready to Assign",
+                    category_group: "Inflow",
+                    balance: 300,
+                    category_item_id: null,
+                    cleared: true,
+                    approved: true,
+                } as RawDbTransaction,
+            ],
+            accounts
+        ),
+        assignments: [
+            { categoryItemId: "item-rent", month: "2026-01", assigned: 100 },
+            { categoryItemId: "item-rent", month: "2026-02", assigned: 50 },
+        ],
+        categoryGroups: [
+            {
+                id: "g-bills",
+                name: "Bills",
+                sortOrder: 0,
+                items: [
+                    { id: "item-rent", groupId: "g-bills", name: "Rent", sortOrder: 0, snoozed: false },
+                ],
+            },
+        ],
+    });
+
+    it("with no overrides, global_ready_to_assign is real RTA plus planned income, and globalAssigned falls back to real assigned", () => {
+        const state = computeBudgetState({
+            ...baseFixture(),
+            globalAssignments: [],
+            plannedIncome: [{ month: "2026-01", amount: 200 }],
+        });
+
+        const jan = serializeMonthView(state, "2026-01");
+        const rentItem = jan.categories[0].categoryItems.find((i) => i.id === "item-rent")!;
+
+        expect(jan.ready_to_assign).toBe(200);
+        expect(jan.global_planned_income).toBe(200);
+        expect(jan.global_ready_to_assign).toBe(jan.ready_to_assign + 200);
+        expect(rentItem.globalAssigned).toBe(rentItem.assigned);
+    });
+
+    it("a global_assignments override changes globalAssigned and global_ready_to_assign but never the real assigned/ready_to_assign", () => {
+        const state = computeBudgetState({
+            ...baseFixture(),
+            globalAssignments: [{ categoryItemId: "item-rent", month: "2026-01", assigned: 250 }],
+            plannedIncome: [],
+        });
+
+        const jan = serializeMonthView(state, "2026-01");
+        const rentItem = jan.categories[0].categoryItems.find((i) => i.id === "item-rent")!;
+
+        // Real numbers: completely untouched by the override.
+        expect(rentItem.assigned).toBe(100);
+        expect(jan.ready_to_assign).toBe(200);
+
+        // Shadow numbers: reflect the override, and global RTA drops by
+        // exactly the delta (250 - 100 = 150) on top of real RTA — not by
+        // the full override amount, since that would double-subtract the
+        // portion real RTA already accounted for.
+        expect(rentItem.globalAssigned).toBe(250);
+        expect(jan.global_ready_to_assign).toBe(jan.ready_to_assign - 150);
+    });
+
+    it("a global_assignments override in one month does not cascade into another month's real or global numbers", () => {
+        const state = computeBudgetState({
+            ...baseFixture(),
+            globalAssignments: [{ categoryItemId: "item-rent", month: "2026-01", assigned: 250 }],
+            plannedIncome: [],
+        });
+
+        const feb = serializeMonthView(state, "2026-02");
+        const rentItem = feb.categories[0].categoryItems.find((i) => i.id === "item-rent")!;
+
+        // Feb has no override of its own, so its shadow value still falls
+        // back to its own real assigned, and global RTA equals real RTA —
+        // proof Jan's override never crossed the month boundary.
+        expect(rentItem.globalAssigned).toBe(rentItem.assigned);
+        expect(feb.global_ready_to_assign).toBe(feb.ready_to_assign);
+    });
+
+    it("planned income is scoped to its own month and does not leak into an adjacent month", () => {
+        const state = computeBudgetState({
+            ...baseFixture(),
+            globalAssignments: [],
+            plannedIncome: [{ month: "2026-01", amount: 500 }],
+        });
+
+        const feb = serializeMonthView(state, "2026-02");
+
+        expect(feb.global_planned_income).toBe(0);
+        expect(feb.global_ready_to_assign).toBe(feb.ready_to_assign);
+    });
+});

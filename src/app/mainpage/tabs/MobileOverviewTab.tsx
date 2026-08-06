@@ -11,7 +11,7 @@ import ReadyToAssignBreakdown from "../ReadyToAssignBreakdown";
 
 export default function MobileOverviewTab() {
   const { accounts } = useAccountContext();
-  const { currentMonth, budgetView } = useBudgetContext();
+  const { currentMonth, budgetView, planningMode } = useBudgetContext();
 
   // Category names the user has flagged to exclude from Insights charts.
   const hiddenCategoryNames = useMemo(() => {
@@ -92,9 +92,15 @@ export default function MobileOverviewTab() {
           className="shadow-none border border-ledger-200 dark:border-ledger-800/40 bg-ledger-50 dark:bg-ledger-900/30 text-ledger-800 dark:text-ledger-200 cursor-pointer active:opacity-80 transition-opacity"
         >
           <CardContent className="pt-4 pb-5">
-            <p className="text-xs text-ledger-700 font-medium mb-1.5">Ready to Assign</p>
+            <p className="text-xs text-ledger-700 font-medium mb-1.5">
+              Ready to Assign{planningMode === "global" ? " (Global)" : ""}
+            </p>
             <p className="text-3xl font-bold font-mono tabular-nums tracking-tight text-ledger-600">
-              {formatToUSD(budgetView?.ready_to_assign ?? 0)}
+              {formatToUSD(
+                planningMode === "global"
+                  ? budgetView?.global_ready_to_assign ?? 0
+                  : budgetView?.ready_to_assign ?? 0
+              )}
             </p>
           </CardContent>
         </Card>

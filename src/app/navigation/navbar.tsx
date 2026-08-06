@@ -272,12 +272,12 @@ export default function Navbar() {
 
       {/* Report Bug Modal */}
       {showBugModal && createPortal(
-        <div 
-          className="fixed inset-0 bg-black/30 dark:bg-black/60 z-[10000] flex items-center justify-center"
+        <div
+          className="fixed inset-0 bg-black/30 dark:bg-black/60 z-[10000] flex items-end sm:items-center justify-center"
           onClick={() => setShowBugModal(false)}
         >
-          <div 
-            className="bg-slate-50 dark:bg-slate-900 p-6 rounded-lg shadow-lg dark:shadow-xl w-full max-w-lg space-y-4 border dark:border-slate-700"
+          <div
+            className="bg-slate-50 dark:bg-slate-900 p-6 rounded-t-2xl sm:rounded-lg shadow-lg dark:shadow-xl w-full max-w-lg space-y-4 border-t sm:border dark:border-slate-700 max-h-[85dvh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100">Report a Bug</h2>
@@ -402,12 +402,12 @@ export default function Navbar() {
 
       {/* Suggest Feature Modal */}
       {showSuggestionModal && createPortal(
-        <div 
-          className="fixed inset-0 bg-black/30 dark:bg-black/60 z-[10000] flex items-center justify-center"
+        <div
+          className="fixed inset-0 bg-black/30 dark:bg-black/60 z-[10000] flex items-end sm:items-center justify-center"
           onClick={() => setShowSuggestionModal(false)}
         >
-          <div 
-            className="bg-slate-50 dark:bg-slate-900 p-6 rounded-lg shadow-lg dark:shadow-xl w-full max-w-lg space-y-4 border dark:border-slate-700"
+          <div
+            className="bg-slate-50 dark:bg-slate-900 p-6 rounded-t-2xl sm:rounded-lg shadow-lg dark:shadow-xl w-full max-w-lg space-y-4 border-t sm:border dark:border-slate-700 max-h-[85dvh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100">Suggest a Feature</h2>
