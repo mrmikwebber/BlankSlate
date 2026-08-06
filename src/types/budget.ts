@@ -2,7 +2,8 @@
 //
 // ComputedMonthView and its children are ephemeral projections returned by
 // API routes — they are NEVER persisted to the database. The source of
-// truth is: accounts + transactions + budget_assignments + category_items.
+// truth is: accounts + transactions + budget_assignments + category_items
+// + global_assignments + planned_income.
 
 export interface Target {
   type: string;
@@ -27,6 +28,11 @@ export interface ComputedCategoryItem {
   assigned: number;              // user-controlled (source of truth: budget_assignments)
   activity: number;              // computed from transactions
   available: number;             // computed: assigned + activity + cumulative carryover
+
+  // Global-mode shadow assigned amount (source of truth: global_assignments).
+  // Falls back to `assigned` when no override row exists for this item/month
+  // — always present, never touches real `assigned`/`available` above.
+  globalAssigned: number;
 
   snoozed?: boolean;
   target?: Target;
@@ -77,6 +83,13 @@ export interface ComputedMonthView {
   // month (see ReadyToAssignBreakdown.tsx), as a "already spoken for" warning.
   rta_assigned_beyond_this_month: number;
 
+  // Global planning mode — single-month preview, never cascades into other
+  // months' real math. global_ready_to_assign = ready_to_assign +
+  // global_planned_income - (sum of globalAssigned - sum of assigned, this
+  // month only). See computeBudgetState in lib/budgetMath.ts.
+  global_ready_to_assign: number;
+  global_planned_income: number; // raw planned_income.amount for this month
+
   version: number;               // monotonically increasing per user — reject stale responses
   generatedAt: string;           // ISO timestamp
 
@@ -109,6 +122,20 @@ export interface AssignmentRecord {
   categoryItemId: string;
   month: string;                 // "YYYY-MM"
   assigned: number;
+}
+
+// Global-mode analog of AssignmentRecord (source: global_assignments).
+export interface GlobalAssignmentRecord {
+  categoryItemId: string;
+  month: string;                 // "YYYY-MM"
+  assigned: number;
+}
+
+// Source: planned_income — one row max per (user, budget, month) in
+// practice, kept as a list to match the loader's flat-select pattern.
+export interface PlannedIncomeRecord {
+  month: string;                 // "YYYY-MM"
+  amount: number;
 }
 
 export interface CategoryItemMeta {
@@ -147,6 +174,11 @@ export interface BudgetStateInput {
   transactions: NormalizedTransaction[];
   assignments: AssignmentRecord[];
   categoryGroups: CategoryGroupMeta[];
+  // Optional — existing callers (tests, in particular) that don't care
+  // about Global mode can omit these; computeBudgetState treats a missing
+  // array the same as an empty one.
+  globalAssignments?: GlobalAssignmentRecord[];
+  plannedIncome?: PlannedIncomeRecord[];
 }
 
 // ---------------------------------------------------------------------------
@@ -168,6 +200,7 @@ export interface MonthItemState {
   cumulativeAvailable: number;   // sum of (assigned + activity) for all prior months
   available: number;             // assigned + activity + max(cumulativeAvailable, 0)
   ccActivityBreakdown?: CCActivityBreakdown; // Credit Card Payments items only
+  globalAssigned: number;        // shadow assigned; falls back to `assigned` when no override
 }
 
 export interface MonthState {
@@ -178,6 +211,8 @@ export interface MonthState {
   incomeThisMonth: number;  // this month's own "Ready to Assign" inflows
   assignedThisMonth: number; // this month's own assignments (not future months')
   overspendPrevMonth: number; // previous month's fresh debit-only overspend, applied once
+  globalAssignedThisMonth: number; // sum of globalAssigned over this month's items
+  plannedIncomeThisMonth: number;  // raw planned_income.amount for this month
 }
 
 export interface BudgetState {
@@ -204,6 +239,17 @@ export interface MoveMoneRequest {
   month: string;
   sourceItemId: string;
   destinationItemId: string;
+  amount: number;
+}
+
+export interface GlobalAssignRequest {
+  month: string;
+  categoryItemId: string;
+  assigned: number;
+}
+
+export interface PlannedIncomeRequest {
+  month: string;
   amount: number;
 }
 

@@ -101,6 +101,9 @@ export default function BudgetTable() {
     deleteCategoryItem,
     patchAssigned,
     moveMoney,
+    planningMode,
+    setPlanningMode,
+    setGlobalAssigned,
     renameCategory,
     renameCategoryGroup,
     reorderCategoryGroups,
@@ -124,6 +127,10 @@ export default function BudgetTable() {
 
   // Optimistic assigned values — updated instantly on input, cleared when server responds
   const [optimisticAssigned, setOptimisticAssigned] = useState<Record<string, number>>({});
+  // Global-mode shadow assigned — same optimistic-then-clear shape, but a
+  // separate map/handler since it writes to setGlobalAssigned (never
+  // patchAssigned) and never touches real assigned/RTA.
+  const [optimisticGlobalAssigned, setOptimisticGlobalAssigned] = useState<Record<string, number>>({});
 
   const FILTERS = [
     "All",
@@ -433,6 +440,29 @@ export default function BudgetTable() {
       patchAssigned(itemId, currentMonth, value).then(clearOptimistic).catch(clearOptimistic);
     },
     [budgetView, currentMonth, patchAssigned, registerAction, getItemIdByName]
+  );
+
+  // Global-mode counterpart to handleInputChange — same optimistic-then-fire
+  // shape, but no registerAction/undo-redo (this is a revisited scratch plan,
+  // not a real-money action) and it calls setGlobalAssigned, never
+  // patchAssigned, so real assigned/RTA are never touched.
+  const handleGlobalInputChange = useCallback(
+    (categoryName: string, itemName: string, value: number) => {
+      const itemId = getItemIdByName(categoryName, itemName);
+      if (!itemId) return;
+
+      setOptimisticGlobalAssigned((prev) => ({ ...prev, [itemId]: value }));
+
+      const clearOptimistic = () =>
+        setOptimisticGlobalAssigned((prev) => {
+          const next = { ...prev };
+          delete next[itemId];
+          return next;
+        });
+
+      setGlobalAssigned(itemId, currentMonth, value).then(clearOptimistic).catch(clearOptimistic);
+    },
+    [currentMonth, setGlobalAssigned, getItemIdByName]
   );
 
   const handleAddItem = useCallback((groupName: string) => {
@@ -1287,6 +1317,31 @@ export default function BudgetTable() {
               </div>
             )}
 
+            {planningMode === "global" && (
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-amber-900 dark:border-amber-700 dark:bg-amber-900/40 dark:text-amber-100">
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center gap-2 text-sm font-semibold">
+                    <Badge className="bg-amber-600 text-white hover:bg-amber-500">Global</Badge>
+                    <span>Planning against Global Ready to Assign</span>
+                  </div>
+                  <p className="text-xs text-amber-800 dark:text-amber-200">
+                    Assigned amounts here are a separate plan — they never change your real assigned or Ready to Assign.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-amber-400 text-amber-900 hover:bg-amber-100 dark:border-amber-500 dark:text-amber-50 dark:hover:bg-amber-800"
+                    onClick={() => setPlanningMode("period")}
+                    data-cy="global-mode-exit-banner"
+                  >
+                    Back to Period
+                  </Button>
+                </div>
+              </div>
+            )}
+
             {/* Status row — month nav now lives in the page-level toolbar */}
             {(showCarryNote || overspentCategoriesCount > 0 || (!showCarryNote && overspentCategoriesCount === 0 && displayedRta > 0)) && (
               <div className="flex items-center gap-2 flex-wrap">
@@ -1755,6 +1810,27 @@ export default function BudgetTable() {
                           : 0;
                         const activityDelta = (item.activity ?? 0) - previousActivity;
 
+                        // Same real-vs-shadow swap the assign cell already
+                        // uses — the target funding badge and progress bar
+                        // should track whichever "assigned" is actually on
+                        // screen, or a plan that fully funds a target would
+                        // still show "Underfunded" in Global mode.
+                        const displayedAssigned = planningMode === "global"
+                          ? (optimisticGlobalAssigned[item.id] ?? item.globalAssigned)
+                          : (optimisticAssigned[item.id] ?? item.assigned);
+                        const displayItem = { ...item, assigned: displayedAssigned };
+
+                        // Available under the shadow plan — exact, not an
+                        // approximation: available = assigned + activity +
+                        // prevAvailable, and only `assigned` differs between
+                        // real and shadow this month, so shifting by the
+                        // same delta gives the true figure. Shown as a
+                        // supplementary annotation only (see below) — the
+                        // real Available cell also hosts the Move Money
+                        // button, which always moves real money regardless
+                        // of planningMode, so its own number must stay real.
+                        const displayedAvailable = item.available + (displayedAssigned - item.assigned);
+
                         return (
                           <Fragment
                             key={`${group.name}::${item.name}-fragment`}
@@ -1908,32 +1984,32 @@ export default function BudgetTable() {
                                           Snoozed
                                         </Badge>
                                       )}
-                                      {item.target && getTargetStatus(item).message && (
+                                      {displayItem.target && getTargetStatus(displayItem).message && (
                                         <Badge
                                           variant={
-                                            getTargetStatus(item).type === "overspent"
+                                            getTargetStatus(displayItem).type === "overspent"
                                               ? "negative"
-                                              : getTargetStatus(item).type === "funded"
+                                              : getTargetStatus(displayItem).type === "funded"
                                                 ? "positive"
-                                                : getTargetStatus(item).type === "overfunded"
+                                                : getTargetStatus(displayItem).type === "overfunded"
                                                   ? "info"
-                                                  : getTargetStatus(item).type === "underfunded"
+                                                  : getTargetStatus(displayItem).type === "underfunded"
                                                     ? "warning"
                                                     : "neutral"
                                           }
                                         >
-                                          {getTargetStatus(item).type === "funded" && "Funded"}
-                                          {getTargetStatus(item).type === "overfunded" && "Overfunded"}
-                                          {getTargetStatus(item).type === "underfunded" && (item.target.amountNeeded - item.assigned > 0 ? formatToUSD(item.target.amountNeeded - item.assigned) + " left" : "Underfunded")}
-                                          {getTargetStatus(item).type === "overspent" && "Overspent"}
+                                          {getTargetStatus(displayItem).type === "funded" && "Funded"}
+                                          {getTargetStatus(displayItem).type === "overfunded" && "Overfunded"}
+                                          {getTargetStatus(displayItem).type === "underfunded" && (displayItem.target.amountNeeded - displayItem.assigned > 0 ? formatToUSD(displayItem.target.amountNeeded - displayItem.assigned) + " left" : "Underfunded")}
+                                          {getTargetStatus(displayItem).type === "overspent" && "Overspent"}
                                         </Badge>
                                       )}
                                     </div>
-                                    {item.target && (
+                                    {displayItem.target && (
                                       <div className="h-0.5 mt-1 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden">
                                         <div
                                           className="h-full bg-ledger-500 dark:bg-ledger-600 rounded-full"
-                                          style={{ width: `${Math.min((item.assigned / item.target.amountNeeded) * 100, 100)}%` }}
+                                          style={{ width: `${Math.min((displayItem.assigned / displayItem.target.amountNeeded) * 100, 100)}%` }}
                                         />
                                       </div>
                                     )}
@@ -1945,9 +2021,9 @@ export default function BudgetTable() {
                             <EditableAssigned
                               categoryName={group.name}
                               itemName={item.name}
-                              item={{ ...item, assigned: optimisticAssigned[item.id] ?? item.assigned }}
-                              handleInputChange={handleInputChange}
-                              showDelta={showCompare}
+                              item={displayItem}
+                              handleInputChange={planningMode === "global" ? handleGlobalInputChange : handleInputChange}
+                              showDelta={showCompare && planningMode === "period"}
                               deltaAmount={assignedDelta}
                             />
 
@@ -2027,6 +2103,7 @@ export default function BudgetTable() {
                                   : "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400 hover:bg-orange-200 dark:hover:bg-orange-900/60";
 
                                 return (
+                                  <>
                                   <div className="flex flex-row items-center justify-end gap-1.5">
                                     {pillLabel && (
                                       <Popover>
@@ -2158,6 +2235,16 @@ export default function BudgetTable() {
                                       );
                                     })()}
                                   </div>
+                                  {planningMode === "global" &&
+                                    Math.round(displayedAvailable * 100) !== Math.round(item.available * 100) && (
+                                      <div
+                                        data-cy="item-global-available"
+                                        className="text-[10px] font-semibold text-amber-700 dark:text-amber-400 text-right mt-0.5"
+                                      >
+                                        Global: {formatToUSD(displayedAvailable)}
+                                      </div>
+                                    )}
+                                  </>
                                 );
                               })()}
                             </TableCell>

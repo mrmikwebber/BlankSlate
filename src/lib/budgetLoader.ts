@@ -15,6 +15,8 @@ import type {
   BudgetStateInput,
   CategoryGroupMeta,
   CategoryItemMeta,
+  GlobalAssignmentRecord,
+  PlannedIncomeRecord,
 } from "../types/budget";
 
 export async function loadBudgetState(
@@ -22,8 +24,15 @@ export async function loadBudgetState(
   userId: string,
   budgetId: string
 ): Promise<BudgetState> {
-  const [accountsResult, transactionsResult, groupsResult, itemsResult, assignmentsResult] =
-    await Promise.all([
+  const [
+    accountsResult,
+    transactionsResult,
+    groupsResult,
+    itemsResult,
+    assignmentsResult,
+    globalAssignmentsResult,
+    plannedIncomeResult,
+  ] = await Promise.all([
       supabase
         .from("accounts")
         .select("id, name, type, issuer")
@@ -59,6 +68,18 @@ export async function loadBudgetState(
         .select("category_item_id, month, assigned")
         .eq("user_id", userId)
         .eq("budget_id", budgetId),
+
+      supabase
+        .from("global_assignments")
+        .select("category_item_id, month, assigned")
+        .eq("user_id", userId)
+        .eq("budget_id", budgetId),
+
+      supabase
+        .from("planned_income")
+        .select("month, amount")
+        .eq("user_id", userId)
+        .eq("budget_id", budgetId),
     ]);
 
   if (accountsResult.error) throw accountsResult.error;
@@ -66,6 +87,8 @@ export async function loadBudgetState(
   if (groupsResult.error) throw groupsResult.error;
   if (itemsResult.error) throw itemsResult.error;
   if (assignmentsResult.error) throw assignmentsResult.error;
+  if (globalAssignmentsResult.error) throw globalAssignmentsResult.error;
+  if (plannedIncomeResult.error) throw plannedIncomeResult.error;
 
   const accounts: AccountMeta[] = (accountsResult.data ?? []).map((a) => ({
     id: a.id,
@@ -110,12 +133,25 @@ export async function loadBudgetState(
     assigned: a.assigned,
   }));
 
+  const globalAssignments: GlobalAssignmentRecord[] = (globalAssignmentsResult.data ?? []).map((a) => ({
+    categoryItemId: a.category_item_id,
+    month: a.month,
+    assigned: a.assigned,
+  }));
+
+  const plannedIncome: PlannedIncomeRecord[] = (plannedIncomeResult.data ?? []).map((p) => ({
+    month: p.month,
+    amount: p.amount,
+  }));
+
   const input: BudgetStateInput = {
     userId,
     accounts,
     transactions: normalizedTx,
     assignments,
     categoryGroups,
+    globalAssignments,
+    plannedIncome,
   };
 
   return computeBudgetState(input);

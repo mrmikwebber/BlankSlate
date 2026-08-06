@@ -918,7 +918,7 @@ function computeCreditCardActivityByAccount(
 // Compute deterministic full-timeline budget state from source-of-truth data.
 // Call serializeMonthView() to project a single month from this state.
 export function computeBudgetState(input: BudgetStateInput): BudgetState {
-  const { accounts, transactions, assignments, categoryGroups } = input;
+  const { accounts, transactions, assignments, categoryGroups, globalAssignments, plannedIncome } = input;
 
   const accountMap = new Map(accounts.map((a) => [a.id, a]));
 
@@ -926,6 +926,20 @@ export function computeBudgetState(input: BudgetStateInput): BudgetState {
   const assignmentsByItemMonth = new Map<string, number>();
   for (const a of assignments) {
     assignmentsByItemMonth.set(`${a.categoryItemId}:${a.month}`, a.assigned);
+  }
+
+  // Global planning mode — single-month preview, deliberately NOT threaded
+  // into the running/cascading real chain above (no globalRunningAssigned
+  // etc.). A missing override falls back to the real `assigned` for that
+  // item/month, computed per-item below so both API consumers and tests see
+  // the same pre-filled shadow value.
+  const globalAssignmentsByItemMonth = new Map<string, number>();
+  for (const a of globalAssignments ?? []) {
+    globalAssignmentsByItemMonth.set(`${a.categoryItemId}:${a.month}`, a.assigned);
+  }
+  const plannedIncomeByMonth = new Map<string, number>();
+  for (const p of plannedIncome ?? []) {
+    plannedIncomeByMonth.set(p.month, p.amount);
   }
 
   // Collect all months with any data
@@ -1042,6 +1056,8 @@ export function computeBudgetState(input: BudgetStateInput): BudgetState {
         if (ccItemToAccountId.has(item.id)) continue;
 
         const assigned = assignmentsByItemMonth.get(`${item.id}:${month}`) ?? 0;
+        const globalOverride = globalAssignmentsByItemMonth.get(`${item.id}:${month}`);
+        const globalAssigned = globalOverride ?? assigned;
         const itemMonthTx = monthTx.filter(
           (tx) => tx.categoryItemId === item.id && !tx.isCreditCardPayment
         );
@@ -1068,6 +1084,7 @@ export function computeBudgetState(input: BudgetStateInput): BudgetState {
           activity,
           cumulativeAvailable: 0,
           available,
+          globalAssigned,
         });
 
         // Parallel debit-only lens on the same item, mirroring the blended
@@ -1099,6 +1116,8 @@ export function computeBudgetState(input: BudgetStateInput): BudgetState {
         if (!ccItemToAccountId.has(item.id)) continue;
 
         const assigned = assignmentsByItemMonth.get(`${item.id}:${month}`) ?? 0;
+        const globalOverride = globalAssignmentsByItemMonth.get(`${item.id}:${month}`);
+        const globalAssigned = globalOverride ?? assigned;
         const cardAccountId = ccItemToAccountId.get(item.id);
         const activity = cardAccountId ? ccActivityByAccountId.get(cardAccountId) ?? 0 : 0;
         const prevAvailable = prevMonthStates?.get(item.id)?.available ?? 0;
@@ -1110,12 +1129,17 @@ export function computeBudgetState(input: BudgetStateInput): BudgetState {
           activity,
           cumulativeAvailable: 0,
           available,
+          globalAssigned,
           ccActivityBreakdown: cardAccountId ? breakdownByCard.get(cardAccountId) : undefined,
         });
       }
     }
 
     const readyToAssign = runningInflows - runningAssigned - runningCashOverspending;
+
+    let globalAssignedThisMonth = 0;
+    for (const s of itemStates.values()) globalAssignedThisMonth += s.globalAssigned;
+    const plannedIncomeThisMonth = plannedIncomeByMonth.get(month) ?? 0;
 
     months.set(month, {
       month,
@@ -1125,6 +1149,8 @@ export function computeBudgetState(input: BudgetStateInput): BudgetState {
       incomeThisMonth,
       assignedThisMonth,
       overspendPrevMonth,
+      globalAssignedThisMonth,
+      plannedIncomeThisMonth,
     });
 
     prevMonthStates = itemStates;
@@ -1167,6 +1193,7 @@ export function serializeMonthView(
         assigned: s?.assigned ?? 0,
         activity: s?.activity ?? 0,
         available: Math.round((s?.available ?? 0) * 100) / 100,
+        globalAssigned: s?.globalAssigned ?? 0,
         snoozed: item.snoozed,
         target: item.target,
         notes: item.notes,
@@ -1204,6 +1231,21 @@ export function serializeMonthView(
   const displayedReadyToAssign =
     (monthState?.readyToAssign ?? 0) - (isRealCurrentMonth ? assignedBeyondThisMonth : 0);
 
+  // Global planning mode — a single-month preview on top of the same
+  // displayed real RTA above, never the cross-month cascade. Only the
+  // *incremental* excess of the shadow assigned total over the real
+  // assigned total is subtracted, since displayedReadyToAssign already
+  // accounts for the real assignedThisMonth once — subtracting the full
+  // shadow total again would double-count the portion that matches reality.
+  // With no overrides, globalAssignedThisMonth === assignedThisMonth, so
+  // global_ready_to_assign collapses to displayedReadyToAssign +
+  // plannedIncomeThisMonth exactly.
+  const plannedIncomeThisMonth = monthState?.plannedIncomeThisMonth ?? 0;
+  const globalReadyToAssign =
+    displayedReadyToAssign +
+    plannedIncomeThisMonth -
+    ((monthState?.globalAssignedThisMonth ?? 0) - (monthState?.assignedThisMonth ?? 0));
+
   return {
     month,
     ready_to_assign: Math.round(displayedReadyToAssign * 100) / 100,
@@ -1214,6 +1256,8 @@ export function serializeMonthView(
     rta_overspend_prev_month: Math.round((monthState?.overspendPrevMonth ?? 0) * 100) / 100,
     rta_assigned_this_month: Math.round((monthState?.assignedThisMonth ?? 0) * 100) / 100,
     rta_assigned_beyond_this_month: Math.round(assignedBeyondThisMonth * 100) / 100,
+    global_ready_to_assign: Math.round(globalReadyToAssign * 100) / 100,
+    global_planned_income: Math.round(plannedIncomeThisMonth * 100) / 100,
     version: state.version,
     generatedAt: state.generatedAt,
     categories,

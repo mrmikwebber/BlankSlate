@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { useAccountContext } from "@/app/context/AccountContext";
 import { useBudgetContext } from "@/app/context/BudgetContext";
 import { format, parseISO } from "date-fns";
@@ -8,7 +8,6 @@ import {
   ArrowDownLeft,
   ArrowLeft,
   ArrowUpRight,
-  Pencil,
   Plus,
   Receipt,
   Search,
@@ -38,12 +37,6 @@ type CategoryOptionGroup = {
 };
 
 type SavedPayeeLike = { name?: string | null };
-
-// Each swipe action button is w-20 (80px); the row must travel the full
-// combined width or the far one stays clipped behind the row's edge.
-const SWIPE_ACTION_WIDTH = 80;
-const SWIPE_REVEAL_WIDTH = SWIPE_ACTION_WIDTH * 2;
-const SWIPE_OPEN_THRESHOLD = SWIPE_REVEAL_WIDTH / 2;
 
 export default function MobileTransactionsTab({ accountId, onBack }: Props) {
   const {
@@ -90,11 +83,8 @@ export default function MobileTransactionsTab({ accountId, onBack }: Props) {
   // Name of the account selected as payee (for transfers/payments)
   const [selectedPayeeAccount, setSelectedPayeeAccount] = useState<string | null>(null);
 
-  // Swipe to reveal actions
-  const [swipedTxId, setSwipedTxId] = useState<number | null>(null);
-  const touchStartX = useRef<number | null>(null);
-  const swipeOffsets = useRef<Record<number, number>>({});
-  const [, forceUpdate] = useState(0);
+  // Delete confirmation (inside the edit sheet)
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const openAdd = () => {
     setEditingTxId(null);
@@ -105,6 +95,7 @@ export default function MobileTransactionsTab({ accountId, onBack }: Props) {
     setFormType("expense");
     setFormDate(new Date().toISOString().slice(0, 10));
     setSelectedPayeeAccount(null);
+    setConfirmingDelete(false);
     setSheetOpen(true);
   };
 
@@ -126,14 +117,15 @@ export default function MobileTransactionsTab({ accountId, onBack }: Props) {
     setFormType((tx.balance ?? 0) < 0 ? "expense" : "income");
     setFormDate(tx.date?.slice(0, 10) ?? new Date().toISOString().slice(0, 10));
     setSelectedPayeeAccount(payeeMatch ? payeeMatch[1] : null);
+    setConfirmingDelete(false);
     setSheetOpen(true);
-    setSwipedTxId(null);
   };
 
   const resetForm = () => {
     setSheetOpen(false);
     setEditingTxId(null);
     setSelectedPayeeAccount(null);
+    setConfirmingDelete(false);
   };
 
   // Compute proper payee label for transfers/payments (mirrors InlineTransactionRow logic)
@@ -455,118 +447,53 @@ export default function MobileTransactionsTab({ accountId, onBack }: Props) {
               {/* Transactions */}
               {group.items.map((tx) => {
                 const isIncome = tx.balance > 0;
-                const offset = swipeOffsets.current[tx.id] ?? 0;
-                const isRevealed = swipedTxId === tx.id && offset < -SWIPE_OPEN_THRESHOLD;
 
                 return (
-                  <div
+                  <button
                     key={tx.id}
-                    className="relative overflow-hidden bg-slate-50 dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800"
+                    type="button"
+                    onClick={() => openEdit(tx)}
+                    className="w-full flex items-center gap-3 px-4 py-3 min-h-[58px] bg-slate-50 dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 text-left active:bg-slate-100 dark:active:bg-slate-800/50 transition-colors"
                   >
-                    {/* Swipe actions background */}
-                    <div className="absolute inset-0 flex items-center justify-end">
-                      <button
-                        onClick={() => {
-                          openEdit(tx);
-                        }}
-                        className="h-full w-20 bg-ledger-600 dark:bg-ledger-700 flex flex-col items-center justify-center text-white text-[11px] font-semibold gap-1"
-                      >
-                        <Pencil className="w-4 h-4" />
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => {
-                          deleteTransactionWithMirror(accountId, tx.id);
-                          setSwipedTxId(null);
-                        }}
-                        className="h-full w-20 bg-red-600 dark:bg-red-700 flex flex-col items-center justify-center text-white text-[11px] font-semibold gap-1"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                        Delete
-                      </button>
+                    {/* Direction icon */}
+                    <div
+                      className={cn(
+                        "w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0",
+                        isIncome
+                          ? "bg-ledger-50 dark:bg-ledger-900/30 text-ledger-600 dark:text-ledger-400"
+                          : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
+                      )}
+                    >
+                      {isIncome ? (
+                        <ArrowDownLeft className="w-4 h-4" />
+                      ) : (
+                        <ArrowUpRight className="w-4 h-4" />
+                      )}
                     </div>
 
-                    {/* Row (swipeable) */}
-                    <div
-                      className="relative flex items-center gap-3 px-4 py-3 min-h-[58px] bg-slate-50 dark:bg-slate-900 cursor-pointer"
-                      style={{
-                        transform: `translateX(${offset}px)`,
-                        transition:
-                          touchStartX.current === null
-                            ? "transform 0.25s ease-out"
-                            : "none",
-                      }}
-                      onTouchStart={(e) => {
-                        touchStartX.current = e.touches[0].clientX;
-                      }}
-                      onTouchMove={(e) => {
-                        if (touchStartX.current === null) return;
-                        const delta =
-                          e.touches[0].clientX - touchStartX.current;
-                        const clamped = Math.max(-SWIPE_REVEAL_WIDTH, Math.min(0, delta));
-                        swipeOffsets.current[tx.id] = clamped;
-                        forceUpdate((n) => n + 1);
-                      }}
-                      onTouchEnd={() => {
-                        touchStartX.current = null;
-                        const offset = swipeOffsets.current[tx.id] ?? 0;
-                        if (offset < -SWIPE_OPEN_THRESHOLD) {
-                          swipeOffsets.current[tx.id] = -SWIPE_REVEAL_WIDTH;
-                          setSwipedTxId(tx.id);
-                        } else {
-                          swipeOffsets.current[tx.id] = 0;
-                          setSwipedTxId(null);
-                        }
-                        forceUpdate((n) => n + 1);
-                      }}
-                      onClick={() => {
-                        if (isRevealed) {
-                          swipeOffsets.current[tx.id] = 0;
-                          setSwipedTxId(null);
-                          forceUpdate((n) => n + 1);
-                        }
-                      }}
-                    >
-                      {/* Direction icon */}
-                      <div
-                        className={cn(
-                          "w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0",
-                          isIncome
-                            ? "bg-ledger-50 dark:bg-ledger-900/30 text-ledger-600 dark:text-ledger-400"
-                            : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
-                        )}
-                      >
-                        {isIncome ? (
-                          <ArrowDownLeft className="w-4 h-4" />
-                        ) : (
-                          <ArrowUpRight className="w-4 h-4" />
-                        )}
-                      </div>
-
-                      {/* Info */}
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[13px] font-medium text-slate-900 dark:text-slate-100 truncate">
-                          {tx.payee}
-                        </p>
-                        <p className="text-[11px] text-slate-400 dark:text-slate-500 truncate mt-0.5">
-                          {tx.category ?? "Uncategorized"}
-                        </p>
-                      </div>
-
-                      {/* Amount */}
-                      <p
-                        className={cn(
-                          "font-mono text-[14px] font-semibold flex-shrink-0",
-                          isIncome
-                            ? "text-ledger-600 dark:text-ledger-400"
-                            : "text-slate-800 dark:text-slate-200"
-                        )}
-                      >
-                        {isIncome ? "+" : "−"}
-                        {formatToUSD(Math.abs(tx.balance))}
+                    {/* Info */}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[13px] font-medium text-slate-900 dark:text-slate-100 truncate">
+                        {tx.payee}
+                      </p>
+                      <p className="text-[11px] text-slate-400 dark:text-slate-500 truncate mt-0.5">
+                        {tx.category ?? "Uncategorized"}
                       </p>
                     </div>
-                  </div>
+
+                    {/* Amount */}
+                    <p
+                      className={cn(
+                        "font-mono text-[14px] font-semibold flex-shrink-0",
+                        isIncome
+                          ? "text-ledger-600 dark:text-ledger-400"
+                          : "text-slate-800 dark:text-slate-200"
+                      )}
+                    >
+                      {isIncome ? "+" : "−"}
+                      {formatToUSD(Math.abs(tx.balance))}
+                    </p>
+                  </button>
                 );
               })}
             </div>
@@ -806,6 +733,48 @@ export default function MobileTransactionsTab({ accountId, onBack }: Props) {
                 {editingTxId ? "Update" : "Save"}
               </Button>
             </div>
+
+            {/* Delete (edit mode only) */}
+            {editingTxId && (
+              <div className="pt-1">
+                {confirmingDelete ? (
+                  <div className="flex items-center justify-between gap-2 rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/30 px-3 py-2.5">
+                    <span className="text-[12px] font-medium text-red-700 dark:text-red-400">
+                      Delete this transaction?
+                    </span>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 dark:border-slate-700"
+                        onClick={() => setConfirmingDelete(false)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="h-8 bg-red-600 hover:bg-red-700 text-white"
+                        onClick={() => {
+                          deleteTransactionWithMirror(accountId, editingTxId);
+                          resetForm();
+                        }}
+                      >
+                        Delete
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmingDelete(true)}
+                    className="w-full flex items-center justify-center gap-1.5 h-9 rounded-lg text-red-600 dark:text-red-400 text-[13px] font-medium hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Delete transaction
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>

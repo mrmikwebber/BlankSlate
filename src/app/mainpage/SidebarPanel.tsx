@@ -343,7 +343,7 @@ export default function SidebarPanel({ activeView, onViewChange }: SidebarPanelP
                 "text-[10px] font-semibold uppercase tracking-wide mb-1",
                 rta !== null && rta < 0 ? "text-red-500 dark:text-red-400" : "text-ledger-600 dark:text-ledger-500"
               )}>
-                Ready to Assign
+                Ready to Assign{budgetCtx?.planningMode === "global" ? " (Global)" : ""}
               </p>
               {rta === null ? (
                 <div className="h-5 w-20 rounded bg-ledger-200 dark:bg-ledger-800 animate-pulse" />

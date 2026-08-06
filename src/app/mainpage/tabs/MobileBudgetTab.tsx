@@ -2,6 +2,7 @@
 
 import { useBudgetContext } from "@/app/context/BudgetContext";
 import { formatToUSD } from "@/app/utils/formatToUSD";
+import { useToast } from "@/hooks/use-toast";
 import MonthNav from "../MonthNav";
 import ReadyToAssignBreakdown from "../ReadyToAssignBreakdown";
 import { ChevronDown, ChevronRight, Plus, Wallet } from "lucide-react";
@@ -16,43 +17,24 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import type { ComputedCategory, ComputedCategoryItem } from "@/types/budget";
 
-type SelectedItem = { groupName: string; itemName: string };
-
-type MobileCategoryItem = {
-  name: string;
-  assigned: number;
-  activity: number;
-  available: number;
-};
-
-type MobileCategoryGroup = {
-  name: string;
-  categoryItems: MobileCategoryItem[];
-};
-
-type MobileBudgetDataMap = Record<string, { categories: MobileCategoryGroup[] }>;
-
-type RecentChangeEntry = { description: string; timestamp: string };
+type SelectedItem = { groupName: string; itemName: string; itemId: string };
 
 export default function MobileBudgetTab() {
   const {
     currentMonth,
-    budgetData,
+    budgetView,
     addItemToCategory,
     addCategoryGroup,
-    getCumulativeAvailable,
-    setBudgetData,
-    calculateActivityForMonth,
-    calculateCreditCardAccountActivity,
-    refreshAllReadyToAssign,
-    setIsDirty,
-    setRecentChanges,
+    patchAssigned,
     getGroupIdByName,
   } = useBudgetContext();
+  const { toast } = useToast();
 
   const [selectedItem, setSelectedItem] = useState<SelectedItem | null>(null);
   const [editAssigned, setEditAssigned] = useState("");
+  const [saving, setSaving] = useState(false);
   const [addToGroup, setAddToGroup] = useState<string | null>(null);
   const [newItemName, setNewItemName] = useState("");
   const [addGroupOpen, setAddGroupOpen] = useState(false);
@@ -62,22 +44,29 @@ export default function MobileBudgetTab() {
   // Touch detection (tap vs scroll)
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
 
-  const budgetMonth = budgetData[currentMonth];
-
   const sortedGroups = useMemo(() => {
-    if (!budgetMonth) return [] as MobileCategoryGroup[];
-    return [...budgetMonth.categories].sort((a, b) => {
+    if (!budgetView) return [] as ComputedCategory[];
+    return [...budgetView.categories].sort((a, b) => {
       if (a.name === "Credit Card Payments") return -1;
       if (b.name === "Credit Card Payments") return 1;
       return a.name.localeCompare(b.name);
     });
-  }, [budgetMonth]);
+  }, [budgetView]);
 
-  // Default all groups expanded when data loads
+  // Default all groups expanded once data first loads for a month. Keyed
+  // only on [currentMonth], this never re-ran once budgetView finished its
+  // (async) initial fetch — sortedGroups was still [] on the first pass, so
+  // every group stayed permanently collapsed on a fresh load. Track which
+  // month we've already auto-expanded so this fires exactly once per month
+  // (not on every later budgetView update from an edit, which would
+  // otherwise undo a manual collapse mid-session).
+  const autoExpandedMonthRef = useRef<string | null>(null);
   useEffect(() => {
     if (!sortedGroups.length) return;
+    if (autoExpandedMonthRef.current === currentMonth) return;
+    autoExpandedMonthRef.current = currentMonth;
     setExpandedGroups(new Set(sortedGroups.map((g) => g.name)));
-  }, [currentMonth]);
+  }, [currentMonth, sortedGroups]);
 
   const toggleGroup = (name: string) => {
     setExpandedGroups((prev) => {
@@ -87,95 +76,26 @@ export default function MobileBudgetTab() {
     });
   };
 
-  const openEdit = (groupName: string, item: MobileCategoryItem) => {
-    setSelectedItem({ groupName, itemName: item.name });
+  const openEdit = (groupName: string, item: ComputedCategoryItem) => {
+    setSelectedItem({ groupName, itemName: item.name, itemId: item.id });
     setEditAssigned(String(item.assigned ?? 0));
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!selectedItem) return;
     const nextAssigned = parseFloat(editAssigned);
     if (Number.isNaN(nextAssigned)) return;
 
-    const { groupName, itemName } = selectedItem;
-
-    setBudgetData((prev: MobileBudgetDataMap) => {
-      const updated = { ...prev };
-      const updatedCategories = updated[currentMonth]?.categories.map(
-        (category: MobileCategoryGroup) => {
-          const updatedItems = category.categoryItems.map(
-            (item: MobileCategoryItem) => {
-              if (category.name !== groupName || item.name !== itemName)
-                return item;
-              const itemActivity = calculateActivityForMonth(
-                currentMonth,
-                item.name,
-                groupName
-              );
-              const cumulative = getCumulativeAvailable(
-                updated,
-                item.name,
-                groupName
-              );
-              return {
-                ...item,
-                assigned: nextAssigned,
-                activity: itemActivity,
-                available: nextAssigned + itemActivity + Math.max(cumulative, 0),
-              };
-            }
-          );
-          return { ...category, categoryItems: updatedItems };
-        }
-      );
-
-      updated[currentMonth] = {
-        ...updated[currentMonth],
-        categories: updatedCategories,
-      };
-
-      // Recalc CC payments
-      const updatedWithCC = updated[currentMonth].categories.map(
-        (category: MobileCategoryGroup) => {
-          if (category.name !== "Credit Card Payments") return category;
-          const updatedItems = category.categoryItems.map(
-            (item: MobileCategoryItem) => {
-              const activity = calculateCreditCardAccountActivity(
-                currentMonth,
-                item.name,
-                updated
-              );
-              const cumulative = getCumulativeAvailable(
-                updated,
-                item.name,
-                category.name
-              );
-              return {
-                ...item,
-                activity,
-                available: item.assigned + activity + Math.max(cumulative, 0),
-              };
-            }
-          );
-          return { ...category, categoryItems: updatedItems };
-        }
-      );
-
-      updated[currentMonth].categories = updatedWithCC;
-      refreshAllReadyToAssign();
-      return updated;
-    });
-
-    setIsDirty?.(true);
-    setRecentChanges?.((prev: RecentChangeEntry[]) => [
-      ...(prev || []).slice(-9),
-      {
-        description: `Assigned $${nextAssigned} to '${itemName}'`,
-        timestamp: new Date().toISOString(),
-      },
-    ]);
-
-    setSelectedItem(null);
+    setSaving(true);
+    try {
+      await patchAssigned(selectedItem.itemId, currentMonth, nextAssigned);
+      setSelectedItem(null);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to save assignment";
+      toast({ title: "Couldn't save assignment", description: message, variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
   };
 
   const quickAdd = (amount: number) => {
@@ -183,9 +103,9 @@ export default function MobileBudgetTab() {
     setEditAssigned(String(current + amount));
   };
 
-  const cumulativeAvailable = getCumulativeAvailable(null, "", "");
+  const readyToAssign = budgetView?.ready_to_assign ?? 0;
 
-  if (!budgetMonth) {
+  if (!budgetView) {
     return (
       <div className="text-center py-8 text-slate-400">
         No budget data for this month
@@ -195,11 +115,9 @@ export default function MobileBudgetTab() {
 
   // Find the item being edited for live display
   const editingItem = selectedItem
-    ? budgetMonth.categories
-        .find((g: MobileCategoryGroup) => g.name === selectedItem.groupName)
-        ?.categoryItems.find(
-          (i: MobileCategoryItem) => i.name === selectedItem.itemName
-        )
+    ? budgetView.categories
+        .flatMap((g) => g.categoryItems)
+        .find((i) => i.id === selectedItem.itemId)
     : null;
 
   return (
@@ -221,7 +139,7 @@ export default function MobileBudgetTab() {
               Ready to Assign
             </p>
             <p className="font-mono tabular-nums text-[32px] font-bold text-ledger-700 dark:text-ledger-300 leading-tight tracking-tight">
-              {formatToUSD(cumulativeAvailable)}
+              {formatToUSD(readyToAssign)}
             </p>
           </div>
           <Wallet className="h-6 w-6 text-ledger-400 dark:text-ledger-600 opacity-40" />
@@ -373,7 +291,7 @@ export default function MobileBudgetTab() {
       {/* ── Edit assigned sheet ── */}
       <Dialog
         open={Boolean(selectedItem)}
-        onOpenChange={(o) => !o && setSelectedItem(null)}
+        onOpenChange={(o) => { if (!o && !saving) setSelectedItem(null); }}
       >
         <DialogContent className="p-0 overflow-hidden rounded-t-2xl sm:rounded-2xl bg-slate-50 dark:bg-slate-900 border-0 shadow-2xl left-0 bottom-0 top-auto translate-x-0 translate-y-0 w-full max-w-none sm:left-[50%] sm:bottom-auto sm:top-[50%] sm:translate-x-[-50%] sm:translate-y-[-50%] sm:w-[96vw] sm:max-w-sm max-h-[90dvh] overflow-y-auto">
           {/* Header */}
@@ -466,8 +384,9 @@ export default function MobileBudgetTab() {
               <Button
                 className="flex-1 h-11 bg-ledger-600 hover:bg-ledger-700 dark:bg-ledger-700 dark:hover:bg-ledger-600 text-white font-semibold"
                 onClick={handleSave}
+                disabled={saving}
               >
-                Save
+                {saving ? "Saving…" : "Save"}
               </Button>
             </div>
           </div>
