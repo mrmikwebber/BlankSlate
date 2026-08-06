@@ -219,9 +219,13 @@ export async function syncSimplefinConnection(
     }
   }
 
-  // Clean up stale pending rows: still uncleared, untouched by the user
-  // (never approved or categorized), dated within this fetch's window, but
-  // no longer present in the feed at all — almost always because the
+  // Clean up stale pending rows: still uncleared and never categorized
+  // (the only real user work worth protecting — `approved` is just an
+  // "I've glanced at this" checkbox and isn't a signal of lost work, so it
+  // deliberately isn't part of this condition; requiring it too meant
+  // anyone who approves promptly — e.g. via "Approve All" — got zero
+  // benefit from this cleanup), dated within this fetch's window, but no
+  // longer present in the feed at all — almost always because the
   // institution posted it under a different transaction id.
   for (const [accountId, seenIds] of seenIdsByAccount) {
     const { data: stalePending } = await supabase
@@ -230,7 +234,6 @@ export async function syncSimplefinConnection(
       .eq("user_id", userId)
       .eq("account_id", accountId)
       .eq("cleared", false)
-      .eq("approved", false)
       .is("category", null)
       .not("simplefin_transaction_id", "is", null)
       .gte("date", startDateIso);
