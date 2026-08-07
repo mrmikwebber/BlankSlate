@@ -41,7 +41,7 @@ function PoolCard({ pool }: { pool: DiscretionaryPool }) {
         <div className="flex items-start justify-between gap-2">
           <p className="text-xs font-medium text-slate-500 dark:text-slate-400 truncate">{pool.name}</p>
           {allowance.isOverPace && (
-            <span title={`At this pace you'll hit ${formatToUSD(allowance.projectedEnd)} — over by ${formatToUSD(allowance.projectedEnd - totalPot)}`}>
+            <span title={`At this rate you'll spend ${formatToUSD(allowance.projectedEnd)} this month — ${formatToUSD(allowance.projectedEnd - totalPot)} more than the ${formatToUSD(totalPot)} you've assigned`}>
               <AlertTriangle className="h-3.5 w-3.5 text-amber-500 dark:text-amber-400 flex-shrink-0" />
             </span>
           )}
@@ -58,6 +58,9 @@ function PoolCard({ pool }: { pool: DiscretionaryPool }) {
         </p>
         <p className="text-xs sm:text-[11px] text-slate-600 dark:text-slate-300">
           {formatToUSD(allowance.remaining)} left &middot; {allowance.daysLeft}d left
+        </p>
+        <p className="text-xs sm:text-[11px] text-slate-400 dark:text-slate-500">
+          {formatToUSD(allowance.assignedWeeklyRate)}/wk assigned
         </p>
 
         <div className="h-[3px] w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
@@ -203,7 +206,7 @@ function ShuffleForm({ pools, api }: { pools: DiscretionaryPool[]; api: PoolsApi
 
 export default function DiscretionaryTab() {
   const api = useDiscretionaryPools();
-  const { pools, totalDaily, totalRemaining, isInitialLoading } = api;
+  const { pools, totalDaily, totalRemaining, totalAssignedWeekly, isInitialLoading } = api;
   const [showManage, setShowManage] = useState(false);
 
   const totalIsNegative = totalRemaining < 0;
@@ -271,6 +274,9 @@ export default function DiscretionaryTab() {
               </p>
               <p className="text-xs text-ledger-800 dark:text-ledger-200 mt-0.5">
                 {formatToUSD(totalRemaining)} remaining this period
+              </p>
+              <p className="text-xs text-ledger-700/80 dark:text-ledger-300/80">
+                {formatToUSD(totalAssignedWeekly)}/wk assigned
               </p>
 
               {poolsWithTarget.length > 0 && (

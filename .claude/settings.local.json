@@ -134,7 +134,8 @@
       "Bash(node scratch-month-nav-check.mjs)",
       "Bash(node scratch-repro-check.mjs)",
       "Bash(xargs grep -l \"transactions\")",
-      "Bash(node scratch-tx-mobile-check.mjs)"
+      "Bash(node scratch-tx-mobile-check.mjs)",
+      "Bash(node scratch-discretionary-check.mjs)"
     ],
     "additionalDirectories": [
       "/Users/michaelwebb/Documents/GitHub/BlankSlate/src/app/api/budget/month",
