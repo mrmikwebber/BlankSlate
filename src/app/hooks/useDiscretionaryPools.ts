@@ -129,7 +129,7 @@ export function useDiscretionaryPools() {
     return allCategoryItems
       .filter((item) => item.isDiscretionaryPool)
       .map((item) => {
-        const allowance = computePoolAllowance(item.available, item.activity, today);
+        const allowance = computePoolAllowance(item.available, item.activity, item.assigned, today);
         const amountNeeded = item.target?.amountNeeded;
         return {
           id: item.id,
@@ -146,6 +146,7 @@ export function useDiscretionaryPools() {
   const totalDaily = pools.reduce((sum, p) => sum + p.allowance.daily, 0);
   const totalWeekly = pools.reduce((sum, p) => sum + p.allowance.weekly, 0);
   const totalRemaining = pools.reduce((sum, p) => sum + p.allowance.remaining, 0);
+  const totalAssignedWeekly = pools.reduce((sum, p) => sum + p.allowance.assignedWeeklyRate, 0);
 
   // Real money movement between two categories for the current period —
   // the same moveMoney mutation the main budget table uses, so this
@@ -175,6 +176,7 @@ export function useDiscretionaryPools() {
     totalDaily,
     totalWeekly,
     totalRemaining,
+    totalAssignedWeekly,
     isLoading: viewLoading,
     isInitialLoading: !hasLoadedOnce && viewLoading,
     setCategoryDiscretionaryPool,

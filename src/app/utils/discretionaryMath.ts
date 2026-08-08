@@ -10,6 +10,12 @@ export interface PoolAllowance {
   velocity: number;
   projectedEnd: number;
   isOverPace: boolean;
+  // assigned / days-in-month, and that scaled to a week — a stable
+  // reference rate from what you budgeted this period, independent of how
+  // much you've already spent (unlike `daily`/`weekly` above, which are
+  // remaining-based and shrink as the pot gets spent down).
+  assignedDailyRate: number;
+  assignedWeeklyRate: number;
 }
 
 /**
@@ -21,6 +27,7 @@ export interface PoolAllowance {
 export function computePoolAllowance(
   available: number,
   activity: number,
+  assigned: number,
   today: Date = new Date()
 ): PoolAllowance {
   const daysInPeriod = getDaysInMonth(today);
@@ -35,6 +42,9 @@ export function computePoolAllowance(
   const remaining = available;
   const daily = remaining / daysLeft;
   const weekly = daily * Math.min(7, daysLeft);
+
+  const assignedDailyRate = assigned / daysInPeriod;
+  const assignedWeeklyRate = assignedDailyRate * 7;
 
   const velocity = spent / daysElapsed;
   const projectedEnd = velocity * daysInPeriod;
@@ -53,6 +63,8 @@ export function computePoolAllowance(
     velocity,
     projectedEnd,
     isOverPace,
+    assignedDailyRate,
+    assignedWeeklyRate,
   };
 }
 
