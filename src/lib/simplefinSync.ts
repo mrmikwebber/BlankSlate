@@ -253,12 +253,72 @@ export async function syncSimplefinConnection(
     const txIds = rows.map((r) => r.simplefin_transaction_id);
     const { data: existing } = await supabase
       .from("transactions")
-      .select("simplefin_transaction_id")
+      .select("simplefin_transaction_id, balance, entered_early, original_balance")
       .in("simplefin_transaction_id", txIds);
-    const existingIds = new Set((existing ?? []).map((e) => e.simplefin_transaction_id));
+    const existingById = new Map((existing ?? []).map((e) => [e.simplefin_transaction_id, e]));
 
-    const newRows = rows.filter((r) => !existingIds.has(r.simplefin_transaction_id));
-    const existingRows = rows.filter((r) => existingIds.has(r.simplefin_transaction_id));
+    const unmatchedRows = rows.filter((r) => !existingById.has(r.simplefin_transaction_id));
+    const existingRows = rows.filter((r) => existingById.has(r.simplefin_transaction_id));
+
+    // Some institutions issue a fresh transaction id once a pending charge
+    // posts rather than keeping the pending one, so a row that looks
+    // "unmatched" by id may actually be the real-world posting of a
+    // transaction the user already reviewed and entered early (see
+    // AccountDetails' pending-review flow). Match those by account + close
+    // date + exact amount before treating the row as brand new — exact
+    // amount only, to avoid mismatching two unrelated same-account
+    // transactions that happen to land in the same window.
+    const MATCH_WINDOW_DAYS = 5;
+    const usedCandidateIds = new Set<string | number>();
+    const newRows: typeof unmatchedRows = [];
+
+    if (unmatchedRows.length > 0) {
+      const candidateAccountIds = Array.from(new Set(unmatchedRows.map((r) => r.account_id)));
+      const { data: enteredEarlyCandidates } = await supabase
+        .from("transactions")
+        .select("id, account_id, date, balance")
+        .eq("user_id", userId)
+        .eq("entered_early", true)
+        .in("account_id", candidateAccountIds);
+
+      for (const row of unmatchedRows) {
+        const rowDateMs = new Date(row.date).getTime();
+        const candidates = (enteredEarlyCandidates ?? []).filter(
+          (c) =>
+            String(c.account_id) === row.account_id &&
+            !usedCandidateIds.has(c.id) &&
+            Math.abs(c.balance - row.balance) < 0.005 &&
+            Math.abs(rowDateMs - new Date(c.date).getTime()) / 86_400_000 <= MATCH_WINDOW_DAYS
+        );
+
+        if (candidates.length === 0) {
+          newRows.push(row);
+          continue;
+        }
+
+        const match = candidates.reduce((best, c) =>
+          Math.abs(rowDateMs - new Date(c.date).getTime()) < Math.abs(rowDateMs - new Date(best.date).getTime())
+            ? c
+            : best
+        );
+        usedCandidateIds.add(match.id);
+
+        const { error: matchError } = await supabase
+          .from("transactions")
+          .update({
+            simplefin_transaction_id: row.simplefin_transaction_id,
+            date: row.date,
+            pending: false,
+            cleared: true,
+            entered_early: false,
+          })
+          .eq("id", match.id);
+        if (matchError) {
+          console.error("[simplefinSync] entered-early match update error:", matchError);
+        }
+      }
+    }
+
     newTransactions = newRows.length;
 
     if (newRows.length > 0) {
@@ -276,15 +336,36 @@ export async function syncSimplefinConnection(
     // upserting the full row would silently null them back out every time
     // the transaction resyncs.
     for (const row of existingRows) {
+      const existingRow = existingById.get(row.simplefin_transaction_id);
+      const isEnteredEarly = existingRow?.entered_early === true;
+      const amountChanged = isEnteredEarly && Math.abs((existingRow?.balance ?? row.balance) - row.balance) >= 0.005;
+
+      const updatePayload: Record<string, unknown> = {
+        date: row.date,
+        balance: row.balance,
+        cleared: row.cleared,
+        pending: row.pending,
+      };
+      // An entered-early transaction's payee was set/reviewed by the user —
+      // treat it like category/approved and never overwrite it. A still-
+      // pending row the user hasn't looked at yet is fine to keep refreshing
+      // (banks often replace vague pending payee text with the real one).
+      if (!isEnteredEarly) {
+        updatePayload.payee = row.payee;
+      }
+      // Surface a "posted for a different amount" flag (e.g. a tip added
+      // after the pending charge showed) without ever inserting a duplicate
+      // transaction — captured once, on first mismatch.
+      if (amountChanged && existingRow?.original_balance == null) {
+        updatePayload.original_balance = existingRow?.balance;
+      }
+      if (isEnteredEarly && row.pending === false) {
+        updatePayload.entered_early = false;
+      }
+
       const { error: updateError } = await supabase
         .from("transactions")
-        .update({
-          date: row.date,
-          payee: row.payee,
-          balance: row.balance,
-          cleared: row.cleared,
-          pending: row.pending,
-        })
+        .update(updatePayload)
         .eq("simplefin_transaction_id", row.simplefin_transaction_id);
       if (updateError) {
         console.error("[simplefinSync] update error:", updateError);

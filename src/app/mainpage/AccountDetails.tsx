@@ -2,7 +2,7 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { Transaction, useAccountContext } from "@/app/context/AccountContext";
+import { Account, Transaction, useAccountContext } from "@/app/context/AccountContext";
 import { useBudgetContext } from "@/app/context/BudgetContext";
 import { useUndoRedo } from "@/app/context/UndoRedoContext";
 import { useAuth } from "@/app/context/AuthContext";
@@ -21,7 +21,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Plus, Edit2, Trash2, ArrowLeft, CheckCircle2, Circle, Flag, Search, X } from "lucide-react";
+import { Plus, Edit2, Trash2, ArrowLeft, CheckCircle2, Circle, Flag, Search, X, Clock, ChevronDown, ChevronRight } from "lucide-react";
+
+// "All Accounts" (route id "all") flattens every account's transactions into
+// one read-through list, tagging each with the account it actually belongs
+// to so per-row actions (edit/delete/toggle) can still target the right
+// account even though the header/table no longer represents a single real
+// account row.
+type FlatTransaction = Transaction & { account_name: string };
 
 export default function AccountDetails() {
   const { id } = useParams();
@@ -33,7 +40,11 @@ export default function AccountDetails() {
   const { invalidateAll } = useBudgetContext();
   const { registerAction } = useUndoRedo();
 
+  const isAllAccountsView = id === "all";
+
   const [showForm, setShowForm] = useState(false);
+  const [addAccountId, setAddAccountId] = useState<string | number | null>(null);
+  const [pendingSectionOpen, setPendingSectionOpen] = useState(true);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
@@ -62,9 +73,34 @@ export default function AccountDetails() {
   const [reconcileError, setReconcileError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
-  const account = accounts.find((acc) => acc.id.toString() === id);
+  const allAccountsTransactions: FlatTransaction[] = useMemo(
+    () =>
+      accounts.flatMap((acc) =>
+        acc.transactions.map((tx) => ({ ...tx, account_name: acc.name }))
+      ),
+    [accounts]
+  );
+
+  const singleAccount = accounts.find((acc) => acc.id.toString() === id);
+  const account: Account | undefined = isAllAccountsView
+    ? ({
+        id: "all",
+        name: "All Accounts",
+        balance: 0,
+        transactions: allAccountsTransactions,
+        issuer: undefined,
+        type: undefined,
+      } as unknown as Account)
+    : singleAccount;
+
   const accountBalance =
     account?.transactions?.reduce((sum, tx) => sum + tx.balance, 0) ?? 0;
+
+  useEffect(() => {
+    if (isAllAccountsView && addAccountId == null && accounts.length > 0) {
+      setAddAccountId(accounts[0].id);
+    }
+  }, [isAllAccountsView, addAccountId, accounts]);
 
   const sanitizedReconcileInput = reconcileInput.replace(/[^0-9.-]/g, "");
   const parsedReconcileTarget = reconcileInput
@@ -74,8 +110,15 @@ export default function AccountDetails() {
     ? null
     : parsedReconcileTarget - accountBalance;
 
+  // Resolves the real account a (possibly flattened, All-Accounts-view)
+  // transaction belongs to — needed everywhere a per-row action (edit,
+  // delete, toggle, duplicate) must target that transaction's own account
+  // rather than the synthetic "all" pseudo-account.
+  const realAccountFor = (tx: Transaction) =>
+    accounts.find((acc) => acc.id === tx.account_id) ?? account;
+
   useEffect(() => {
-    if (account && newAccountName === undefined) {
+    if (account && newAccountName === undefined && !isAllAccountsView) {
       setNewAccountName(account.name);
     }
   }, [account, newAccountName]);
@@ -114,12 +157,18 @@ export default function AccountDetails() {
 
   const handleBulkDelete = async () => {
     if (!account || selectedTxIds.size === 0) return;
-    
+
     // Capture deleted transactions for undo
     const deletedTransactions = account.transactions.filter((tx) =>
       selectedTxIds.has(tx.id)
     );
-    
+
+    // In the All-Accounts view a bulk selection can span several real
+    // accounts — every account touched needs its own refresh/undo restore.
+    const affectedAccountIds = Array.from(
+      new Set(deletedTransactions.map((tx) => tx.account_id ?? account.id))
+    );
+
     // Delete all selected transactions directly (without individual undo actions)
     for (const txId of selectedTxIds) {
       const { error } = await supabase
@@ -132,12 +181,12 @@ export default function AccountDetails() {
       }
     }
 
-    // Refresh account to show all deletions at once
-    await refreshSingleAccount(account.id);
+    // Refresh every affected account to show all deletions at once
+    await Promise.all(affectedAccountIds.map((accId) => refreshSingleAccount(accId)));
 
     // Register undo/redo action for bulk delete
     let currentDeletedTxIds = Array.from(selectedTxIds);
-    
+
     registerAction({
       description: `Deleted ${selectedTxIds.size} transaction(s)`,
       execute: async () => {
@@ -148,7 +197,7 @@ export default function AccountDetails() {
             .delete()
             .eq("id", txId);
         }
-        await refreshSingleAccount(account.id);
+        await Promise.all(affectedAccountIds.map((accId) => refreshSingleAccount(accId)));
       },
       undo: async () => {
         // Re-insert all deleted transactions
@@ -163,7 +212,7 @@ export default function AccountDetails() {
           const { data: restoredData, error } = await supabase.from("transactions").insert([
             {
               ...txData,
-              account_id: account.id,
+              account_id: tx.account_id ?? account.id,
               user_id: user?.id,
               budget_id: currentBudgetId,
             },
@@ -175,17 +224,17 @@ export default function AccountDetails() {
             console.error("Error restoring transaction:", error);
           }
         }
-        await refreshSingleAccount(account.id);
+        await Promise.all(affectedAccountIds.map((accId) => refreshSingleAccount(accId)));
       },
     });
-    
+
     // Clear selection
     setSelectedTxIds(new Set());
     setBulkContextMenu(null);
   };
 
   const handleReconcileSubmit = async () => {
-    if (!account) return;
+    if (!account || isAllAccountsView) return;
     const sanitized = reconcileInput.replace(/[^0-9.-]/g, "");
     const targetBalance = Number.parseFloat(sanitized);
 
@@ -247,10 +296,10 @@ export default function AccountDetails() {
 
   const toggleSelectAll = () => {
     if (!account) return;
-    if (selectedTxIds.size === account.transactions.length) {
+    if (selectedTxIds.size === postedTransactions.length) {
       setSelectedTxIds(new Set());
     } else {
-      setSelectedTxIds(new Set(account.transactions.map(tx => tx.id)));
+      setSelectedTxIds(new Set(postedTransactions.map(tx => tx.id)));
     }
   };
 
@@ -276,16 +325,21 @@ export default function AccountDetails() {
     []
   );
 
-  const sortedTransactions = useMemo(() => {
-    if (!account) return [];
-    const q = searchQuery.trim().toLowerCase();
-    const txs = q
-      ? account.transactions.filter(
-          (tx) =>
-            tx.payee?.toLowerCase().includes(q) ||
-            categoryLabel(tx).toLowerCase().includes(q)
-        )
-      : [...account.transactions];
+  // Pending (bank-unposted) transactions get their own review section rather
+  // than sitting in the main register — see the Pending section below.
+  const postedTransactions = useMemo(
+    () => (account?.transactions ?? []).filter((tx) => !tx.pending),
+    [account]
+  );
+  const pendingTransactions = useMemo(
+    () => (account?.transactions ?? []).filter((tx) => tx.pending),
+    [account]
+  );
+
+  // Shared by the main register and the Pending section below, so pending
+  // transactions sort the same way (date/payee/category/amount, same
+  // same-day tiebreak) instead of sitting in raw insertion order.
+  const applySort = (txs: Transaction[]) => {
     const dir = sortConfig.direction === "asc" ? 1 : -1;
 
     // Transaction ids are UUID strings, not sequential numbers — subtracting
@@ -296,7 +350,8 @@ export default function AccountDetails() {
     const createdAtCompare = (a: Transaction, b: Transaction) =>
       new Date(a.created_at ?? 0).getTime() - new Date(b.created_at ?? 0).getTime();
 
-    txs.sort((a, b) => {
+    const sorted = [...txs];
+    sorted.sort((a, b) => {
       if (sortConfig.key === "date") {
         const dateCompare = (new Date(a.date).getTime() - new Date(b.date).getTime()) * dir;
         // Same-day tie: newest-added first when sorting newest-date-first,
@@ -317,9 +372,26 @@ export default function AccountDetails() {
       if (a.balance === b.balance) return createdAtCompare(a, b);
       return (a.balance - b.balance) * dir;
     });
+    return sorted;
+  };
 
-    return txs;
-  }, [account, sortConfig, categoryLabel, searchQuery]);
+  const sortedTransactions = useMemo(() => {
+    if (!account) return [];
+    const q = searchQuery.trim().toLowerCase();
+    const txs = q
+      ? postedTransactions.filter(
+          (tx) =>
+            tx.payee?.toLowerCase().includes(q) ||
+            categoryLabel(tx).toLowerCase().includes(q)
+        )
+      : postedTransactions;
+    return applySort(txs);
+  }, [account, postedTransactions, sortConfig, categoryLabel, searchQuery]);
+
+  const sortedPendingTransactions = useMemo(
+    () => applySort(pendingTransactions),
+    [pendingTransactions, sortConfig, categoryLabel]
+  );
 
   const toggleSort = (key: "date" | "payee" | "category" | "amount") => {
     setSortConfig((prev) => {
@@ -372,7 +444,8 @@ export default function AccountDetails() {
         selectedTxId != null
       ) {
         e.preventDefault();
-        deleteTransactionWithMirror(account.id, selectedTxId);
+        const tx = account.transactions.find((t) => t.id === selectedTxId);
+        deleteTransactionWithMirror(tx?.account_id ?? account.id, selectedTxId);
         setSelectedTxId(null);
         // Remove from bulk selection too if present
         setSelectedTxIds((prev) => {
@@ -483,6 +556,7 @@ export default function AccountDetails() {
             onClick={() => {
               const tx = account.transactions.find((t) => t.id === contextMenu.txId);
               if (tx) {
+                const owner = realAccountFor(tx);
                 const txData = { date: tx.date, payee: tx.payee, category: tx.category, category_group: tx.category_group, balance: tx.balance };
                 const transferMatch = tx.payee?.match(/^(Transfer|Payment) (to|from) (.+)/);
                 if (transferMatch) {
@@ -491,17 +565,17 @@ export default function AccountDetails() {
                   if (otherAccount) {
                     // Find existing mirror to copy its data exactly
                     const mirrorTx = otherAccount.transactions.find(
-                      (t) => t.date === tx.date && t.balance === -tx.balance && t.payee?.includes(account.name)
+                      (t) => t.date === tx.date && t.balance === -tx.balance && t.payee?.includes(owner.name)
                     );
                     const mirrorData = mirrorTx
                       ? { date: mirrorTx.date, payee: mirrorTx.payee, category: mirrorTx.category, category_group: mirrorTx.category_group, balance: mirrorTx.balance }
-                      : { date: tx.date, payee: `${transferMatch[1]} ${transferMatch[2] === "to" ? "from" : "to"} ${account.name}`, category: tx.category_group === "Credit Card Payments" ? account.name : null, category_group: tx.category_group ?? null, balance: -tx.balance };
-                    addTransactionWithMirror(account.id, txData, otherAccount.id, mirrorData);
+                      : { date: tx.date, payee: `${transferMatch[1]} ${transferMatch[2] === "to" ? "from" : "to"} ${owner.name}`, category: tx.category_group === "Credit Card Payments" ? owner.name : null, category_group: tx.category_group ?? null, balance: -tx.balance };
+                    addTransactionWithMirror(owner.id, txData, otherAccount.id, mirrorData);
                   } else {
-                    addTransaction(account.id, txData);
+                    addTransaction(owner.id, txData);
                   }
                 } else {
-                  addTransaction(account.id, txData);
+                  addTransaction(owner.id, txData);
                 }
               }
               setContextMenu(null);
@@ -540,7 +614,9 @@ export default function AccountDetails() {
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
-          {isEditingAccountName ? (
+          {isAllAccountsView ? (
+            <h1 className="text-[17px] font-semibold text-slate-900 dark:text-slate-100" data-cy="account-name">All Accounts</h1>
+          ) : isEditingAccountName ? (
             <div className="flex items-center gap-2">
               <Input
                 className="text-lg font-semibold border-b-2 border-ledger-500 focus-visible:ring-0 bg-transparent text-slate-800 dark:text-slate-100 h-auto px-0"
@@ -590,14 +666,16 @@ export default function AccountDetails() {
               </button>
             )}
           </div>
-          <Button
-            onClick={() => { setReconcileInput(accountBalance.toFixed(2)); setReconcileError(null); setReconcileOpen(true); }}
-            variant="outline"
-            size="sm"
-            className="text-xs h-8"
-          >
-            Reconcile
-          </Button>
+          {!isAllAccountsView && (
+            <Button
+              onClick={() => { setReconcileInput(accountBalance.toFixed(2)); setReconcileError(null); setReconcileOpen(true); }}
+              variant="outline"
+              size="sm"
+              className="text-xs h-8"
+            >
+              Reconcile
+            </Button>
+          )}
           <KeyboardShortcuts
             page="accounts"
             shortcuts={[
@@ -611,22 +689,46 @@ export default function AccountDetails() {
             ]}
           />
           {!showForm && !editingTransactionId && (
-            <Button
-              data-cy="add-transaction-button"
-              onClick={() => setShowForm(true)}
-              size="sm"
-              className="h-8 bg-ledger-600 hover:bg-ledger-700 text-white dark:bg-ledger-700 dark:hover:bg-ledger-600 text-xs"
-            >
-              <Plus className="h-3.5 w-3.5 mr-1.5" />
-              Add
-            </Button>
+            <>
+              {isAllAccountsView && (
+                <select
+                  data-cy="all-accounts-add-target"
+                  value={addAccountId?.toString() ?? ""}
+                  onChange={(e) => setAddAccountId(e.target.value)}
+                  className="h-8 rounded-md border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-xs px-2"
+                >
+                  {accounts.map((acc) => (
+                    <option key={acc.id} value={acc.id.toString()}>
+                      {acc.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <Button
+                data-cy="add-transaction-button"
+                onClick={() => setShowForm(true)}
+                size="sm"
+                disabled={isAllAccountsView && accounts.length === 0}
+                className="h-8 bg-ledger-600 hover:bg-ledger-700 text-white dark:bg-ledger-700 dark:hover:bg-ledger-600 text-xs"
+              >
+                <Plus className="h-3.5 w-3.5 mr-1.5" />
+                Add
+              </Button>
+            </>
           )}
         </div>
       </div>
 
       {/* Unapproved banner */}
       {(() => {
-        const unapprovedCount = account.transactions.filter((t) => !t.approved).length;
+        const unapproved = account.transactions.filter((t) => !t.approved);
+        const unapprovedCount = unapproved.length;
+        const handleApproveAll = () => {
+          const affectedAccountIds = Array.from(
+            new Set(unapproved.map((t) => t.account_id ?? account.id))
+          );
+          affectedAccountIds.forEach((accId) => void approveAll(accId));
+        };
         return unapprovedCount > 0 ? (
           <div className="px-5 py-2 bg-amber-50 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-800 flex items-center justify-between">
             <span className="text-xs font-medium text-amber-700 dark:text-amber-300 flex items-center gap-1.5">
@@ -634,7 +736,7 @@ export default function AccountDetails() {
               {unapprovedCount} transaction{unapprovedCount !== 1 ? "s" : ""} need review
             </span>
             <button
-              onClick={() => void approveAll(account.id)}
+              onClick={handleApproveAll}
               className="text-xs font-medium text-amber-700 dark:text-amber-300 hover:text-amber-900 dark:hover:text-amber-100 underline underline-offset-2"
             >
               Approve all
@@ -642,6 +744,71 @@ export default function AccountDetails() {
           </div>
         ) : null;
       })()}
+
+      {/* Pending section — bank-unposted transactions get reviewed here
+          instead of sitting in the main register below. */}
+      {pendingTransactions.length > 0 && (
+        <div className="border-b border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/10">
+          <button
+            onClick={() => setPendingSectionOpen((prev) => !prev)}
+            className="w-full flex items-center justify-between px-5 py-2 text-xs font-semibold text-amber-700 dark:text-amber-300"
+          >
+            <span className="flex items-center gap-1.5">
+              {pendingSectionOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+              <Clock className="h-3.5 w-3.5" />
+              Pending ({pendingTransactions.length})
+            </span>
+          </button>
+          {pendingSectionOpen && (
+            <table className="w-full text-sm">
+              <tbody>
+                {sortedPendingTransactions.map((tx) =>
+                  editingTransactionId === tx.id ? (
+                    <InlineTransactionRow
+                      key={`review-${tx.id}`}
+                      accountId={tx.account_id ?? account.id}
+                      mode="edit"
+                      autoFocus
+                      finalizeEarly
+                      initialData={editedTransaction ?? tx}
+                      onSave={() => { setEditingTransactionId(null); setEditedTransaction(null); }}
+                      onCancel={() => { setEditingTransactionId(null); setEditedTransaction(null); }}
+                    />
+                  ) : (
+                    <tr key={tx.id} data-cy="pending-transaction-row" data-txid={tx.id} className="border-b border-amber-100 dark:border-amber-900/40 last:border-b-0">
+                      {isAllAccountsView && (
+                        <td className="px-3 py-2 text-[11px] text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                          {(tx as FlatTransaction).account_name}
+                        </td>
+                      )}
+                      <td className="px-3 py-2 whitespace-nowrap text-[12px] text-slate-500 dark:text-slate-400">
+                        {tx.date && format(parseISO(tx.date), "MMM d, yyyy")}
+                      </td>
+                      <td className="px-3 py-2 text-[13px] font-medium text-slate-800 dark:text-slate-100">
+                        {tx.payee}
+                      </td>
+                      <td
+                        className={`px-3 py-2 text-right font-mono font-semibold text-[13px] ${tx.balance < 0 ? "text-red-600 dark:text-red-400" : "text-ledger-600 dark:text-ledger-400"}`}
+                      >
+                        {tx.balance < 0 ? "−" : "+"}{Math.abs(tx.balance).toLocaleString("en-US", { style: "currency", currency: "USD" })}
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        <button
+                          onClick={() => { setEditedTransaction(tx); setEditingTransactionId(tx.id); setShowForm(false); }}
+                          className="text-xs font-medium text-amber-700 dark:text-amber-300 hover:text-amber-900 dark:hover:text-amber-100 underline underline-offset-2"
+                          title="Categorize and enter this now — it won't be re-added once your bank posts it, unless the amount changes"
+                        >
+                          Review
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                )}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
 
       {/* Selection bar */}
       {selectedTxIds.size > 0 && (
@@ -660,7 +827,7 @@ export default function AccountDetails() {
               <th className="px-3 py-2 text-center w-9">
                 <input
                   type="checkbox"
-                  checked={account.transactions.length > 0 && selectedTxIds.size === account.transactions.length}
+                  checked={postedTransactions.length > 0 && selectedTxIds.size === postedTransactions.length}
                   onChange={toggleSelectAll}
                   className="cursor-pointer"
                 />
@@ -671,6 +838,11 @@ export default function AccountDetails() {
               <th className="px-3 py-2 text-center w-8 text-slate-400 dark:text-slate-500" title="Cleared">
                 C
               </th>
+              {isAllAccountsView && (
+                <th className="px-3 py-2 text-left whitespace-nowrap">
+                  Account
+                </th>
+              )}
               <th
                 className="px-3 py-2 text-left cursor-pointer select-none whitespace-nowrap"
                 onClick={() => toggleSort("date")}
@@ -709,7 +881,7 @@ export default function AccountDetails() {
             {/* Inline add row */}
             {showForm && (
               <InlineTransactionRow
-                accountId={account.id}
+                accountId={isAllAccountsView ? (addAccountId ?? accounts[0]?.id) : account.id}
                 mode="add"
                 autoFocus
                 onCancel={() => setShowForm(false)}
@@ -722,7 +894,7 @@ export default function AccountDetails() {
               editingTransactionId === tx.id ? (
                 <InlineTransactionRow
                   key={`edit-${tx.id}`}
-                  accountId={account.id}
+                  accountId={tx.account_id ?? account.id}
                   mode="edit"
                   autoFocus
                   initialData={editedTransaction ?? tx}
@@ -753,7 +925,7 @@ export default function AccountDetails() {
                     if (selectedTxIds.size > 0) {
                       setBulkContextMenu({ x: e.clientX, y: e.clientY });
                     } else {
-                      setContextMenu({ x: e.clientX, y: e.clientY, txId: tx.id, accountId: account.id });
+                      setContextMenu({ x: e.clientX, y: e.clientY, txId: tx.id, accountId: tx.account_id ?? account.id });
                     }
                   }}
                 >
@@ -771,7 +943,7 @@ export default function AccountDetails() {
                   </td>
                   <td
                     className="px-3 py-2.5 text-center"
-                    onClick={(e) => { e.stopPropagation(); void toggleApproved(account.id, tx.id); }}
+                    onClick={(e) => { e.stopPropagation(); void toggleApproved(tx.account_id ?? account.id, tx.id); }}
                     title={tx.approved ? "Approved — click to unapprove" : "Needs review — click to approve"}
                   >
                     {tx.approved
@@ -781,7 +953,7 @@ export default function AccountDetails() {
                   </td>
                   <td
                     className="px-3 py-2.5 text-center"
-                    onClick={(e) => { e.stopPropagation(); void toggleCleared(account.id, tx.id); }}
+                    onClick={(e) => { e.stopPropagation(); void toggleCleared(tx.account_id ?? account.id, tx.id); }}
                     title={tx.cleared ? "Cleared — click to uncleared" : "Uncleared — click to clear"}
                   >
                     {tx.cleared
@@ -789,17 +961,22 @@ export default function AccountDetails() {
                       : <Circle className="h-4 w-4 text-slate-300 dark:text-slate-600 mx-auto" />
                     }
                   </td>
+                  {isAllAccountsView && (
+                    <td className="px-3 py-2.5 whitespace-nowrap text-[12px] text-slate-500 dark:text-slate-400">
+                      {(tx as FlatTransaction).account_name}
+                    </td>
+                  )}
                   <td className="px-3 py-2.5 whitespace-nowrap text-[12px] text-slate-500 dark:text-slate-400">
                     {tx.date && format(parseISO(tx.date), "MMM d, yyyy")}
                   </td>
                   <td className="px-3 py-2.5 truncate max-w-xs text-[13px] font-medium text-slate-800 dark:text-slate-100">
                     {tx.payee}
-                    {tx.pending && (
+                    {tx.original_balance != null && (
                       <span
-                        title="Not yet posted by your bank — amount or payee may still change"
-                        className="ml-1.5 align-middle text-[10px] uppercase tracking-wide bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 rounded px-1 py-0.5"
+                        title={`Entered early at ${tx.original_balance.toLocaleString("en-US", { style: "currency", currency: "USD" })} — posted for a different amount`}
+                        className="ml-1.5 align-middle text-[10px] uppercase tracking-wide bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 rounded px-1 py-0.5"
                       >
-                        Pending
+                        Amount changed
                       </span>
                     )}
                   </td>

@@ -7,6 +7,7 @@ import { loadBudgetState } from "@/lib/budgetLoader";
 import { getCurrentBudgetId } from "@/lib/budgets";
 import { serializeMonthView } from "../../../../../lib/budgetMath";
 import { buildSpendingContext } from "@/lib/spendingAssistantContext";
+import { isAllowlistedUser, normalizeAdminList } from "@/lib/admin";
 
 const MAX_HISTORY_MESSAGES = 20;
 const TRANSACTION_WINDOW_DAYS = 90;
@@ -29,6 +30,16 @@ export async function POST(req: NextRequest) {
 
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // Every call here hits the Anthropic API and costs money — restricted to
+  // an explicit allowlist rather than every signed-in account. The navbar
+  // hides the button for non-allowlisted users, but that's UI only; this is
+  // the actual enforcement.
+  const allowedEmails = normalizeAdminList(process.env.AI_ASSISTANT_EMAILS);
+  const allowedIds = normalizeAdminList(process.env.AI_ASSISTANT_USER_IDS);
+  if (!isAllowlistedUser({ email: user.email, id: user.id }, { emails: allowedEmails, ids: allowedIds })) {
+    return NextResponse.json({ error: "Spending assistant is not available on this account" }, { status: 403 });
   }
 
   const apiKey = process.env.ANTHROPIC_API_KEY;

@@ -135,7 +135,9 @@
       "Bash(node scratch-repro-check.mjs)",
       "Bash(xargs grep -l \"transactions\")",
       "Bash(node scratch-tx-mobile-check.mjs)",
-      "Bash(node scratch-discretionary-check.mjs)"
+      "Bash(node scratch-discretionary-check.mjs)",
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(git check-ignore *)"
     ],
     "additionalDirectories": [
       "/Users/michaelwebb/Documents/GitHub/BlankSlate/src/app/api/budget/month",
