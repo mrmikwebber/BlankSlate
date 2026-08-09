@@ -21,10 +21,13 @@ export interface Transaction {
   category_group: string;
   category_item_id?: string | null;
   account: string;
+  account_id?: string | number;
   balance: number;
   cleared: boolean;
   approved: boolean;
   pending?: boolean;
+  entered_early?: boolean;
+  original_balance?: number | null;
   created_at?: string;
 }
 
@@ -476,19 +479,28 @@ const upsertPayee = async (name: string) => {
   const editTransaction = async (
     accountId: string | number,
     transactionId: string | number,
-    updatedTransaction: Transaction
+    updatedTransaction: Partial<Transaction>
   ) => {
+    const updatePayload: Record<string, unknown> = {
+      date: updatedTransaction.date,
+      payee: updatedTransaction.payee,
+      category: updatedTransaction.category,
+      category_group: updatedTransaction.category_group,
+      category_item_id: updatedTransaction.category_item_id ?? null,
+      balance: updatedTransaction.balance,
+      cleared: updatedTransaction.cleared ?? false,
+    };
+    // Only touched when explicitly provided (e.g. finalizing a pending
+    // transaction early) — normal edits never pass these, so they must stay
+    // out of the payload entirely rather than defaulting to false/null and
+    // silently clobbering an already-reviewed transaction.
+    if (updatedTransaction.pending !== undefined) updatePayload.pending = updatedTransaction.pending;
+    if (updatedTransaction.entered_early !== undefined) updatePayload.entered_early = updatedTransaction.entered_early;
+    if (updatedTransaction.approved !== undefined) updatePayload.approved = updatedTransaction.approved;
+
     const { error } = await supabase
       .from("transactions")
-      .update({
-        date: updatedTransaction.date,
-        payee: updatedTransaction.payee,
-        category: updatedTransaction.category,
-        category_group: updatedTransaction.category_group,
-        category_item_id: updatedTransaction.category_item_id ?? null,
-        balance: updatedTransaction.balance,
-        cleared: updatedTransaction.cleared ?? false,
-      })
+      .update(updatePayload)
       .eq("id", transactionId)
       .eq("account_id", accountId);
 

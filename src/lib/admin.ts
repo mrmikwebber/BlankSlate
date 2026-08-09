@@ -16,7 +16,11 @@ export const normalizeAdminList = (raw?: string | null): string[] => {
     .filter(Boolean);
 };
 
-export const isAdminUser = (input: AdminUserInput, lists: AdminLists): boolean => {
+// Generic "is this user in an emails/ids allowlist" check. Despite the name
+// history (originally written for the Admin Tools gate), it's used for any
+// account-gated feature that reuses the same emails/ids env-var pattern
+// without being an "admin" feature itself — e.g. the AI spending assistant.
+export const isAllowlistedUser = (input: AdminUserInput, lists: AdminLists): boolean => {
   const email = input.email?.toLowerCase();
   const id = input.id?.toLowerCase();
   const emails = lists.emails ?? [];
@@ -26,3 +30,5 @@ export const isAdminUser = (input: AdminUserInput, lists: AdminLists): boolean =
   if (id && ids.includes(id)) return true;
   return false;
 };
+
+export const isAdminUser = isAllowlistedUser;

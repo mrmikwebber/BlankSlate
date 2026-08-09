@@ -12,7 +12,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { isAdminUser, normalizeAdminList } from "@/lib/admin";
+import { isAdminUser, isAllowlistedUser, normalizeAdminList } from "@/lib/admin";
 import dynamic from "next/dynamic";
 import { getDaysInMonth, getDate } from "date-fns";
 
@@ -100,6 +100,16 @@ export default function Navbar() {
     { emails: adminEmails, ids: adminIds }
   );
 
+  // The spending assistant calls the Anthropic API on every message, so it's
+  // gated to a specific allowlist (not every signed-in account) rather than
+  // shown to anyone who's logged in.
+  const aiAssistantEmails = normalizeAdminList(process.env.NEXT_PUBLIC_AI_ASSISTANT_EMAILS);
+  const aiAssistantIds = normalizeAdminList(process.env.NEXT_PUBLIC_AI_ASSISTANT_USER_IDS);
+  const canUseAiAssistant = isAllowlistedUser(
+    { email: user?.email, id: user?.id },
+    { emails: aiAssistantEmails, ids: aiAssistantIds }
+  );
+
   const handleExportData = async () => {
     const [planRes, regRes] = await Promise.all([
       fetch("/api/export/plan"),
@@ -153,7 +163,7 @@ export default function Navbar() {
                 <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-ledger-500" />
               </button>
             )}
-            {user && (
+            {user && canUseAiAssistant && (
               <button
                 onClick={() => setShowChatPanel(true)}
                 title="Spending Assistant"
@@ -238,13 +248,15 @@ export default function Navbar() {
                         <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-ledger-500" />
                       </button>
                     )}
-                    <button
-                      onClick={() => setShowChatPanel(true)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs border border-ledger-400 dark:border-ledger-500 text-ledger-700 dark:text-ledger-300 bg-transparent hover:bg-ledger-50 dark:hover:bg-ledger-950 transition-colors font-semibold"
-                    >
-                      <Sparkles className="h-3.5 w-3.5" />
-                      Ask AI
-                    </button>
+                    {canUseAiAssistant && (
+                      <button
+                        onClick={() => setShowChatPanel(true)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs border border-ledger-400 dark:border-ledger-500 text-ledger-700 dark:text-ledger-300 bg-transparent hover:bg-ledger-50 dark:hover:bg-ledger-950 transition-colors font-semibold"
+                      >
+                        <Sparkles className="h-3.5 w-3.5" />
+                        Ask AI
+                      </button>
+                    )}
                     <UtilityMenu
                       isAdmin={isAdmin}
                       onExport={handleExportData}
@@ -266,9 +278,11 @@ export default function Navbar() {
         <MonthlyAuditModal onClose={() => setShowAuditModal(false)} />
       )}
 
-      {/* Spending Assistant chat panel — mounted whenever a user is signed in
-          (not just when open) so the slide-in/out transition can animate */}
-      {user && <ChatPanel open={showChatPanel} onClose={() => setShowChatPanel(false)} />}
+      {/* Spending Assistant chat panel — mounted whenever an allowlisted user
+          is signed in (not just when open) so the slide-in/out transition
+          can animate. Gated the same as the buttons above; the API route
+          also enforces this server-side since it's the one spending money. */}
+      {user && canUseAiAssistant && <ChatPanel open={showChatPanel} onClose={() => setShowChatPanel(false)} />}
 
       {/* Report Bug Modal */}
       {showBugModal && createPortal(

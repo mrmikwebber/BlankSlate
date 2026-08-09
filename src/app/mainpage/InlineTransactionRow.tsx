@@ -53,6 +53,7 @@ export default function InlineTransactionRow({
   onCancel,
   onSave,
   autoFocus = false,
+  finalizeEarly = false,
 }: {
   accountId: string | number;
   mode?: "add" | "edit";
@@ -60,6 +61,12 @@ export default function InlineTransactionRow({
   onCancel?: () => void;
   onSave?: () => void;
   autoFocus?: boolean;
+  // True when this edit form is "reviewing" a still-pending transaction
+  // early (see AccountDetails' Pending section) — on save, the transaction
+  // is finalized (pending → false, approved, marked entered_early) instead
+  // of a normal edit, so the SimpleFin sync can later match the real posted
+  // transaction against it instead of inserting a duplicate.
+  finalizeEarly?: boolean;
 }) {
   const isEdit = mode === "edit";
   const {
@@ -479,6 +486,7 @@ export default function InlineTransactionRow({
       category_item_id: mainCategoryItemId,
       balance,
       cleared,
+      ...(finalizeEarly ? { pending: false, approved: true, entered_early: true } : {}),
     };
 
     // Save payee to database if it's not a transfer
@@ -672,21 +680,28 @@ export default function InlineTransactionRow({
       data-mode={isEdit ? "edit" : "add"}
       className="bg-ledger-50/30 dark:bg-ledger-950/30 hover:bg-ledger-50/50 dark:hover:bg-ledger-950/50 transition-colors duration-150 border-b border-slate-200 dark:border-slate-700"
     >
-      {/* Empty checkbox cell to match the checkbox column */}
-      <td className="px-2 py-2 border-r border-slate-200 dark:border-slate-700"></td>
-      {/* Empty approved cell to match the approved column */}
-      <td className="px-3 py-2 border-r border-slate-200 dark:border-slate-700"></td>
-      {/* Cleared toggle */}
-      <td
-        className="px-3 py-2 text-center border-r border-slate-200 dark:border-slate-700 cursor-pointer"
-        onClick={() => setCleared((prev) => !prev)}
-        title={cleared ? "Cleared — click to uncleared" : "Uncleared — click to clear"}
-      >
-        {cleared
-          ? <CheckCircle2 className="h-4 w-4 text-ledger-500 dark:text-ledger-400 mx-auto" />
-          : <Circle className="h-4 w-4 text-slate-300 dark:text-slate-600 mx-auto" />
-        }
-      </td>
+      {/* The Pending section's mini-table has no checkbox/approved/cleared
+          columns of its own — these three leading cells only make sense
+          when this row is aligned under the main register's header. */}
+      {!finalizeEarly && (
+        <>
+          {/* Empty checkbox cell to match the checkbox column */}
+          <td className="px-2 py-2 border-r border-slate-200 dark:border-slate-700"></td>
+          {/* Empty approved cell to match the approved column */}
+          <td className="px-3 py-2 border-r border-slate-200 dark:border-slate-700"></td>
+          {/* Cleared toggle */}
+          <td
+            className="px-3 py-2 text-center border-r border-slate-200 dark:border-slate-700 cursor-pointer"
+            onClick={() => setCleared((prev) => !prev)}
+            title={cleared ? "Cleared — click to uncleared" : "Uncleared — click to clear"}
+          >
+            {cleared
+              ? <CheckCircle2 className="h-4 w-4 text-ledger-500 dark:text-ledger-400 mx-auto" />
+              : <Circle className="h-4 w-4 text-slate-300 dark:text-slate-600 mx-auto" />
+            }
+          </td>
+        </>
+      )}
       <td className="px-4 py-2 border-r border-slate-200 dark:border-slate-700">
         <Input
           ref={dateRef}

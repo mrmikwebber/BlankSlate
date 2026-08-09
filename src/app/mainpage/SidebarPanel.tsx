@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { getDaysInMonth, isSameMonth, parseISO, subMonths, format } from "date-fns";
 import { createPortal } from "react-dom";
+import { useRouter } from "next/navigation";
 
 import { useAccountContext, Account } from "@/app/context/AccountContext";
 import { useBudgetContext } from "@/app/context/BudgetContext";
@@ -14,7 +15,7 @@ import ReadyToAssignBreakdown from "./ReadyToAssignBreakdown";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-import { BarChart3, CreditCard, Wallet, TrendingUp, Settings, Plus } from "lucide-react";
+import { BarChart3, CreditCard, Wallet, TrendingUp, Settings, Plus, List } from "lucide-react";
 
 const NAV_ITEMS: { id: TabletView; icon: React.ReactNode; label: string }[] = [
   { id: "budget",        icon: <BarChart3  className="h-3.5 w-3.5" />, label: "Budget"   },
@@ -30,6 +31,7 @@ interface SidebarPanelProps {
 }
 
 export default function SidebarPanel({ activeView, onViewChange }: SidebarPanelProps = {}) {
+  const router = useRouter();
   const [showModal, setShowModal] = useState(false);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
@@ -274,14 +276,26 @@ export default function SidebarPanel({ activeView, onViewChange }: SidebarPanelP
           <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
             Accounts
           </span>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => setShowModal(true)}
-            className="h-6 w-6 p-0 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
-          >
-            <Plus className="h-3.5 w-3.5" />
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => router.push("/accounts/all")}
+              title="View transactions across all accounts"
+              className="h-6 px-1.5 text-[11px] font-medium text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 gap-1"
+            >
+              <List className="h-3.5 w-3.5" />
+              All Transactions
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setShowModal(true)}
+              className="h-6 w-6 p-0 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </Button>
+          </div>
         </div>
 
         {accounts.length === 0 ? (
