@@ -49,7 +49,7 @@ export default function MobileTransactionsTab({ accountId, onBack }: Props) {
     editTransaction,
     addTransactionWithMirror,
   } = useAccountContext();
-  const { budgetData, currentMonth, getGroupIdByName, getItemIdByName, addItemToCategory } = useBudgetContext();
+  const { budgetData, currentMonth, getGroupIdByName, getItemIdByName, addItemToCategory, invalidateAll } = useBudgetContext();
 
   const account = useMemo(
     () => accounts.find((a) => a.id === accountId) ?? null,
@@ -266,6 +266,12 @@ export default function MobileTransactionsTab({ accountId, onBack }: Props) {
       await addTransaction(accountId, txPayload);
       if (upsertPayee) await upsertPayee(formPayee.trim());
     }
+    // Transactions affect activity/available/RTA in BudgetContext's
+    // separately cached view, which never hears about AccountContext
+    // mutations on its own — force a refetch so the budget/dashboard don't
+    // show stale numbers (same gotcha as InlineTransactionRow's desktop
+    // equivalent).
+    invalidateAll?.();
     resetForm();
   };
 
@@ -756,6 +762,7 @@ export default function MobileTransactionsTab({ accountId, onBack }: Props) {
                         className="h-8 bg-red-600 hover:bg-red-700 text-white"
                         onClick={() => {
                           deleteTransactionWithMirror(accountId, editingTxId);
+                          invalidateAll?.();
                           resetForm();
                         }}
                       >

@@ -36,6 +36,19 @@ export async function PATCH(
 
   const currentBudgetId = await getCurrentBudgetId(supabase, user.id);
 
+  const isRenaming = typeof updates.name === "string";
+  let oldName: string | null = null;
+  if (isRenaming) {
+    const { data: existing } = await supabase
+      .from("category_groups")
+      .select("name")
+      .eq("id", id)
+      .eq("user_id", user.id)
+      .eq("budget_id", currentBudgetId)
+      .single();
+    oldName = existing?.name ?? null;
+  }
+
   const { data, error } = await supabase
     .from("category_groups")
     .update(updates)
@@ -48,6 +61,34 @@ export async function PATCH(
   if (error) {
     console.error("[category-group/[id]] PATCH error:", error);
     return NextResponse.json({ error: "Failed to update group" }, { status: 500 });
+  }
+
+  // Transactions store their own denormalized `category_group` text (the
+  // calc engine only reads `category_item_id`, but the register UI reads
+  // this text directly) — cascade a real rename to every already-categorized
+  // transaction under this group, or they'd keep showing the old group name
+  // forever. Scoped via each item's id, not a blind text match on the old
+  // name, so it stays correct even if a transaction's stored text had
+  // already drifted from an earlier group move.
+  if (isRenaming && oldName !== null && oldName !== data.name) {
+    const { data: itemRows } = await supabase
+      .from("category_items")
+      .select("id")
+      .eq("group_id", id)
+      .eq("user_id", user.id)
+      .eq("budget_id", currentBudgetId);
+    const itemIds = (itemRows ?? []).map((r) => r.id);
+    if (itemIds.length > 0) {
+      const { error: cascadeError } = await supabase
+        .from("transactions")
+        .update({ category_group: data.name })
+        .in("category_item_id", itemIds)
+        .eq("user_id", user.id)
+        .eq("budget_id", currentBudgetId);
+      if (cascadeError) {
+        console.error("[category-group/[id]] failed to cascade rename to transactions:", cascadeError);
+      }
+    }
   }
 
   return NextResponse.json(data);

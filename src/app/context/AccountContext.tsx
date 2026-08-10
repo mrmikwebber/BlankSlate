@@ -13,6 +13,17 @@ import { useAuth } from "./AuthContext";
 import { supabase } from "@/utils/supabaseClient";
 import { useUndoRedo } from "./UndoRedoContext";
 import { useBudgetSelection } from "./BudgetSelectionContext";
+// A plain module-level function (not a React hook) — safe to call here even
+// though BudgetContext/useBudgetMonth live in a provider that wraps this one
+// (AccountProvider is BudgetProvider's ancestor, so this file can never call
+// useBudgetContext() itself). Only clears the shared month-view cache; it
+// does NOT force a currently-mounted BudgetContext to re-render — callers
+// that need the visible Ready to Assign/activity figures to update
+// immediately still need to call the real invalidateAll() from
+// useBudgetContext() themselves. This is the fallback that keeps undo/redo
+// (whose execute/undo closures live here, not in a component) from serving
+// truly-stale cached data on the *next* real fetch.
+import { invalidateAllCachedMonths } from "../hooks/useBudgetMonth";
 export interface Transaction {
   id: number;
   date: string;
@@ -321,6 +332,7 @@ const upsertPayee = async (name: string) => {
     const transactionData = { ...transaction };
 
     await refreshSingleAccount(accountId);
+    invalidateAllCachedMonths();
 
     if (skipUndo) {
       return data;
@@ -342,6 +354,7 @@ const upsertPayee = async (name: string) => {
         if (!insertError && redoData) {
           currentTransactionId = redoData[0].id;
           await refreshSingleAccount(accountId);
+          invalidateAllCachedMonths();
         } else {
           console.error('❌ REDO: Insert failed', insertError);
         }
@@ -354,6 +367,7 @@ const upsertPayee = async (name: string) => {
 
         if (!deleteError) {
           await refreshSingleAccount(accountId);
+          invalidateAllCachedMonths();
         }
       },
     });
@@ -403,6 +417,7 @@ const upsertPayee = async (name: string) => {
     // retrieval fails (e.g. when Supabase SELECT-after-INSERT returns empty due to RLS).
     await refreshSingleAccount(accountId);
     await refreshSingleAccount(mirrorAccountId);
+    invalidateAllCachedMonths();
 
     let currentTxId1 = data1?.[0]?.id ?? null;
     let currentTxId2 = data2?.[0]?.id ?? null;
@@ -439,6 +454,7 @@ const upsertPayee = async (name: string) => {
           currentTxId2 = redoData2?.[0]?.id ?? currentTxId2;
           await refreshSingleAccount(mirrorAccountId);
         }
+        invalidateAllCachedMonths();
       },
       undo: async () => {
         // Delete both transactions
@@ -458,6 +474,7 @@ const upsertPayee = async (name: string) => {
         if (!deleteError2) {
           await refreshSingleAccount(mirrorAccountId);
         }
+        invalidateAllCachedMonths();
       },
     });
   };
@@ -527,6 +544,7 @@ const upsertPayee = async (name: string) => {
         return { ...account, transactions: updatedTransactions };
       })
     );
+    invalidateAllCachedMonths();
   };
 
   const toggleCleared = async (accountId: string | number, transactionId: string | number) => {
@@ -759,6 +777,7 @@ const upsertPayee = async (name: string) => {
         saveOrder(toOrderedIds(next));
         return next;
       });
+      invalidateAllCachedMonths();
     }
   };
 
@@ -780,6 +799,7 @@ const upsertPayee = async (name: string) => {
       console.error("Failed to delete transaction:", error);
     } else {
       await refreshSingleAccount(accountId);
+      invalidateAllCachedMonths();
 
       if (skipUndo) {
         return;
@@ -798,6 +818,7 @@ const upsertPayee = async (name: string) => {
 
           if (!deleteError) {
             await refreshSingleAccount(accountId);
+            invalidateAllCachedMonths();
           } else {
             console.error("❌ REDO DELETE: Failed", deleteError);
           }
@@ -821,6 +842,7 @@ const upsertPayee = async (name: string) => {
             if (!insertError && restoreData) {
               currentTransactionId = restoreData[0].id;
               await refreshSingleAccount(accountId);
+              invalidateAllCachedMonths();
             } else {
               console.error("❌ UNDO DELETE: Failed", insertError);
             }
@@ -886,6 +908,7 @@ const upsertPayee = async (name: string) => {
           await supabase.from("transactions").delete().eq("id", currentMirrorId);
           await refreshSingleAccount(Number(mirrorAccount.id));
         }
+        invalidateAllCachedMonths();
       },
       undo: async () => {
         // Restore both transactions
@@ -928,6 +951,7 @@ const upsertPayee = async (name: string) => {
             await refreshSingleAccount(mirrorAccount.id);
           }
         }
+        invalidateAllCachedMonths();
       },
     });
   };
