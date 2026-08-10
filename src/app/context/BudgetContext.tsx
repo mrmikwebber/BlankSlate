@@ -115,6 +115,12 @@ function buildContextValue(_placeholder: null) {
     renameCategory: (id: string, newName: string) => Promise<void>;
     reorderCategoryGroups: (orderedIds: { id: string; sortOrder: number }[]) => Promise<void>;
     reorderCategoryItems: (orderedIds: { id: string; sortOrder: number }[]) => Promise<void>;
+    moveCategoryItemToGroup: (
+      itemId: string,
+      targetGroupId: string,
+      targetOrderedIds: { id: string; sortOrder: number }[],
+      sourceOrderedIds: { id: string; sortOrder: number }[]
+    ) => Promise<void>;
     setCategorySnooze: (id: string, snoozed: boolean) => Promise<void>;
     setCategoryTarget: (id: string, target: Target | null) => Promise<void>;
     setGlobalAssigned: (categoryItemId: string, month: string, value: number) => Promise<void>;
@@ -442,56 +448,191 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
     invalidate();
   }, [invalidate]);
 
+  // None of the mutations below (rename, reorder, move-group, target) affect
+  // money/RTA — only display fields or a group_id/sort_order — so each one
+  // patches `budgetView` instantly instead of waiting on the round trip, the
+  // same "apply now, reconcile on success, roll back on failure" shape as
+  // patchAssigned above. On success they call invalidateAllCachedMonths()
+  // (not invalidate()/hookInvalidate()) so *other* cached months pick up the
+  // change on next visit without nulling out this month's already-correct
+  // optimistic view and causing a stale-then-fresh flash (same reasoning as
+  // deleteCategoryGroup/deleteCategoryItem above).
+
   const renameCategoryGroup = useCallback(
     async (id: string, newName: string) => {
-      await apiFetch(`/api/budget/category-group/${id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ name: newName }),
-      });
-      invalidate();
+      const previousView = budgetView;
+      if (previousView) {
+        applyMutationResult({
+          ...previousView,
+          categories: previousView.categories.map((g) =>
+            g.id === id ? { ...g, name: newName } : g
+          ),
+        });
+      }
+      try {
+        await apiFetch(`/api/budget/category-group/${id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ name: newName }),
+        });
+        invalidateAllCachedMonths();
+      } catch (err) {
+        if (previousView) applyMutationResult(previousView);
+        throw err;
+      }
     },
-    [invalidate]
+    [applyMutationResult, budgetView]
   );
 
   const renameCategory = useCallback(
     async (id: string, newName: string) => {
-      await apiFetch(`/api/budget/category-item/${id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ name: newName }),
-      });
-      invalidate();
+      const previousView = budgetView;
+      if (previousView) {
+        applyMutationResult({
+          ...previousView,
+          categories: previousView.categories.map((g) => ({
+            ...g,
+            categoryItems: g.categoryItems.map((i) =>
+              i.id === id ? { ...i, name: newName } : i
+            ),
+          })),
+        });
+      }
+      try {
+        await apiFetch(`/api/budget/category-item/${id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ name: newName }),
+        });
+        invalidateAllCachedMonths();
+      } catch (err) {
+        if (previousView) applyMutationResult(previousView);
+        throw err;
+      }
     },
-    [invalidate]
+    [applyMutationResult, budgetView]
   );
 
   const reorderCategoryGroups = useCallback(
     async (orderedIds: { id: string; sortOrder: number }[]) => {
-      await Promise.all(
-        orderedIds.map(({ id, sortOrder }) =>
-          apiFetch(`/api/budget/category-group/${id}`, {
-            method: "PATCH",
-            body: JSON.stringify({ sortOrder }),
-          })
-        )
-      );
-      invalidate();
+      const previousView = budgetView;
+      if (previousView) {
+        const order = new Map(orderedIds.map((o) => [o.id, o.sortOrder]));
+        const reordered = [...previousView.categories].sort(
+          (a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0)
+        );
+        applyMutationResult({ ...previousView, categories: reordered });
+      }
+      try {
+        await Promise.all(
+          orderedIds.map(({ id, sortOrder }) =>
+            apiFetch(`/api/budget/category-group/${id}`, {
+              method: "PATCH",
+              body: JSON.stringify({ sortOrder }),
+            })
+          )
+        );
+        invalidateAllCachedMonths();
+      } catch (err) {
+        if (previousView) applyMutationResult(previousView);
+        throw err;
+      }
     },
-    [invalidate]
+    [applyMutationResult, budgetView]
   );
 
   const reorderCategoryItems = useCallback(
     async (orderedIds: { id: string; sortOrder: number }[]) => {
-      await Promise.all(
-        orderedIds.map(({ id, sortOrder }) =>
-          apiFetch(`/api/budget/category-item/${id}`, {
-            method: "PATCH",
-            body: JSON.stringify({ sortOrder }),
-          })
-        )
-      );
-      invalidate();
+      const previousView = budgetView;
+      if (previousView) {
+        const order = new Map(orderedIds.map((o) => [o.id, o.sortOrder]));
+        applyMutationResult({
+          ...previousView,
+          categories: previousView.categories.map((g) =>
+            g.categoryItems.some((i) => order.has(i.id))
+              ? { ...g, categoryItems: [...g.categoryItems].sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0)) }
+              : g
+          ),
+        });
+      }
+      try {
+        await Promise.all(
+          orderedIds.map(({ id, sortOrder }) =>
+            apiFetch(`/api/budget/category-item/${id}`, {
+              method: "PATCH",
+              body: JSON.stringify({ sortOrder }),
+            })
+          )
+        );
+        invalidateAllCachedMonths();
+      } catch (err) {
+        if (previousView) applyMutationResult(previousView);
+        throw err;
+      }
     },
-    [invalidate]
+    [applyMutationResult, budgetView]
+  );
+
+  // Moves an item to a different group (drag-and-drop across groups in
+  // BudgetTable) and resequences both the target group (item inserted at its
+  // dropped position) and the source group (closing the gap left behind) in
+  // one batch. `targetOrderedIds` must already include the moved item at its
+  // new position; `sourceOrderedIds` must not.
+  const moveCategoryItemToGroup = useCallback(
+    async (
+      itemId: string,
+      targetGroupId: string,
+      targetOrderedIds: { id: string; sortOrder: number }[],
+      sourceOrderedIds: { id: string; sortOrder: number }[]
+    ) => {
+      const previousView = budgetView;
+      if (previousView) {
+        const byId = new Map(
+          previousView.categories.flatMap((g) => g.categoryItems).map((i) => [i.id, i] as const)
+        );
+        const reorderByIds = (orderedIds: { id: string; sortOrder: number }[]) =>
+          [...orderedIds]
+            .sort((a, b) => a.sortOrder - b.sortOrder)
+            .map((o) => byId.get(o.id))
+            .filter((i): i is NonNullable<typeof i> => Boolean(i));
+
+        applyMutationResult({
+          ...previousView,
+          categories: previousView.categories.map((g) => {
+            if (g.id === targetGroupId) return { ...g, categoryItems: reorderByIds(targetOrderedIds) };
+            if (g.categoryItems.some((i) => i.id === itemId)) return { ...g, categoryItems: reorderByIds(sourceOrderedIds) };
+            return g;
+          }),
+        });
+      }
+
+      try {
+        const movedSortOrder = targetOrderedIds.find((o) => o.id === itemId)?.sortOrder ?? 0;
+        await Promise.all([
+          apiFetch(`/api/budget/category-item/${itemId}`, {
+            method: "PATCH",
+            body: JSON.stringify({ groupId: targetGroupId, sortOrder: movedSortOrder }),
+          }),
+          ...targetOrderedIds
+            .filter((o) => o.id !== itemId)
+            .map((o) =>
+              apiFetch(`/api/budget/category-item/${o.id}`, {
+                method: "PATCH",
+                body: JSON.stringify({ sortOrder: o.sortOrder }),
+              })
+            ),
+          ...sourceOrderedIds.map((o) =>
+            apiFetch(`/api/budget/category-item/${o.id}`, {
+              method: "PATCH",
+              body: JSON.stringify({ sortOrder: o.sortOrder }),
+            })
+          ),
+        ]);
+        invalidateAllCachedMonths();
+      } catch (err) {
+        if (previousView) applyMutationResult(previousView);
+        throw err;
+      }
+    },
+    [applyMutationResult, budgetView]
   );
 
   const setCategorySnooze = useCallback(
@@ -507,13 +648,30 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
 
   const setCategoryTarget = useCallback(
     async (id: string, target: Target | null) => {
-      await apiFetch(`/api/budget/category-item/${id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ target }),
-      });
-      invalidate();
+      const previousView = budgetView;
+      if (previousView) {
+        applyMutationResult({
+          ...previousView,
+          categories: previousView.categories.map((g) => ({
+            ...g,
+            categoryItems: g.categoryItems.map((i) =>
+              i.id === id ? { ...i, target: target ?? undefined } : i
+            ),
+          })),
+        });
+      }
+      try {
+        await apiFetch(`/api/budget/category-item/${id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ target }),
+        });
+        invalidateAllCachedMonths();
+      } catch (err) {
+        if (previousView) applyMutationResult(previousView);
+        throw err;
+      }
     },
-    [invalidate]
+    [applyMutationResult, budgetView]
   );
 
   // Global planning mode — a shadow "assigned" per (item, month), separate
@@ -984,6 +1142,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
         renameCategory,
         reorderCategoryGroups,
         reorderCategoryItems,
+        moveCategoryItemToGroup,
         setCategorySnooze,
         setCategoryTarget,
         setGlobalAssigned,

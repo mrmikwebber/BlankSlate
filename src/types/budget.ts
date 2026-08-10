@@ -271,6 +271,7 @@ export interface CreateItemRequest {
 
 export interface UpdateItemRequest {
   name?: string;
+  groupId?: string;
   sortOrder?: number;
   snoozed?: boolean;
   target?: Target | null;

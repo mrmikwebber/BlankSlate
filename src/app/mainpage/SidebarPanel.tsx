@@ -117,8 +117,13 @@ export default function SidebarPanel({ activeView, onViewChange }: SidebarPanelP
     position: "before" | "after";
   } | null>(null);
 
-  const handleAddAccount = (newAccount: Record<string, unknown>) => {
-    addAccount(newAccount);
+  const handleAddAccount = async (newAccount: Record<string, unknown>) => {
+    // A new account's starting-balance transaction can move Ready to Assign
+    // (debit accounts) — BudgetContext never hears about AccountContext
+    // mutations on its own, so force a refetch or the sidebar/dashboard RTA
+    // stays stale until a hard refresh.
+    await addAccount(newAccount);
+    budgetCtx?.invalidateAll();
   };
 
   const handleDeleteAccount = (accountId: string | number) => {

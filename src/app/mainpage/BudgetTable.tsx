@@ -108,6 +108,7 @@ export default function BudgetTable() {
     renameCategoryGroup,
     reorderCategoryGroups,
     reorderCategoryItems,
+    moveCategoryItemToGroup,
     updateCategoryGroupNote,
     updateCategoryItemNote,
     sandboxMode,
@@ -122,7 +123,7 @@ export default function BudgetTable() {
     invalidate,
     seedDefaultCategories,
   } = useBudgetContext();
-  const { accounts } = useAccountContext();
+  const { accounts, refetchAccounts } = useAccountContext();
   const { registerAction, undo, redo, canUndo, canRedo, undoDescription, redoDescription } = useUndoRedo();
 
   // Optimistic assigned values — updated instantly on input, cleared when server responds
@@ -515,30 +516,72 @@ export default function BudgetTable() {
       }
       if (draggingItem.item === targetName && draggingItem.group === targetGroup) return;
 
-      const group = budgetView.categories.find((c) => c.name === draggingItem.group);
-      if (!group) return;
-      const items = group.categoryItems.map((i) => i.name);
-      const fromIdx = items.indexOf(draggingItem.item);
-      if (fromIdx === -1) return;
-      const reordered = [...items];
-      reordered.splice(fromIdx, 1);
-      let insertAt = targetName ? items.indexOf(targetName) : items.length;
+      const sourceGroup = budgetView.categories.find((c) => c.name === draggingItem.group);
+      if (!sourceGroup) return;
+
+      // Same-group drop: pure reorder within one group's sort_order.
+      if (targetGroup === draggingItem.group) {
+        const items = sourceGroup.categoryItems.map((i) => i.name);
+        const fromIdx = items.indexOf(draggingItem.item);
+        if (fromIdx === -1) return;
+        const reordered = [...items];
+        reordered.splice(fromIdx, 1);
+        let insertAt = targetName ? items.indexOf(targetName) : items.length;
+        if (position === "after") insertAt += 1;
+        // Removing the dragged item shifts everything after it back by one —
+        // account for that before inserting, or forward drags land one slot short.
+        if (fromIdx < insertAt) insertAt -= 1;
+        reordered.splice(Math.max(0, Math.min(insertAt, reordered.length)), 0, draggingItem.item);
+        const orderedIds = reordered
+          .map((name, i) => {
+            const id = getItemIdByName(draggingItem.group, name);
+            return id ? { id, sortOrder: i } : null;
+          })
+          .filter((x): x is { id: string; sortOrder: number } => x !== null);
+        reorderCategoryItems(orderedIds);
+        setDraggingItem(null);
+        setDragOverItem(null);
+        return;
+      }
+
+      // Cross-group drop: re-point the item at the target group and
+      // resequence both groups (target gets the item inserted at the dropped
+      // position, source closes the gap it leaves behind).
+      const targetGroupObj = budgetView.categories.find((c) => c.name === targetGroup);
+      const targetGroupId = getGroupIdByName(targetGroup);
+      const itemId = getItemIdByName(draggingItem.group, draggingItem.item);
+      if (!targetGroupObj || !targetGroupId || !itemId) return;
+
+      const targetItems = targetGroupObj.categoryItems.map((i) => i.name);
+      let insertAt = targetName ? targetItems.indexOf(targetName) : targetItems.length;
+      if (insertAt === -1) insertAt = targetItems.length;
       if (position === "after") insertAt += 1;
-      // Removing the dragged item shifts everything after it back by one —
-      // account for that before inserting, or forward drags land one slot short.
-      if (fromIdx < insertAt) insertAt -= 1;
-      reordered.splice(Math.max(0, Math.min(insertAt, reordered.length)), 0, draggingItem.item);
-      const orderedIds = reordered
+      const reorderedTarget = [...targetItems];
+      reorderedTarget.splice(Math.max(0, Math.min(insertAt, reorderedTarget.length)), 0, draggingItem.item);
+
+      const targetOrderedIds = reorderedTarget
+        .map((name, i) => {
+          const id = name === draggingItem.item ? itemId : getItemIdByName(targetGroup, name);
+          return id ? { id, sortOrder: i } : null;
+        })
+        .filter((x): x is { id: string; sortOrder: number } => x !== null);
+
+      const sourceOrderedIds = sourceGroup.categoryItems
+        .map((i) => i.name)
+        .filter((name) => name !== draggingItem.item)
         .map((name, i) => {
           const id = getItemIdByName(draggingItem.group, name);
           return id ? { id, sortOrder: i } : null;
         })
         .filter((x): x is { id: string; sortOrder: number } => x !== null);
-      reorderCategoryItems(orderedIds);
+
+      moveCategoryItemToGroup(itemId, targetGroupId, targetOrderedIds, sourceOrderedIds).then(() =>
+        refetchAccounts()
+      );
       setDraggingItem(null);
       setDragOverItem(null);
     },
-    [draggingItem, budgetView, getItemIdByName, reorderCategoryItems]
+    [draggingItem, budgetView, getItemIdByName, getGroupIdByName, reorderCategoryItems, moveCategoryItemToGroup, refetchAccounts]
   );
 
   const isDeletingRef = useRef(false);
@@ -1653,13 +1696,13 @@ export default function BudgetTable() {
                               }
                               onBlur={async () => {
                                 const gid = getGroupIdByName(editingGroup);
-                                if (gid) await renameCategoryGroup(gid, newGroupName);
+                                if (gid) { await renameCategoryGroup(gid, newGroupName); void refetchAccounts(); }
                                 setEditingGroup(null);
                               }}
                               onKeyDown={async (e) => {
                                 if (e.key === "Enter") {
                                   const gid = getGroupIdByName(editingGroup);
-                                  if (gid) await renameCategoryGroup(gid, newGroupName);
+                                  if (gid) { await renameCategoryGroup(gid, newGroupName); void refetchAccounts(); }
                                   setEditingGroup(null);
                                 }
                               }}
@@ -1934,13 +1977,13 @@ export default function BudgetTable() {
                                   }
                                   onBlur={async () => {
                                     const iid = getItemIdByName(group.name, editingItem.item);
-                                    if (iid) await renameCategory(iid, newCategoryName);
+                                    if (iid) { await renameCategory(iid, newCategoryName); void refetchAccounts(); }
                                     setEditingItem(null);
                                   }}
                                   onKeyDown={async (e) => {
                                     if (e.key === "Enter") {
                                       const iid = getItemIdByName(group.name, editingItem.item);
-                                      if (iid) await renameCategory(iid, newCategoryName);
+                                      if (iid) { await renameCategory(iid, newCategoryName); void refetchAccounts(); }
                                       setEditingItem(null);
                                     }
                                   }}

@@ -183,6 +183,7 @@ export default function AccountDetails() {
 
     // Refresh every affected account to show all deletions at once
     await Promise.all(affectedAccountIds.map((accId) => refreshSingleAccount(accId)));
+    invalidateAll();
 
     // Register undo/redo action for bulk delete
     let currentDeletedTxIds = Array.from(selectedTxIds);
@@ -198,6 +199,7 @@ export default function AccountDetails() {
             .eq("id", txId);
         }
         await Promise.all(affectedAccountIds.map((accId) => refreshSingleAccount(accId)));
+        invalidateAll();
       },
       undo: async () => {
         // Re-insert all deleted transactions
@@ -225,6 +227,7 @@ export default function AccountDetails() {
           }
         }
         await Promise.all(affectedAccountIds.map((accId) => refreshSingleAccount(accId)));
+        invalidateAll();
       },
     });
 
@@ -446,6 +449,7 @@ export default function AccountDetails() {
         e.preventDefault();
         const tx = account.transactions.find((t) => t.id === selectedTxId);
         deleteTransactionWithMirror(tx?.account_id ?? account.id, selectedTxId);
+        invalidateAll();
         setSelectedTxId(null);
         // Remove from bulk selection too if present
         setSelectedTxIds((prev) => {
@@ -503,7 +507,7 @@ export default function AccountDetails() {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keydown", handleGlobalKeyDown);
     };
-  }, [account, selectedTxId, showForm, editingTransactionId, deleteTransactionWithMirror, sortedTransactions]);
+  }, [account, selectedTxId, showForm, editingTransactionId, deleteTransactionWithMirror, sortedTransactions, invalidateAll]);
 
   if (!account) {
     if (accountsLoading) {
@@ -577,6 +581,7 @@ export default function AccountDetails() {
                 } else {
                   addTransaction(owner.id, txData);
                 }
+                invalidateAll();
               }
               setContextMenu(null);
             }}
@@ -591,6 +596,7 @@ export default function AccountDetails() {
                 contextMenu.accountId,
                 contextMenu.txId
               );
+              invalidateAll();
               setContextMenu(null);
             }}
             className="px-4 py-2.5 hover:bg-red-50 dark:hover:bg-red-950 text-red-600 dark:text-red-400 w-full text-left font-medium transition-colors border-t border-slate-200 dark:border-slate-700"
