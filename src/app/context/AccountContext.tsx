@@ -268,8 +268,7 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
       .from("transaction_payees")
       .select("*")
       .eq("user_id", user.id)
-      .order("last_used_at", { ascending: false })
-      .limit(15);
+      .order("last_used_at", { ascending: false });
 
     if (error) {
       console.error("[AccountContext] Error fetching payees", error);
@@ -306,8 +305,7 @@ const upsertPayee = async (name: string) => {
 
   setSavedPayees((prev) => {
     const without = prev.filter((p) => p.name !== trimmed);
-    const updated = [data as SavedPayee, ...without];
-    return updated.slice(0, 15); // enforce cap
+    return [data as SavedPayee, ...without];
   });
 };
 
