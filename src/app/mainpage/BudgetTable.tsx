@@ -13,6 +13,7 @@ import { useAccountContext } from "../context/AccountContext";
 import { useUndoRedo } from "../context/UndoRedoContext";
 import { useGlobalKeyboardShortcuts } from "../hooks/useGlobalKeyboardShortcuts";
 import { NotesPopover } from "@/components/ui/NotesPopover";
+import type { ComputedCategoryItem } from "@/types/budget";
 import { subMonths, format, parse, parseISO } from "date-fns";
 import {
   Table,
@@ -133,6 +134,25 @@ export default function BudgetTable() {
   // patchAssigned) and never touches real assigned/RTA.
   const [optimisticGlobalAssigned, setOptimisticGlobalAssigned] = useState<Record<string, number>>({});
 
+  // Shared real-vs-shadow swap — used by item rows and group header subtotals
+  // so both agree on what "displayed" means under the active planning mode.
+  const getDisplayedAssignedFor = useCallback(
+    (item: ComputedCategoryItem) =>
+      planningMode === "global"
+        ? (optimisticGlobalAssigned[item.id] ?? item.globalAssigned)
+        : (optimisticAssigned[item.id] ?? item.assigned),
+    [planningMode, optimisticGlobalAssigned, optimisticAssigned]
+  );
+
+  const getDisplayedAvailableFor = useCallback(
+    (item: ComputedCategoryItem) => {
+      if (planningMode !== "global") return item.available;
+      const displayedAssigned = getDisplayedAssignedFor(item);
+      return item.available + (displayedAssigned - item.assigned);
+    },
+    [planningMode, getDisplayedAssignedFor]
+  );
+
   const FILTERS = [
     "All",
     "Money Available",
@@ -230,6 +250,18 @@ export default function BudgetTable() {
     return prevView.categories
       .find((c) => c.name === groupName)
       ?.categoryItems.find((i) => i.name === itemName)?.activity ?? 0;
+  }, [prevMonthKey]);
+
+  // Last month's credit-card spend that never got assigned money to cover
+  // it — a fresh snapshot each month (not a running balance), same shape as
+  // the prevMonth helpers above.
+  const getPreviousCardOverspend = useCallback((itemName: string): number => {
+    if (!prevMonthKey) return 0;
+    const prevView = getCachedView(prevMonthKey);
+    if (!prevView) return 0;
+    return prevView.categories
+      .find((c) => c.name === "Credit Card Payments")
+      ?.categoryItems.find((i) => i.name === itemName)?.ccActivityBreakdown?.unbudgeted ?? 0;
   }, [prevMonthKey]);
 
   const overspentCategoriesCount = useMemo(() => {
@@ -385,7 +417,7 @@ export default function BudgetTable() {
       return 0;
     });
 
-    return orderedCategories.map((category) => {
+    const withFilteredItems = orderedCategories.map((category) => {
       const filteredItems = category.categoryItems.filter((item) => {
         switch (selectedFilter) {
           case "Money Available":  return item.available > 0;
@@ -398,6 +430,14 @@ export default function BudgetTable() {
       });
       return { ...category, categoryItems: filteredItems };
     });
+
+    // A specific filter (not "All") is about finding items that need
+    // attention — a group with none left after filtering is just clutter,
+    // not a result. "All" still shows every group, including empty ones,
+    // since that's the view you'd use to add items to a new group.
+    return selectedFilter === "All"
+      ? withFilteredItems
+      : withFilteredItems.filter((category) => category.categoryItems.length > 0);
   }, [budgetView, selectedFilter]);
 
   const toggleCategory = useCallback((category: string) => {
@@ -1750,7 +1790,7 @@ export default function BudgetTable() {
                       >
                         {formatToUSD(
                           group.categoryItems.reduce(
-                            (sum, item) => sum + item.assigned,
+                            (sum, item) => sum + getDisplayedAssignedFor(item),
                             0
                           )
                         )}
@@ -1768,13 +1808,13 @@ export default function BudgetTable() {
                           ? "Payment - " +
                           formatToUSD(
                             group.categoryItems.reduce(
-                              (sum, item) => sum + item.available,
+                              (sum, item) => sum + getDisplayedAvailableFor(item),
                               0
                             ) || 0
                           )
                           : formatToUSD(
                             group.categoryItems.reduce(
-                              (sum, item) => sum + item.available,
+                              (sum, item) => sum + getDisplayedAvailableFor(item),
                               0
                             )
                           )}
@@ -1853,26 +1893,27 @@ export default function BudgetTable() {
                           : 0;
                         const activityDelta = (item.activity ?? 0) - previousActivity;
 
+                        const previousCardOverspend = group.name === "Credit Card Payments"
+                          ? getPreviousCardOverspend(item.name)
+                          : 0;
+
                         // Same real-vs-shadow swap the assign cell already
                         // uses — the target funding badge and progress bar
                         // should track whichever "assigned" is actually on
                         // screen, or a plan that fully funds a target would
                         // still show "Underfunded" in Global mode.
-                        const displayedAssigned = planningMode === "global"
-                          ? (optimisticGlobalAssigned[item.id] ?? item.globalAssigned)
-                          : (optimisticAssigned[item.id] ?? item.assigned);
+                        const displayedAssigned = getDisplayedAssignedFor(item);
                         const displayItem = { ...item, assigned: displayedAssigned };
 
                         // Available under the shadow plan — exact, not an
                         // approximation: available = assigned + activity +
                         // prevAvailable, and only `assigned` differs between
                         // real and shadow this month, so shifting by the
-                        // same delta gives the true figure. Shown as a
-                        // supplementary annotation only (see below) — the
-                        // real Available cell also hosts the Move Money
-                        // button, which always moves real money regardless
-                        // of planningMode, so its own number must stay real.
-                        const displayedAvailable = item.available + (displayedAssigned - item.assigned);
+                        // same delta gives the true figure. Now the primary
+                        // Available figure in Global mode (Move Money is
+                        // disabled there, so there's no real-money action
+                        // left that needs the real number on screen).
+                        const displayedAvailable = getDisplayedAvailableFor(item);
 
                         return (
                           <Fragment
@@ -2027,6 +2068,15 @@ export default function BudgetTable() {
                                           Snoozed
                                         </Badge>
                                       )}
+                                      {previousCardOverspend > 0 && (
+                                        <Badge
+                                          variant="negative"
+                                          data-cy="card-overspend-last-month"
+                                          title="Card spending last month that wasn't covered by an assignment — it's now part of the card's balance. Assign extra here to catch up."
+                                        >
+                                          Overspent {formatToUSD(previousCardOverspend)} last month
+                                        </Badge>
+                                      )}
                                       {displayItem.target && getTargetStatus(displayItem).message && (
                                         <Badge
                                           variant={
@@ -2106,18 +2156,25 @@ export default function BudgetTable() {
                               data-item={item.name}
                               className={cn(
                                 "py-2 px-3 text-right align-middle font-mono tabular-nums text-sm font-semibold",
-                                Math.round(item.available * 100) > 0
+                                Math.round(displayedAvailable * 100) > 0
                                   ? "text-emerald-600"
-                                  : Math.round(item.available * 100) < 0
+                                  : Math.round(displayedAvailable * 100) < 0
                                     ? "text-red-600"
                                     : "text-slate-700"
                               )}
                             >
                               {(() => {
+                                // Overspend attribution is tagging actual past transactions
+                                // to actual accounts, not the hypothetical plan — but it must
+                                // still be gated on the *displayed* figure too, or Global mode
+                                // can show a "CC"/"Cash" badge (real overspend) sitting right
+                                // next to a $0.00 (shadow-covered) number, which reads as a
+                                // contradiction even though both are individually correct.
                                 const availableCents = Math.round(item.available * 100);
+                                const displayedAvailableCents = Math.round(displayedAvailable * 100);
                                 let overspendType: "credit" | "debit" | "both" | null = null;
                                 let ccAmount = 0, cashAmount = 0;
-                                if (availableCents < 0) {
+                                if (availableCents < 0 && displayedAvailableCents < 0) {
                                   const selMonth = format(parse(currentMonth, "yyyy-MM", new Date()), "yyyy-MM");
                                   for (const a of accounts) {
                                     for (const tx of a.transactions) {
@@ -2199,7 +2256,18 @@ export default function BudgetTable() {
                                         </PopoverContent>
                                       </Popover>
                                     )}
-                                    {(() => {
+                                    {planningMode === "global" ? (
+                                      <span
+                                        data-cy="move-money-trigger"
+                                        data-disabled="true"
+                                        title="This is a planning figure — switch to Period mode to move real money."
+                                        className="inline-flex items-center justify-end gap-1 rounded px-2 py-1 cursor-not-allowed"
+                                      >
+                                        <span className="underline decoration-dotted underline-offset-4 decoration-slate-400">
+                                          {formatToUSD(displayedAvailable || 0)}
+                                        </span>
+                                      </span>
+                                    ) : (() => {
                                       const rowKey = `${group.name}::${item.name}`;
                                       const sources = (budgetView?.categories ?? [])
                                         .flatMap((cat) =>
@@ -2278,15 +2346,6 @@ export default function BudgetTable() {
                                       );
                                     })()}
                                   </div>
-                                  {planningMode === "global" &&
-                                    Math.round(displayedAvailable * 100) !== Math.round(item.available * 100) && (
-                                      <div
-                                        data-cy="item-global-available"
-                                        className="text-[10px] font-semibold text-amber-700 dark:text-amber-400 text-right mt-0.5"
-                                      >
-                                        Global: {formatToUSD(displayedAvailable)}
-                                      </div>
-                                    )}
                                   </>
                                 );
                               })()}
@@ -2395,6 +2454,8 @@ export default function BudgetTable() {
                         {line("Funded Spending", ccBreakdown.fundedSpending, { border: true })}
                         {line("Payments", ccBreakdown.payments)}
                         {line("Total Activity", totalActivity, { bold: true, border: true })}
+                        {ccBreakdown.unbudgeted !== 0 &&
+                          line("Unbudgeted (still owed)", -ccBreakdown.unbudgeted, { border: true })}
                       </div>
                     );
                   })()}

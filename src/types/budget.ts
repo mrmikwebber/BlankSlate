@@ -191,6 +191,8 @@ export interface CCActivityBreakdown {
   fundedSpending: number;  // net budgeted portion of spend, minus refunds against previously-funded spend
   payments: number;        // direct payments made toward the card this month (negative)
   // activity = fundedSpending + payments
+  unbudgeted: number;      // portion of this month's card spend never covered by an assignment —
+                            // permanently absorbed into the card's real balance with no other record of it
 }
 
 export interface MonthItemState {

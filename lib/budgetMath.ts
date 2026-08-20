@@ -793,7 +793,7 @@ function computeCreditCardActivityByAccount(
 ): {
   paymentActivity: Map<string, number>;
   updatedOutstanding: Map<string, number>;
-  breakdownByCard: Map<string, { spending: number; returns: number; fundedSpending: number; payments: number }>;
+  breakdownByCard: Map<string, { spending: number; returns: number; fundedSpending: number; payments: number; unbudgeted: number }>;
 } {
   const paymentActivityByCard = new Map<string, number>();
   const poolByItem = new Map<string, number>();
@@ -802,11 +802,11 @@ function computeCreditCardActivityByAccount(
   // YNAB-style breakdown of the same running totals above, tracked
   // alongside so the two can never drift apart — this is a decomposition of
   // paymentActivityByCard, not a separate recomputation of it.
-  const breakdownByCard = new Map<string, { spending: number; returns: number; fundedSpending: number; payments: number }>();
+  const breakdownByCard = new Map<string, { spending: number; returns: number; fundedSpending: number; payments: number; unbudgeted: number }>();
   const getBreakdown = (accountId: string) => {
     let b = breakdownByCard.get(accountId);
     if (!b) {
-      b = { spending: 0, returns: 0, fundedSpending: 0, payments: 0 };
+      b = { spending: 0, returns: 0, fundedSpending: 0, payments: 0, unbudgeted: 0 };
       breakdownByCard.set(accountId, b);
     }
     return b;
@@ -873,6 +873,11 @@ function computeCreditCardActivityByAccount(
       const unbudgeted = spend - budgeted;
 
       getBreakdown(tx.accountId).spending -= spend;
+      // Tracked directly rather than derived as -spending - fundedSpending:
+      // a refund reduces fundedSpending (below) without touching spending,
+      // which would make a derived figure balloon on every refund even
+      // though refunds only ever reduce previously-*funded* outstanding.
+      getBreakdown(tx.accountId).unbudgeted += unbudgeted;
 
       if (budgeted > 0) {
         paymentActivityByCard.set(
@@ -1206,6 +1211,7 @@ export function serializeMonthView(
               returns: Math.round(s.ccActivityBreakdown.returns * 100) / 100,
               fundedSpending: Math.round(s.ccActivityBreakdown.fundedSpending * 100) / 100,
               payments: Math.round(s.ccActivityBreakdown.payments * 100) / 100,
+              unbudgeted: Math.round(s.ccActivityBreakdown.unbudgeted * 100) / 100,
             }
           : undefined,
       };

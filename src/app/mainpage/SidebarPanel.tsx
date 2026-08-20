@@ -28,9 +28,15 @@ const NAV_ITEMS: { id: TabletView; icon: React.ReactNode; label: string }[] = [
 interface SidebarPanelProps {
   activeView?: TabletView;
   onViewChange?: (view: TabletView) => void;
+  // Opt-in for callers that embed SidebarPanel without a view switcher (e.g.
+  // tablet's own "Accounts" tab) but still want the Ready to Assign /
+  // Global-mode footer reachable. Kept separate from onViewChange so it
+  // doesn't also turn on the month-nav/quick-nav blocks below, which would
+  // duplicate that caller's own navigation (DashboardToolbar/TabletRail).
+  showFooterStats?: boolean;
 }
 
-export default function SidebarPanel({ activeView, onViewChange }: SidebarPanelProps = {}) {
+export default function SidebarPanel({ activeView, onViewChange, showFooterStats }: SidebarPanelProps = {}) {
   const router = useRouter();
   const [showModal, setShowModal] = useState(false);
   const [contextMenu, setContextMenu] = useState<{
@@ -341,8 +347,11 @@ export default function SidebarPanel({ activeView, onViewChange }: SidebarPanelP
         )}
       </div>
 
-      {/* Footer stats — only in the primary sidebar */}
-      {accounts.length > 0 && onViewChange && (
+      {/* Footer stats — only in the primary sidebar, or when a caller
+          explicitly opts in via showFooterStats (tablet's Accounts tab,
+          which has no onViewChange of its own but still needs the Ready to
+          Assign / Global-mode entry point reachable). */}
+      {accounts.length > 0 && (onViewChange || showFooterStats) && (
         <div className="pt-3 border-t border-slate-200 dark:border-slate-700 space-y-2">
 
           {/* Ready to Assign */}
