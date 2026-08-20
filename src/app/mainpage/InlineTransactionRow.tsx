@@ -625,7 +625,8 @@ export default function InlineTransactionRow({
   };
 
   // PAYEE suggestions: accounts (transfers) + saved payees
-  const payeeSuggestions = [
+  const isSearchingPayee = isTypingPayee && !!payeeInput;
+  const payeeSuggestionsAll = [
     ...transferTargets.map((acc) => ({
       type: "account" as const,
       accountName: acc.name,
@@ -637,10 +638,16 @@ export default function InlineTransactionRow({
       label: p, // normal payee string
     })),
   ].filter((s) =>
-    isTypingPayee && payeeInput
+    isSearchingPayee
       ? s.label.toLowerCase().includes(payeeInput.toLowerCase())
       : true
   );
+  // When not actively searching, only show the most recent 20 so the
+  // dropdown stays usable for accounts with a large payee history —
+  // typing still searches the full unsliced list above.
+  const payeeSuggestions = isSearchingPayee
+    ? payeeSuggestionsAll
+    : payeeSuggestionsAll.slice(0, 20);
 
   // CATEGORY suggestions: "Group ▸ Item"
   const categorySuggestions = categoryGroups
