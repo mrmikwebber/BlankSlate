@@ -798,13 +798,24 @@ export default function AccountDetails() {
                       >
                         {tx.balance < 0 ? "−" : "+"}{Math.abs(tx.balance).toLocaleString("en-US", { style: "currency", currency: "USD" })}
                       </td>
-                      <td className="px-3 py-2 text-right">
+                      <td className="px-3 py-2 text-right whitespace-nowrap">
                         <button
                           onClick={() => { setEditedTransaction(tx); setEditingTransactionId(tx.id); setShowForm(false); }}
                           className="text-xs font-medium text-amber-700 dark:text-amber-300 hover:text-amber-900 dark:hover:text-amber-100 underline underline-offset-2"
                           title="Categorize and enter this now — it won't be re-added once your bank posts it, unless the amount changes"
                         >
                           Review
+                        </button>
+                        <button
+                          data-cy="decline-pending-transaction"
+                          onClick={() => {
+                            deleteTransactionWithMirror(tx.account_id ?? account.id, tx.id);
+                            invalidateAll();
+                          }}
+                          className="ml-3 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 underline underline-offset-2"
+                          title="Dismiss this pending charge — it's a hold that won't post, or you don't want to track it. It won't reappear on future syncs."
+                        >
+                          Decline
                         </button>
                       </td>
                     </tr>

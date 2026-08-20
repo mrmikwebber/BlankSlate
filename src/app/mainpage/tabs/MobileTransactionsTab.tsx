@@ -8,6 +8,8 @@ import {
   ArrowDownLeft,
   ArrowLeft,
   ArrowUpRight,
+  Clock,
+  Flag,
   Plus,
   Receipt,
   Search,
@@ -58,6 +60,17 @@ export default function MobileTransactionsTab({ accountId, onBack }: Props) {
 
   const balance = useMemo(
     () => account?.transactions?.reduce((s, tx) => s + tx.balance, 0) ?? 0,
+    [account]
+  );
+
+  // Bank-unposted (tx.pending) vs. needs-review (!tx.approved) — same two
+  // distinct concepts AccountDetails.tsx surfaces on desktop.
+  const pendingCount = useMemo(
+    () => account?.transactions?.filter((tx) => tx.pending).length ?? 0,
+    [account]
+  );
+  const unapprovedCount = useMemo(
+    () => account?.transactions?.filter((tx) => !tx.approved).length ?? 0,
     [account]
   );
 
@@ -388,6 +401,16 @@ export default function MobileTransactionsTab({ accountId, onBack }: Props) {
             <p className="text-[11px] text-slate-400 dark:text-slate-500">
               {account.type === "credit" ? "Credit card" : "Cash account"}
             </p>
+            {(pendingCount > 0 || unapprovedCount > 0) && (
+              <p className="text-[11px] font-medium text-amber-600 dark:text-amber-400 mt-0.5">
+                {[
+                  pendingCount > 0 ? `${pendingCount} pending` : null,
+                  unapprovedCount > 0 ? `${unapprovedCount} need review` : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </p>
+            )}
           </div>
           <div className="text-right flex-shrink-0">
             <p
@@ -459,7 +482,12 @@ export default function MobileTransactionsTab({ accountId, onBack }: Props) {
                     key={tx.id}
                     type="button"
                     onClick={() => openEdit(tx)}
-                    className="w-full flex items-center gap-3 px-4 py-3 min-h-[58px] bg-slate-50 dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 text-left active:bg-slate-100 dark:active:bg-slate-800/50 transition-colors"
+                    className={cn(
+                      "w-full flex items-center gap-3 px-4 py-3 min-h-[58px] border-b border-slate-100 dark:border-slate-800 text-left active:bg-slate-100 dark:active:bg-slate-800/50 transition-colors",
+                      !tx.approved
+                        ? "bg-amber-50/60 dark:bg-amber-900/20"
+                        : "bg-slate-50 dark:bg-slate-900"
+                    )}
                   >
                     {/* Direction icon */}
                     <div
@@ -482,9 +510,20 @@ export default function MobileTransactionsTab({ accountId, onBack }: Props) {
                       <p className="text-[13px] font-medium text-slate-900 dark:text-slate-100 truncate">
                         {tx.payee}
                       </p>
-                      <p className="text-[11px] text-slate-400 dark:text-slate-500 truncate mt-0.5">
-                        {tx.category ?? "Uncategorized"}
-                      </p>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <p className="text-[11px] text-slate-400 dark:text-slate-500 truncate">
+                          {tx.category ?? "Uncategorized"}
+                        </p>
+                        {tx.pending && (
+                          <span className="flex items-center gap-0.5 text-[9px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400 flex-shrink-0">
+                            <Clock className="h-2.5 w-2.5" />
+                            Pending
+                          </span>
+                        )}
+                        {!tx.approved && (
+                          <Flag className="h-2.5 w-2.5 text-amber-500 dark:text-amber-400 flex-shrink-0" />
+                        )}
+                      </div>
                     </div>
 
                     {/* Amount */}

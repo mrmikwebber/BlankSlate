@@ -29,6 +29,10 @@ export default function MobileBudgetTab() {
     addCategoryGroup,
     patchAssigned,
     getGroupIdByName,
+    planningMode,
+    setPlanningMode,
+    setGlobalAssigned,
+    getDisplayedRta,
   } = useBudgetContext();
   const { toast } = useToast();
 
@@ -76,9 +80,21 @@ export default function MobileBudgetTab() {
     });
   };
 
+  // Real-vs-shadow swap for Global planning mode — same shape as
+  // BudgetTable.tsx's getDisplayedAssignedFor/getDisplayedAvailableFor, but
+  // without a local optimistic-update layer: patchAssigned and
+  // setGlobalAssigned both already patch budgetView optimistically inside
+  // BudgetContext, which is all this modal-with-explicit-Save flow needs.
+  const getDisplayedAssigned = (item: ComputedCategoryItem) =>
+    planningMode === "global" ? item.globalAssigned : item.assigned;
+  const getDisplayedAvailable = (item: ComputedCategoryItem) =>
+    planningMode === "global"
+      ? item.available + (item.globalAssigned - item.assigned)
+      : item.available;
+
   const openEdit = (groupName: string, item: ComputedCategoryItem) => {
     setSelectedItem({ groupName, itemName: item.name, itemId: item.id });
-    setEditAssigned(String(item.assigned ?? 0));
+    setEditAssigned(String(getDisplayedAssigned(item) ?? 0));
   };
 
   const handleSave = async () => {
@@ -88,7 +104,11 @@ export default function MobileBudgetTab() {
 
     setSaving(true);
     try {
-      await patchAssigned(selectedItem.itemId, currentMonth, nextAssigned);
+      if (planningMode === "global") {
+        await setGlobalAssigned(selectedItem.itemId, currentMonth, nextAssigned);
+      } else {
+        await patchAssigned(selectedItem.itemId, currentMonth, nextAssigned);
+      }
       setSelectedItem(null);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Failed to save assignment";
@@ -103,7 +123,7 @@ export default function MobileBudgetTab() {
     setEditAssigned(String(current + amount));
   };
 
-  const readyToAssign = budgetView?.ready_to_assign ?? 0;
+  const readyToAssign = getDisplayedRta ? getDisplayedRta(currentMonth) : (budgetView?.ready_to_assign ?? 0);
 
   if (!budgetView) {
     return (
@@ -136,7 +156,7 @@ export default function MobileBudgetTab() {
         >
           <div>
             <p className="text-[10px] font-bold uppercase tracking-widest text-ledger-600 dark:text-ledger-400">
-              Ready to Assign
+              Ready to Assign{planningMode === "global" ? " (Global)" : ""}
             </p>
             <p className="font-mono tabular-nums text-[32px] font-bold text-ledger-700 dark:text-ledger-300 leading-tight tracking-tight">
               {formatToUSD(readyToAssign)}
@@ -146,14 +166,36 @@ export default function MobileBudgetTab() {
         </div>
       </ReadyToAssignBreakdown>
 
+      {/* Global mode banner */}
+      {planningMode === "global" && (
+        <div className="mx-0 mb-4 px-5 py-3 bg-amber-50 dark:bg-amber-900/40 border-y border-amber-200 dark:border-amber-700 text-amber-900 dark:text-amber-100">
+          <div className="flex items-center gap-2 text-[13px] font-semibold">
+            <Badge className="bg-amber-600 text-white hover:bg-amber-500">Global</Badge>
+            <span>Planning against Global Ready to Assign</span>
+          </div>
+          <p className="text-[11px] text-amber-800 dark:text-amber-200 mt-1">
+            Assigned amounts here are a separate plan — they never change your real assigned or Ready to Assign.
+          </p>
+          <Button
+            size="sm"
+            variant="outline"
+            className="mt-2 h-8 border-amber-400 text-amber-900 hover:bg-amber-100 dark:border-amber-500 dark:text-amber-50 dark:hover:bg-amber-800"
+            onClick={() => setPlanningMode("period")}
+            data-cy="global-mode-exit-banner"
+          >
+            Back to Period
+          </Button>
+        </div>
+      )}
+
       {/* Category groups */}
       {sortedGroups.map((group) => {
         const isExpanded = expandedGroups.has(group.name);
         const groupAssigned = group.categoryItems.reduce(
-          (s, i) => s + i.assigned,
+          (s, i) => s + getDisplayedAssigned(i),
           0
         );
-        const hasOverspent = group.categoryItems.some((i) => i.available < 0);
+        const hasOverspent = group.categoryItems.some((i) => getDisplayedAvailable(i) < 0);
 
         return (
           <div key={group.name}>
@@ -180,11 +222,13 @@ export default function MobileBudgetTab() {
             {isExpanded && (
               <>
                 {group.categoryItems.map((item) => {
-                  const isOverspent = item.available < 0;
+                  const displayedAssigned = getDisplayedAssigned(item);
+                  const displayedAvailable = getDisplayedAvailable(item);
+                  const isOverspent = displayedAvailable < 0;
                   const progress =
-                    item.assigned > 0
+                    displayedAssigned > 0
                       ? Math.min(
-                          (Math.abs(item.activity) / item.assigned) * 100,
+                          (Math.abs(item.activity) / displayedAssigned) * 100,
                           100
                         )
                       : item.activity < 0
@@ -220,20 +264,20 @@ export default function MobileBudgetTab() {
                               "font-mono text-[14px] font-semibold flex-shrink-0",
                               isOverspent
                                 ? "text-red-600 dark:text-red-400"
-                                : item.available === 0
+                                : displayedAvailable === 0
                                 ? "text-slate-300 dark:text-slate-600"
                                 : "text-ledger-600 dark:text-ledger-400"
                             )}
                           >
                             {isOverspent && "−"}
-                            {formatToUSD(Math.abs(item.available))}
+                            {formatToUSD(Math.abs(displayedAvailable))}
                           </span>
                         </div>
 
                         {/* Sub-row: assigned + activity */}
                         <div className="flex items-center justify-between mt-0.5">
                           <span className="text-[10px] text-slate-400 dark:text-slate-500">
-                            {formatToUSD(item.assigned)} assigned
+                            {formatToUSD(displayedAssigned)} assigned
                           </span>
                           {item.activity !== 0 && (
                             <span className="text-[10px] text-slate-400 dark:text-slate-500">
@@ -243,7 +287,7 @@ export default function MobileBudgetTab() {
                         </div>
 
                         {/* Progress bar */}
-                        {item.assigned > 0 && (
+                        {displayedAssigned > 0 && (
                           <div className="mt-1.5 h-[3px] w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                             <div
                               className={cn(
@@ -313,13 +357,13 @@ export default function MobileBudgetTab() {
             {editingItem && (
               <div className="grid grid-cols-3 gap-2">
                 {[
-                  { label: "Assigned", value: editingItem.assigned, mono: true },
+                  { label: "Assigned", value: getDisplayedAssigned(editingItem), mono: true },
                   { label: "Activity", value: editingItem.activity, mono: true },
                   {
                     label: "Available",
-                    value: editingItem.available,
+                    value: getDisplayedAvailable(editingItem),
                     color:
-                      editingItem.available < 0
+                      getDisplayedAvailable(editingItem) < 0
                         ? "text-red-600 dark:text-red-400"
                         : "text-ledger-600 dark:text-ledger-400",
                   },

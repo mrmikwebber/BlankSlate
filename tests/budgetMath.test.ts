@@ -689,6 +689,72 @@ describe("computeBudgetState", () => {
         // 80 spend with only 50 funded => +50 payment activity, then -20 transfer payment => +30 net.
         expect(amexPayment?.activity).toBe(30);
         expect(amexPayment?.available).toBe(30);
+        // The unfunded $30 of that $80 spend never got covered by an assignment.
+        expect(amexPayment?.ccActivityBreakdown?.unbudgeted).toBe(30);
+    });
+
+    it("keeps unbudgeted overspend unchanged by a refund against the funded portion", () => {
+        const accounts = [{ id: "a-amex", name: "Amex Gold", type: "credit" as const }];
+
+        const rawTransactions: RawDbTransaction[] = [
+            // Only $50 assigned, but $80 spent — $30 of this is unbudgeted overspend.
+            {
+                id: "tx-spend",
+                account_id: "a-amex",
+                date: "2026-07-05",
+                payee: "Store",
+                category: "Groceries",
+                category_group: "Living",
+                balance: -80,
+                category_item_id: "item-groceries",
+                cleared: true,
+                approved: true,
+            },
+            // A refund against the funded $50 portion of that spend.
+            {
+                id: "tx-refund",
+                account_id: "a-amex",
+                date: "2026-07-10",
+                payee: "Store Refund",
+                category: "Groceries",
+                category_group: "Living",
+                balance: 20,
+                category_item_id: "item-groceries",
+                cleared: true,
+                approved: true,
+            },
+        ];
+
+        const state = computeBudgetState({
+            userId: "u1",
+            accounts,
+            transactions: normalizeTransactions(rawTransactions, accounts),
+            assignments: [{ categoryItemId: "item-groceries", month: "2026-07", assigned: 50 }],
+            categoryGroups: [
+                {
+                    id: "g-living",
+                    name: "Living",
+                    sortOrder: 0,
+                    items: [{ id: "item-groceries", groupId: "g-living", name: "Groceries", sortOrder: 0, snoozed: false }],
+                },
+                {
+                    id: "g-cc",
+                    name: "Credit Card Payments",
+                    sortOrder: 1,
+                    items: [{ id: "item-amex-payment", groupId: "g-cc", name: "Amex Gold", sortOrder: 0, snoozed: false }],
+                },
+            ],
+        });
+
+        const july = serializeMonthView(state, "2026-07");
+        const b = july.categories.find((c) => c.name === "Credit Card Payments")?.categoryItems[0]?.ccActivityBreakdown;
+
+        expect(b).toBeDefined();
+        expect(b!.fundedSpending).toBe(30); // 50 budgeted - 20 refund-against-funded
+        // The $30 that was never funded in the first place stays at 30 — a
+        // refund against the *funded* portion must not inflate it, which is
+        // exactly what a derived (-spending - fundedSpending) figure would do.
+        expect(b!.unbudgeted).toBe(30);
     });
 
     it("treats uncategorized credit inflows as card payments", () => {

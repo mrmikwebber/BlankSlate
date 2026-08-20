@@ -4,7 +4,7 @@ import { useAccountContext } from "@/app/context/AccountContext";
 import { formatToUSD } from "@/app/utils/formatToUSD";
 import { cn } from "@/lib/utils";
 import AddAccountModal from "../AddAccountModal";
-import { Landmark } from "lucide-react";
+import { Clock, Flag, Landmark } from "lucide-react";
 
 function getAccountAbbr(name: string): string {
   const upper = name.toUpperCase();
@@ -54,6 +54,10 @@ export default function MobileAccountsTab({ onSelectAccount }: Props) {
     const abbr = getAccountAbbr(acc.name);
     const subtype = getAccountSubtype(acc);
     const isDebit = acc.type === "debit";
+    // Two distinct concepts, same as AccountDetails.tsx's desktop register:
+    // bank-unposted (tx.pending) vs. needs-review (!tx.approved).
+    const pendingCount = acc.transactions?.filter((tx) => tx.pending).length ?? 0;
+    const unapprovedCount = acc.transactions?.filter((tx) => !tx.approved).length ?? 0;
 
     return (
       <div
@@ -82,6 +86,24 @@ export default function MobileAccountsTab({ onSelectAccount }: Props) {
             {subtype}
           </p>
         </div>
+
+        {/* Pending / needs-review indicators */}
+        {(pendingCount > 0 || unapprovedCount > 0) && (
+          <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
+            {pendingCount > 0 && (
+              <span className="flex items-center gap-0.5 text-[10px] font-semibold text-amber-600 dark:text-amber-400 tabular-nums">
+                <Clock className="h-2.5 w-2.5" />
+                {pendingCount}
+              </span>
+            )}
+            {unapprovedCount > 0 && (
+              <span className="flex items-center gap-0.5 text-[10px] font-semibold text-amber-600 dark:text-amber-400 tabular-nums">
+                <Flag className="h-2.5 w-2.5" />
+                {unapprovedCount}
+              </span>
+            )}
+          </div>
+        )}
 
         {/* Balance */}
         <p

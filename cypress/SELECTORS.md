@@ -71,6 +71,14 @@ cy.get(`[data-category="${groupName}"] [data-cy="group-add-item-button"]`)
   });
 ```
 
+## Global planning mode
+
+- Open the toggle: click `[data-cy="ready-to-assign"]` (sidebar) to open the Ready to Assign breakdown dialog, which contains the toggle.
+- Mode toggle buttons (inside the breakdown dialog): `[data-cy="planning-mode-period"]` / `[data-cy="planning-mode-global"]`.
+- In-table banner while active, with a "Back to Period" exit button: `[data-cy="global-mode-exit-banner"]`.
+- The Available cell (`[data-cy="item-available"]`) shows the global/shadow figure directly while in Global mode — there is no separate secondary annotation element.
+- Move Money trigger (`[data-cy="move-money-trigger"]`) is non-interactive in Global mode: it carries `data-disabled="true"` and has no click handler, since Move Money always writes real money.
+
 ## Activity sidebar
 
 - Sidebar container: `[data-cy="activity-sidebar"]`

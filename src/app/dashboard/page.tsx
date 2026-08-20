@@ -58,7 +58,7 @@ export default function Home() {
             )}
             {tabletView === "accounts" && (
               <div className="h-full overflow-auto p-4">
-                <SidebarPanel />
+                <SidebarPanel showFooterStats />
               </div>
             )}
             {tabletView === "discretionary" && (
