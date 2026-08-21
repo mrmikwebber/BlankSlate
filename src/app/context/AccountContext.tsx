@@ -57,6 +57,12 @@ export interface SavedPayee {
   last_used_at: string;
 }
 
+export interface SubscriptionDismissal {
+  payee_key: string;
+  payee_label: string;
+  dismissed_at: string;
+}
+
 interface AccountContextType {
   // ...existing stuff
   savedPayees: SavedPayee[];
@@ -91,6 +97,9 @@ interface AccountContextType {
     targetId: string | number,
     position?: "before" | "after"
   ) => void;
+  dismissedSubscriptions: SubscriptionDismissal[];
+  dismissSubscription: (key: string, label: string) => Promise<void>;
+  restoreSubscription: (key: string) => Promise<void>;
 }
 
 const AccountContext = createContext<AccountContextType | undefined>(undefined);
@@ -112,6 +121,7 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [accountsLoading, setAccountsLoading] = useState(true);
   const [savedPayees, setSavedPayees] = useState<SavedPayee[]>([]);
+  const [dismissedSubscriptions, setDismissedSubscriptions] = useState<SubscriptionDismissal[]>([]);
   const [recentTransactions, setRecentTransactions] = useState([]);
   const fetchGenRef = useRef(0);
 
@@ -307,6 +317,73 @@ const upsertPayee = async (name: string) => {
     const without = prev.filter((p) => p.name !== trimmed);
     return [data as SavedPayee, ...without];
   });
+};
+
+useEffect(() => {
+  if (!user) {
+    setDismissedSubscriptions([]);
+    return;
+  }
+
+  const fetchDismissedSubscriptions = async () => {
+    const { data, error } = await supabase
+      .from("subscription_dismissals")
+      .select("payee_key, payee_label, dismissed_at")
+      .eq("user_id", user.id);
+
+    if (error) {
+      console.error("[AccountContext] Error fetching subscription dismissals", error);
+      return;
+    }
+
+    setDismissedSubscriptions(data as SubscriptionDismissal[]);
+  };
+
+  fetchDismissedSubscriptions();
+}, [user]);
+
+const dismissSubscription = async (key: string, label: string) => {
+  const trimmedKey = key.trim();
+  if (!trimmedKey) return;
+
+  const { data, error } = await supabase
+    .from("subscription_dismissals")
+    .upsert(
+      {
+        user_id: user?.id,
+        payee_key: trimmedKey,
+        payee_label: label,
+        dismissed_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id,payee_key" }
+    )
+    .select("payee_key, payee_label, dismissed_at")
+    .single();
+
+  if (error) {
+    console.error("[AccountContext] Error dismissing subscription", error);
+    return;
+  }
+
+  setDismissedSubscriptions((prev) => [
+    data as SubscriptionDismissal,
+    ...prev.filter((d) => d.payee_key !== trimmedKey),
+  ]);
+};
+
+const restoreSubscription = async (key: string) => {
+  const { error } = await supabase
+    .from("subscription_dismissals")
+    .delete()
+    .eq("user_id", user?.id)
+    .eq("payee_key", key);
+
+  if (error) {
+    console.error("[AccountContext] Error restoring subscription", error);
+    return;
+  }
+
+  setDismissedSubscriptions((prev) => prev.filter((d) => d.payee_key !== key));
 };
 
 
@@ -1027,11 +1104,22 @@ const upsertPayee = async (name: string) => {
       recentTransactions,
       savedPayees,
       upsertPayee,
+      dismissedSubscriptions,
+      dismissSubscription,
+      restoreSubscription,
       refreshSingleAccount,
       refetchAccounts: fetchAccounts,
       reorderAccounts,
     }),
-    [accounts, accountsLoading, recentTransactions, savedPayees, reorderAccounts, currentBudgetId]
+    [
+      accounts,
+      accountsLoading,
+      recentTransactions,
+      savedPayees,
+      dismissedSubscriptions,
+      reorderAccounts,
+      currentBudgetId,
+    ]
   );
 
   return (
