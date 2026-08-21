@@ -179,7 +179,9 @@
       "Bash(timeout 60 node check_approved.mjs)",
       "Bash(timeout 60 node check_approved2.mjs)",
       "Bash(timeout 60 node toggle_and_verify.mjs)",
-      "Bash(rm -f verify_mobile.mjs verify_tablet.mjs verify_desktop_regression.mjs verify_pending_mobile.mjs check_pending_data.mjs check_approved.mjs check_approved2.mjs toggle_and_verify.mjs)"
+      "Bash(rm -f verify_mobile.mjs verify_tablet.mjs verify_desktop_regression.mjs verify_pending_mobile.mjs check_pending_data.mjs check_approved.mjs check_approved2.mjs toggle_and_verify.mjs)",
+      "Bash(curl -s -o /tmp/dashboard.html -w \"%{http_code}\\\\n\" http://localhost:3001/dashboard)",
+      "PowerShell($conn = Get-NetTCPConnection -LocalPort 3001 -ErrorAction SilentlyContinue; if \\($conn\\) { $pids = $conn.OwningProcess | Sort-Object -Unique; foreach \\($p in $pids\\) { Stop-Process -Id $p -Force -ErrorAction SilentlyContinue }; \"stopped: $pids\" } else { \"no process found on 3001\" })"
     ],
     "additionalDirectories": [
       "/Users/michaelwebb/Documents/GitHub/BlankSlate/src/app/api/budget/month",

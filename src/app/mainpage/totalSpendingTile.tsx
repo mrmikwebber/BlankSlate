@@ -5,6 +5,8 @@ import { Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { useAccountContext } from "../context/AccountContext";
 import { useBudgetContext } from "../context/BudgetContext";
 import { formatToUSD } from "../utils/formatToUSD";
+import { detectSubscriptions } from "@/lib/detectSubscriptions";
+import SubscriptionsModal from "./SubscriptionsModal";
 import {
   isSameMonth,
   parseISO,
@@ -40,6 +42,7 @@ const WIDGET_DEFS = [
   { id: "budget-bars",     label: "Spending vs Budget",  defaultOn: true  },
   { id: "trend",           label: "Monthly Trend",       defaultOn: true  },
   { id: "category-table",  label: "Category Breakdown",  defaultOn: true  },
+  { id: "subscriptions",   label: "Possible Subscriptions", defaultOn: true },
 ] as const;
 
 type WidgetId = (typeof WIDGET_DEFS)[number]["id"];
@@ -128,7 +131,8 @@ function buildSparklinePath(values: number[], width: number, height: number): st
 
 // ── Component ────────────────────────────────────────────────────────────────
 const TotalSpendingTile = () => {
-  const { accounts } = useAccountContext();
+  const { accounts, dismissedSubscriptions, dismissSubscription, restoreSubscription } =
+    useAccountContext();
   const { currentMonth, budgetData, budgetView } = useBudgetContext();
 
   // Category names the user has flagged to exclude from Insights charts
@@ -149,6 +153,29 @@ const TotalSpendingTile = () => {
   const [selectorOpen, setSelectorOpen] = useState(false);
   const selectorRef = useRef<HTMLDivElement>(null);
   const [paceBreakdownOpen, setPaceBreakdownOpen] = useState(false);
+  const [subscriptionsModalOpen, setSubscriptionsModalOpen] = useState(false);
+
+  const dismissedSubscriptionKeys = useMemo(
+    () => new Set(dismissedSubscriptions.map((d) => d.payee_key)),
+    [dismissedSubscriptions]
+  );
+
+  // History-wide, so this intentionally does not depend on currentMonthDate
+  // like the month-scoped widgets above.
+  const subscriptionCandidates = useMemo(
+    () =>
+      detectSubscriptions(
+        accounts.flatMap((a) => a.transactions),
+        dismissedSubscriptionKeys,
+        hiddenCategoryNames
+      ),
+    [accounts, dismissedSubscriptionKeys, hiddenCategoryNames]
+  );
+
+  const estimatedMonthlySubscriptionCost = subscriptionCandidates.reduce(
+    (sum, c) => sum + c.monthlyEquivalentCost,
+    0
+  );
 
   useEffect(() => {
     try {
@@ -181,6 +208,25 @@ const TotalSpendingTile = () => {
       prev.includes(id) ? prev.filter((w) => w !== id) : [...prev, id]
     );
   };
+
+  // Some widgets need a certain amount of transaction history before they
+  // have anything meaningful to compute — used both to gray out their
+  // Customize toggle and to swap in a placeholder card instead of just
+  // silently rendering nothing.
+  const widgetHasData = (id: WidgetId): boolean => {
+    if (id === "spending-pace") return !!spendingPace;
+    if (id === "subscriptions") return subscriptionCandidates.length > 0;
+    return true;
+  };
+
+  const NotEnoughDataCard = ({ label }: { label: string }) => (
+    <div className="rounded-xl border border-dashed border-slate-200 dark:border-slate-700/60 bg-slate-50/50 dark:bg-slate-900/50 p-4">
+      <p className="text-sm font-semibold text-slate-400 dark:text-slate-500">{label}</p>
+      <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+        Not enough data yet — check back once you have more transaction history.
+      </p>
+    </div>
+  );
 
   // ── Core data ──────────────────────────────────────────────────────────────
   const currentMonthDate = useMemo(
@@ -478,28 +524,42 @@ const TotalSpendingTile = () => {
               <div className="space-y-0.5">
                 {WIDGET_DEFS.map((w) => {
                   const active = enabledWidgets.includes(w.id);
+                  const hasData = widgetHasData(w.id);
+                  const disabled = !active && !hasData;
                   return (
-                    <button
-                      key={w.id}
-                      onClick={() => toggleWidget(w.id)}
-                      className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-left"
-                    >
-                      <span
+                    <div key={w.id}>
+                      <button
+                        onClick={() => !disabled && toggleWidget(w.id)}
+                        disabled={disabled}
                         className={cn(
-                          "w-4 h-4 flex-shrink-0 rounded border flex items-center justify-center transition-colors",
-                          active
-                            ? "bg-ledger-500 border-ledger-500"
-                            : "border-slate-300 dark:border-slate-600"
+                          "w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg transition-colors text-left",
+                          disabled
+                            ? "opacity-50 cursor-not-allowed"
+                            : "hover:bg-slate-50 dark:hover:bg-slate-800"
                         )}
                       >
-                        {active && (
-                          <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                          </svg>
-                        )}
-                      </span>
-                      <span className="text-xs text-slate-700 dark:text-slate-300">{w.label}</span>
-                    </button>
+                        <span
+                          className={cn(
+                            "w-4 h-4 flex-shrink-0 rounded border flex items-center justify-center transition-colors",
+                            active
+                              ? "bg-ledger-500 border-ledger-500"
+                              : "border-slate-300 dark:border-slate-600"
+                          )}
+                        >
+                          {active && (
+                            <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
+                        </span>
+                        <span className="text-xs text-slate-700 dark:text-slate-300">{w.label}</span>
+                      </button>
+                      {!hasData && (
+                        <p className="pl-[26px] pb-1 text-[10px] text-slate-400 dark:text-slate-500">
+                          Not enough data yet
+                        </p>
+                      )}
+                    </div>
                   );
                 })}
               </div>
@@ -810,6 +870,7 @@ const TotalSpendingTile = () => {
           )}
         </div>
       )}
+      {show("spending-pace") && !spendingPace && <NotEnoughDataCard label="Spending Pace" />}
 
       {/* ── Charts Row ── */}
       {spendingData.length > 0 && (show("donut") || show("budget-bars")) && (
@@ -1105,6 +1166,46 @@ const TotalSpendingTile = () => {
         </div>
       )}
 
+      {/* ── Possible Subscriptions ── */}
+      {show("subscriptions") && subscriptionCandidates.length > 0 && (
+        <div className="rounded-xl border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900 p-4 shadow-sm">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                Possible Subscriptions
+              </p>
+              <p className="text-[11px] text-slate-400 dark:text-slate-500">
+                ~{formatToUSD(estimatedMonthlySubscriptionCost)}/mo across {subscriptionCandidates.length}
+              </p>
+            </div>
+            <button
+              onClick={() => setSubscriptionsModalOpen(true)}
+              className="text-xs font-medium text-ledger-600 dark:text-ledger-400 hover:underline"
+            >
+              View all
+            </button>
+          </div>
+          <div className="space-y-2">
+            {subscriptionCandidates.slice(0, 4).map((c) => (
+              <div key={c.key} className="flex items-center justify-between text-xs">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-slate-700 dark:text-slate-300 truncate">{c.label}</span>
+                  <span className="text-[10px] uppercase tracking-wider text-slate-400 dark:text-slate-500 flex-shrink-0">
+                    {c.cadence}
+                  </span>
+                </div>
+                <span className="font-mono text-slate-600 dark:text-slate-400 flex-shrink-0 pl-2">
+                  {formatToUSD(c.typicalAmount)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {show("subscriptions") && subscriptionCandidates.length === 0 && (
+        <NotEnoughDataCard label="Possible Subscriptions" />
+      )}
+
       {/* Empty state */}
       {spendingData.length === 0 && totalOutflow === 0 && (
         <div className="flex-1 flex items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 py-16">
@@ -1119,6 +1220,15 @@ const TotalSpendingTile = () => {
           </div>
         </div>
       )}
+
+      <SubscriptionsModal
+        isOpen={subscriptionsModalOpen}
+        onClose={() => setSubscriptionsModalOpen(false)}
+        candidates={subscriptionCandidates}
+        dismissedSubscriptions={dismissedSubscriptions}
+        onDismiss={dismissSubscription}
+        onRestore={restoreSubscription}
+      />
     </div>
   );
 };
