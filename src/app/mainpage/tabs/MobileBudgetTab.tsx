@@ -87,10 +87,12 @@ export default function MobileBudgetTab() {
   // BudgetContext, which is all this modal-with-explicit-Save flow needs.
   const getDisplayedAssigned = (item: ComputedCategoryItem) =>
     planningMode === "global" ? item.globalAssigned : item.assigned;
+  // Server-computed shadow available, not a per-item delta shift — a Credit
+  // Card Payments item's shadow available also depends on the shadow
+  // assigned amounts of the spending categories whose card purchases it
+  // covers (see globalAvailable in lib/budgetMath.ts).
   const getDisplayedAvailable = (item: ComputedCategoryItem) =>
-    planningMode === "global"
-      ? item.available + (item.globalAssigned - item.assigned)
-      : item.available;
+    planningMode === "global" ? item.globalAvailable : item.available;
 
   const openEdit = (groupName: string, item: ComputedCategoryItem) => {
     setSelectedItem({ groupName, itemName: item.name, itemId: item.id });

@@ -939,8 +939,10 @@ export function computeBudgetState(input: BudgetStateInput): BudgetState {
   // item/month, computed per-item below so both API consumers and tests see
   // the same pre-filled shadow value.
   const globalAssignmentsByItemMonth = new Map<string, number>();
+  const monthsWithGlobalOverrides = new Set<string>();
   for (const a of globalAssignments ?? []) {
     globalAssignmentsByItemMonth.set(`${a.categoryItemId}:${a.month}`, a.assigned);
+    monthsWithGlobalOverrides.add(a.month);
   }
   const plannedIncomeByMonth = new Map<string, number>();
   for (const p of plannedIncome ?? []) {
@@ -1053,6 +1055,7 @@ export function computeBudgetState(input: BudgetStateInput): BudgetState {
 
     const itemStates = new Map<string, MonthItemState>();
     const monthStartAvailableByItem = new Map<string, number>();
+    const globalMonthStartAvailableByItem = new Map<string, number>();
     const debitAvailableByItem = new Map<string, number>();
 
     // First pass: non-credit-card-payment categories
@@ -1080,8 +1083,15 @@ export function computeBudgetState(input: BudgetStateInput): BudgetState {
         const prevAvailable = prevState?.available ?? 0;
         const effectivePrevAvailable = wasDebitOverspent ? 0 : Math.max(prevAvailable, 0);
         const available = assigned + activity + effectivePrevAvailable;
+        // Global mode's own activity is identical to real activity here —
+        // this item's activity never depends on any item's assigned amount
+        // (unlike a CC payment item's, which depends on *other* items'
+        // shadow-funded-vs-unbudgeted split below) — so only `assigned`
+        // needs swapping for `globalAssigned`.
+        const globalAvailable = globalAssigned + activity + effectivePrevAvailable;
 
         monthStartAvailableByItem.set(item.id, effectivePrevAvailable + assigned);
+        globalMonthStartAvailableByItem.set(item.id, effectivePrevAvailable + globalAssigned);
 
         itemStates.set(item.id, {
           categoryItemId: item.id,
@@ -1090,6 +1100,7 @@ export function computeBudgetState(input: BudgetStateInput): BudgetState {
           cumulativeAvailable: 0,
           available,
           globalAssigned,
+          globalAvailable,
         });
 
         // Parallel debit-only lens on the same item, mirroring the blended
@@ -1111,9 +1122,33 @@ export function computeBudgetState(input: BudgetStateInput): BudgetState {
       if (debitAvail < 0) monthDebitOverspend += Math.abs(debitAvail);
     }
 
+    // Snapshot before this month's real update below — the shadow pass must
+    // start from the same prior-month debt this month's real pass does, not
+    // from the just-updated (post-this-month) figure.
+    const outstandingBeforeThisMonth = outstandingByItemCard;
+
     const { paymentActivity: ccActivityByAccountId, updatedOutstanding, breakdownByCard } =
-      computeCreditCardActivityByAccount(monthTx, accountMap, monthStartAvailableByItem, outstandingByItemCard);
+      computeCreditCardActivityByAccount(monthTx, accountMap, monthStartAvailableByItem, outstandingBeforeThisMonth);
     outstandingByItemCard = updatedOutstanding;
+
+    // Shadow CC funding pass — a spending category's shadow assigned amount
+    // changes how much of this month's *already-happened* card spend reads
+    // as funded vs. unbudgeted (same mechanism real assignments use; see
+    // computeCreditCardActivityByAccount), so the CC payment item's own
+    // shadow available must be recomputed from a shadow funding pool, not
+    // shifted by a per-item delta like the non-CC pass above. Skipped
+    // entirely (and just mirrors the real activity) when nothing this month
+    // has a global override, matching the "collapses to the real figure
+    // with no overrides" rule everywhere else in Global mode.
+    const hasGlobalOverrideThisMonth = monthsWithGlobalOverrides.has(month);
+    const globalCcActivityByAccountId = hasGlobalOverrideThisMonth
+      ? computeCreditCardActivityByAccount(
+          monthTx,
+          accountMap,
+          globalMonthStartAvailableByItem,
+          outstandingBeforeThisMonth
+        ).paymentActivity
+      : ccActivityByAccountId;
 
     // Second pass: credit card payment categories (all groups)
     for (const group of categoryGroups) {
@@ -1128,6 +1163,9 @@ export function computeBudgetState(input: BudgetStateInput): BudgetState {
         const prevAvailable = prevMonthStates?.get(item.id)?.available ?? 0;
         const available = prevAvailable + assigned + activity;
 
+        const globalActivity = cardAccountId ? globalCcActivityByAccountId.get(cardAccountId) ?? 0 : 0;
+        const globalAvailable = prevAvailable + globalAssigned + globalActivity;
+
         itemStates.set(item.id, {
           categoryItemId: item.id,
           assigned,
@@ -1135,6 +1173,7 @@ export function computeBudgetState(input: BudgetStateInput): BudgetState {
           cumulativeAvailable: 0,
           available,
           globalAssigned,
+          globalAvailable,
           ccActivityBreakdown: cardAccountId ? breakdownByCard.get(cardAccountId) : undefined,
         });
       }
@@ -1199,6 +1238,7 @@ export function serializeMonthView(
         activity: s?.activity ?? 0,
         available: Math.round((s?.available ?? 0) * 100) / 100,
         globalAssigned: s?.globalAssigned ?? 0,
+        globalAvailable: Math.round((s?.globalAvailable ?? s?.available ?? 0) * 100) / 100,
         snoozed: item.snoozed,
         target: item.target,
         notes: item.notes,
