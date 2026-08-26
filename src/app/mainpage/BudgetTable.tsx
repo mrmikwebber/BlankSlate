@@ -147,10 +147,19 @@ export default function BudgetTable() {
   const getDisplayedAvailableFor = useCallback(
     (item: ComputedCategoryItem) => {
       if (planningMode !== "global") return item.available;
-      const displayedAssigned = getDisplayedAssignedFor(item);
-      return item.available + (displayedAssigned - item.assigned);
+      // Server-computed shadow available — NOT a per-item delta shift, since
+      // a Credit Card Payments item's shadow available also depends on the
+      // shadow assigned amounts of the spending categories whose card
+      // purchases it covers (see globalAvailable in lib/budgetMath.ts).
+      const optimistic = optimisticGlobalAssigned[item.id];
+      if (optimistic === undefined) return item.globalAvailable;
+      // Instant feedback for this row's own pending edit, ahead of the
+      // server round-trip — exact even for a Credit Card Payments item,
+      // since only *other* items' shadow assigned amounts affect its shadow
+      // activity, never its own.
+      return item.globalAvailable + (optimistic - item.globalAssigned);
     },
-    [planningMode, getDisplayedAssignedFor]
+    [planningMode, optimisticGlobalAssigned]
   );
 
   const FILTERS = [
@@ -266,10 +275,12 @@ export default function BudgetTable() {
 
   const overspentCategoriesCount = useMemo(() => {
     if (!budgetView) return 0;
+    const isAvailableOverspent = (item: ComputedCategoryItem) =>
+      (planningMode === "global" ? getDisplayedAvailableFor(item) : item.available) < 0;
     return budgetView.categories.reduce((count, group) => {
-      return count + group.categoryItems.filter(item => item.available < 0).length;
+      return count + group.categoryItems.filter(isAvailableOverspent).length;
     }, 0);
-  }, [budgetView]);
+  }, [budgetView, planningMode, getDisplayedAvailableFor]);
 
   const displayedRta = useMemo(() => {
     return getDisplayedRta ? getDisplayedRta(currentMonth) : (budgetView?.ready_to_assign ?? 0);
@@ -419,11 +430,13 @@ export default function BudgetTable() {
 
     const withFilteredItems = orderedCategories.map((category) => {
       const filteredItems = category.categoryItems.filter((item) => {
+        const available = planningMode === "global" ? getDisplayedAvailableFor(item) : item.available;
+        const assigned = planningMode === "global" ? getDisplayedAssignedFor(item) : item.assigned;
         switch (selectedFilter) {
-          case "Money Available":  return item.available > 0;
-          case "Overspent":        return item.available < 0;
-          case "Overfunded":       return (item.target as { amountNeeded?: number } | undefined)?.amountNeeded != null && item.assigned > ((item.target as { amountNeeded?: number }).amountNeeded ?? 0);
-          case "Underfunded":      return (item.target as { amountNeeded?: number } | undefined)?.amountNeeded != null && item.assigned < ((item.target as { amountNeeded?: number }).amountNeeded ?? 0);
+          case "Money Available":  return available > 0;
+          case "Overspent":        return available < 0;
+          case "Overfunded":       return (item.target as { amountNeeded?: number } | undefined)?.amountNeeded != null && assigned > ((item.target as { amountNeeded?: number }).amountNeeded ?? 0);
+          case "Underfunded":      return (item.target as { amountNeeded?: number } | undefined)?.amountNeeded != null && assigned < ((item.target as { amountNeeded?: number }).amountNeeded ?? 0);
           case "Snoozed":          return item.snoozed === true;
           default:                 return true;
         }
@@ -438,7 +451,7 @@ export default function BudgetTable() {
     return selectedFilter === "All"
       ? withFilteredItems
       : withFilteredItems.filter((category) => category.categoryItems.length > 0);
-  }, [budgetView, selectedFilter]);
+  }, [budgetView, selectedFilter, planningMode, getDisplayedAvailableFor, getDisplayedAssignedFor]);
 
   const toggleCategory = useCallback((category: string) => {
     setOpenCategories((prev) => ({ ...prev, [category]: !prev[category] }));
@@ -1897,23 +1910,21 @@ export default function BudgetTable() {
                           ? getPreviousCardOverspend(item.name)
                           : 0;
 
-                        // Same real-vs-shadow swap the assign cell already
-                        // uses — the target funding badge and progress bar
-                        // should track whichever "assigned" is actually on
-                        // screen, or a plan that fully funds a target would
-                        // still show "Underfunded" in Global mode.
-                        const displayedAssigned = getDisplayedAssignedFor(item);
-                        const displayItem = { ...item, assigned: displayedAssigned };
-
-                        // Available under the shadow plan — exact, not an
-                        // approximation: available = assigned + activity +
-                        // prevAvailable, and only `assigned` differs between
-                        // real and shadow this month, so shifting by the
-                        // same delta gives the true figure. Now the primary
-                        // Available figure in Global mode (Move Money is
-                        // disabled there, so there's no real-money action
-                        // left that needs the real number on screen).
+                        // Server-computed shadow available — now the
+                        // primary Available figure in Global mode (Move
+                        // Money is disabled there, so there's no real-money
+                        // action left that needs the real number on screen).
                         const displayedAvailable = getDisplayedAvailableFor(item);
+
+                        // Same real-vs-shadow swap the assign cell already
+                        // uses — the target funding badge, the Overspent
+                        // badge, and the progress bar should all track
+                        // whichever assigned/available is actually on
+                        // screen, or a plan that fully funds a target (or
+                        // clears an overspend) would still show
+                        // "Underfunded"/"Overspent" in Global mode.
+                        const displayedAssigned = getDisplayedAssignedFor(item);
+                        const displayItem = { ...item, assigned: displayedAssigned, available: displayedAvailable };
 
                         return (
                           <Fragment

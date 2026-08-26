@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useBudgetContext } from "../context/BudgetContext";
+import { useAccountContext } from "../context/AccountContext";
 import { formatToUSD } from "../utils/formatToUSD";
 import { differenceInCalendarMonths, parseISO } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,7 @@ export default function InlineTargetEditor({
   onClose,
 }: InlineTargetEditorProps) {
   const { currentMonth, budgetData, setCategoryTarget } = useBudgetContext();
+  const { accounts } = useAccountContext();
   const { toast } = useToast();
   const [targetAmount, setTargetAmount] = useState("");
   const [targetType, setTargetType] = useState("monthly");
@@ -52,6 +54,21 @@ export default function InlineTargetEditor({
     setCustomTargetDate(existing?.targetDate || "");
   }, [itemName, categoryItem]);
 
+  // Full Payoff's amount input is hidden (see the JSX below) — its target
+  // is always "pay off the card's real current balance," so it must be
+  // derived from the linked account, not typed in. Re-derives on every
+  // switch into this target type (and on mount, since the effect above may
+  // already have set targetType to "Full Payoff" for a Credit Card
+  // Payments item before this one first runs) so it always reflects the
+  // account's live balance rather than a stale saved figure.
+  useEffect(() => {
+    if (targetType !== "Full Payoff") return;
+    const account = accounts.find((a) => a.name === itemName);
+    if (account) {
+      setTargetAmount((-1 * account.balance).toString());
+    }
+  }, [targetType, accounts, itemName]);
+
   const calculateNeededAmount = () => {
     const amount = parseFloat(targetAmount || "0");
     if (!amount && targetType !== "Full Payoff") return 0;
@@ -83,6 +100,19 @@ export default function InlineTargetEditor({
     }
 
     return 0;
+  };
+
+  const handleRemove = async () => {
+    setSaving(true);
+    try {
+      await setCategoryTarget(categoryItem.id, null);
+      onClose();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to remove target";
+      toast({ title: "Couldn't remove target", description: message, variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleSave = async () => {
@@ -177,6 +207,18 @@ export default function InlineTargetEditor({
               Amount needed: {formatToUSD(calculateNeededAmount())}
             </span>
             <div className="flex gap-2">
+              {categoryItem.target && (
+                <Button
+                  data-cy="target-remove"
+                  variant="ghost"
+                  size="sm"
+                  className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                  onClick={handleRemove}
+                  disabled={saving}
+                >
+                  Remove Target
+                </Button>
+              )}
               <Button
                 data-cy="target-cancel"
                 variant="ghost"

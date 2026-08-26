@@ -1435,4 +1435,75 @@ describe("Global planning mode", () => {
         expect(feb.global_planned_income).toBe(0);
         expect(feb.global_ready_to_assign).toBe(feb.ready_to_assign);
     });
+
+    it("a global override on a spending category updates the linked Credit Card Payments item's globalAvailable", () => {
+        // $80 spent on Groceries via the Amex, but only $50 real-assigned —
+        // $30 of that spend is real unbudgeted overspend. Planning (in
+        // Global mode) to assign the full $80 to Groceries should show the
+        // Amex payment category's shadow available rise by that same $30,
+        // since the shadow funding pool would now cover the whole spend.
+        const accounts = [{ id: "a-amex", name: "Amex Gold", type: "credit" as const }];
+        const rawTransactions: RawDbTransaction[] = [
+            {
+                id: "tx-spend",
+                account_id: "a-amex",
+                date: "2026-03-05",
+                payee: "Store",
+                category: "Groceries",
+                category_group: "Living",
+                balance: -80,
+                category_item_id: "item-groceries",
+                cleared: true,
+                approved: true,
+            },
+        ];
+        const categoryGroups = [
+            {
+                id: "g-living",
+                name: "Living",
+                sortOrder: 0,
+                items: [{ id: "item-groceries", groupId: "g-living", name: "Groceries", sortOrder: 0, snoozed: false }],
+            },
+            {
+                id: "g-cc",
+                name: "Credit Card Payments",
+                sortOrder: 1,
+                items: [{ id: "item-amex-payment", groupId: "g-cc", name: "Amex Gold", sortOrder: 0, snoozed: false }],
+            },
+        ];
+
+        const withoutOverride = computeBudgetState({
+            userId: "u1",
+            accounts,
+            transactions: normalizeTransactions(rawTransactions, accounts),
+            assignments: [{ categoryItemId: "item-groceries", month: "2026-03", assigned: 50 }],
+            categoryGroups,
+            globalAssignments: [],
+        });
+        const marchNoOverride = serializeMonthView(withoutOverride, "2026-03");
+        const ccGroupNoOverride = marchNoOverride.categories.find((c) => c.name === "Credit Card Payments");
+        const amexNoOverride = ccGroupNoOverride?.categoryItems.find((i) => i.id === "item-amex-payment");
+
+        expect(amexNoOverride?.available).toBe(50);
+        // No override anywhere this month, so the shadow figure collapses
+        // to the real one exactly.
+        expect(amexNoOverride?.globalAvailable).toBe(50);
+
+        const withOverride = computeBudgetState({
+            userId: "u1",
+            accounts,
+            transactions: normalizeTransactions(rawTransactions, accounts),
+            assignments: [{ categoryItemId: "item-groceries", month: "2026-03", assigned: 50 }],
+            categoryGroups,
+            globalAssignments: [{ categoryItemId: "item-groceries", month: "2026-03", assigned: 80 }],
+        });
+        const march = serializeMonthView(withOverride, "2026-03");
+        const ccGroup = march.categories.find((c) => c.name === "Credit Card Payments");
+        const amex = ccGroup?.categoryItems.find((i) => i.id === "item-amex-payment");
+
+        // Real available is untouched by the override.
+        expect(amex?.available).toBe(50);
+        // Shadow available reflects the full $80 shadow-funded spend.
+        expect(amex?.globalAvailable).toBe(80);
+    });
 });

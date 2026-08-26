@@ -34,6 +34,16 @@ export interface ComputedCategoryItem {
   // — always present, never touches real `assigned`/`available` above.
   globalAssigned: number;
 
+  // Global-mode shadow available — the `available` this item would have if
+  // every item's shadow assigned amount (globalAssigned) were real instead,
+  // within this month only (no cross-month cascading). For a Credit Card
+  // Payments item this is NOT just `available` shifted by this item's own
+  // assigned delta: it also depends on the shadow assigned amounts of the
+  // spending categories whose card purchases it covers, via the same
+  // funded-vs-unbudgeted split real assignments use. Falls back to
+  // `available` when nothing this month has a global override.
+  globalAvailable: number;
+
   snoozed?: boolean;
   target?: Target;
   notes?: string;
@@ -203,6 +213,7 @@ export interface MonthItemState {
   available: number;             // assigned + activity + max(cumulativeAvailable, 0)
   ccActivityBreakdown?: CCActivityBreakdown; // Credit Card Payments items only
   globalAssigned: number;        // shadow assigned; falls back to `assigned` when no override
+  globalAvailable: number;       // shadow available; see ComputedCategoryItem.globalAvailable
 }
 
 export interface MonthState {

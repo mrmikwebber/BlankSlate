@@ -16,7 +16,7 @@ CREATE TABLE subscription_dismissals (
   payee_key    text        NOT NULL,
   payee_label  text        NOT NULL,
   dismissed_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (user_id, payee_key)
+  UNIQUE (user_id, payee_key)I 
 );
 
 ALTER TABLE subscription_dismissals ENABLE ROW LEVEL SECURITY;

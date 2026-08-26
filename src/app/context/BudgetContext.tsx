@@ -696,7 +696,14 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
           categories: previousView.categories.map((g) => ({
             ...g,
             categoryItems: g.categoryItems.map((i) =>
-              i.id === categoryItemId ? { ...i, globalAssigned: value } : i
+              // Only this item's own globalAvailable can be shifted exactly
+              // client-side (its shadow activity never depends on its own
+              // assigned amount) — a Credit Card Payments item this edit
+              // funds isn't in this map and stays stale until the server
+              // response lands, same as any other cross-item effect.
+              i.id === categoryItemId
+                ? { ...i, globalAssigned: value, globalAvailable: i.globalAvailable + delta }
+                : i
             ),
           })),
         });
