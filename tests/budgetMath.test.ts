@@ -7,6 +7,7 @@ import {
     computeBudgetState,
     getCumulativeAvailablePure,
     normalizeTransactions,
+    readTodayMonthParam,
     serializeMonthView,
     updateMonthPure,
     type Account,
@@ -1561,5 +1562,28 @@ describe("Global planning mode", () => {
             ?.categoryItems.find((i) => i.id === "item-amex-payment");
 
         expect(amex?.globalCcActivityBreakdown).toEqual(amex?.ccActivityBreakdown);
+    });
+});
+
+describe("readTodayMonthParam", () => {
+    // A server running in UTC and a browser west of UTC disagree about which
+    // month "today" falls in for several hours around every month boundary —
+    // serializeMonthView's own Date()-based default silently picks up the
+    // server's answer unless a route explicitly forwards the browser's own
+    // month via this param (see BudgetContext.tsx's apiFetch, which attaches
+    // it to every request).
+    it("extracts a well-formed todayMonth from the request URL", () => {
+        const req = new Request("https://example.com/api/budget/month/2026-08?todayMonth=2026-08");
+        expect(readTodayMonthParam(req)).toBe("2026-08");
+    });
+
+    it("returns undefined when the param is absent, so serializeMonthView falls back to its own default", () => {
+        const req = new Request("https://example.com/api/budget/month/2026-08");
+        expect(readTodayMonthParam(req)).toBeUndefined();
+    });
+
+    it("returns undefined for a malformed value rather than passing bad data through", () => {
+        const req = new Request("https://example.com/api/budget/month/2026-08?todayMonth=not-a-month");
+        expect(readTodayMonthParam(req)).toBeUndefined();
     });
 });

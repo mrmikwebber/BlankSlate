@@ -1217,9 +1217,29 @@ export function computeBudgetState(input: BudgetStateInput): BudgetState {
   };
 }
 
+// Pulls the caller's own local "today" (YYYY-MM) off a request's query
+// string — API routes that call serializeMonthView() use this so its
+// "is this the real current month" check (the Assigned-in-Future RTA
+// deduction, see below) runs against the browser's timezone, not whatever
+// timezone the server process happens to be running in. Without this, a
+// server on UTC (e.g. Vercel) disagrees with a user west of UTC about which
+// month "today" falls in for several hours around every month boundary —
+// the client-rendered breakdown (computed from the same budgetView fields,
+// but gated by the *browser's* own Date()) still shows the deduction, while
+// the server-computed ready_to_assign headline silently drops it, because
+// on the server it's already next month. apiFetch() in BudgetContext.tsx
+// attaches this on every request; falls back to serializeMonthView's own
+// default when absent/malformed (non-browser callers: cron, exports, chat).
+export function readTodayMonthParam(req: Request): string | undefined {
+  const raw = new URL(req.url).searchParams.get("todayMonth");
+  return raw && /^\d{4}-\d{2}$/.test(raw) ? raw : undefined;
+}
+
 // Project a single month's computed view from a BudgetState.
-// `todayMonth` ("YYYY-MM") defaults to the real current month — only tests
-// need to override it, to check the "viewing today" behavior deterministically.
+// `todayMonth` ("YYYY-MM") defaults to the server's own current month —
+// callers reached from the browser should pass the caller's local month
+// instead (see readTodayMonthParam above); tests override it directly to
+// check the "viewing today" behavior deterministically.
 export function serializeMonthView(
   state: BudgetState,
   month: string,

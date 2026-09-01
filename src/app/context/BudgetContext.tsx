@@ -59,8 +59,19 @@ interface LegacyBudgetData {
 const getPreviousMonth = (month: string) =>
   format(subMonths(parseISO(`${month}-01`), 1), "yyyy-MM");
 
+// Every budget-view-returning route needs to know the browser's own current
+// month, not the server runtime's — see readTodayMonthParam in
+// lib/budgetMath.ts for why (a UTC server and a non-UTC user disagree about
+// "today" for several hours around every month boundary). Attached as a
+// query param here so it works uniformly across GET/PATCH/POST without
+// touching every call site's body.
+function withTodayMonth(url: string): string {
+  const todayMonth = format(new Date(), "yyyy-MM");
+  return `${url}${url.includes("?") ? "&" : "?"}todayMonth=${todayMonth}`;
+}
+
 async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, {
+  const res = await fetch(withTodayMonth(url), {
     ...init,
     headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
   });

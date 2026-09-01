@@ -3,7 +3,7 @@ import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { loadBudgetState } from "@/lib/budgetLoader";
 import { getCurrentBudgetId } from "@/lib/budgets";
-import { serializeMonthView } from "../../../../../lib/budgetMath";
+import { serializeMonthView, readTodayMonthParam } from "../../../../../lib/budgetMath";
 import type { MoveMoneRequest } from "@/types/budget";
 
 export async function POST(req: Request) {
@@ -70,7 +70,7 @@ export async function POST(req: Request) {
 
   try {
     const state = await loadBudgetState(supabase, user.id, currentBudgetId);
-    const view = serializeMonthView(state, month);
+    const view = serializeMonthView(state, month, readTodayMonthParam(req));
     return NextResponse.json(view);
   } catch (err) {
     console.error("[budget/move-money] compute error:", err);

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { format } from "date-fns";
 import type { ComputedMonthView } from "@/types/budget";
 
 const DEBUG_BUDGET_TABLE = process.env.NEXT_PUBLIC_DEBUG_BUDGET_TABLE === "true";
@@ -19,7 +20,12 @@ async function fetchMonthView(month: string): Promise<ComputedMonthView> {
     return pendingFetches.get(month)!;
   }
 
-  const promise = fetch(`/api/budget/month/${month}`)
+  // See readTodayMonthParam in lib/budgetMath.ts — the server needs the
+  // browser's own current month, not its own runtime timezone's, or the
+  // "Assigned in Future" RTA deduction silently disappears for several
+  // hours around every month boundary on a non-UTC-local user.
+  const todayMonth = format(new Date(), "yyyy-MM");
+  const promise = fetch(`/api/budget/month/${month}?todayMonth=${todayMonth}`)
     .then(async (res) => {
       if (!res.ok) throw new Error(`Failed to fetch month ${month}: ${res.status}`);
       return res.json() as Promise<ComputedMonthView>;

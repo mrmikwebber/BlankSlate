@@ -3,12 +3,12 @@ import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { loadBudgetState } from "@/lib/budgetLoader";
 import { getCurrentBudgetId } from "@/lib/budgets";
-import { serializeMonthView } from "../../../../../../lib/budgetMath";
+import { serializeMonthView, readTodayMonthParam } from "../../../../../../lib/budgetMath";
 
 const DEBUG_BUDGET_TABLE = process.env.NEXT_PUBLIC_DEBUG_BUDGET_TABLE === "true";
 
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ month: string }> }
 ) {
   const { month } = await params;
@@ -28,7 +28,7 @@ export async function GET(
   try {
     const budgetId = await getCurrentBudgetId(supabase, user.id);
     const state = await loadBudgetState(supabase, user.id, budgetId);
-    const view = serializeMonthView(state, month);
+    const view = serializeMonthView(state, month, readTodayMonthParam(req));
 
     if (DEBUG_BUDGET_TABLE) {
       const ms = state.months.get(month);
