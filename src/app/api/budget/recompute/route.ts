@@ -7,7 +7,7 @@ import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { loadBudgetState } from "@/lib/budgetLoader";
 import { getCurrentBudgetId } from "@/lib/budgets";
-import { serializeMonthView } from "../../../../../lib/budgetMath";
+import { serializeMonthView, readTodayMonthParam } from "../../../../../lib/budgetMath";
 import type { RecomputeRequest } from "@/types/budget";
 
 export async function POST(req: Request) {
@@ -37,7 +37,8 @@ export async function POST(req: Request) {
         ? body.months.filter((m) => /^\d{4}-\d{2}$/.test(m))
         : allMonths;
 
-    const views = targetMonths.map((month) => serializeMonthView(state, month));
+    const todayMonth = readTodayMonthParam(req);
+    const views = targetMonths.map((month) => serializeMonthView(state, month, todayMonth));
 
     return NextResponse.json({
       recomputed: targetMonths,
