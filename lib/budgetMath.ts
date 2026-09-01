@@ -1141,14 +1141,16 @@ export function computeBudgetState(input: BudgetStateInput): BudgetState {
     // has a global override, matching the "collapses to the real figure
     // with no overrides" rule everywhere else in Global mode.
     const hasGlobalOverrideThisMonth = monthsWithGlobalOverrides.has(month);
-    const globalCcActivityByAccountId = hasGlobalOverrideThisMonth
+    const globalCcPass = hasGlobalOverrideThisMonth
       ? computeCreditCardActivityByAccount(
           monthTx,
           accountMap,
           globalMonthStartAvailableByItem,
           outstandingBeforeThisMonth
-        ).paymentActivity
-      : ccActivityByAccountId;
+        )
+      : null;
+    const globalCcActivityByAccountId = globalCcPass ? globalCcPass.paymentActivity : ccActivityByAccountId;
+    const globalBreakdownByCard = globalCcPass ? globalCcPass.breakdownByCard : breakdownByCard;
 
     // Second pass: credit card payment categories (all groups)
     for (const group of categoryGroups) {
@@ -1175,6 +1177,7 @@ export function computeBudgetState(input: BudgetStateInput): BudgetState {
           globalAssigned,
           globalAvailable,
           ccActivityBreakdown: cardAccountId ? breakdownByCard.get(cardAccountId) : undefined,
+          globalCcActivityBreakdown: cardAccountId ? globalBreakdownByCard.get(cardAccountId) : undefined,
         });
       }
     }
@@ -1254,6 +1257,18 @@ export function serializeMonthView(
               unbudgeted: Math.round(s.ccActivityBreakdown.unbudgeted * 100) / 100,
             }
           : undefined,
+        globalCcActivityBreakdown: (() => {
+          const b = s?.globalCcActivityBreakdown ?? s?.ccActivityBreakdown;
+          return b
+            ? {
+                spending: Math.round(b.spending * 100) / 100,
+                returns: Math.round(b.returns * 100) / 100,
+                fundedSpending: Math.round(b.fundedSpending * 100) / 100,
+                payments: Math.round(b.payments * 100) / 100,
+                unbudgeted: Math.round(b.unbudgeted * 100) / 100,
+              }
+            : undefined;
+        })(),
       };
     }),
   }));
