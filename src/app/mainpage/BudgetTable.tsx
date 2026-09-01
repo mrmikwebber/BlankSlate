@@ -2399,12 +2399,18 @@ export default function BudgetTable() {
             {activityDetailModal && (() => {
               const selMonth = format(parse(currentMonth, "yyyy-MM", new Date()), "yyyy-MM");
               const isCreditCardRow = activityDetailModal.groupName === "Credit Card Payments";
-              const ccBreakdown = isCreditCardRow
+              const ccItem = isCreditCardRow
                 ? budgetView?.categories
                     .find((g) => g.name === "Credit Card Payments")
                     ?.categoryItems.find((i) => i.name === activityDetailModal.categoryName)
-                    ?.ccActivityBreakdown
                 : undefined;
+              // Global mode: same shadow-vs-real swap as the row itself —
+              // the funded/unbudgeted split shifts when a linked spending
+              // category's shadow assigned amount changes (see
+              // globalCcActivityBreakdown in lib/budgetMath.ts).
+              const ccBreakdown = planningMode === "global"
+                ? ccItem?.globalCcActivityBreakdown
+                : ccItem?.ccActivityBreakdown;
               const txs = isCreditCardRow
                 ? (() => {
                     const cardAccount = accounts.find((a) => a.name === activityDetailModal.categoryName && a.type === "credit");

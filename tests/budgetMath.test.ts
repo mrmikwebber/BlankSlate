@@ -1505,5 +1505,61 @@ describe("Global planning mode", () => {
         expect(amex?.available).toBe(50);
         // Shadow available reflects the full $80 shadow-funded spend.
         expect(amex?.globalAvailable).toBe(80);
+
+        // Real breakdown: $30 of the $80 spend stayed unbudgeted, only $50
+        // reads as funded — untouched by the override.
+        expect(amex?.ccActivityBreakdown?.fundedSpending).toBe(50);
+        expect(amex?.ccActivityBreakdown?.unbudgeted).toBe(30);
+        // Shadow breakdown: the full $80 now reads as funded, nothing
+        // unbudgeted — the Activity-detail dialog's own numbers must shift
+        // the same way the headline globalAvailable did.
+        expect(amex?.globalCcActivityBreakdown?.fundedSpending).toBe(80);
+        expect(amex?.globalCcActivityBreakdown?.unbudgeted).toBe(0);
+    });
+
+    it("globalCcActivityBreakdown falls back to the real breakdown when nothing this month has a global override", () => {
+        const accounts = [{ id: "a-amex", name: "Amex Gold", type: "credit" as const }];
+        const rawTransactions: RawDbTransaction[] = [
+            {
+                id: "tx-spend",
+                account_id: "a-amex",
+                date: "2026-04-05",
+                payee: "Store",
+                category: "Groceries",
+                category_group: "Living",
+                balance: -80,
+                category_item_id: "item-groceries",
+                cleared: true,
+                approved: true,
+            },
+        ];
+        const state = computeBudgetState({
+            userId: "u1",
+            accounts,
+            transactions: normalizeTransactions(rawTransactions, accounts),
+            assignments: [{ categoryItemId: "item-groceries", month: "2026-04", assigned: 50 }],
+            categoryGroups: [
+                {
+                    id: "g-living",
+                    name: "Living",
+                    sortOrder: 0,
+                    items: [{ id: "item-groceries", groupId: "g-living", name: "Groceries", sortOrder: 0, snoozed: false }],
+                },
+                {
+                    id: "g-cc",
+                    name: "Credit Card Payments",
+                    sortOrder: 1,
+                    items: [{ id: "item-amex-payment", groupId: "g-cc", name: "Amex Gold", sortOrder: 0, snoozed: false }],
+                },
+            ],
+            globalAssignments: [],
+        });
+
+        const april = serializeMonthView(state, "2026-04");
+        const amex = april.categories
+            .find((c) => c.name === "Credit Card Payments")
+            ?.categoryItems.find((i) => i.id === "item-amex-payment");
+
+        expect(amex?.globalCcActivityBreakdown).toEqual(amex?.ccActivityBreakdown);
     });
 });

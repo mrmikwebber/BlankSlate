@@ -59,6 +59,13 @@ export interface ComputedCategoryItem {
   // into its YNAB-style components (see CCActivityBreakdown).
   ccActivityBreakdown?: CCActivityBreakdown;
 
+  // Shadow counterpart to ccActivityBreakdown — decomposes globalActivity
+  // (implicit in globalAvailable) the same way, so the Activity-detail
+  // dialog's Spending/Returns/Funded/Payments/Unbudgeted lines can also
+  // switch to the Global-mode figures. Falls back to ccActivityBreakdown
+  // when nothing this month has a global override.
+  globalCcActivityBreakdown?: CCActivityBreakdown;
+
   // Excludes this category's transactions from Insights charts (donut,
   // spending pace, trend, category table) without affecting the budget
   // itself — e.g. a reimbursed personal loan that isn't real spending.
@@ -214,6 +221,7 @@ export interface MonthItemState {
   ccActivityBreakdown?: CCActivityBreakdown; // Credit Card Payments items only
   globalAssigned: number;        // shadow assigned; falls back to `assigned` when no override
   globalAvailable: number;       // shadow available; see ComputedCategoryItem.globalAvailable
+  globalCcActivityBreakdown?: CCActivityBreakdown; // shadow breakdown; see ComputedCategoryItem.globalCcActivityBreakdown
 }
 
 export interface MonthState {
