@@ -486,7 +486,17 @@ export default function InlineTransactionRow({
       category_item_id: mainCategoryItemId,
       balance,
       cleared,
-      ...(finalizeEarly ? { pending: false, approved: true, entered_early: true } : {}),
+      // Any brand-new manual entry (not editing an existing row) is, by
+      // definition, ahead of whatever the bank/SimpleFin will eventually
+      // report for it — mark it entered_early the same way the pending-
+      // review flow already does, so the next sync matches the real
+      // posted transaction against this one (same account + close date +
+      // exact amount) instead of inserting a duplicate alongside it.
+      ...(finalizeEarly
+        ? { pending: false, approved: true, entered_early: true }
+        : !isEdit
+          ? { entered_early: true }
+          : {}),
     };
 
     // Save payee to database if it's not a transfer
@@ -594,6 +604,9 @@ export default function InlineTransactionRow({
           category_group: isOtherCredit ? "Credit Card Payments" : (effectiveItem ? effectiveGroup : null),
           category_item_id: mirrorCategoryItemId,
           balance: -balance,
+          // Same reasoning as transactionData above — this leg is also a
+          // brand-new manual entry, on the other account.
+          entered_early: true,
         };
 
         await addTransactionWithMirror(accountId, transactionData, otherAccount.id, mirrorTransactionData);
