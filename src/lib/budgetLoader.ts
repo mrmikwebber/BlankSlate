@@ -57,7 +57,7 @@ export async function loadBudgetState(
       supabase
         .from("category_items")
         .select(
-          "id, group_id, name, sort_order, snoozed, target, notes, notes_history, is_discretionary_pool, hide_from_insights"
+          "id, group_id, name, sort_order, snoozed, target, notes, notes_history, is_discretionary_pool, hide_from_insights, archived_at"
         )
         .eq("user_id", userId)
         .eq("budget_id", budgetId)
@@ -115,6 +115,7 @@ export async function loadBudgetState(
       notes_history: item.notes_history ?? undefined,
       isDiscretionaryPool: item.is_discretionary_pool ?? false,
       isHiddenFromInsights: item.hide_from_insights ?? false,
+      archived: item.archived_at != null,
     });
   }
 

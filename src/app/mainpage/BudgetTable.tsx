@@ -116,6 +116,7 @@ export default function BudgetTable() {
     enterSandbox,
     exitSandbox,
     setCategorySnooze,
+    setCategoryArchived,
     importPending,
     confirmImport,
     undoImport,
@@ -210,10 +211,8 @@ export default function BudgetTable() {
   const [categoryDeleteContext, setCategoryDeleteContext] = useState<{
     categoryName: string;
     itemName: string;
-    assigned: number;
-    activity: number;
-    available: number;
   } | null>(null);
+  const [categoryDeleteError, setCategoryDeleteError] = useState(false);
   const [categoryContext, setCategoryContext] = useState<{
     x: number;
     y: number;
@@ -276,6 +275,7 @@ export default function BudgetTable() {
   const overspentCategoriesCount = useMemo(() => {
     if (!budgetView) return 0;
     const isAvailableOverspent = (item: ComputedCategoryItem) =>
+      !item.archived &&
       (planningMode === "global" ? getDisplayedAvailableFor(item) : item.available) < 0;
     return budgetView.categories.reduce((count, group) => {
       return count + group.categoryItems.filter(isAvailableOverspent).length;
@@ -430,6 +430,7 @@ export default function BudgetTable() {
 
     const withFilteredItems = orderedCategories.map((category) => {
       const filteredItems = category.categoryItems.filter((item) => {
+        if (item.archived) return false;
         const available = planningMode === "global" ? getDisplayedAvailableFor(item) : item.available;
         const assigned = planningMode === "global" ? getDisplayedAssignedFor(item) : item.assigned;
         switch (selectedFilter) {
@@ -452,6 +453,15 @@ export default function BudgetTable() {
       ? withFilteredItems
       : withFilteredItems.filter((category) => category.categoryItems.length > 0);
   }, [budgetView, selectedFilter, planningMode, getDisplayedAvailableFor, getDisplayedAssignedFor]);
+
+  const archivedItems = useMemo(() => {
+    return (budgetView?.categories ?? []).flatMap((category) =>
+      category.categoryItems
+        .filter((item) => item.archived)
+        .map((item) => ({ groupName: category.name, item }))
+    );
+  }, [budgetView]);
+  const [archivedModalOpen, setArchivedModalOpen] = useState(false);
 
   const toggleCategory = useCallback((category: string) => {
     setOpenCategories((prev) => ({ ...prev, [category]: !prev[category] }));
@@ -639,19 +649,40 @@ export default function BudgetTable() {
 
   const isDeletingRef = useRef(false);
 
-  const handleReassignDelete = () => {
+  // The reassign target select stores the target item's id directly (not its
+  // name — two items in different groups could share a name), so it's passed
+  // straight through as reassignToItemId with no name lookup needed.
+  const handleReassignDelete = async () => {
     if (isDeletingRef.current || !categoryDeleteContext) return;
     isDeletingRef.current = true;
+    setCategoryDeleteError(false);
 
     const itemId = getItemIdByName(categoryDeleteContext.categoryName, categoryDeleteContext.itemName);
-    if (itemId) {
-      deleteCategoryItem(itemId);
-    }
-    setCategoryDeleteContext(null);
-
-    setTimeout(() => {
+    if (!itemId) {
       isDeletingRef.current = false;
-    }, 100);
+      return;
+    }
+
+    try {
+      await deleteCategoryItem(itemId, selectedTargetCategory || undefined);
+      setCategoryDeleteContext(null);
+      setSelectedTargetCategory("");
+    } catch (err) {
+      // The server refuses to delete a category that still has transactions
+      // anywhere in its history unless a reassignment target is given — surface
+      // that inline instead of silently closing (see DELETE handler in
+      // src/app/api/budget/category-item/[id]/route.ts).
+      if (err instanceof Error && err.message === "HAS_TRANSACTIONS") {
+        setCategoryDeleteError(true);
+      } else {
+        setCategoryDeleteContext(null);
+        setSelectedTargetCategory("");
+      }
+    } finally {
+      setTimeout(() => {
+        isDeletingRef.current = false;
+      }, 100);
+    }
   };
 
   // Selecting a source in the Move Money popover executes immediately — no
@@ -984,12 +1015,70 @@ export default function BudgetTable() {
           document.body
         )}
 
+      {/* Archived categories modal */}
+      {archivedModalOpen &&
+        createPortal(
+          <div
+            className="fixed inset-0 bg-black/30 dark:bg-black/50 z-50 flex items-center justify-center"
+            onClick={() => setArchivedModalOpen(false)}
+          >
+            <div
+              className="bg-slate-50 dark:bg-slate-900 p-5 rounded-lg shadow-lg w-full max-w-md space-y-3 text-slate-800 dark:text-slate-200"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h2 className="text-base font-semibold">Archived categories</h2>
+              <p className="text-sm text-muted-foreground dark:text-slate-400">
+                Hidden from the budget table, but their history and totals are
+                still counted exactly as before.
+              </p>
+              <div className="max-h-80 overflow-y-auto divide-y divide-slate-200 dark:divide-slate-700">
+                {archivedItems.length === 0 && (
+                  <p className="text-sm text-muted-foreground py-2">No archived categories.</p>
+                )}
+                {archivedItems.map(({ groupName, item }) => (
+                  <div key={item.id} className="flex items-center justify-between gap-2 py-2">
+                    <div>
+                      <div className="text-sm">{item.name}</div>
+                      <div className="text-[11px] text-slate-400 dark:text-slate-500">{groupName}</div>
+                    </div>
+                    <Button
+                      data-cy="unarchive-category"
+                      data-item={item.name}
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setCategoryArchived(item.id, false)}
+                      className="text-[11px] h-6 px-2 text-ledger-600 dark:text-ledger-400 hover:bg-ledger-50 dark:hover:bg-ledger-950"
+                    >
+                      Unarchive
+                    </Button>
+                  </div>
+                ))}
+              </div>
+              <div className="flex justify-end pt-1">
+                <Button
+                  data-cy="archived-modal-close"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setArchivedModalOpen(false)}
+                >
+                  Close
+                </Button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
       {/* Category delete / reassign modal */}
       {categoryDeleteContext &&
         createPortal(
           <div
             className="fixed inset-0 bg-black/30 dark:bg-black/50 z-50 flex items-center justify-center"
-            onClick={() => setCategoryDeleteContext(null)}
+            onClick={() => {
+              setCategoryDeleteContext(null);
+              setSelectedTargetCategory("");
+              setCategoryDeleteError(false);
+            }}
           >
             <div
               className="bg-slate-50 dark:bg-slate-900 p-5 rounded-lg shadow-lg w-full max-w-md space-y-4 text-slate-800 dark:text-slate-200"
@@ -999,91 +1088,63 @@ export default function BudgetTable() {
                 Delete “{categoryDeleteContext.itemName}”?
               </h2>
 
-              {categoryDeleteContext.assigned !== 0 ||
-                categoryDeleteContext.activity !== 0 ? (
-                <>
-                  <p className="text-sm text-muted-foreground">
-                    This category has existing funds or activity. Where should
-                    they be moved?
-                  </p>
+              <p className="text-sm text-muted-foreground dark:text-slate-400">
+                If this category has any transactions in its history, choose
+                where to move them. Leave blank if it doesn&apos;t.
+              </p>
 
-                  <select
-                    data-cy="reassign-target-select"
-                    className="w-full border border-slate-300 dark:border-slate-700 rounded-md px-2 py-1 text-sm bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200"
-                    value={selectedTargetCategory}
-                    onChange={(e) => setSelectedTargetCategory(e.target.value)}
-                  >
-                    <option value="">Select a target category</option>
-                    {budgetView?.categories
-                      .flatMap((cat) =>
-                        cat.categoryItems
-                          .filter(
-                            (i) => i.name !== categoryDeleteContext.itemName
-                          )
-                          .map((i) => i.name)
-                      )
-                      .map((name) => (
-                        <option key={name} value={name}>
-                          {name}
-                        </option>
-                      ))}
-                  </select>
+              <select
+                data-cy="reassign-target-select"
+                className="w-full border border-slate-300 dark:border-slate-700 rounded-md px-2 py-1 text-sm bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200"
+                value={selectedTargetCategory}
+                onChange={(e) => {
+                  setSelectedTargetCategory(e.target.value);
+                  setCategoryDeleteError(false);
+                }}
+              >
+                <option value="">No existing transactions</option>
+                {budgetView?.categories
+                  .flatMap((cat) =>
+                    cat.categoryItems
+                      .filter((i) => i.name !== categoryDeleteContext.itemName)
+                      .map((i) => ({ id: i.id, name: i.name }))
+                  )
+                  .map((opt) => (
+                    <option key={opt.id} value={opt.id}>
+                      {opt.name}
+                    </option>
+                  ))}
+              </select>
 
-                  <div className="flex justify-end gap-2 pt-2">
-                    <Button
-                      data-cy="reassign-cancel"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setCategoryDeleteContext(null)}
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      data-cy="reassign-confirm"
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => {
-                        handleReassignDelete();
-                        setCategoryDeleteContext(null);
-                      }}
-                      disabled={!selectedTargetCategory}
-                    >
-                      Confirm &amp; reassign
-                    </Button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <p className="text-sm text-muted-foreground dark:text-slate-400">
-                    This category has no funds or activity. Are you sure you
-                    want to delete it?
-                  </p>
-                  <div className="flex justify-end gap-2 pt-2">
-                    <Button
-                      data-cy="delete-cancel"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setCategoryDeleteContext(null)}
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      data-cy="delete-confirm"
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => {
-                        if (categoryDeleteContext) {
-                          const itemId = getItemIdByName(categoryDeleteContext.categoryName, categoryDeleteContext.itemName);
-                          if (itemId) deleteCategoryItem(itemId);
-                        }
-                        setCategoryDeleteContext(null);
-                      }}
-                    >
-                      Confirm delete
-                    </Button>
-                  </div>
-                </>
+              {categoryDeleteError && (
+                <p className="text-sm text-red-600 dark:text-red-400">
+                  This category still has transactions in its history — pick a
+                  category above to move them to, then confirm again.
+                </p>
               )}
+
+              <div className="flex justify-end gap-2 pt-2">
+                <Button
+                  data-cy="delete-cancel"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setCategoryDeleteContext(null);
+                    setSelectedTargetCategory("");
+                    setCategoryDeleteError(false);
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  data-cy="delete-confirm"
+                  size="sm"
+                  variant="destructive"
+                  onClick={handleReassignDelete}
+                >
+                  Confirm delete
+                </Button>
+              </div>
             </div>
           </div>,
           document.body
@@ -1172,24 +1233,42 @@ export default function BudgetTable() {
             </button>
 
             {categoryContext.groupName !== "Credit Card Payments" ? (
-              <button
-                data-cy="category-delete"
-                data-category={categoryContext.groupName}
-                data-item={categoryContext.itemName}
-                onClick={() => {
-                  setCategoryDeleteContext({
-                    categoryName: categoryContext.groupName,
-                    itemName: categoryContext.itemName,
-                    assigned: categoryContext.assigned,
-                    activity: categoryContext.activity,
-                    available: categoryContext.available,
-                  });
-                  setCategoryContext(null);
-                }}
-                className="px-3 py-2 hover:bg-red-50 dark:hover:bg-red-950 text-red-600 dark:text-red-400 w-full text-left border-t border-slate-200 dark:border-slate-700"
-              >
-                Delete category
-              </button>
+              <>
+                <button
+                  data-cy="category-archive"
+                  data-category={categoryContext.groupName}
+                  data-item={categoryContext.itemName}
+                  onClick={() => {
+                    const iid = getItemIdByName(categoryContext.groupName, categoryContext.itemName);
+                    if (iid) setCategoryArchived(iid, true);
+                    setCategoryContext(null);
+                  }}
+                  className="px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 w-full text-left border-t border-slate-200 dark:border-slate-700"
+                >
+                  <div>Archive category</div>
+                  <div className="text-[10px] text-slate-400 dark:text-slate-500 font-normal">
+                    Done with it, but it happened — keeps history, hides it here
+                  </div>
+                </button>
+                <button
+                  data-cy="category-delete"
+                  data-category={categoryContext.groupName}
+                  data-item={categoryContext.itemName}
+                  onClick={() => {
+                    setCategoryDeleteContext({
+                      categoryName: categoryContext.groupName,
+                      itemName: categoryContext.itemName,
+                    });
+                    setCategoryContext(null);
+                  }}
+                  className="px-3 py-2 hover:bg-red-50 dark:hover:bg-red-950 text-slate-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400 w-full text-left"
+                >
+                  <div className="text-xs">Delete category</div>
+                  <div className="text-[10px] font-normal">
+                    Only for a mistake — can&apos;t be undone
+                  </div>
+                </button>
+              </>
             ) : (
               <div className="px-3 py-2 text-[11px] text-muted-foreground border-t border-slate-200 dark:border-slate-700">
                 Cannot delete (credit card category)
@@ -1547,6 +1626,18 @@ export default function BudgetTable() {
                       Undo Import
                     </Button>
                   </div>
+                )}
+
+                {archivedItems.length > 0 && (
+                  <Button
+                    data-cy="archived-categories-button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setArchivedModalOpen(true)}
+                    className="text-[11px] h-6 px-2 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"
+                  >
+                    Archived ({archivedItems.length})
+                  </Button>
                 )}
               </div>
               <div className="flex items-center gap-1">

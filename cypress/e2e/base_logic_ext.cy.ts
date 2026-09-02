@@ -251,7 +251,7 @@ cy.wait(500);
                     cy.get("[data-cy=category-delete]").click();
                   });
                 cy.get("[data-cy=reassign-target-select]").select(catTarget);
-                cy.get("[data-cy=reassign-confirm]").click();
+                cy.get("[data-cy=delete-confirm]").click();
                 cy.get(`[data-cy="category-row"][data-category="${groupName}"][data-item="${catSource}"]`).should("not.exist");
                 cy.getReadyToAssignValue().then((finalRTA) => {
                   expect(finalRTA).to.eq(initialRTA);

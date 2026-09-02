@@ -50,11 +50,16 @@ export default function MobileBudgetTab() {
 
   const sortedGroups = useMemo(() => {
     if (!budgetView) return [] as ComputedCategory[];
-    return [...budgetView.categories].sort((a, b) => {
-      if (a.name === "Credit Card Payments") return -1;
-      if (b.name === "Credit Card Payments") return 1;
-      return a.name.localeCompare(b.name);
-    });
+    return [...budgetView.categories]
+      .map((group) => ({
+        ...group,
+        categoryItems: group.categoryItems.filter((item) => !item.archived),
+      }))
+      .sort((a, b) => {
+        if (a.name === "Credit Card Payments") return -1;
+        if (b.name === "Credit Card Payments") return 1;
+        return a.name.localeCompare(b.name);
+      });
   }, [budgetView]);
 
   // Default all groups expanded once data first loads for a month. Keyed

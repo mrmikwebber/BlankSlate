@@ -22,10 +22,12 @@ Use these canonical selectors and interaction patterns:
 - Category values inside a category row:
   - Activity cell: `[data-cy="item-activity"]`
   - Available cell: `[data-cy="item-available"]`
-- Deletion/reassign flow:
-  - Delete: `[data-cy="category-delete"]`
+- Deletion/reassign flow (one modal; the reassign select is always present,
+  leave it blank if the category has no transactions to move):
+  - Delete (opens modal): `[data-cy="category-delete"]`
   - Reassign select: `[data-cy="reassign-target-select"]`
-  - Confirm: `[data-cy="reassign-confirm"]`
+  - Confirm: `[data-cy="delete-confirm"]`
+  - Cancel: `[data-cy="delete-cancel"]`
 
 ## Month navigation
 

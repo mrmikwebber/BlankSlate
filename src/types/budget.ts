@@ -70,6 +70,14 @@ export interface ComputedCategoryItem {
   // spending pace, trend, category table) without affecting the budget
   // itself — e.g. a reimbursed personal loan that isn't real spending.
   isHiddenFromInsights?: boolean;
+
+  // Hides this item from the active budget table and category pickers
+  // without touching its data — its transactions keep their real
+  // category_item_id and its assigned/available still flows into Ready to
+  // Assign and Total Available exactly as before. For "I'm done with this
+  // category but it happened" (e.g. a finished one-off project), as opposed
+  // to Delete, which is for "I made a mistake creating this."
+  archived?: boolean;
 }
 
 export interface ComputedCategory {
@@ -166,6 +174,7 @@ export interface CategoryItemMeta {
   notes_history?: NoteEntry[];
   isDiscretionaryPool?: boolean;
   isHiddenFromInsights?: boolean;
+  archived?: boolean;
 }
 
 export interface CategoryGroupMeta {
@@ -299,6 +308,7 @@ export interface UpdateItemRequest {
   notes?: string;
   isDiscretionaryPool?: boolean;
   isHiddenFromInsights?: boolean;
+  archived?: boolean;
 }
 
 export interface RecomputeRequest {

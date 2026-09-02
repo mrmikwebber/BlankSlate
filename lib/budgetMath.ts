@@ -1268,6 +1268,7 @@ export function serializeMonthView(
         notes_history: item.notes_history,
         isDiscretionaryPool: item.isDiscretionaryPool,
         isHiddenFromInsights: item.isHiddenFromInsights,
+        archived: item.archived,
         ccActivityBreakdown: s?.ccActivityBreakdown
           ? {
               spending: Math.round(s.ccActivityBreakdown.spending * 100) / 100,

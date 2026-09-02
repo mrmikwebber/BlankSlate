@@ -121,7 +121,7 @@ function buildContextValue(_placeholder: null) {
     addCategoryGroup: (name: string) => Promise<void>;
     deleteCategoryGroup: (id: string) => Promise<void>;
     addItemToCategory: (groupId: string, itemName: string, sortOrder?: number) => Promise<string>;
-    deleteCategoryItem: (id: string) => Promise<void>;
+    deleteCategoryItem: (id: string, reassignToItemId?: string) => Promise<void>;
     renameCategoryGroup: (id: string, newName: string) => Promise<void>;
     renameCategory: (id: string, newName: string) => Promise<void>;
     reorderCategoryGroups: (orderedIds: { id: string; sortOrder: number }[]) => Promise<void>;
@@ -133,6 +133,7 @@ function buildContextValue(_placeholder: null) {
       sourceOrderedIds: { id: string; sortOrder: number }[]
     ) => Promise<void>;
     setCategorySnooze: (id: string, snoozed: boolean) => Promise<void>;
+    setCategoryArchived: (id: string, archived: boolean) => Promise<void>;
     setCategoryTarget: (id: string, target: Target | null) => Promise<void>;
     setGlobalAssigned: (categoryItemId: string, month: string, value: number) => Promise<void>;
     setPlannedIncome: (month: string, amount: number) => Promise<void>;
@@ -400,7 +401,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
   );
 
   const deleteCategoryItem = useCallback(
-    async (id: string) => {
+    async (id: string, reassignToItemId?: string) => {
       // Deleting cascades to that item's budget_assignments across every
       // month, which can shift RTA by an amount we can't know client-side
       // (only this month's assigned is visible here) — so only the row
@@ -418,7 +419,10 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
       }
 
       try {
-        await apiFetch(`/api/budget/category-item/${id}`, { method: "DELETE" });
+        await apiFetch(`/api/budget/category-item/${id}`, {
+          method: "DELETE",
+          ...(reassignToItemId ? { body: JSON.stringify({ reassignToItemId }) } : {}),
+        });
         // Same reasoning as deleteCategoryGroup: avoid invalidateAll()'s
         // setMutationView(null), which would let the stale pre-delete view
         // flash back in. Instead fetch the authoritative post-delete view
@@ -651,6 +655,17 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
       await apiFetch(`/api/budget/category-item/${id}`, {
         method: "PATCH",
         body: JSON.stringify({ snoozed }),
+      });
+      invalidate();
+    },
+    [invalidate]
+  );
+
+  const setCategoryArchived = useCallback(
+    async (id: string, archived: boolean) => {
+      await apiFetch(`/api/budget/category-item/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ archived }),
       });
       invalidate();
     },
@@ -1162,6 +1177,7 @@ export const BudgetProvider = ({ children }: { children: React.ReactNode }) => {
         reorderCategoryItems,
         moveCategoryItemToGroup,
         setCategorySnooze,
+        setCategoryArchived,
         setCategoryTarget,
         setGlobalAssigned,
         setPlannedIncome,
