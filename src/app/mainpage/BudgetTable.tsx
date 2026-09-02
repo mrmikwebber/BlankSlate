@@ -2061,7 +2061,7 @@ export default function BudgetTable() {
                                     <GripVertical className="h-3 w-3" />
                                   </span>
                                   <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-1.5">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
                                       <span className="font-medium truncate text-slate-800 dark:text-slate-200 text-sm">
                                         {group.name === "Credit Card Payments"
                                           ? item.name.toLowerCase().replace(/\b\w/g, (c: string) => c.toUpperCase())
@@ -2075,7 +2075,7 @@ export default function BudgetTable() {
                                         className="flex-shrink-0"
                                       />
                                       {item.snoozed && (
-                                        <Badge variant="warning" data-cy="snoozed-pill">
+                                        <Badge variant="warning" data-cy="snoozed-pill" className="shrink-0 whitespace-nowrap">
                                           Snoozed
                                         </Badge>
                                       )}
@@ -2084,12 +2084,14 @@ export default function BudgetTable() {
                                           variant="negative"
                                           data-cy="card-overspend-last-month"
                                           title="Card spending last month that wasn't covered by an assignment — it's now part of the card's balance. Assign extra here to catch up."
+                                          className="shrink-0 whitespace-nowrap px-2.5 py-1"
                                         >
                                           Overspent {formatToUSD(previousCardOverspend)} last month
                                         </Badge>
                                       )}
                                       {displayItem.target && getTargetStatus(displayItem).message && (
                                         <Badge
+                                          className="shrink-0 whitespace-nowrap"
                                           variant={
                                             getTargetStatus(displayItem).type === "overspent"
                                               ? "negative"

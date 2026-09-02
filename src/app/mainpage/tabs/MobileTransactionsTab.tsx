@@ -256,6 +256,13 @@ export default function MobileTransactionsTab({ accountId, onBack }: Props) {
       category_group: effectiveGroup,
       category_item_id: mainCategoryItemId,
       balance,
+      // A brand-new manual entry is, by definition, ahead of whatever the
+      // bank/SimpleFin will eventually report for it — mark it entered_early
+      // so the next sync matches the real posted transaction against this
+      // one (same account + close date + exact amount) instead of inserting
+      // a duplicate alongside it. See InlineTransactionRow.tsx's desktop
+      // equivalent.
+      ...(editingTxId ? {} : { entered_early: true }),
     };
 
     if (editingTxId) {
@@ -274,6 +281,7 @@ export default function MobileTransactionsTab({ accountId, onBack }: Props) {
         category_group: mirrorGroup,
         category_item_id: mirrorCategoryItemId,
         balance: -balance,
+        entered_early: true,
       });
     } else {
       await addTransaction(accountId, txPayload);
