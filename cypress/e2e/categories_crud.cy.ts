@@ -175,8 +175,8 @@ describe('Categories and Groups CRUD', () => {
               .first()
               .as('reassignSelect');
             cy.get('@reassignSelect').select(targetItem, { force: true });
-            cy.get('@reassignSelect').should('have.value', targetItem);
-            cy.get('[data-cy="reassign-confirm"]').filter(':visible').first().click();
+            cy.get('@reassignSelect').find(':selected').should('have.text', targetItem);
+            cy.get('[data-cy="delete-confirm"]').filter(':visible').first().click();
 
             cy.wait(500); // wait for UI to update
 

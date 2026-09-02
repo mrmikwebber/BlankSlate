@@ -308,7 +308,7 @@ describe("Multi-month behaviour – carryover, overspending, edits", () => {
           cy.get("body").then(($b) => {
             if ($b.find("[data-cy='reassign-target-select']").length) {
               cy.get("[data-cy='reassign-target-select']").select(targetItem);
-              cy.get("[data-cy='reassign-confirm']").click();
+              cy.get("[data-cy='delete-confirm']").click();
             }
           });
         } else {
